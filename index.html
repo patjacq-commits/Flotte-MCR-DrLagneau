@@ -5,12 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MCR Opont — Gestion de Flotte</title>
 
-<!-- Firebase SDK (modules ESM via CDN) -->
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, deleteDoc, writeBatch }
-    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
+<!-- Firebase SDK compat (plus fiable que les modules ESM) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
   const firebaseConfig = {
     apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
     authDomain: "mcr-opont.firebaseapp.com",
@@ -20,81 +18,78 @@
     appId: "1:575160365295:web:484622526437981a23eb1a"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
 
   // ── Helpers Firestore ────────────────────────────────────────
 
-  // Sauvegarde un tableau complet dans une collection Firestore
-  // Chaque élément doit avoir un champ `id` unique
   async function fbSaveCollection(colName, arr) {
     try {
-      const batch = writeBatch(db);
-      // Supprimer tous les docs existants puis réécrire
-      const snap = await getDocs(collection(db, colName));
-      snap.forEach(d => batch.delete(d.ref));
+      const colRef = db.collection(colName);
+      const snap = await colRef.get();
+      const batch = db.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
       arr.forEach(item => {
-        const ref = doc(collection(db, colName), String(item.id));
+        const ref = colRef.doc(String(item.id));
         batch.set(ref, item);
       });
       await batch.commit();
-    } catch(e) { console.warn('Firebase write error:', e); }
+    } catch(e) { console.warn('Firebase write error:', colName, e); }
   }
 
-  // Lit une collection et retourne un tableau
   async function fbGetCollection(colName) {
     try {
-      const snap = await getDocs(collection(db, colName));
+      const snap = await db.collection(colName).get();
       return snap.docs.map(d => d.data());
-    } catch(e) { console.warn('Firebase read error:', e); return null; }
+    } catch(e) { console.warn('Firebase read error:', colName, e); return null; }
   }
 
-  // Écoute en temps réel une collection
   function fbListen(colName, callback) {
-    return onSnapshot(collection(db, colName), snap => {
+    return db.collection(colName).onSnapshot(snap => {
       callback(snap.docs.map(d => d.data()));
-    }, e => console.warn('Firebase listen error:', e));
+    }, e => console.warn('Firebase listen error:', colName, e));
   }
 
-  // Expose les fonctions Firebase au script principal (non-module)
+  // Expose globalement
   window._fb = { db, fbSaveCollection, fbGetCollection, fbListen };
 
   // ── Chargement initial depuis Firebase ──────────────────────
-  window._fbReady = (async () => {
-    const [maint, ct, veh, rv, ab, cw, chauf] = await Promise.all([
-      fbGetCollection('maintenances'),
-      fbGetCollection('ctEvents'),
-      fbGetCollection('vehicules'),
-      fbGetCollection('rendezvous'),
-      fbGetCollection('adblues'),
-      fbGetCollection('carwashes'),
-      fbGetCollection('messagesChauf')
-    ]);
-
-    // Injecter dans le state global si des données existent dans Firebase
-    if (maint  && maint.length)  { window._fbData_maintenances   = maint;  }
-    if (ct     && ct.length)     { window._fbData_ctEvents        = ct;     }
-    if (veh    && veh.length)    { window._fbData_vehicules       = veh;    }
-    if (rv     && rv.length)     { window._fbData_rendezvous      = rv;     }
-    if (ab     && ab.length)     { window._fbData_adblues         = ab;     }
-    if (cw     && cw.length)     { window._fbData_carwashes       = cw;     }
-    if (chauf  && chauf.length)  { window._fbData_messagesChauf   = chauf;  }
-
-    // Signaler que Firebase est prêt
+  window._fbReady = Promise.all([
+    fbGetCollection('maintenances'),
+    fbGetCollection('ctEvents'),
+    fbGetCollection('vehicules'),
+    fbGetCollection('rendezvous'),
+    fbGetCollection('adblues'),
+    fbGetCollection('carwashes'),
+    fbGetCollection('messagesChauf')
+  ]).then(([maint, ct, veh, rv, ab, cw, chauf]) => {
+    if (maint  && maint.length)  window._fbData_maintenances  = maint;
+    if (ct     && ct.length)     window._fbData_ctEvents      = ct;
+    if (veh    && veh.length)    window._fbData_vehicules     = veh;
+    if (rv     && rv.length)     window._fbData_rendezvous    = rv;
+    if (ab     && ab.length)     window._fbData_adblues       = ab;
+    if (cw     && cw.length)     window._fbData_carwashes     = cw;
+    if (chauf  && chauf.length)  window._fbData_messagesChauf = chauf;
     window.dispatchEvent(new Event('firebase-ready'));
-  })();
+  }).catch(e => {
+    console.warn('Firebase init error:', e);
+    window.dispatchEvent(new Event('firebase-ready'));
+  });
 
-  // ── Listeners temps réel (sync entre appareils) ─────────────
-  const COLLECTIONS = {
-    maintenances:  data => { window.maintenances   = data; window._refreshUI(); },
-    ctEvents:      data => { window.ctEvents        = data; window._refreshUI(); },
-    vehicules:     data => { if(data.length) { window.vehicules = data; window._refreshUI(); } },
-    rendezvous:    data => { window.rendezvous      = data; window._refreshUI(); },
-    adblues:       data => { window.adblues         = data; window._refreshUI(); },
-    carwashes:     data => { window.carwashes        = data; window._refreshUI(); },
-    messagesChauf: data => { window.messagesChauf   = data; window._refreshUI(); updateTabChauf?.(); }
-  };
-  Object.entries(COLLECTIONS).forEach(([col, cb]) => fbListen(col, cb));
+  // ── Listeners temps réel ────────────────────────────────────
+  // (démarrés après DOMContentLoaded pour ne pas bloquer le rendu)
+  window.addEventListener('firebase-ready', () => {
+    const COLS = {
+      maintenances:  d => { window.maintenances   = d; window._refreshUI?.(); },
+      ctEvents:      d => { window.ctEvents        = d; window._refreshUI?.(); },
+      vehicules:     d => { if(d.length){ window.vehicules = d; window._refreshUI?.(); } },
+      rendezvous:    d => { window.rendezvous      = d; window._refreshUI?.(); },
+      adblues:       d => { window.adblues         = d; window._refreshUI?.(); },
+      carwashes:     d => { window.carwashes        = d; window._refreshUI?.(); },
+      messagesChauf: d => { window.messagesChauf   = d; window._refreshUI?.(); window.updateTabChauf?.(); }
+    };
+    Object.entries(COLS).forEach(([col, cb]) => fbListen(col, cb));
+  }, { once: true });
 </script>
 <style>
 /* ===== VARIABLES & RESET ===== */
