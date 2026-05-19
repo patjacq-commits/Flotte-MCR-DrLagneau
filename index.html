@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MCR Opont — Gestion de Flotte</title>
+<title>MCR Opont — Gestion de Flotte v1.0.0</title>
 
 <!-- Firebase SDK compat (plus fiable que les modules ESM) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -436,10 +436,21 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- NAVBAR -->
 <div class="navbar">
   <div class="navbar-logo">🏥 MCR</div>
-  <div class="navbar-title">Maison Croix-Rouge — Opont<br><small style="opacity:0.7;font-size:11px">Gestion de flotte véhicules</small></div>
+  <div class="navbar-title">
+    Maison Croix-Rouge — Opont
+    <br><small style="opacity:0.7;font-size:11px">Gestion de flotte véhicules</small>
+  </div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.0.0</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
+</div>
+
+<!-- Bannière mise à jour (Service Worker) -->
+<div id="update-banner" style="display:none;position:fixed;top:calc(var(--navbar-h) + 44px);left:0;right:0;z-index:80;background:#1a6fa8;color:#fff;padding:10px 16px;display:none;align-items:center;gap:12px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
+  <span>🔄 Une nouvelle version est disponible !</span>
+  <button onclick="applyUpdate()" style="background:#fff;color:#1a6fa8;border:none;border-radius:5px;padding:5px 12px;font-weight:700;cursor:pointer;font-size:13px">Mettre à jour</button>
+  <button onclick="document.getElementById('update-banner').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:18px;margin-left:auto">✕</button>
 </div>
 
 <!-- ONGLETS -->
@@ -2710,6 +2721,51 @@ function toast(msg) {
   t.textContent = msg; t.style.display = 'block';
   clearTimeout(t._timer);
   t._timer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+// ============================================================
+// VERSION & SERVICE WORKER
+// ============================================================
+const APP_VERSION = '1.0.0';
+
+let _swRegistration = null;
+
+function applyUpdate() {
+  if (_swRegistration && _swRegistration.waiting) {
+    _swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+  }
+  window.location.reload();
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        _swRegistration = reg;
+
+        // Détecter une mise à jour disponible
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // Nouvelle version disponible — afficher la bannière
+              document.getElementById('update-banner').style.display = 'flex';
+            }
+          });
+        });
+
+        // Si le SW en attente existait déjà au chargement
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          document.getElementById('update-banner').style.display = 'flex';
+        }
+      })
+      .catch(e => console.warn('Service Worker non enregistré:', e));
+
+    // Rechargement automatique quand le nouveau SW prend le contrôle
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
+  });
 }
 
 // ============================================================
