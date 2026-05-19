@@ -1942,7 +1942,6 @@ function renderAlerte(a) {
   // Carte RV planifié
   if (a.level === 'rv') {
     const r = a.rv;
-    const heureStr = r.heure ? ` à ${r.heure}` : '';
     const icon = a.typeRV === 'ct' ? '🏥' : '🔧';
     return `<div class="alerte-item" style="border-left-color:var(--vert);background:var(--vert-clair)">
       <div class="alerte-icon">${icon}</div>
@@ -1953,7 +1952,7 @@ function renderAlerte(a) {
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
         <span class="badge ok" style="font-size:11px">✅ RV confirmé</span>
-        <button class="alerte-rv-btn" style="color:#1a6b38;border-color:var(--vert);font-size:11px" onclick="openRV('${a.vehId}','${a.typeRV}')">Modifier</button>
+        ${isAdmin ? `<button class="alerte-rv-btn" style="color:#1a6b38;border-color:var(--vert);font-size:11px" onclick="openRV('${a.vehId}','${a.typeRV}')">Modifier</button>` : ''}
       </div>
     </div>`;
   }
@@ -1966,12 +1965,12 @@ function renderAlerte(a) {
         <h4 style="color:var(--rouge-fonce);font-size:15px">${a.titre}</h4>
         <p style="font-weight:600">${a.detail}</p>
       </div>
-      <button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 RV repassage</button>
+      ${isAdmin ? `<button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 RV repassage</button>` : ''}
     </div>`;
   }
 
-  // Alerte normale avec bouton Prendre RV si CT ou entretien
-  const btnRV = a.vehId
+  // Alerte normale — bouton Prendre RV visible uniquement pour les admins
+  const btnRV = (isAdmin && a.vehId)
     ? `<button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 Prendre RV</button>`
     : '';
   return `<div class="alerte-item ${a.level}">
@@ -2231,6 +2230,7 @@ function onRVTypeChange() {
 }
 
 function openRV(vehId, typeRV) {
+  if (!isAdmin) { toast('Accès réservé aux administrateurs.'); return; }
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
   _rvVehId = vehId;
