@@ -4,6 +4,98 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MCR Opont — Gestion de Flotte</title>
+
+<!-- Firebase SDK (modules ESM via CDN) -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, collection, doc, setDoc, getDocs, onSnapshot, deleteDoc, writeBatch }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
+    authDomain: "mcr-opont.firebaseapp.com",
+    projectId: "mcr-opont",
+    storageBucket: "mcr-opont.firebasestorage.app",
+    messagingSenderId: "575160365295",
+    appId: "1:575160365295:web:484622526437981a23eb1a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // ── Helpers Firestore ────────────────────────────────────────
+
+  // Sauvegarde un tableau complet dans une collection Firestore
+  // Chaque élément doit avoir un champ `id` unique
+  async function fbSaveCollection(colName, arr) {
+    try {
+      const batch = writeBatch(db);
+      // Supprimer tous les docs existants puis réécrire
+      const snap = await getDocs(collection(db, colName));
+      snap.forEach(d => batch.delete(d.ref));
+      arr.forEach(item => {
+        const ref = doc(collection(db, colName), String(item.id));
+        batch.set(ref, item);
+      });
+      await batch.commit();
+    } catch(e) { console.warn('Firebase write error:', e); }
+  }
+
+  // Lit une collection et retourne un tableau
+  async function fbGetCollection(colName) {
+    try {
+      const snap = await getDocs(collection(db, colName));
+      return snap.docs.map(d => d.data());
+    } catch(e) { console.warn('Firebase read error:', e); return null; }
+  }
+
+  // Écoute en temps réel une collection
+  function fbListen(colName, callback) {
+    return onSnapshot(collection(db, colName), snap => {
+      callback(snap.docs.map(d => d.data()));
+    }, e => console.warn('Firebase listen error:', e));
+  }
+
+  // Expose les fonctions Firebase au script principal (non-module)
+  window._fb = { db, fbSaveCollection, fbGetCollection, fbListen };
+
+  // ── Chargement initial depuis Firebase ──────────────────────
+  window._fbReady = (async () => {
+    const [maint, ct, veh, rv, ab, cw, chauf] = await Promise.all([
+      fbGetCollection('maintenances'),
+      fbGetCollection('ctEvents'),
+      fbGetCollection('vehicules'),
+      fbGetCollection('rendezvous'),
+      fbGetCollection('adblues'),
+      fbGetCollection('carwashes'),
+      fbGetCollection('messagesChauf')
+    ]);
+
+    // Injecter dans le state global si des données existent dans Firebase
+    if (maint  && maint.length)  { window._fbData_maintenances   = maint;  }
+    if (ct     && ct.length)     { window._fbData_ctEvents        = ct;     }
+    if (veh    && veh.length)    { window._fbData_vehicules       = veh;    }
+    if (rv     && rv.length)     { window._fbData_rendezvous      = rv;     }
+    if (ab     && ab.length)     { window._fbData_adblues         = ab;     }
+    if (cw     && cw.length)     { window._fbData_carwashes       = cw;     }
+    if (chauf  && chauf.length)  { window._fbData_messagesChauf   = chauf;  }
+
+    // Signaler que Firebase est prêt
+    window.dispatchEvent(new Event('firebase-ready'));
+  })();
+
+  // ── Listeners temps réel (sync entre appareils) ─────────────
+  const COLLECTIONS = {
+    maintenances:  data => { window.maintenances   = data; window._refreshUI(); },
+    ctEvents:      data => { window.ctEvents        = data; window._refreshUI(); },
+    vehicules:     data => { if(data.length) { window.vehicules = data; window._refreshUI(); } },
+    rendezvous:    data => { window.rendezvous      = data; window._refreshUI(); },
+    adblues:       data => { window.adblues         = data; window._refreshUI(); },
+    carwashes:     data => { window.carwashes        = data; window._refreshUI(); },
+    messagesChauf: data => { window.messagesChauf   = data; window._refreshUI(); updateTabChauf?.(); }
+  };
+  Object.entries(COLLECTIONS).forEach(([col, cb]) => fbListen(col, cb));
+</script>
 <style>
 /* ===== VARIABLES & RESET ===== */
 :root {
@@ -351,6 +443,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="navbar-logo">🏥 MCR</div>
   <div class="navbar-title">Maison Croix-Rouge — Opont<br><small style="opacity:0.7;font-size:11px">Gestion de flotte véhicules</small></div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
+  <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
 </div>
 
@@ -1003,26 +1096,91 @@ const VEHICULES_DATA = [
 const GARAGES = ['MIA (Bouillon)', 'Picard (Bouillon)', 'MS Motor', 'Albert (Gedinne)', 'Dion'];
 
 // ============================================================
-// STATE & PERSISTANCE
+// STATE & PERSISTANCE (Firebase + localStorage fallback)
 // ============================================================
 let isAdmin = false;
-let maintenances = JSON.parse(localStorage.getItem('mcr_maintenances') || '[]');
-let ctEvents = JSON.parse(localStorage.getItem('mcr_ct') || '[]');
-let vehicules = JSON.parse(localStorage.getItem('mcr_vehicules') || 'null') || VEHICULES_DATA.map(v => ({...v}));
 
-let rendezvous = JSON.parse(localStorage.getItem('mcr_rv') || '[]');
-let adblues    = JSON.parse(localStorage.getItem('mcr_adblue') || '[]');
-let carwashes  = JSON.parse(localStorage.getItem('mcr_carwash') || '[]');
-let messagesChauf = JSON.parse(localStorage.getItem('mcr_chauf') || '[]');
+// Initialisation depuis Firebase (injecté par le module) ou localStorage
+let maintenances  = window._fbData_maintenances  || JSON.parse(localStorage.getItem('mcr_maintenances') || '[]');
+let ctEvents      = window._fbData_ctEvents       || JSON.parse(localStorage.getItem('mcr_ct')           || '[]');
+let vehicules     = window._fbData_vehicules      || JSON.parse(localStorage.getItem('mcr_vehicules')    || 'null') || VEHICULES_DATA.map(v => ({...v}));
+let rendezvous    = window._fbData_rendezvous     || JSON.parse(localStorage.getItem('mcr_rv')           || '[]');
+let adblues       = window._fbData_adblues        || JSON.parse(localStorage.getItem('mcr_adblue')       || '[]');
+let carwashes     = window._fbData_carwashes      || JSON.parse(localStorage.getItem('mcr_carwash')      || '[]');
+let messagesChauf = window._fbData_messagesChauf  || JSON.parse(localStorage.getItem('mcr_chauf')        || '[]');
 
-function saveAll() {
+// Expose les variables au module Firebase (listeners temps réel)
+window.maintenances   = maintenances;
+window.ctEvents       = ctEvents;
+window.vehicules      = vehicules;
+window.rendezvous     = rendezvous;
+window.adblues        = adblues;
+window.carwashes      = carwashes;
+window.messagesChauf  = messagesChauf;
+
+/* Rafraîchit l'UI quand Firebase pousse une mise à jour temps réel */
+let _refreshTimer = null;
+window._refreshUI = function() {
+  // Synchroniser les variables locales depuis window (mis à jour par les listeners)
+  maintenances  = window.maintenances;
+  ctEvents      = window.ctEvents;
+  vehicules     = window.vehicules;
+  rendezvous    = window.rendezvous;
+  adblues       = window.adblues;
+  carwashes     = window.carwashes;
+  messagesChauf = window.messagesChauf;
+  // Debounce pour éviter les rafraîchissements en cascade
+  clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(() => {
+    const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+    if (activePage === 'accueil')     renderAccueil();
+    if (activePage === 'vehicules')   renderVehicules();
+    if (activePage === 'alertes')     renderAlertesFull();
+    if (activePage === 'chauf')       renderMessagesChauf();
+    if (activePage === 'historique')  renderHistorique();
+    if (activePage === 'maintenance') renderMaintTable();
+    updateTabAlertes();
+    updateTabChauf();
+    // Afficher indicateur de sync
+    showSyncIndicator();
+  }, 400);
+};
+
+/* Sauvegarde dans Firebase ET localStorage */
+async function saveAll() {
+  // localStorage (hors ligne / fallback)
   localStorage.setItem('mcr_maintenances', JSON.stringify(maintenances));
-  localStorage.setItem('mcr_ct', JSON.stringify(ctEvents));
-  localStorage.setItem('mcr_vehicules', JSON.stringify(vehicules));
-  localStorage.setItem('mcr_rv', JSON.stringify(rendezvous));
-  localStorage.setItem('mcr_adblue', JSON.stringify(adblues));
-  localStorage.setItem('mcr_carwash', JSON.stringify(carwashes));
-  localStorage.setItem('mcr_chauf', JSON.stringify(messagesChauf));
+  localStorage.setItem('mcr_ct',           JSON.stringify(ctEvents));
+  localStorage.setItem('mcr_vehicules',    JSON.stringify(vehicules));
+  localStorage.setItem('mcr_rv',           JSON.stringify(rendezvous));
+  localStorage.setItem('mcr_adblue',       JSON.stringify(adblues));
+  localStorage.setItem('mcr_carwash',      JSON.stringify(carwashes));
+  localStorage.setItem('mcr_chauf',        JSON.stringify(messagesChauf));
+
+  // Firebase (cloud, synchronisé entre appareils)
+  if (window._fb) {
+    const { fbSaveCollection } = window._fb;
+    // S'assurer que chaque élément a un id unique
+    const ensureId = (arr, prefix) => arr.map((x,i) => ({ ...x, id: x.id || `${prefix}_${Date.now()}_${i}` }));
+    await Promise.all([
+      fbSaveCollection('maintenances',  ensureId(maintenances,  'maint')),
+      fbSaveCollection('ctEvents',      ensureId(ctEvents,      'ct')),
+      fbSaveCollection('vehicules',     vehicules),
+      fbSaveCollection('rendezvous',    ensureId(rendezvous,    'rv')),
+      fbSaveCollection('adblues',       ensureId(adblues,       'ab')),
+      fbSaveCollection('carwashes',     ensureId(carwashes,     'cw')),
+      fbSaveCollection('messagesChauf', ensureId(messagesChauf, 'chauf')),
+    ]).catch(e => console.warn('Firebase saveAll error:', e));
+  }
+}
+
+/* Indicateur visuel de synchronisation */
+function showSyncIndicator() {
+  let ind = document.getElementById('sync-indicator');
+  if (!ind) return;
+  ind.style.opacity = '1';
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => { ind.style.opacity = '0'; }, 2000);
 }
 
 // ============================================================
@@ -2563,10 +2721,6 @@ function toast(msg) {
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
-  renderAccueil();
-  updateTabAlertes();
-  updateTabChauf();
-
   // Fermer modals en cliquant dehors
   document.getElementById('modal-veh').addEventListener('click', function(e) {
     if (e.target === this) closeModal('modal-veh');
@@ -2581,6 +2735,38 @@ document.addEventListener('DOMContentLoaded', () => {
   // Pré-remplir date maintenance
   const md = document.getElementById('maint-date');
   if (md) md.value = new Date().toISOString().slice(0,10);
+
+  function initUI() {
+    // Synchroniser depuis window si Firebase a déjà chargé
+    if (window._fbData_vehicules)      vehicules     = window._fbData_vehicules;
+    if (window._fbData_maintenances)   maintenances  = window._fbData_maintenances;
+    if (window._fbData_ctEvents)       ctEvents      = window._fbData_ctEvents;
+    if (window._fbData_rendezvous)     rendezvous    = window._fbData_rendezvous;
+    if (window._fbData_adblues)        adblues       = window._fbData_adblues;
+    if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
+    if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+
+    renderAccueil();
+    updateTabAlertes();
+    updateTabChauf();
+  }
+
+  // Attendre Firebase (max 4 secondes, sinon démarrer avec localStorage)
+  const timeout = setTimeout(() => {
+    console.warn('Firebase timeout — démarrage avec données locales');
+    initUI();
+  }, 4000);
+
+  window.addEventListener('firebase-ready', () => {
+    clearTimeout(timeout);
+    initUI();
+  }, { once: true });
+
+  // Si Firebase déjà prêt (cache navigateur)
+  if (window._fbData_vehicules !== undefined) {
+    clearTimeout(timeout);
+    initUI();
+  }
 });
 </script>
 </body>
