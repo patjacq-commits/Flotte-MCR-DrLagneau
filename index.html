@@ -556,37 +556,145 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div class="form-grid" style="margin-top:12px">
       <div class="form-group">
         <label>Liquide lave-glace</label>
-        <input type="text" id="maint-lg" placeholder="ex: 1,5 L" />
+        <div style="display:flex;gap:6px">
+          <select id="maint-lg" style="flex:1" onchange="handleSelectOther(this,'maint-lg-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="0,5 L">0,5 L</option>
+            <option value="1 L">1 L</option>
+            <option value="1,5 L">1,5 L</option>
+            <option value="2 L">2 L</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-lg-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
       </div>
       <div class="form-group">
         <label>Huile moteur</label>
-        <input type="text" id="maint-hm" placeholder="ex: 0,5 L" />
+        <div style="display:flex;gap:6px">
+          <select id="maint-hm" style="flex:1" onchange="handleSelectOther(this,'maint-hm-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="0,5 L">0,5 L</option>
+            <option value="1 L">1 L</option>
+            <option value="1,5 L">1,5 L</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-hm-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
       </div>
       <div class="form-group">
         <label>Huile de frein</label>
-        <input type="text" id="maint-hf" placeholder="ex: OK / ajusté" />
+        <div style="display:flex;gap:6px">
+          <select id="maint-hf" style="flex:1" onchange="handleSelectOther(this,'maint-hf-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Ajusté">Ajusté</option>
+            <option value="Remplacé">Remplacé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-hf-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
       </div>
       <div class="form-group">
         <label>Liquide refroidissement</label>
-        <input type="text" id="maint-lr" placeholder="ex: OK" />
+        <div style="display:flex;gap:6px">
+          <select id="maint-lr" style="flex:1" onchange="handleSelectOther(this,'maint-lr-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Ajusté">Ajusté</option>
+            <option value="Remplacé">Remplacé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-lr-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
       </div>
       <div class="form-group">
         <label>Éclairage</label>
-        <input type="text" id="maint-ecl" placeholder="ex: OK" />
+        <div style="display:flex;gap:6px">
+          <select id="maint-ecl" style="flex:1" onchange="handleSelectOther(this,'maint-ecl-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Ampoule remplacée">Ampoule remplacée</option>
+            <option value="Défaut signalé">Défaut signalé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-ecl-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
       </div>
       <div class="form-group">
         <label>Pneus</label>
-        <input type="text" id="maint-pneus" placeholder="ex: VP / PVP" />
+        <div style="display:flex;gap:6px">
+          <select id="maint-pneus" style="flex:1" onchange="handleSelectOther(this,'maint-pneus-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="VP">VP (Vérification pression)</option>
+            <option value="PVP">PVP (Pression vérifiée + pneu)</option>
+            <option value="Usure signalée">Usure signalée</option>
+            <option value="Remplacé">Remplacé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-pneus-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
       </div>
       <div class="form-group">
-        <label>Car Wash</label>
-        <select id="maint-cw"><option value="">—</option><option value="oui">Oui</option><option value="non">Non</option></select>
+        <label>🚿 Car Wash</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select id="maint-cw" style="flex:1;min-width:80px" onchange="toggleCWFields()">
+            <option value="">—</option>
+            <option value="oui">Oui</option>
+            <option value="non">Non</option>
+          </select>
+          <select id="maint-cw-lieu" style="flex:1;min-width:100px;display:none">
+            <option value="Noirefontaine">Noirefontaine</option>
+            <option value="Bièvre">Bièvre</option>
+          </select>
+          <input type="number" id="maint-cw-montant" step="0.01" min="0" placeholder="Montant €" style="display:none;width:90px" />
+        </div>
       </div>
       <div class="form-group">
-        <label>AD Blue</label>
-        <input type="text" id="maint-adblue" placeholder="ex: 10 L" />
+        <label>💧 AD Blue</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-adblue" style="flex:1" onchange="handleSelectOther(this,'maint-adblue-custom')">
+            <option value="">—</option>
+            <option value="5">5 L</option>
+            <option value="10">10 L</option>
+            <option value="15">15 L</option>
+            <option value="20">20 L</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="number" id="maint-adblue-custom" step="0.01" min="0" placeholder="L" style="display:none;width:80px" />
+        </div>
       </div>
     </div>
+
+    <!-- Extérieur -->
+    <div class="form-grid" style="margin-top:12px">
+      <div class="form-group">
+        <label>🚗 Extérieur</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-ext" style="flex:1" onchange="handleSelectOther(this,'maint-ext-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Rayure signalée">Rayure signalée</option>
+            <option value="Bosse signalée">Bosse signalée</option>
+            <option value="Dommage signalé">Dommage signalé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-ext-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Photos -->
+    <div class="form-group" style="margin-top:12px">
+      <label>📷 Photos (extérieur / anomalies)</label>
+      <input type="file" id="maint-photos" accept="image/*" multiple capture="environment"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px;background:var(--blanc);width:100%"
+        onchange="previewPhotos()" />
+      <div id="maint-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>
+
     <div class="form-group" style="margin-top:12px">
       <label>Remarques / anomalies</label>
       <textarea id="maint-rem" placeholder="Décrire toute anomalie constatée..."></textarea>
@@ -602,7 +710,7 @@ td.ok { color: var(--vert); font-weight: 600; }
     <h3>Maintenances enregistrées</h3>
     <div class="table-wrap">
       <table id="maint-table">
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Km</th><th>Remarques</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Km</th><th>CW</th><th>Ext.</th><th>Remarques</th><th>Action</th></tr></thead>
         <tbody id="maint-tbody"></tbody>
       </table>
     </div>
@@ -2009,8 +2117,18 @@ function renderAlertesFull() {
 // ============================================================
 // RENDER VEHICULES
 // ============================================================
+// Ordre d'affichage imposé
+const ORDRE_VEHICULES = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM941','TLAN527','TLAN910','1RER037'];
+
 function renderVehicules() {
-  document.getElementById('vehicules-grid').innerHTML = vehicules.map(v => {
+  // Trier selon l'ordre imposé
+  const ordonnes = [...vehicules].sort((a, b) => {
+    const ia = ORDRE_VEHICULES.indexOf(a.id);
+    const ib = ORDRE_VEHICULES.indexOf(b.id);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+
+  document.getElementById('vehicules-grid').innerHTML = ordonnes.map(v => {
     const ct = ctStatus(v);
     const ent = entretienStatus(v);
     const isCamion = v.type === 'Camionnette';
@@ -2032,7 +2150,7 @@ function renderVehicules() {
       }
     }
 
-    // Dernière entrée AdBlue pour ce véhicule (direct ou via maintenance)
+    // Dernière entrée AdBlue
     const lastAbDirect = adblues.filter(a => a.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
     const lastAbMaintRaw = maintenances.filter(m => m.vehId === v.id && m.adblue && m.adblue.trim()).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
     const lastAbMaint = lastAbMaintRaw ? { date: lastAbMaintRaw.date, litre: parseFloat(String(lastAbMaintRaw.adblue).replace(',','.').replace(/[^0-9.]/g,'')) || null } : null;
@@ -2043,10 +2161,15 @@ function renderVehicules() {
       ? `<div class="veh-row"><span class="label" style="color:var(--bleu)">💧 AdBlue</span><span class="val" style="color:var(--bleu);font-weight:600">${lastAb.litre.toFixed(2)} L — ${formatDate(lastAb.date)}</span></div>`
       : '';
 
-    // Dernier Car Wash pour ce véhicule
+    // Dernier Car Wash
     const lastCW = carwashes.filter(c => c.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
     const cwRow = lastCW
       ? `<div class="veh-row"><span class="label">🚿 Car Wash</span><span class="val" style="color:var(--texte-sec)">le ${formatDate(lastCW.date)} — ${lastCW.lieu}</span></div>`
+      : '';
+
+    // Équipement (rampe / élévateur)
+    const equipBadge = v.equipement
+      ? `<span class="badge info" style="font-size:10px;margin-top:3px">${v.equipement === 'Élévateur' ? '🔼 Élévateur' : '📐 Rampe'}</span>`
       : '';
 
     return `<div class="veh-card">
@@ -2055,6 +2178,7 @@ function renderVehicules() {
         <div class="veh-info" style="flex:1;min-width:0">
           <h3>${v.marque}</h3>
           <span class="immat">${v.immat}</span>
+          ${equipBadge}
           <div style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:4px;letter-spacing:0.5px;word-break:break-all">${v.chassis}</div>
         </div>
         <div class="veh-badges" style="flex-shrink:0">
@@ -2396,53 +2520,134 @@ function deleteRV(id) {
 // ============================================================
 function populateMaintSelect() {
   const sel = document.getElementById('maint-veh');
-  sel.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+  sel.innerHTML = ORDRE_VEHICULES.map(id => {
+    const v = vehicules.find(x => x.id === id);
+    return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+  }).join('');
   document.getElementById('maint-date').value = new Date().toISOString().slice(0,10);
   renderMaintTable();
 }
 
-function saveMaintenance() {
-  const date = document.getElementById('maint-date').value;
+/* Gère les listes déroulantes avec option "Autre" */
+function handleSelectOther(sel, customId) {
+  const customEl = document.getElementById(customId);
+  if (!customEl) return;
+  if (sel.value === '__other__') {
+    customEl.style.display = '';
+    customEl.focus();
+  } else {
+    customEl.style.display = 'none';
+    customEl.value = '';
+  }
+}
+
+/* Récupère la valeur finale d'un select avec option Autre */
+function getSelectVal(selId, customId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return '';
+  if (sel.value === '__other__') {
+    const custom = document.getElementById(customId);
+    return custom ? custom.value.trim() : '';
+  }
+  return sel.value;
+}
+
+/* Affiche/masque les champs Car Wash lieu et montant */
+function toggleCWFields() {
+  const cw = document.getElementById('maint-cw').value;
+  const show = cw === 'oui';
+  document.getElementById('maint-cw-lieu').style.display = show ? '' : 'none';
+  document.getElementById('maint-cw-montant').style.display = show ? '' : 'none';
+}
+
+/* Prévisualise les photos sélectionnées */
+function previewPhotos() {
+  const input = document.getElementById('maint-photos');
+  const preview = document.getElementById('maint-photos-preview');
+  preview.innerHTML = '';
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:6px;border:1.5px solid var(--gris-bord);cursor:pointer';
+      img.title = file.name;
+      img.onclick = () => window.open(e.target.result, '_blank');
+      preview.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* Encode les photos en base64 pour stockage */
+async function encodePhotos() {
+  const input = document.getElementById('maint-photos');
+  if (!input.files.length) return [];
+  const promises = Array.from(input.files).map(file => new Promise(res => {
+    const reader = new FileReader();
+    reader.onload = e => res({ name: file.name, data: e.target.result });
+    reader.readAsDataURL(file);
+  }));
+  return Promise.all(promises);
+}
+
+async function saveMaintenance() {
+  const date  = document.getElementById('maint-date').value;
   const vehId = document.getElementById('maint-veh').value;
-  const km = parseInt(document.getElementById('maint-km').value);
+  const km    = parseInt(document.getElementById('maint-km').value);
   if (!date || !vehId || !km) { toast('Veuillez remplir au moins la date, le véhicule et le kilométrage.'); return; }
+
+  // Valeurs des listes dynamiques
+  const cwVal     = document.getElementById('maint-cw').value;
+  const cwLieu    = cwVal === 'oui' ? document.getElementById('maint-cw-lieu').value : '';
+  const cwMontant = cwVal === 'oui' ? parseFloat(document.getElementById('maint-cw-montant').value) || null : null;
+  const abVal     = getSelectVal('maint-adblue', 'maint-adblue-custom');
+  const abLitre   = abVal ? parseFloat(String(abVal).replace(',','.').replace(/[^0-9.]/g,'')) || null : null;
+
+  // Photos encodées en base64
+  const photos = await encodePhotos();
 
   const rec = {
     id: Date.now(),
     date, vehId, km,
-    lg: document.getElementById('maint-lg').value,
-    hm: document.getElementById('maint-hm').value,
-    hf: document.getElementById('maint-hf').value,
-    lr: document.getElementById('maint-lr').value,
-    ecl: document.getElementById('maint-ecl').value,
-    pneus: document.getElementById('maint-pneus').value,
-    cw: document.getElementById('maint-cw').value,
-    adblue: document.getElementById('maint-adblue').value,
+    lg:     getSelectVal('maint-lg',    'maint-lg-custom'),
+    hm:     getSelectVal('maint-hm',    'maint-hm-custom'),
+    hf:     getSelectVal('maint-hf',    'maint-hf-custom'),
+    lr:     getSelectVal('maint-lr',    'maint-lr-custom'),
+    ecl:    getSelectVal('maint-ecl',   'maint-ecl-custom'),
+    pneus:  getSelectVal('maint-pneus', 'maint-pneus-custom'),
+    ext:    getSelectVal('maint-ext',   'maint-ext-custom'),
+    cw: cwVal, cwLieu, cwMontant,
+    adblue: abVal,
+    photos,
     rem: document.getElementById('maint-rem').value
   };
 
   maintenances.unshift(rec);
 
-  // Mettre à jour le km du véhicule si supérieur
+  // Mettre à jour km du véhicule
   const veh = vehicules.find(v => v.id === vehId);
   if (veh && km > veh.km) veh.km = km;
 
-  // Si AdBlue renseigné dans la fiche maintenance → créer une entrée AdBlue automatiquement
-  if (rec.adblue && rec.adblue.trim()) {
-    const litreRaw = parseFloat(rec.adblue.replace(',', '.').replace(/[^0-9.]/g, ''));
-    if (!isNaN(litreRaw) && litreRaw > 0) {
-      // Éviter les doublons : ne pas re-créer si une entrée identique (même date+vehId) existe déjà
-      const dejaExiste = adblues.some(a => a.vehId === vehId && a.date === date && a.litre === litreRaw);
-      if (!dejaExiste) {
-        adblues.unshift({ id: Date.now() + 1, vehId, date, litre: litreRaw, km, source: 'maintenance' });
-      }
+  // Car Wash → créer entrée dans carwashes si oui
+  if (cwVal === 'oui') {
+    const dejaExiste = carwashes.some(c => c.vehId === vehId && c.date === date);
+    if (!dejaExiste) {
+      carwashes.unshift({ id: Date.now() + 2, vehId, date, lieu: cwLieu, montant: cwMontant });
     }
   }
 
-  saveAll();
+  // AdBlue → créer entrée dans adblues
+  if (abLitre && abLitre > 0) {
+    const dejaExiste = adblues.some(a => a.vehId === vehId && a.date === date && a.litre === abLitre);
+    if (!dejaExiste) {
+      adblues.unshift({ id: Date.now() + 1, vehId, date, litre: abLitre, km, source: 'maintenance' });
+    }
+  }
+
+  await saveAll();
   clearMaintForm();
   renderMaintTable();
-  // Rafraîchir le dashboard si visible
   if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
   toast('Maintenance enregistrée ✅');
 }
@@ -2452,14 +2657,19 @@ function renderMaintTable() {
   if (!tbody) return;
   tbody.innerHTML = maintenances.map(m => {
     const v = vehicules.find(x => x.id === m.vehId);
+    const photosHtml = m.photos && m.photos.length
+      ? m.photos.map(p => `<img src="${p.data}" title="${p.name}" style="width:36px;height:28px;object-fit:cover;border-radius:4px;cursor:pointer;margin-right:2px" onclick="window.open('${p.data}','_blank')" />`).join('')
+      : '';
     return `<tr>
       <td>${formatDate(m.date)}</td>
       <td>${v ? v.marque + ' ' + v.immat : m.vehId}</td>
       <td>${m.km.toLocaleString('fr-BE')} km</td>
-      <td style="max-width:200px;font-size:12px">${m.rem || '—'}</td>
+      <td>${m.cw === 'oui' ? `✅ ${m.cwLieu||''}${m.cwMontant ? ' ' + Number(m.cwMontant).toFixed(2) + '€' : ''}` : (m.cw === 'non' ? '—' : '')}</td>
+      <td style="font-size:12px">${m.ext || '—'}${photosHtml ? '<br>' + photosHtml : ''}</td>
+      <td style="max-width:180px;font-size:12px">${m.rem || '—'}</td>
       <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteMaint(${m.id})">✕</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:var(--texte-sec);text-align:center;padding:20px">Aucune maintenance enregistrée</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="color:var(--texte-sec);text-align:center;padding:20px">Aucune maintenance enregistrée</td></tr>';
 }
 
 function deleteMaint(id) {
@@ -2469,10 +2679,25 @@ function deleteMaint(id) {
 }
 
 function clearMaintForm() {
-  ['maint-km','maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-adblue','maint-rem'].forEach(id => {
+  // Réinitialiser les selects
+  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-adblue','maint-ext'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
   });
+  // Masquer les champs custom
+  ['maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom','maint-ecl-custom','maint-pneus-custom','maint-adblue-custom','maint-ext-custom'].forEach(id => {
+    const el = document.getElementById(id); if(el) { el.value = ''; el.style.display = 'none'; }
+  });
+  // Car Wash
   document.getElementById('maint-cw').value = '';
+  document.getElementById('maint-cw-lieu').style.display = 'none';
+  document.getElementById('maint-cw-montant').style.display = 'none';
+  document.getElementById('maint-cw-montant').value = '';
+  // Km et remarques
+  const kmEl = document.getElementById('maint-km'); if(kmEl) kmEl.value = '';
+  const remEl = document.getElementById('maint-rem'); if(remEl) remEl.value = '';
+  // Photos
+  const photosEl = document.getElementById('maint-photos'); if(photosEl) photosEl.value = '';
+  const previewEl = document.getElementById('maint-photos-preview'); if(previewEl) previewEl.innerHTML = '';
 }
 
 // ============================================================
