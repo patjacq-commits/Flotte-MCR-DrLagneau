@@ -469,6 +469,10 @@ td.ok { color: var(--vert); font-weight: 600; }
     Maison Croix-Rouge — Opont
     <br><small style="opacity:0.7;font-size:11px">Gestion de flotte véhicules</small>
   </div>
+  <div id="navbar-maint" style="font-size:10px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);padding:3px 8px;border-radius:8px;white-space:nowrap;flex-shrink:0;text-align:center;line-height:1.4">
+    <div style="font-size:9px;opacity:0.75;text-transform:uppercase;letter-spacing:0.5px">Proch. maint.</div>
+    <div id="navbar-maint-date" style="font-weight:700"></div>
+  </div>
   <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.5.0</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
@@ -994,7 +998,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Km</th><th>Détails</th></tr></thead>
+      <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Km</th><th>Détails</th><th>Actions</th></tr></thead>
       <tbody id="hist-tbody"></tbody>
     </table>
   </div>
@@ -1224,6 +1228,19 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div style="margin-top:16px;display:flex;gap:10px">
       <button class="btn primary" onclick="sauvegarderNouveauVeh()">💾 Ajouter le véhicule</button>
       <button class="btn" onclick="closeModal('modal-nouveau-veh')">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITION HISTORIQUE -->
+<div class="modal-overlay" id="modal-edit-hist">
+  <div class="modal" style="max-width:440px">
+    <button class="modal-close" onclick="closeModal('modal-edit-hist')">✕</button>
+    <h2 id="edit-hist-title" style="margin-bottom:16px;font-size:16px"></h2>
+    <div id="edit-hist-fields" class="form-grid"></div>
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="btn primary" onclick="saveEditHist()">💾 Enregistrer</button>
+      <button class="btn" onclick="closeModal('modal-edit-hist')">Annuler</button>
     </div>
   </div>
 </div>
@@ -1512,6 +1529,23 @@ function daysUntil(s) {
   const d = parseDate(s);
   if (!d) return null;
   return Math.round((d - TODAY) / 86400000);
+}
+
+/* Met à jour la date de prochaine maintenance dans la navbar */
+function updateNavbarMaint() {
+  const el = document.getElementById('navbar-maint-date');
+  if (!el) return;
+  const sam = prochainSamediFinDeMois();
+  const j   = Math.round((sam - TODAY) / 86400000);
+  el.textContent = sam.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit' });
+  const wrap = document.getElementById('navbar-maint');
+  if (wrap) {
+    wrap.style.background = j <= 3
+      ? 'rgba(231,76,60,0.55)'
+      : j <= 7
+        ? 'rgba(230,126,34,0.45)'
+        : 'rgba(255,255,255,0.12)';
+  }
 }
 
 /* Retourne la date du samedi le plus proche du dernier jour du mois M/Y.
@@ -2757,7 +2791,17 @@ function populateMaintSelect() {
     return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
   }).join('');
   document.getElementById('maint-date').value = new Date().toISOString().slice(0,10);
-  injecterToutesCustomOpts(); // injecter les options personnalisées sauvegardées
+  injecterToutesCustomOpts();
+
+  // Valeur par défaut "OK" sur tous les selects sauf CW et AdBlue
+  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = 'OK';
+  });
+  // CW et AdBlue restent vides
+  const cw = document.getElementById('maint-cw'); if (cw) cw.value = '';
+  const ab = document.getElementById('maint-adblue'); if (ab) ab.value = '';
+
   renderMaintTable();
 }
 
@@ -3320,7 +3364,9 @@ function renderHistorique() {
 
   const sel = document.getElementById('hist-filter-veh');
   if (sel && sel.options.length <= 1) {
-    vehicules.forEach(v => {
+    ORDRE_VEHICULES.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
       const opt = document.createElement('option');
       opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
       sel.appendChild(opt);
@@ -3333,15 +3379,19 @@ function renderHistorique() {
     if (filterType && filterType !== 'maintenance') return;
     if (filterVeh && m.vehId !== filterVeh) return;
     const v = vehicules.find(x => x.id === m.vehId);
-    rows.push({ date: m.date, veh: v ? v.marque + ' ' + v.immat : m.vehId, type:'Maintenance', km: m.km, detail: m.rem || (m.lg ? `LG: ${m.lg}` : '') });
+    const detail = [m.rem, m.ext, m.cw === 'oui' ? `CW ${m.cwLieu||''}` : ''].filter(Boolean).join(' — ') || (m.lg ? `LG: ${m.lg}` : '—');
+    rows.push({ date: m.date, veh: v ? v.marque + ' ' + v.immat : m.vehId, type:'Maintenance', km: m.km, detail, srcType:'maintenance', srcId: m.id });
   });
 
   ctEvents.forEach(c => {
-    if (filterType && filterType !== c.type) return;
+    if (filterType && filterType !== c.type && filterType !== 'ct' && filterType !== 'garage') {
+      if (filterType !== c.type) return;
+    }
     if (filterVeh && c.vehId !== filterVeh) return;
     const v = vehicules.find(x => x.id === c.vehId);
-    const typeLabel = c.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
-    rows.push({ date: c.date, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: typeLabel, km: c.km, detail: c.result + (c.rem ? ' — ' + c.rem : '') });
+    const typeLabel = CT_TYPE_LABELS?.[c.type] || (c.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage');
+    const heureStr = c.heure ? ` ${c.heure}` : '';
+    rows.push({ date: c.date + heureStr, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: typeLabel, km: c.km, detail: (c.result || '') + (c.rem ? ' — ' + c.rem : ''), srcType:'ct', srcId: c.id });
   });
 
   rendezvous.forEach(r => {
@@ -3351,36 +3401,154 @@ function renderHistorique() {
     const typeLabel = r.type === 'ct' ? 'CT' : 'Entretien';
     const statutLabel = r.statut === 'planifie' ? '📅 Planifié' : r.statut === 'fait' ? '✅ Effectué' : '❌ Annulé';
     const heureStr = r.heure ? ` ${r.heure}` : '';
-    rows.push({ date: r.date, veh: v ? v.marque + ' ' + v.immat : r.vehId, type: `RV ${typeLabel}`, km: r.km, detail: `${statutLabel}${r.garage ? ' — ' + r.garage : ''}${r.notes ? ' — ' + r.notes : ''}${heureStr}` });
+    rows.push({ date: r.date, veh: v ? v.marque + ' ' + v.immat : r.vehId, type: `RV ${typeLabel}`, km: r.km, detail: `${statutLabel}${r.garage ? ' — ' + r.garage : ''}${r.notes ? ' — ' + r.notes : ''}${heureStr}`, srcType:'rv', srcId: r.id });
   });
 
-  // AdBlue
   adblues.forEach(a => {
     if (filterType && filterType !== 'adblue') return;
     if (filterVeh && a.vehId !== filterVeh) return;
     const v = vehicules.find(x => x.id === a.vehId);
-    rows.push({ date: a.date, veh: v ? v.marque + ' ' + v.immat : a.vehId, type: '💧 AdBlue', km: a.km, detail: `${a.litre.toFixed(2)} L${a.source === 'maintenance' ? ' (via maintenance)' : ''}` });
+    rows.push({ date: a.date, veh: v ? v.marque + ' ' + v.immat : a.vehId, type: '💧 AdBlue', km: a.km, detail: `${a.litre.toFixed(2)} L${a.source === 'maintenance' ? ' (via maintenance)' : ''}`, srcType:'adblue', srcId: a.id });
   });
 
-  // Car Wash
   carwashes.forEach(c => {
     if (filterType && filterType !== 'carwash') return;
     if (filterVeh && c.vehId !== filterVeh) return;
     const v = vehicules.find(x => x.id === c.vehId);
-    rows.push({ date: c.date, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: '🚿 Car Wash', km: null, detail: `${c.lieu} — ${c.montant ? Number(c.montant).toFixed(2) + ' €' : '—'}` });
+    rows.push({ date: c.date, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: '🚿 Car Wash', km: null, detail: `${c.lieu} — ${c.montant ? Number(c.montant).toFixed(2) + ' €' : '—'}`, srcType:'carwash', srcId: c.id });
   });
 
   rows.sort((a,b) => b.date.localeCompare(a.date));
 
+  const adminBtns = (srcType, srcId) => isAdmin ? `
+    <button class="btn btn-sm" onclick="editHistItem('${srcType}',${srcId})" title="Modifier">✏️</button>
+    <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteHistItem('${srcType}',${srcId})" title="Supprimer">✕</button>
+  ` : '';
+
   document.getElementById('hist-tbody').innerHTML = rows.length
     ? rows.map(r => `<tr>
-        <td>${formatDate(r.date)}</td>
-        <td>${r.veh}</td>
-        <td><span class="badge info">${r.type}</span></td>
+        <td style="white-space:nowrap">${formatDate(r.date.split(' ')[0])}${r.date.includes(' ') ? ' ' + r.date.split(' ')[1] : ''}</td>
+        <td style="font-size:12px">${r.veh}</td>
+        <td><span class="badge info" style="font-size:10px;white-space:nowrap">${r.type}</span></td>
         <td>${r.km ? parseInt(r.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
-        <td style="font-size:12px;max-width:250px">${r.detail || '—'}</td>
+        <td style="font-size:12px;max-width:200px">${r.detail || '—'}</td>
+        <td style="white-space:nowrap">${adminBtns(r.srcType, r.srcId)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée trouvée</td></tr>';
+    : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée trouvée</td></tr>';
+}
+
+/* Supprime un élément de l'historique */
+function deleteHistItem(srcType, srcId) {
+  if (!confirm('Supprimer cette entrée ?')) return;
+  const id = Number(srcId);
+  if (srcType === 'maintenance')  maintenances  = maintenances.filter(x => x.id !== id);
+  if (srcType === 'ct')           ctEvents      = ctEvents.filter(x => x.id !== id);
+  if (srcType === 'rv')           rendezvous    = rendezvous.filter(x => x.id !== id);
+  if (srcType === 'adblue')       adblues       = adblues.filter(x => x.id !== id);
+  if (srcType === 'carwash')      carwashes     = carwashes.filter(x => x.id !== id);
+  saveAll(); renderHistorique(); toast('Entrée supprimée');
+}
+
+/* Ouvre le modal d'édition selon le type */
+function editHistItem(srcType, srcId) {
+  const id = Number(srcId);
+  if (srcType === 'maintenance') {
+    const m = maintenances.find(x => x.id === id);
+    if (!m) return;
+    const v = vehicules.find(x => x.id === m.vehId);
+    const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
+    openEditModal(`Maintenance — ${vNom} — ${formatDate(m.date)}`, [
+      { label:'Date',        type:'date',   key:'date',  val: m.date },
+      { label:'Km',          type:'number', key:'km',    val: m.km },
+      { label:'Remarques',   type:'text',   key:'rem',   val: m.rem || '' },
+    ], (changes) => {
+      Object.assign(m, changes);
+      saveAll(); renderHistorique(); toast('Maintenance modifiée ✅');
+    });
+  } else if (srcType === 'ct') {
+    const c = ctEvents.find(x => x.id === id);
+    if (!c) return;
+    const v = vehicules.find(x => x.id === c.vehId);
+    openEditModal(`RV — ${v ? v.marque + ' ' + v.immat : c.vehId} — ${formatDate(c.date)}`, [
+      { label:'Date',    type:'date',  key:'date',   val: c.date },
+      { label:'Heure',   type:'time',  key:'heure',  val: c.heure || '' },
+      { label:'Garage',  type:'text',  key:'result', val: c.result || '' },
+      { label:'Motif',   type:'text',  key:'rem',    val: c.rem || '' },
+      { label:'CT valable jusqu\'au', type:'date', key:'next', val: c.next || '' },
+    ], (changes) => {
+      Object.assign(c, changes);
+      if (c.type === 'ct' && c.next) {
+        const veh = vehicules.find(x => x.id === c.vehId);
+        if (veh) veh.ct_valid = c.next;
+      }
+      saveAll(); renderHistorique(); toast('RV modifié ✅');
+    });
+  } else if (srcType === 'adblue') {
+    const a = adblues.find(x => x.id === id);
+    if (!a) return;
+    const v = vehicules.find(x => x.id === a.vehId);
+    openEditModal(`AdBlue — ${v ? v.marque + ' ' + v.immat : a.vehId} — ${formatDate(a.date)}`, [
+      { label:'Date',    type:'date',   key:'date',  val: a.date },
+      { label:'Litres',  type:'number', key:'litre', val: a.litre },
+      { label:'Km',      type:'number', key:'km',    val: a.km || '' },
+    ], (changes) => {
+      if (changes.litre) changes.litre = parseFloat(changes.litre);
+      Object.assign(a, changes);
+      saveAll(); renderHistorique(); toast('AdBlue modifié ✅');
+    });
+  } else if (srcType === 'carwash') {
+    const c = carwashes.find(x => x.id === id);
+    if (!c) return;
+    const v = vehicules.find(x => x.id === c.vehId);
+    openEditModal(`Car Wash — ${v ? v.marque + ' ' + v.immat : c.vehId} — ${formatDate(c.date)}`, [
+      { label:'Date',     type:'date',   key:'date',    val: c.date },
+      { label:'Lieu',     type:'text',   key:'lieu',    val: c.lieu || '' },
+      { label:'Montant €',type:'number', key:'montant', val: c.montant || '' },
+    ], (changes) => {
+      if (changes.montant) changes.montant = parseFloat(changes.montant);
+      Object.assign(c, changes);
+      saveAll(); renderHistorique(); toast('Car Wash modifié ✅');
+    });
+  } else if (srcType === 'rv') {
+    const r = rendezvous.find(x => x.id === id);
+    if (!r) return;
+    const v = vehicules.find(x => x.id === r.vehId);
+    openEditModal(`RV planifié — ${v ? v.marque + ' ' + v.immat : r.vehId} — ${formatDate(r.date)}`, [
+      { label:'Date',   type:'date', key:'date',   val: r.date },
+      { label:'Heure',  type:'time', key:'heure',  val: r.heure || '' },
+      { label:'Garage', type:'text', key:'garage', val: r.garage || '' },
+      { label:'Notes',  type:'text', key:'notes',  val: r.notes || '' },
+    ], (changes) => {
+      Object.assign(r, changes);
+      saveAll(); renderHistorique(); toast('RV modifié ✅');
+    });
+  }
+}
+
+/* Modal d'édition générique */
+let _editCallback = null;
+function openEditModal(titre, fields, callback) {
+  _editCallback = callback;
+  document.getElementById('edit-hist-title').textContent = titre;
+  document.getElementById('edit-hist-fields').innerHTML = fields.map(f => `
+    <div class="form-group">
+      <label>${f.label}</label>
+      <input type="${f.type}" data-key="${f.key}" value="${f.val !== null && f.val !== undefined ? f.val : ''}"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px;width:100%"
+        ${f.type === 'number' ? 'step="any"' : ''} />
+    </div>`).join('');
+  document.getElementById('modal-edit-hist').classList.add('open');
+}
+
+function saveEditHist() {
+  const fields = document.querySelectorAll('#edit-hist-fields input');
+  const changes = {};
+  fields.forEach(f => {
+    const val = f.value.trim();
+    changes[f.dataset.key] = val === '' ? null : (f.type === 'number' ? Number(val) : val);
+  });
+  if (_editCallback) _editCallback(changes);
+  closeModal('modal-edit-hist');
 }
 
 // ============================================================
@@ -3615,13 +3783,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modal-nouveau-veh').addEventListener('click', function(e) {
     if (e.target === this) closeModal('modal-nouveau-veh');
   });
+  document.getElementById('modal-edit-hist').addEventListener('click', function(e) {
+    if (e.target === this) closeModal('modal-edit-hist');
+  });
 
   // Pré-remplir date maintenance
   const md = document.getElementById('maint-date');
   if (md) md.value = new Date().toISOString().slice(0,10);
 
   function initUI() {
-    // Synchroniser depuis window si Firebase a déjà chargé
     if (window._fbData_vehicules)      vehicules     = window._fbData_vehicules;
     if (window._fbData_maintenances)   maintenances  = window._fbData_maintenances;
     if (window._fbData_ctEvents)       ctEvents      = window._fbData_ctEvents;
@@ -3630,6 +3800,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
     if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
 
+    updateNavbarMaint();
     renderAccueil();
     updateTabAlertes();
     updateTabChauf();
