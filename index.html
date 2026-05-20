@@ -1084,16 +1084,16 @@ td.ok { color: var(--vert); font-weight: 600; }
         </select>
       </div>
       <div class="form-group">
-        <label>Montant (€)</label>
-        <input type="number" id="cwk-montant" step="0.01" min="0" placeholder="ex: 20.00" />
+        <label>Montant payé (€)</label>
+        <input type="number" id="cwk-montant" step="0.01" min="0" placeholder="ex: 300.00" oninput="updateCWKTotal()" />
       </div>
       <div class="form-group">
-        <label>Gratuité</label>
-        <select id="cwk-gratuit">
-          <option value="non">Non</option>
-          <option value="oui">Oui (gratuit)</option>
-        </select>
+        <label>Montant gratuit (€)</label>
+        <input type="number" id="cwk-gratuit-montant" step="0.01" min="0" placeholder="ex: 100.00" oninput="updateCWKTotal()" />
       </div>
+    </div>
+    <div style="margin-top:10px;padding:10px 14px;background:var(--bleu-clair);border-radius:8px;font-size:14px;font-weight:700;color:var(--bleu)">
+      💳 Total crédité sur la clé : <span id="cwk-total-preview">0,00 €</span>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;">
       <button class="btn primary" onclick="saveRechargeKey()">💾 Enregistrer</button>
@@ -1123,7 +1123,7 @@ td.ok { color: var(--vert); font-weight: 600; }
     <h3>Historique des recharges clé</h3>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Lieu</th><th>Montant</th><th>Gratuité</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Lieu</th><th>Payé</th><th>Gratuit</th><th>Total crédité</th><th>Action</th></tr></thead>
         <tbody id="cwk-tbody"></tbody>
       </table>
     </div>
@@ -1872,24 +1872,31 @@ function renderCWTable() {
 }
 
 // ── Recharge clé Car Wash ─────────────────────────────────────
+function updateCWKTotal() {
+  const paye   = parseFloat(document.getElementById('cwk-montant')?.value) || 0;
+  const gratui = parseFloat(document.getElementById('cwk-gratuit-montant')?.value) || 0;
+  const total  = paye + gratui;
+  const el = document.getElementById('cwk-total-preview');
+  if (el) el.textContent = total.toFixed(2).replace('.', ',') + ' €';
+}
+
 function saveRechargeKey() {
   const date    = document.getElementById('cwk-date').value;
   const lieu    = document.getElementById('cwk-lieu').value;
-  const montant = document.getElementById('cwk-montant').value;
-  const gratuit = document.getElementById('cwk-gratuit').value;
+  const paye    = parseFloat(document.getElementById('cwk-montant').value) || 0;
+  const gratuit = parseFloat(document.getElementById('cwk-gratuit-montant').value) || 0;
+  const total   = paye + gratuit;
   if (!date) { toast('Veuillez indiquer une date.'); return; }
-  rechargesCle.unshift({
-    id: Date.now(), date, lieu,
-    montant: (gratuit === 'oui' || !montant) ? null : parseFloat(montant),
-    gratuit: gratuit === 'oui'
-  });
-  saveAll(); clearCWKForm(); renderCWKTable(); toast('Recharge clé enregistrée ✅');
+  if (total <= 0) { toast('Veuillez indiquer un montant payé ou gratuit.'); return; }
+  rechargesCle.unshift({ id: Date.now(), date, lieu, montantPaye: paye, montantGratuit: gratuit, totalCredite: total });
+  saveAll(); clearCWKForm(); renderCWKTable(); toast(`Recharge clé enregistrée — ${total.toFixed(2)} € crédités ✅`);
 }
 
 function clearCWKForm() {
   const d = document.getElementById('cwk-date'); if (d) d.value = new Date().toISOString().slice(0,10);
   const m = document.getElementById('cwk-montant'); if (m) m.value = '';
-  const g = document.getElementById('cwk-gratuit'); if (g) g.value = 'non';
+  const g = document.getElementById('cwk-gratuit-montant'); if (g) g.value = '';
+  const p = document.getElementById('cwk-total-preview'); if (p) p.textContent = '0,00 €';
 }
 
 function deleteCWK(id) {
@@ -1902,22 +1909,30 @@ function renderCWKTable() {
   const tbody = document.getElementById('cwk-tbody');
   if (!tbody) return;
   const rows = [...rechargesCle].sort((a,b) => b.date.localeCompare(a.date));
-  let total = 0;
+  let totalPaye = 0, totalGratuit = 0, totalCredite = 0;
   tbody.innerHTML = rows.length
     ? rows.map(r => {
-        if (r.montant) total += r.montant;
-        const montantStr = r.gratuit ? '<span class="badge ok">Gratuit</span>' : (r.montant != null ? Number(r.montant).toFixed(2) + ' €' : '—');
+        // Compatibilité anciens enregistrements
+        const paye    = r.montantPaye    ?? (r.gratuit ? 0 : (r.montant || 0));
+        const gratuit = r.montantGratuit ?? (r.gratuit ? (r.montant || 0) : 0);
+        const total   = r.totalCredite   ?? (paye + gratuit);
+        totalPaye += paye; totalGratuit += gratuit; totalCredite += total;
         return `<tr>
           <td>${formatDate(r.date)}</td>
           <td>${r.lieu}</td>
-          <td>${r.gratuit ? '—' : (r.montant != null ? Number(r.montant).toFixed(2) + ' €' : '—')}</td>
-          <td>${r.gratuit ? '<span class="badge ok">Oui</span>' : '—'}</td>
+          <td>${paye > 0 ? paye.toFixed(2) + ' €' : '—'}</td>
+          <td>${gratuit > 0 ? '<span class="badge ok">' + gratuit.toFixed(2) + ' €</span>' : '—'}</td>
+          <td style="font-weight:700;color:var(--bleu)">${total.toFixed(2)} €</td>
           <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCWK(${r.id})">✕</button></td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune recharge enregistrée</td></tr>';
+    : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune recharge enregistrée</td></tr>';
   const totalEl = document.getElementById('cwk-total');
-  if (totalEl) totalEl.textContent = rows.length && total > 0 ? `Total chargé : ${total.toFixed(2)} €` : '';
+  if (totalEl && rows.length) {
+    totalEl.innerHTML = `
+      <span style="font-size:12px;font-weight:400">Payé : ${totalPaye.toFixed(2)} € + Gratuit : ${totalGratuit.toFixed(2)} € = </span>
+      <span style="color:var(--bleu)">Total crédité : ${totalCredite.toFixed(2)} €</span>`;
+  }
 }
 
 // ============================================================
@@ -2393,26 +2408,70 @@ function renderAccueil() {
   const html = top.length ? top.map(a => renderAlerte(a)).join('') : '<p style="color:var(--texte-sec)">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
   document.getElementById('alertes-dashboard').innerHTML = `<h3 style="margin-bottom:12px">🔔 Alertes prioritaires</h3><div class="alertes-list">${html}</div>`;
 
-  // ── Bloc Prochaine Maintenance ───────────────────────────
+  // ── Bloc Prochaine Maintenance avec km parcourus ─────────────
   const samedi = prochainSamediFinDeMois();
   const samediStr = samedi.toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
   const joursAvant = Math.round((samedi - TODAY) / 86400000);
   const joursLabel = joursAvant === 0 ? "Aujourd'hui !" : joursAvant === 1 ? 'Demain' : `Dans ${joursAvant} jours`;
 
-  // Pour chaque véhicule, trouver la dernière maintenance enregistrée
-  const lignesVeh = vehicules.map(v => {
-    const lastM = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+  // Calculer km parcourus entre les 2 dernières maintenances pour chaque véhicule
+  const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
+  let totalKmFlotte = 0; // total VSL (sans 1RER037)
+  const BARS_MAX_KM = 4000; // échelle max des barres
+
+  const lignesVeh = vehOrdre.map(v => {
+    const mList = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date));
+    const lastM  = mList[0] || null;
+    const prevM  = mList[1] || null;
+
     const lastDateStr = lastM ? formatDate(lastM.date) : '—';
-    const lastKmStr   = lastM ? lastM.km.toLocaleString('fr-BE') + ' km' : '—';
-    const lastRem     = lastM && lastM.rem ? `<span style="font-size:11px;color:var(--texte-sec);display:block;margin-top:1px">${lastM.rem.substring(0,60)}${lastM.rem.length>60?'…':''}</span>` : '';
+    const lastKmStr   = lastM && lastM.km ? lastM.km.toLocaleString('fr-BE') + ' km' : '—';
+    const lastRem     = lastM && lastM.rem ? lastM.rem.substring(0,50) + (lastM.rem.length > 50 ? '…' : '') : '';
+
+    // Km parcourus entre les 2 dernières maintenances
+    let kmParcourus = null;
+    let kmDetail = '';
+    if (lastM && prevM && lastM.km && prevM.km) {
+      kmParcourus = lastM.km - prevM.km;
+      kmDetail = `${kmParcourus >= 0 ? '+' : ''}${kmParcourus.toLocaleString('fr-BE')} km (${formatDate(prevM.date)} → ${formatDate(lastM.date)})`;
+      if (v.id !== '1RER037' && kmParcourus > 0) totalKmFlotte += kmParcourus;
+    }
+
+    // Mini graphique à barres SVG
+    const barPct = kmParcourus && kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX_KM * 100)) : 0;
+    const barColor = kmParcourus > 3000 ? '#e74c3c' : kmParcourus > 2000 ? '#e67e22' : '#27ae60';
+    const barSvg = kmParcourus !== null ? `
+      <div style="margin-top:3px;display:flex;align-items:center;gap:6px">
+        <svg width="80" height="10" style="flex-shrink:0;border-radius:5px;overflow:hidden;background:#f0f0f0">
+          <rect x="0" y="0" width="${barPct}%" height="10" fill="${barColor}" rx="5"/>
+        </svg>
+        <span style="font-size:10px;color:${barColor};font-weight:700">${kmParcourus.toLocaleString('fr-BE')} km</span>
+      </div>` : '';
 
     return `<tr>
-      <td style="padding:7px 10px;font-size:13px;font-weight:500">${v.marque}<br><span style="font-size:11px;font-family:monospace;background:var(--texte);color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span></td>
+      <td style="padding:7px 10px;font-size:13px;font-weight:500">${v.marque}<br>
+        <span style="font-size:11px;font-family:monospace;background:var(--texte);color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span>
+      </td>
       <td style="padding:7px 10px;font-size:13px">${lastDateStr}</td>
       <td style="padding:7px 10px;font-size:13px">${lastKmStr}</td>
-      <td style="padding:7px 10px;font-size:13px">${lastRem || '—'}</td>
+      <td style="padding:7px 10px;font-size:13px">
+        ${kmDetail ? `<span style="font-size:12px;color:var(--texte-sec)">${kmDetail}</span>${barSvg}` : '—'}
+      </td>
+      <td style="padding:7px 10px;font-size:12px;max-width:150px;color:var(--texte-sec)">${lastRem || '—'}</td>
     </tr>`;
   }).join('');
+
+  // Ardoise total km flotte VSL
+  const ardoise = `
+    <div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:12px;padding:14px 20px;
+      color:#fff;display:flex;align-items:center;gap:16px;margin-bottom:12px;box-shadow:0 3px 12px rgba(41,128,185,0.35)">
+      <div style="font-size:32px">🚑</div>
+      <div>
+        <div style="font-size:11px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">Km totaux flotte VSL (entre 2 maintenances)</div>
+        <div style="font-size:26px;font-weight:800;letter-spacing:1px">${totalKmFlotte.toLocaleString('fr-BE')} km</div>
+        <div style="font-size:11px;opacity:0.7">${vehOrdre.filter(v => v.id !== '1RER037').length} VSL • hors Expert 1RER037</div>
+      </div>
+    </div>`;
 
   document.getElementById('alertes-dashboard').innerHTML += `
     <div style="margin-top:20px">
@@ -2422,13 +2481,15 @@ function renderAccueil() {
           <div style="font-size:20px;font-weight:800;color:var(--bleu)">📅 ${samediStr}</div>
           <span class="badge info" style="font-size:12px;padding:4px 12px">${joursLabel}</span>
         </div>
+        ${ardoise}
         <div class="table-wrap">
           <table style="width:100%;border-collapse:collapse;background:var(--blanc);font-size:13px">
             <thead style="background:var(--gris-clair)">
               <tr>
                 <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Véhicule</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Dernière maintenance</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Dernière maint.</th>
                 <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Km relevé</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Km parcourus</th>
                 <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Remarque</th>
               </tr>
             </thead>
