@@ -1,0 +1,3123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCR Opont — Gestion de Flotte v1.0.0</title>
+
+<!-- Firebase SDK compat (plus fiable que les modules ESM) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
+    authDomain: "mcr-opont.firebaseapp.com",
+    projectId: "mcr-opont",
+    storageBucket: "mcr-opont.firebasestorage.app",
+    messagingSenderId: "575160365295",
+    appId: "1:575160365295:web:484622526437981a23eb1a"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // ── Helpers Firestore ────────────────────────────────────────
+
+  async function fbSaveCollection(colName, arr) {
+    try {
+      const colRef = db.collection(colName);
+      const snap = await colRef.get();
+      const batch = db.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      arr.forEach(item => {
+        const ref = colRef.doc(String(item.id));
+        batch.set(ref, item);
+      });
+      await batch.commit();
+    } catch(e) { console.warn('Firebase write error:', colName, e); }
+  }
+
+  async function fbGetCollection(colName) {
+    try {
+      const snap = await db.collection(colName).get();
+      return snap.docs.map(d => d.data());
+    } catch(e) { console.warn('Firebase read error:', colName, e); return null; }
+  }
+
+  function fbListen(colName, callback) {
+    return db.collection(colName).onSnapshot(snap => {
+      callback(snap.docs.map(d => d.data()));
+    }, e => console.warn('Firebase listen error:', colName, e));
+  }
+
+  // Expose globalement
+  window._fb = { db, fbSaveCollection, fbGetCollection, fbListen };
+
+  // ── Chargement initial depuis Firebase ──────────────────────
+  window._fbReady = Promise.all([
+    fbGetCollection('maintenances'),
+    fbGetCollection('ctEvents'),
+    fbGetCollection('vehicules'),
+    fbGetCollection('rendezvous'),
+    fbGetCollection('adblues'),
+    fbGetCollection('carwashes'),
+    fbGetCollection('messagesChauf')
+  ]).then(([maint, ct, veh, rv, ab, cw, chauf]) => {
+    if (maint  && maint.length)  window._fbData_maintenances  = maint;
+    if (ct     && ct.length)     window._fbData_ctEvents      = ct;
+    if (veh    && veh.length)    window._fbData_vehicules     = veh;
+    if (rv     && rv.length)     window._fbData_rendezvous    = rv;
+    if (ab     && ab.length)     window._fbData_adblues       = ab;
+    if (cw     && cw.length)     window._fbData_carwashes     = cw;
+    if (chauf  && chauf.length)  window._fbData_messagesChauf = chauf;
+    window.dispatchEvent(new Event('firebase-ready'));
+  }).catch(e => {
+    console.warn('Firebase init error:', e);
+    window.dispatchEvent(new Event('firebase-ready'));
+  });
+
+  // ── Listeners temps réel ────────────────────────────────────
+  // (démarrés après DOMContentLoaded pour ne pas bloquer le rendu)
+  window.addEventListener('firebase-ready', () => {
+    const COLS = {
+      maintenances:  d => { window.maintenances   = d; window._refreshUI?.(); },
+      ctEvents:      d => { window.ctEvents        = d; window._refreshUI?.(); },
+      vehicules:     d => { if(d.length){ window.vehicules = d; window._refreshUI?.(); } },
+      rendezvous:    d => { window.rendezvous      = d; window._refreshUI?.(); },
+      adblues:       d => { window.adblues         = d; window._refreshUI?.(); },
+      carwashes:     d => { window.carwashes        = d; window._refreshUI?.(); },
+      messagesChauf: d => { window.messagesChauf   = d; window._refreshUI?.(); window.updateTabChauf?.(); }
+    };
+    Object.entries(COLS).forEach(([col, cb]) => fbListen(col, cb));
+  }, { once: true });
+</script>
+<style>
+/* ===== VARIABLES & RESET ===== */
+:root {
+  --rouge: #c0392b;
+  --rouge-clair: #fadbd8;
+  --rouge-fonce: #922b21;
+  --orange: #e67e22;
+  --orange-clair: #fdebd0;
+  --vert: #27ae60;
+  --vert-clair: #d5f5e3;
+  --bleu: #2980b9;
+  --bleu-clair: #d6eaf8;
+  --gris: #7f8c8d;
+  --gris-clair: #f4f6f7;
+  --gris-bord: #dce1e3;
+  --texte: #2c3e50;
+  --texte-sec: #5d6d7e;
+  --fond: #f0f3f4;
+  --blanc: #ffffff;
+  --navbar-h: 56px;
+  --ombre: 0 1px 4px rgba(0,0,0,0.10);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; color: var(--texte); background: var(--fond); -webkit-font-smoothing: antialiased; }
+h1,h2,h3,h4 { font-weight: 600; }
+input,select,textarea,button { font-family: inherit; font-size: 14px; }
+button { cursor: pointer; }
+
+/* ===== NAVBAR ===== */
+.navbar {
+  position: fixed; top: 0; left: 0; right: 0; height: var(--navbar-h); z-index: 100;
+  background: var(--rouge); color: #fff;
+  display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.navbar-logo { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+.navbar-title { font-size: 14px; opacity: 0.85; flex: 1; }
+.navbar-role { font-size: 12px; background: rgba(255,255,255,0.2); border-radius: 12px; padding: 3px 10px; }
+
+/* ===== TABS ===== */
+.tabs {
+  position: fixed; top: var(--navbar-h); left: 0; right: 0; z-index: 90;
+  background: var(--blanc); border-bottom: 1.5px solid var(--gris-bord);
+  display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  flex-shrink: 0; padding: 0 18px; height: 44px;
+  background: none; border: none; border-bottom: 3px solid transparent;
+  color: var(--texte-sec); font-size: 13px; font-weight: 500;
+  display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+}
+.tab-btn.active { color: var(--rouge); border-bottom-color: var(--rouge); }
+.tab-btn:hover:not(.active) { background: var(--gris-clair); }
+
+/* Onglet Alertes clignotant si alertes urgentes */
+@keyframes tab-pulse {
+  0%, 100% { color: var(--rouge); background: transparent; }
+  50%       { color: #fff; background: var(--rouge); border-radius: 4px; }
+}
+.tab-btn.tab-urgent {
+  animation: tab-pulse 1.2s ease infinite;
+  font-weight: 700;
+}
+
+/* ===== CONTENU ===== */
+.content { margin-top: calc(var(--navbar-h) + 44px); padding: 16px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ===== CARTES VEHICULE ===== */
+.vehicules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px; margin-bottom: 20px;
+}
+.veh-card {
+  background: var(--blanc); border-radius: 10px; border: 1px solid var(--gris-bord);
+  box-shadow: var(--ombre); overflow: hidden;
+}
+.veh-card-header {
+  padding: 12px 14px 10px;
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--gris-bord);
+}
+.veh-icon {
+  width: 40px; height: 40px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.veh-icon.vsl { background: var(--bleu-clair); }
+.veh-icon.camion { background: var(--orange-clair); }
+.veh-info h3 { font-size: 14px; font-weight: 700; }
+.veh-info .immat {
+  font-size: 12px; background: var(--texte); color: #fff;
+  padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 2px;
+}
+.veh-badges { margin-left: auto; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.badge.ok { background: var(--vert-clair); color: #1a7a42; }
+.badge.warn { background: var(--orange-clair); color: #a04000; }
+.badge.urgent { background: var(--rouge-clair); color: var(--rouge-fonce); }
+.badge.info { background: var(--bleu-clair); color: #1a5276; }
+
+.veh-body { padding: 12px 14px; }
+.veh-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px;
+}
+.veh-row:last-child { border-bottom: none; }
+.veh-row .label { color: var(--texte-sec); }
+.veh-row .val { font-weight: 500; text-align: right; }
+.veh-row .val.danger { color: var(--rouge); }
+.veh-row .val.warn { color: var(--orange); }
+.veh-row .val.ok { color: var(--vert); }
+
+.veh-actions { padding: 10px 14px; border-top: 1px solid var(--gris-bord); display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { padding: 7px 14px; border-radius: 6px; border: 1.5px solid var(--gris-bord); background: var(--blanc); color: var(--texte); font-size: 13px; font-weight: 500; }
+.btn:hover { background: var(--gris-clair); }
+.btn.primary { background: var(--rouge); color: #fff; border-color: var(--rouge); }
+.btn.primary:hover { background: var(--rouge-fonce); border-color: var(--rouge-fonce); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* ===== ALERTES ===== */
+.alertes-list { display: flex; flex-direction: column; gap: 10px; }
+.alerte-item {
+  background: var(--blanc); border-radius: 8px; border-left: 4px solid;
+  padding: 12px 14px; box-shadow: var(--ombre);
+  display: flex; align-items: center; gap: 12px;
+}
+.alerte-item.urgent { border-color: var(--rouge); }
+.alerte-item.warn { border-color: var(--orange); }
+.alerte-item.info { border-color: var(--bleu); }
+.alerte-icon { font-size: 22px; flex-shrink: 0; }
+.alerte-text h4 { font-size: 14px; font-weight: 600; }
+.alerte-text p { font-size: 13px; color: var(--texte-sec); margin-top: 2px; }
+
+/* ===== FORMULAIRE MAINTENANCE ===== */
+.form-card {
+  background: var(--blanc); border-radius: 10px; border: 1px solid var(--gris-bord);
+  padding: 16px; margin-bottom: 14px; box-shadow: var(--ombre);
+}
+.form-card h3 { font-size: 15px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--gris-bord); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12px; font-weight: 600; color: var(--texte-sec); text-transform: uppercase; letter-spacing: 0.4px; }
+.form-group input, .form-group select, .form-group textarea {
+  border: 1.5px solid var(--gris-bord); border-radius: 6px; padding: 8px 10px;
+  background: var(--blanc); color: var(--texte); font-size: 14px;
+  transition: border-color 0.15s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--rouge);
+}
+.form-group textarea { resize: vertical; min-height: 70px; }
+.form-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* ===== TABLEAU HISTORIQUE ===== */
+.table-wrap { overflow-x: auto; border-radius: 10px; box-shadow: var(--ombre); }
+table { width: 100%; border-collapse: collapse; background: var(--blanc); font-size: 13px; }
+thead { background: var(--gris-clair); }
+th { padding: 10px 12px; text-align: left; font-weight: 600; color: var(--texte-sec); border-bottom: 1.5px solid var(--gris-bord); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 0.5px solid #f0f0f0; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--gris-clair); }
+td.danger { color: var(--rouge); font-weight: 600; }
+td.warn { color: var(--orange); font-weight: 600; }
+td.ok { color: var(--vert); font-weight: 600; }
+
+/* ===== SUMMARY CARDS ===== */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.summary-card {
+  background: var(--blanc); border-radius: 10px; border: 1px solid var(--gris-bord);
+  padding: 14px; text-align: center; box-shadow: var(--ombre);
+}
+.summary-card .num { font-size: 28px; font-weight: 800; }
+.summary-card .lbl { font-size: 12px; color: var(--texte-sec); margin-top: 2px; }
+.summary-card.rouge .num { color: var(--rouge); }
+.summary-card.orange .num { color: var(--orange); }
+.summary-card.vert .num { color: var(--vert); }
+.summary-card.bleu .num { color: var(--bleu); }
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.45); align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--blanc); border-radius: 12px; width: 100%; max-width: 500px;
+  max-height: 90vh; overflow-y: auto; padding: 20px;
+}
+.modal h2 { font-size: 18px; margin-bottom: 16px; }
+.modal-close { float: right; background: none; border: none; font-size: 22px; color: var(--gris); margin-top: -4px; }
+
+/* ===== MODAL RV ===== */
+.modal.modal-rv { max-width: 560px; }
+.rv-recap {
+  background: var(--gris-clair); border-radius: 8px; padding: 12px 14px;
+  margin-bottom: 16px; border-left: 4px solid var(--bleu);
+}
+.rv-recap h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--bleu); }
+.rv-recap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rv-recap-item { font-size: 12px; }
+.rv-recap-item .rlbl { color: var(--texte-sec); display: block; margin-bottom: 1px; }
+.rv-recap-item .rval { font-weight: 600; }
+.rv-recap-item .rval.urgent { color: var(--rouge); }
+.rv-recap-item .rval.warn { color: var(--orange); }
+.rv-recap-item .rval.ok { color: var(--vert); }
+
+/* ===== TIMELINE RV ===== */
+.rv-timeline { margin-top: 10px; }
+.rv-timeline-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 10px 0; border-bottom: 0.5px solid var(--gris-bord);
+  position: relative;
+}
+.rv-timeline-item:last-child { border-bottom: none; }
+.rv-dot {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+  margin-top: 1px;
+}
+.rv-dot.ct { background: var(--bleu-clair); }
+.rv-dot.garage { background: var(--orange-clair); }
+.rv-dot.planifie { background: var(--vert-clair); }
+.rv-dot.annule { background: var(--rouge-clair); }
+.rv-info { flex: 1; }
+.rv-info .rv-date { font-size: 12px; color: var(--texte-sec); }
+.rv-info .rv-titre { font-size: 13px; font-weight: 600; margin: 1px 0; }
+.rv-info .rv-detail { font-size: 12px; color: var(--texte-sec); }
+.rv-statut {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 8px;
+  text-transform: uppercase; align-self: center; white-space: nowrap; flex-shrink: 0;
+}
+.rv-statut.planifie { background: var(--vert-clair); color: #1a7a42; }
+.rv-statut.fait { background: var(--bleu-clair); color: #1a5276; }
+.rv-statut.annule { background: var(--rouge-clair); color: var(--rouge-fonce); }
+.rv-statut.en-attente { background: var(--orange-clair); color: #a04000; }
+
+.alerte-item { flex-wrap: wrap; }
+.alerte-rv-btn {
+  margin-left: auto; flex-shrink: 0;
+  padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: 1.5px solid; cursor: pointer; background: var(--blanc); white-space: nowrap;
+}
+.alerte-item.urgent .alerte-rv-btn { color: var(--rouge-fonce); border-color: var(--rouge); }
+.alerte-item.urgent .alerte-rv-btn:hover { background: var(--rouge-clair); }
+.alerte-item.warn .alerte-rv-btn { color: #a04000; border-color: var(--orange); }
+.alerte-item.warn .alerte-rv-btn:hover { background: var(--orange-clair); }
+
+/* ===== EXPORT ===== */
+.export-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #2c3e50; color: #fff; padding: 12px 24px; border-radius: 8px;
+  font-size: 14px; z-index: 999; display: none; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+
+/* ===== ALERTE CARTE ROUGE CT ===== */
+@keyframes pulse-rouge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(192,57,43,0); }
+}
+.alerte-item.carte-rouge {
+  animation: pulse-rouge 1.6s ease infinite;
+  border-width: 3px;
+}
+.summary-card { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.14); }
+
+/* ===== ADBLUE ===== */
+.adblue-bloc {
+  background: #e8f4fd; border-left: 4px solid var(--bleu);
+  border-radius: 8px; padding: 10px 14px; margin-top: 4px;
+}
+.adblue-titre { font-size: 13px; font-weight: 700; color: var(--bleu); margin-bottom: 8px; display:flex; align-items:center; gap:6px; }
+.adblue-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px; }
+.adblue-form input { border:1.5px solid #aed6f1; border-radius:5px; padding:5px 8px; font-size:13px; background:#fff; color:var(--texte); }
+.adblue-form input[type=date] { width:130px; }
+.adblue-form input[type=number] { width:90px; }
+.adblue-form input:focus { outline:none; border-color:var(--bleu); }
+.adblue-form .btn-adblue { background:var(--bleu); color:#fff; border:none; border-radius:5px; padding:6px 12px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.adblue-form .btn-adblue:hover { background:#1a6fa8; }
+.adblue-hist { font-size:12px; }
+.adblue-hist summary { cursor:pointer; color:var(--bleu); font-weight:600; font-size:12px; margin-bottom:4px; user-select:none; }
+.adblue-hist-ligne { display:flex; gap:12px; padding:4px 0; border-bottom:0.5px solid #d6eaf8; font-size:12px; align-items:center; }
+.adblue-hist-ligne:last-child { border-bottom:none; }
+.ah-date { color:var(--texte-sec); min-width:80px; }
+.ah-litre { font-weight:700; color:var(--bleu); min-width:55px; }
+.ah-km { color:var(--texte-sec); flex:1; }
+.ah-del { background:none; border:none; color:#aaa; cursor:pointer; font-size:14px; padding:0 2px; }
+.ah-del:hover { color:var(--rouge); }
+
+/* ===== ALERTE CHAUFFEUR ===== */
+.msg-list { display:flex; flex-direction:column; gap:12px; }
+.msg-card {
+  background:var(--blanc); border-radius:10px; border:1px solid var(--gris-bord);
+  box-shadow:var(--ombre); overflow:hidden;
+}
+.msg-card.non-lu { border-left:4px solid var(--rouge); }
+.msg-card.lu    { border-left:4px solid var(--vert); opacity:0.85; }
+.msg-header {
+  padding:10px 14px 8px; display:flex; align-items:center; gap:10px;
+  border-bottom:1px solid var(--gris-bord); flex-wrap:wrap;
+}
+.msg-header .msg-veh { font-weight:700; font-size:14px; }
+.msg-header .msg-date { font-size:12px; color:var(--texte-sec); margin-left:auto; }
+.msg-body { padding:10px 14px; font-size:14px; line-height:1.5; }
+.msg-auteur { font-size:12px; color:var(--texte-sec); margin-top:4px; }
+.msg-actions { padding:8px 14px; border-top:1px solid var(--gris-bord); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+/* Badge non-lu sur onglet */
+.tab-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--rouge); color:#fff; border-radius:50%;
+  min-width:18px; height:18px; font-size:11px; font-weight:700;
+  padding:0 4px; margin-left:4px;
+}
+@keyframes tab-msg-pulse {
+  0%,100% { color:var(--rouge); background:transparent; }
+  50%      { color:#fff; background:var(--rouge); border-radius:4px; }
+}
+.tab-btn.tab-msg-urgent { animation:tab-msg-pulse 1.2s ease infinite; font-weight:700; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 500px) {
+  .content { padding: 10px; }
+  .vehicules-grid { grid-template-columns: 1fr; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+  .form-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<div class="navbar">
+  <div class="navbar-logo">🏥 MCR</div>
+  <div class="navbar-title">
+    Maison Croix-Rouge — Opont
+    <br><small style="opacity:0.7;font-size:11px">Gestion de flotte véhicules</small>
+  </div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.0.0</div>
+  <div class="navbar-role" id="role-badge">Chauffeur</div>
+  <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
+  <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
+</div>
+
+<!-- Bannière mise à jour (Service Worker) -->
+<div id="update-banner" style="display:none;position:fixed;top:calc(var(--navbar-h) + 44px);left:0;right:0;z-index:80;background:#1a6fa8;color:#fff;padding:10px 16px;display:none;align-items:center;gap:12px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
+  <span>🔄 Une nouvelle version est disponible !</span>
+  <button onclick="applyUpdate()" style="background:#fff;color:#1a6fa8;border:none;border-radius:5px;padding:5px 12px;font-weight:700;cursor:pointer;font-size:13px">Mettre à jour</button>
+  <button onclick="document.getElementById('update-banner').style.display='none'" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:18px;margin-left:auto">✕</button>
+</div>
+
+<!-- ONGLETS -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="showPage('accueil',this)">📊 Tableau de bord</button>
+  <button class="tab-btn" onclick="showPage('vehicules',this)">🚐 Véhicules</button>
+  <button class="tab-btn" onclick="showPage('alertes',this)">🔔 Alertes</button>
+  <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Alerte chauffeur</button>
+  <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
+  <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">🏪 Garages/CT</button>
+  <button class="tab-btn admin-only" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
+  <button class="tab-btn admin-only" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
+  <button class="tab-btn admin-only" onclick="showPage('historique',this)" style="display:none">📋 Historique</button>
+  <button class="tab-btn admin-only" onclick="showPage('rapports',this)" style="display:none">📄 Rapports</button>
+</div>
+
+<!-- CONTENU PRINCIPAL -->
+<div class="content">
+
+<!-- PAGE ACCUEIL -->
+<div id="page-accueil" class="page active">
+  <div class="summary-grid" id="summary-grid"></div>
+  <div id="alertes-dashboard"></div>
+</div>
+
+<!-- PAGE VEHICULES -->
+<div id="page-vehicules" class="page">
+  <div id="vehicules-grid" class="vehicules-grid"></div>
+</div>
+
+<!-- PAGE ALERTES -->
+<div id="page-alertes" class="page">
+  <h2 style="margin-bottom:14px">🔔 Alertes actives</h2>
+  <div id="alertes-full" class="alertes-list"></div>
+</div>
+
+<!-- PAGE ALERTE CHAUFFEUR -->
+<div id="page-chauf" class="page">
+  <h2 style="margin-bottom:4px">🚨 Alerte chauffeur</h2>
+  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Signalez un problème urgent sur un véhicule. Les administrateurs seront notifiés.</p>
+
+  <!-- Formulaire visible par tous (chauffeurs et admins) -->
+  <div class="form-card" id="chauf-form-card">
+    <h3>📣 Envoyer un signalement</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Véhicule concerné</label>
+        <select id="chauf-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Votre prénom</label>
+        <input type="text" id="chauf-auteur" placeholder="ex: Jean" maxlength="30" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Description du problème</label>
+      <textarea id="chauf-msg" placeholder="Décrivez précisément le problème constaté (bruit, voyant, comportement anormal…)" style="min-height:90px"></textarea>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge)" onclick="sendMessageChauf()">🚨 Envoyer l'alerte</button>
+      <span style="font-size:12px;color:var(--texte-sec)">Le message sera visible de tous les utilisateurs de l'application.</span>
+    </div>
+  </div>
+
+  <!-- Liste des messages -->
+  <div style="margin-top:6px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h3 id="chauf-nb-titre">Signalements</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="chauf-filter" onchange="renderMessagesChauf()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+          <option value="">Tous les véhicules</option>
+        </select>
+        <select id="chauf-filter-statut" onchange="renderMessagesChauf()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+          <option value="">Tous</option>
+          <option value="nonlu">Non traités</option>
+          <option value="lu">Traités</option>
+        </select>
+      </div>
+    </div>
+    <div id="chauf-msg-list" class="msg-list"></div>
+  </div>
+</div>
+
+<!-- PAGE MAINTENANCE (admin) -->
+<div id="page-maintenance" class="page">
+  <h2 style="margin-bottom:14px">🔧 Saisir une maintenance mensuelle</h2>
+  <div class="form-card">
+    <h3>Relevé mensuel</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date de relevé</label>
+        <input type="date" id="maint-date" />
+      </div>
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="maint-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Kilométrage relevé</label>
+        <input type="number" id="maint-km" placeholder="ex: 72000" />
+      </div>
+    </div>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="form-group">
+        <label>Liquide lave-glace</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-lg" style="flex:1" onchange="handleSelectOther(this,'maint-lg-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="0,5 L">0,5 L</option>
+            <option value="1 L">1 L</option>
+            <option value="1,5 L">1,5 L</option>
+            <option value="2 L">2 L</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-lg-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Huile moteur</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-hm" style="flex:1" onchange="handleSelectOther(this,'maint-hm-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="0,5 L">0,5 L</option>
+            <option value="1 L">1 L</option>
+            <option value="1,5 L">1,5 L</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-hm-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Huile de frein</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-hf" style="flex:1" onchange="handleSelectOther(this,'maint-hf-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Ajusté">Ajusté</option>
+            <option value="Remplacé">Remplacé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-hf-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Liquide refroidissement</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-lr" style="flex:1" onchange="handleSelectOther(this,'maint-lr-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Ajusté">Ajusté</option>
+            <option value="Remplacé">Remplacé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-lr-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Éclairage</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-ecl" style="flex:1" onchange="handleSelectOther(this,'maint-ecl-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Ampoule remplacée">Ampoule remplacée</option>
+            <option value="Défaut signalé">Défaut signalé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-ecl-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Pneus</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-pneus" style="flex:1" onchange="handleSelectOther(this,'maint-pneus-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="VP">VP (Vérification pression)</option>
+            <option value="PVP">PVP (Pression vérifiée + pneu)</option>
+            <option value="Usure signalée">Usure signalée</option>
+            <option value="Remplacé">Remplacé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-pneus-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>🚿 Car Wash</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select id="maint-cw" style="flex:1;min-width:80px" onchange="toggleCWFields()">
+            <option value="">—</option>
+            <option value="oui">Oui</option>
+            <option value="non">Non</option>
+          </select>
+          <select id="maint-cw-lieu" style="flex:1;min-width:100px;display:none">
+            <option value="Noirefontaine">Noirefontaine</option>
+            <option value="Bièvre">Bièvre</option>
+          </select>
+          <input type="number" id="maint-cw-montant" step="0.01" min="0" placeholder="Montant €" style="display:none;width:90px" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>💧 AD Blue</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-adblue" style="flex:1" onchange="handleSelectOther(this,'maint-adblue-custom')">
+            <option value="">—</option>
+            <option value="5">5 L</option>
+            <option value="10">10 L</option>
+            <option value="15">15 L</option>
+            <option value="20">20 L</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="number" id="maint-adblue-custom" step="0.01" min="0" placeholder="L" style="display:none;width:80px" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Extérieur -->
+    <div class="form-grid" style="margin-top:12px">
+      <div class="form-group">
+        <label>🚗 Extérieur</label>
+        <div style="display:flex;gap:6px">
+          <select id="maint-ext" style="flex:1" onchange="handleSelectOther(this,'maint-ext-custom')">
+            <option value="">—</option>
+            <option value="OK">OK</option>
+            <option value="Rayure signalée">Rayure signalée</option>
+            <option value="Bosse signalée">Bosse signalée</option>
+            <option value="Dommage signalé">Dommage signalé</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="maint-ext-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Photos -->
+    <div class="form-group" style="margin-top:12px">
+      <label>📷 Photos (extérieur / anomalies)</label>
+      <input type="file" id="maint-photos" accept="image/*" multiple capture="environment"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px;background:var(--blanc);width:100%"
+        onchange="previewPhotos()" />
+      <div id="maint-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>
+
+    <div class="form-group" style="margin-top:12px">
+      <label>Remarques / anomalies</label>
+      <textarea id="maint-rem" placeholder="Décrire toute anomalie constatée..."></textarea>
+    </div>
+    <div style="margin-top:14px; display:flex; gap:10px;">
+      <button class="btn primary" onclick="saveMaintenance()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearMaintForm()">✕ Effacer</button>
+    </div>
+  </div>
+  
+  <!-- Historique maintenances saisies -->
+  <div class="form-card">
+    <h3>Maintenances enregistrées</h3>
+    <div class="table-wrap">
+      <table id="maint-table">
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Km</th><th>CW</th><th>Ext.</th><th>Remarques</th><th>Action</th></tr></thead>
+        <tbody id="maint-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE GARAGES/CT (admin) -->
+<div id="page-garages" class="page">
+  <h2 style="margin-bottom:14px">🏪 Contrôles techniques & Entretiens garage</h2>
+  
+  <div class="form-card">
+    <h3>Enregistrer un rendez-vous / résultat CT</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="ct-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="ct-type">
+          <option value="ct">Contrôle Technique</option>
+          <option value="garage">Entretien Garage</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date du RV / Résultat</label>
+        <input type="date" id="ct-date" />
+      </div>
+      <div class="form-group">
+        <label>Kilométrage à cette date</label>
+        <input type="number" id="ct-km" placeholder="Optionnel" />
+      </div>
+      <div class="form-group">
+        <label>Résultat / Garage</label>
+        <input type="text" id="ct-result" placeholder="ex: Picard / CT favorable / refusé..." />
+      </div>
+      <div class="form-group">
+        <label>Prochain CT valable jusqu'au</label>
+        <input type="date" id="ct-next" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Remarques</label>
+      <textarea id="ct-rem" style="min-height:50px" placeholder="Travaux effectués, remarques CT..."></textarea>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:10px;">
+      <button class="btn primary" onclick="saveCT()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearCTForm()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h3>Modifier les données d'un véhicule</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="edit-veh" onchange="loadVehData()"></select>
+      </div>
+      <div class="form-group">
+        <label>Kilométrage actuel</label>
+        <input type="number" id="edit-km" />
+      </div>
+      <div class="form-group">
+        <label>CT valable jusqu'au</label>
+        <input type="date" id="edit-ct-valid" />
+      </div>
+      <div class="form-group">
+        <label>🔴 Carte rouge CT — circulation jusqu'au</label>
+        <input type="date" id="edit-ct-carte-rouge" placeholder="Laisser vide si pas de carte rouge" />
+      </div>
+      <div class="form-group">
+        <label>Prochain entretien garage à (km)</label>
+        <input type="number" id="edit-next-entretien-km" />
+      </div>
+      <div class="form-group">
+        <label>Dernier entretien garage le</label>
+        <input type="date" id="edit-last-entretien-date" />
+      </div>
+      <div class="form-group">
+        <label>Dernier entretien garage à (km)</label>
+        <input type="number" id="edit-last-entretien-km" />
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn primary" onclick="saveVehEdit()">💾 Mettre à jour le véhicule</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE ADBLUE (admin) -->
+<div id="page-adblue" class="page">
+  <h2 style="margin-bottom:14px">💧 AdBlue</h2>
+  <div class="form-card">
+    <h3>Enregistrer un ajout AdBlue</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="ab-ong-date" />
+      </div>
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="ab-ong-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Volume (litres)</label>
+        <input type="number" id="ab-ong-litre" value="10.00" step="0.01" min="0.01" placeholder="ex: 10.00" />
+      </div>
+      <div class="form-group">
+        <label>Kilométrage</label>
+        <input type="number" id="ab-ong-km" placeholder="Optionnel" />
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;">
+      <button class="btn primary" onclick="saveAdBlueOnglet()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearABForm()">✕ Effacer</button>
+    </div>
+  </div>
+  <div class="form-card">
+    <h3>Historique AdBlue</h3>
+    <div class="export-bar" style="margin-bottom:10px">
+      <select id="ab-filter-veh" onchange="renderAdBlueTable()">
+        <option value="">Tous les véhicules</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Volume</th><th>Km</th><th>Source</th><th>Action</th></tr></thead>
+        <tbody id="ab-tbody"></tbody>
+      </table>
+    </div>
+    <div id="ab-total" style="text-align:right;font-weight:700;font-size:14px;margin-top:10px;color:var(--bleu)"></div>
+  </div>
+</div>
+
+<!-- PAGE CAR WASH (admin) -->
+<div id="page-carwash" class="page">
+  <h2 style="margin-bottom:14px">🚿 Car Wash</h2>
+  <div class="form-card">
+    <h3>Enregistrer un lavage</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="cw-date" />
+      </div>
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="cw-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Lieu</label>
+        <select id="cw-lieu">
+          <option value="Noirefontaine">Noirefontaine</option>
+          <option value="Bièvre">Bièvre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Montant (€)</label>
+        <input type="number" id="cw-montant" step="0.01" min="0" placeholder="ex: 8.50" />
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;">
+      <button class="btn primary" onclick="saveCarWash()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearCWForm()">✕ Effacer</button>
+    </div>
+  </div>
+  <div class="form-card">
+    <h3>Historique des lavages</h3>
+    <div class="export-bar" style="margin-bottom:10px">
+      <select id="cw-filter-veh" onchange="renderCWTable()">
+        <option value="">Tous les véhicules</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Lieu</th><th>Montant</th><th>Action</th></tr></thead>
+        <tbody id="cw-tbody"></tbody>
+      </table>
+    </div>
+    <div id="cw-total" style="text-align:right;font-weight:700;font-size:14px;margin-top:10px;color:var(--texte-sec)"></div>
+  </div>
+</div>
+
+<!-- PAGE HISTORIQUE -->
+<div id="page-historique" class="page">
+  <h2 style="margin-bottom:14px">📋 Historique complet</h2>
+  <div class="export-bar">
+    <select id="hist-filter-veh" onchange="renderHistorique()">
+      <option value="">Tous les véhicules</option>
+    </select>
+    <select id="hist-filter-type" onchange="renderHistorique()">
+      <option value="">Tous les types</option>
+      <option value="maintenance">Maintenances</option>
+      <option value="ct">Contrôles techniques</option>
+      <option value="garage">Entretiens garage</option>
+      <option value="rv">Rendez-vous</option>
+      <option value="adblue">AdBlue</option>
+      <option value="carwash">Car Wash</option>
+    </select>
+    <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Km</th><th>Détails</th></tr></thead>
+      <tbody id="hist-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- PAGE RAPPORTS -->
+<div id="page-rapports" class="page">
+  <h2 style="margin-bottom:14px">📄 Rapports</h2>
+  <div class="form-card">
+    <h3>Export des données</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">Générez des rapports pour impression ou archivage.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn primary" onclick="printReport('ct')">🖨 Rapport CT (tous)</button>
+      <button class="btn" onclick="printReport('entretien')">🖨 Rapport entretiens</button>
+      <button class="btn" onclick="printReport('maintenance')">🖨 Rapport maintenances</button>
+      <button class="btn" onclick="exportAllCSV()">📊 Export complet CSV</button>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <h3>Import de données</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">Importez un fichier CSV pour enrichir les données existantes.</p>
+    <div class="form-group">
+      <label>Fichier CSV</label>
+      <input type="file" id="import-file" accept=".csv" onchange="importCSV(event)">
+    </div>
+    <p style="font-size:11px;color:var(--texte-sec);margin-top:8px">Format attendu : date, véhicule, type, km, détails</p>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<!-- MODAL DETAIL VEHICULE -->
+<div class="modal-overlay" id="modal-veh">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-veh')">✕</button>
+    <h2 id="modal-veh-title">Détail véhicule</h2>
+    <div id="modal-veh-body"></div>
+  </div>
+</div>
+
+<!-- MODAL PRISE DE RV -->
+<div class="modal-overlay" id="modal-rv">
+  <div class="modal modal-rv">
+    <button class="modal-close" onclick="closeModal('modal-rv')">✕</button>
+    <h2 id="modal-rv-title">📅 Prendre un rendez-vous</h2>
+
+    <!-- Récapitulatif véhicule / motif -->
+    <div class="rv-recap" id="rv-recap-body"></div>
+
+    <!-- Formulaire RV -->
+    <div id="rv-form-section">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label>Type de RV</label>
+          <select id="rv-type" onchange="onRVTypeChange()">
+            <option value="ct">Contrôle Technique</option>
+            <option value="garage">Entretien Garage</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date du rendez-vous</label>
+          <input type="date" id="rv-date" />
+        </div>
+        <div class="form-group">
+          <label>Heure</label>
+          <input type="time" id="rv-heure" placeholder="ex: 08:30" />
+        </div>
+        <div class="form-group">
+          <label>Garage / Centre CT</label>
+          <input type="text" id="rv-garage" placeholder="ex: Picard Bouillon" />
+        </div>
+        <div class="form-group" id="rv-km-wrap">
+          <label>Kilométrage estimé à la date</label>
+          <input type="number" id="rv-km" placeholder="Optionnel" />
+        </div>
+        <div class="form-group">
+          <label>Statut</label>
+          <select id="rv-statut">
+            <option value="planifie">Planifié</option>
+            <option value="fait">Effectué</option>
+            <option value="annule">Annulé</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Notes / Travaux prévus</label>
+        <textarea id="rv-notes" placeholder="ex: CT périodique, remplacement pneus..."></textarea>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn primary" onclick="saveRV()">💾 Enregistrer le RV</button>
+        <button class="btn" onclick="closeModal('modal-rv')">Annuler</button>
+      </div>
+    </div>
+
+    <!-- Historique RV du véhicule -->
+    <div id="rv-historique-section" style="margin-top:20px;border-top:1px solid var(--gris-bord);padding-top:16px">
+      <h3 style="font-size:14px;margin-bottom:10px">Historique des rendez-vous</h3>
+      <div id="rv-historique-body" class="rv-timeline"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONNEXION ADMIN -->
+<div class="modal-overlay" id="modal-login">
+  <div class="modal" style="max-width:360px;text-align:center">
+    <h2 style="margin-bottom:6px">🔐 Accès administrateur</h2>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:20px">Entrez le mot de passe pour accéder aux fonctions d'administration.</p>
+    <div class="form-group" style="text-align:left;margin-bottom:16px">
+      <label>Mot de passe</label>
+      <input type="password" id="login-pwd" placeholder="••••••••••"
+        style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:10px 12px;font-size:15px"
+        onkeydown="if(event.key==='Enter')checkAdmin()" />
+    </div>
+    <div id="login-error" style="color:var(--rouge);font-size:13px;margin-bottom:10px;display:none">❌ Mot de passe incorrect.</div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn primary" onclick="checkAdmin()">Connexion</button>
+      <button class="btn" onclick="closeModal('modal-login');document.getElementById('login-pwd').value=''">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// DONNÉES VÉHICULES (extraites du fichier Excel 28-03-2026 & 02-05-2026)
+// ============================================================
+const VEHICULES_DATA = [
+  {
+    id: 'TLAM294', marque: 'Renault Kangoo', immat: 'TLAM294', type: 'VSL',
+    chassis: 'VF1RFK00X69093954', mise_en_circulation: '2022-04-13', garage: 'MIA',
+    km: 70683, ct_valid: '2026-11-09',
+    dernier_entretien_date: '2025-06-12', dernier_entretien_km: 60235,
+    interval_entretien_km: 20000, prochain_entretien_km: 80235,
+    // Dimensions pneus (été=rouge, hiver=brun dans Excel)
+    dim_ete: '205/60/R16 96H',
+    dim_hiver: '205/60/R16H XL 96H',
+    pneus_ete: 'Hankook K135 — 205/60/R16H XL 96H',
+    pneus_hiver: 'Vredestein Wintrac',
+    // Permutation pneus hiver→été (date et km)
+    permut_hiver_ete_date: '2026-04-27', permut_hiver_ete_km: 71828,
+    // Permutation pneus été→hiver (date et km)
+    permut_ete_hiver_date: '2025-10-28', permut_ete_hiver_km: 65456,
+    // Carte carburant Total
+    carte_total_code: '3113', carte_total_valid: '2029-03-25',
+    // Vignette SPW
+    spw_valid: null,
+    // Extincteur
+    extincteur_valid: null,
+    // Élévateur/rampe (non concerné)
+    equipement: null, recht_date: null, recht_motif: null,
+    remarques: 'RV Culot 7h30 le 27-04 pneus H pour pneus Eté'
+  },
+  {
+    id: 'TLAN633', marque: 'Renault Trafic', immat: 'TLAN633', type: 'VSL',
+    chassis: 'VF1JL000773814519', mise_en_circulation: '2025-02-14', garage: 'Albert (Gedinne)',
+    km: 38782, ct_valid: '2026-09-04',
+    dernier_entretien_date: '2026-04-02', dernier_entretien_km: 39617,
+    interval_entretien_km: 20000, prochain_entretien_km: 59617,
+    dim_ete: '215/65R16C 106/104T',
+    dim_hiver: '215/65R16C 106/104H',
+    pneus_ete: 'Good Year Efficient Grip Cargo — 215/65R16C 106/104H',
+    pneus_hiver: 'Continental Vancontact winter',
+    permut_hiver_ete_date: '2026-04-25', permut_hiver_ete_km: 41883,
+    permut_ete_hiver_date: '2025-11-08', permut_ete_hiver_km: 26001,
+    carte_total_code: '0633', carte_total_valid: '2029-03-25',
+    spw_valid: null, extincteur_valid: null,
+    equipement: 'Élévateur', recht_date: '2025-02-26', recht_motif: 'Mise en service / transfert de Recht',
+    remarques: 'Roule déjà avec pneus été depuis la livraison'
+  },
+  {
+    id: 'TLAJ108', marque: 'Fiat Doblo', immat: 'TLAJ108', type: 'VSL',
+    chassis: 'ZFA26300006J06410', mise_en_circulation: '2018-04-25', garage: 'Picard',
+    km: 266989, ct_valid: '2026-10-27',
+    dernier_entretien_date: '2025-12-04', dernier_entretien_km: 258885,
+    interval_entretien_km: 20000, prochain_entretien_km: 278885,
+    dim_ete: '195/60R16C 99/97T',
+    dim_hiver: '195/60R16C 99/97H',
+    pneus_ete: 'Vredestein Comtrac 2 — 195/60R16C 99/97T',
+    pneus_hiver: 'Vredestein Snowtrac5 — 195/60R16C 99/97H',
+    permut_hiver_ete_date: '2026-04-25', permut_hiver_ete_km: 268217,
+    permut_ete_hiver_date: '2025-10-09', permut_ete_hiver_km: 254763,
+    carte_total_code: '7912', carte_total_valid: '2028-04-25',
+    spw_valid: null, extincteur_valid: null,
+    equipement: 'Élévateur', recht_date: '2025-02-26', recht_motif: 'Contrôle périodique',
+    remarques: '2 nouveaux pneus "été" à prévoir pour l\'AV'
+  },
+  {
+    id: 'TLAJ109', marque: 'Fiat Doblo', immat: 'TLAJ109', type: 'VSL',
+    chassis: 'ZFA26300006J03006', mise_en_circulation: '2018-04-25', garage: 'Picard',
+    km: 223186, ct_valid: '2026-06-05',
+    dernier_entretien_date: '2025-12-05', dernier_entretien_km: 217484,
+    interval_entretien_km: 20000, prochain_entretien_km: 237484,
+    dim_ete: '195/60R16C 99/97T',
+    dim_hiver: '195/60R16C 99/97H',
+    pneus_ete: 'Vredestein Comtrac 2 — 195/60R16C 99/97T',
+    pneus_hiver: 'Vredestein Comtrac2 — 195/60R16C 99/97H',
+    permut_hiver_ete_date: '2026-04-25', permut_hiver_ete_km: 224997,
+    permut_ete_hiver_date: '2025-11-08', permut_ete_hiver_km: 216579,
+    carte_total_code: '3210', carte_total_valid: '2028-04-25',
+    spw_valid: null, extincteur_valid: null,
+    equipement: 'Élévateur', recht_date: '2021-11-09', recht_motif: 'Contrôle périodique',
+    remarques: ''
+  },
+  {
+    id: 'TLAN910', marque: 'Renault Trafic', immat: 'TLAN910', type: 'VSL',
+    chassis: 'VF1JL000175966879', mise_en_circulation: '2026-02-27', garage: 'MIA',
+    km: 1659, ct_valid: '2026-09-16',
+    dernier_entretien_date: null, dernier_entretien_km: null,
+    interval_entretien_km: 20000, prochain_entretien_km: 20000,
+    dim_ete: '215/65R16C 106/104H',
+    dim_hiver: null,
+    pneus_ete: 'Good Year Efficient Grip Cargo 2 — 215/65R16C',
+    pneus_hiver: null,
+    permut_hiver_ete_date: '2026-03-10', permut_hiver_ete_km: null,
+    permut_ete_hiver_date: null, permut_ete_hiver_km: null,
+    carte_total_code: '0910', carte_total_valid: null,
+    spw_valid: null, extincteur_valid: null,
+    equipement: 'Élévateur', recht_date: '2026-03-10', recht_motif: 'Mise en service / transfert de Recht',
+    remarques: 'Arrivée de Recht le 10-03. Roule avec pneus été'
+  },
+  {
+    id: 'TLAM789', marque: 'Renault Kangoo', immat: 'TLAM789', type: 'VSL',
+    chassis: 'VF1RFK00369801669', mise_en_circulation: '2023-01-18', garage: 'MIA',
+    km: 103570, ct_valid: '2026-07-25',
+    dernier_entretien_date: '2026-01-19', dernier_entretien_km: 98800,
+    interval_entretien_km: 20000, prochain_entretien_km: 118800,
+    dim_ete: '205/60R16 96H',
+    dim_hiver: '205/60R16 96H',
+    pneus_ete: 'Hankook Ventus Prime 3 — 205/60R16 96H',
+    pneus_hiver: 'Vredestein Wintrac',
+    permut_hiver_ete_date: '2025-04-05', permut_hiver_ete_km: 69213,
+    permut_ete_hiver_date: '2025-11-08', permut_ete_hiver_km: 92365,
+    carte_total_code: '6004', carte_total_valid: '2029-03-25',
+    spw_valid: null, extincteur_valid: null,
+    equipement: null, recht_date: null, recht_motif: null,
+    remarques: 'ARD s\'use extérieur. Pneus hiver à user en été — nouveaux pneus neige à prévoir'
+  },
+  {
+    id: 'TLAM941', marque: 'Toyota Proace', immat: 'TLAM941', type: 'VSL',
+    chassis: 'YARECYHT2GJ017144', mise_en_circulation: '2023-05-25', garage: 'MS Motor',
+    km: 75320, ct_valid: '2026-05-21',
+    dernier_entretien_date: '2026-04-09', dernier_entretien_km: 76593,
+    interval_entretien_km: 20000, prochain_entretien_km: 96593,
+    dim_ete: '205/60R16 92H',
+    dim_hiver: null,
+    pneus_ete: 'Michelin Primacy 4 — 205/60R16 92H',
+    pneus_hiver: 'Vredestein Wintrac',
+    permut_hiver_ete_date: '2026-04-25', permut_hiver_ete_km: 78247,
+    permut_ete_hiver_date: '2025-10-31', permut_ete_hiver_km: 62364,
+    carte_total_code: '0895', carte_total_valid: '2029-03-25',
+    spw_valid: null, extincteur_valid: null,
+    equipement: 'Rampe', recht_date: '2023-06-05', recht_motif: 'Contrôle périodique',
+    remarques: 'ARD s\'use extérieur. 3 nouveaux pneus été + roue de secours utilisée'
+  },
+  {
+    id: 'TLAN527', marque: 'Toyota Proace', immat: 'TLAN527', type: 'VSL',
+    chassis: 'YAREBYHP2RJ721272', mise_en_circulation: '2024-09-23', garage: 'Dion',
+    km: 48844, ct_valid: '2026-10-15',
+    dernier_entretien_date: '2026-01-07', dernier_entretien_km: 39150,
+    interval_entretien_km: 20000, prochain_entretien_km: 59150,
+    dim_ete: '205/60/R16 96H',
+    dim_hiver: '205/60/R16 96H',
+    pneus_ete: 'Good Year Efficient Grip — 205/60/R16 96H',
+    pneus_hiver: 'Bridgestone — 205/60/R16 96H XL',
+    permut_hiver_ete_date: '2025-04-05', permut_hiver_ete_km: 11977,
+    permut_ete_hiver_date: '2025-11-08', permut_ete_hiver_km: 34485,
+    carte_total_code: '0527', carte_total_valid: '2029-03-25',
+    spw_valid: null, extincteur_valid: null,
+    equipement: 'Rampe', recht_date: '2024-10-23', recht_motif: 'Mise en service',
+    remarques: 'Roule avec pneus été. Pneus hiver à prévoir'
+  },
+  {
+    id: '1RER037', marque: 'Peugeot Expert', immat: '1RER037', type: 'Camionnette',
+    chassis: 'VF3XVRHKHBZ014789', mise_en_circulation: '2011-04-15', garage: 'MIA',
+    km: 96811, ct_valid: '2026-09-17',
+    dernier_entretien_date: '2024-10-08', dernier_entretien_km: 92947,
+    interval_entretien_km: 15000, prochain_entretien_km: 107947,
+    dim_ete: '215/60/R16C 103/101T',
+    dim_hiver: null,
+    pneus_ete: 'Vredestein Comtrac — 215/60/R16C 103/101T',
+    pneus_hiver: null,
+    permut_hiver_ete_date: '2026-01-19', permut_hiver_ete_km: 96060,
+    permut_ete_hiver_date: null, permut_ete_hiver_km: null,
+    carte_total_code: '3302', carte_total_valid: null,
+    spw_valid: null, extincteur_valid: null,
+    equipement: null, recht_date: null, recht_motif: null,
+    remarques: 'Roule avec pneus 4 saisons (Vredestein Comtrac) — jauge huile moteur cassée'
+  }
+];
+
+const GARAGES = ['MIA (Bouillon)', 'Picard (Bouillon)', 'MS Motor', 'Albert (Gedinne)', 'Dion'];
+
+// ============================================================
+// STATE & PERSISTANCE (Firebase + localStorage fallback)
+// ============================================================
+let isAdmin = false;
+
+// Initialisation depuis Firebase (injecté par le module) ou localStorage
+let maintenances  = window._fbData_maintenances  || JSON.parse(localStorage.getItem('mcr_maintenances') || '[]');
+let ctEvents      = window._fbData_ctEvents       || JSON.parse(localStorage.getItem('mcr_ct')           || '[]');
+let vehicules     = window._fbData_vehicules      || JSON.parse(localStorage.getItem('mcr_vehicules')    || 'null') || VEHICULES_DATA.map(v => ({...v}));
+let rendezvous    = window._fbData_rendezvous     || JSON.parse(localStorage.getItem('mcr_rv')           || '[]');
+let adblues       = window._fbData_adblues        || JSON.parse(localStorage.getItem('mcr_adblue')       || '[]');
+let carwashes     = window._fbData_carwashes      || JSON.parse(localStorage.getItem('mcr_carwash')      || '[]');
+let messagesChauf = window._fbData_messagesChauf  || JSON.parse(localStorage.getItem('mcr_chauf')        || '[]');
+
+// Expose les variables au module Firebase (listeners temps réel)
+window.maintenances   = maintenances;
+window.ctEvents       = ctEvents;
+window.vehicules      = vehicules;
+window.rendezvous     = rendezvous;
+window.adblues        = adblues;
+window.carwashes      = carwashes;
+window.messagesChauf  = messagesChauf;
+
+/* Rafraîchit l'UI quand Firebase pousse une mise à jour temps réel */
+let _refreshTimer = null;
+window._refreshUI = function() {
+  // Synchroniser les variables locales depuis window (mis à jour par les listeners)
+  maintenances  = window.maintenances;
+  ctEvents      = window.ctEvents;
+  vehicules     = window.vehicules;
+  rendezvous    = window.rendezvous;
+  adblues       = window.adblues;
+  carwashes     = window.carwashes;
+  messagesChauf = window.messagesChauf;
+  // Debounce pour éviter les rafraîchissements en cascade
+  clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(() => {
+    const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+    if (activePage === 'accueil')     renderAccueil();
+    if (activePage === 'vehicules')   renderVehicules();
+    if (activePage === 'alertes')     renderAlertesFull();
+    if (activePage === 'chauf')       renderMessagesChauf();
+    if (activePage === 'historique')  renderHistorique();
+    if (activePage === 'maintenance') renderMaintTable();
+    updateTabAlertes();
+    updateTabChauf();
+    // Afficher indicateur de sync
+    showSyncIndicator();
+  }, 400);
+};
+
+/* Sauvegarde dans Firebase ET localStorage */
+async function saveAll() {
+  // localStorage (hors ligne / fallback)
+  localStorage.setItem('mcr_maintenances', JSON.stringify(maintenances));
+  localStorage.setItem('mcr_ct',           JSON.stringify(ctEvents));
+  localStorage.setItem('mcr_vehicules',    JSON.stringify(vehicules));
+  localStorage.setItem('mcr_rv',           JSON.stringify(rendezvous));
+  localStorage.setItem('mcr_adblue',       JSON.stringify(adblues));
+  localStorage.setItem('mcr_carwash',      JSON.stringify(carwashes));
+  localStorage.setItem('mcr_chauf',        JSON.stringify(messagesChauf));
+
+  // Firebase (cloud, synchronisé entre appareils)
+  if (window._fb) {
+    const { fbSaveCollection } = window._fb;
+    // S'assurer que chaque élément a un id unique
+    const ensureId = (arr, prefix) => arr.map((x,i) => ({ ...x, id: x.id || `${prefix}_${Date.now()}_${i}` }));
+    await Promise.all([
+      fbSaveCollection('maintenances',  ensureId(maintenances,  'maint')),
+      fbSaveCollection('ctEvents',      ensureId(ctEvents,      'ct')),
+      fbSaveCollection('vehicules',     vehicules),
+      fbSaveCollection('rendezvous',    ensureId(rendezvous,    'rv')),
+      fbSaveCollection('adblues',       ensureId(adblues,       'ab')),
+      fbSaveCollection('carwashes',     ensureId(carwashes,     'cw')),
+      fbSaveCollection('messagesChauf', ensureId(messagesChauf, 'chauf')),
+    ]).catch(e => console.warn('Firebase saveAll error:', e));
+  }
+}
+
+/* Indicateur visuel de synchronisation */
+function showSyncIndicator() {
+  let ind = document.getElementById('sync-indicator');
+  if (!ind) return;
+  ind.style.opacity = '1';
+  clearTimeout(ind._t);
+  ind._t = setTimeout(() => { ind.style.opacity = '0'; }, 2000);
+}
+
+// ============================================================
+// UTILITAIRES DATES
+// ============================================================
+const TODAY = new Date();
+TODAY.setHours(0,0,0,0);
+
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatDate(s) {
+  const d = parseDate(s);
+  if (!d) return '—';
+  return d.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function daysUntil(s) {
+  const d = parseDate(s);
+  if (!d) return null;
+  return Math.round((d - TODAY) / 86400000);
+}
+
+/* Retourne la date du samedi le plus proche du dernier jour du mois M/Y.
+   Si cette date est déjà passée, passe au mois suivant. */
+function prochainSamediFinDeMois() {
+  function samediPlusProcheFinMois(annee, mois) {
+    // Dernier jour du mois
+    const dernier = new Date(annee, mois + 1, 0); // jour 0 du mois+1 = dernier du mois
+    dernier.setHours(0,0,0,0);
+    const jourSemaine = dernier.getDay(); // 0=dim, 6=sam
+    // Décalage pour aller au samedi le plus proche (avant ou après)
+    let delta = 6 - jourSemaine; // jours jusqu'au prochain samedi
+    if (delta > 3) delta -= 7;   // préférer le samedi précédent si plus proche
+    const sam = new Date(dernier);
+    sam.setDate(dernier.getDate() + delta);
+    return sam;
+  }
+
+  const now = new Date(); now.setHours(0,0,0,0);
+  let sam = samediPlusProcheFinMois(now.getFullYear(), now.getMonth());
+  // Si le samedi calculé est déjà passé, prendre le mois suivant
+  if (sam < now) {
+    const nextM = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+    const nextY = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+    sam = samediPlusProcheFinMois(nextY, nextM);
+  }
+  return sam;
+}
+
+// ============================================================
+// ADBLUE — fonctions
+// ============================================================
+
+/* Enregistre un ajout AdBlue depuis le dashboard (inline) */
+function saveAdBlue(vehId) {
+  const dateEl  = document.getElementById(`ab-date-${vehId}`);
+  const litreEl = document.getElementById(`ab-litre-${vehId}`);
+  const kmEl    = document.getElementById(`ab-km-${vehId}`);
+  if (!dateEl || !litreEl) return;
+  const date  = dateEl.value;
+  const litre = parseFloat(litreEl.value.replace(',', '.'));
+  const km    = kmEl && kmEl.value ? parseInt(kmEl.value) : null;
+  if (!date || isNaN(litre) || litre <= 0) { toast('Veuillez indiquer une date et un volume.'); return; }
+  adblues.unshift({ id: Date.now(), vehId, date, litre, km });
+  saveAll();
+  toast(`AdBlue enregistré — ${litre.toFixed(2)} L ✅`);
+  renderAccueil(); // rafraîchit le dashboard
+}
+
+/* Supprime une entrée AdBlue */
+function deleteAdBlue(id) {
+  adblues = adblues.filter(a => a.id !== id);
+  saveAll();
+  renderAccueil();
+}
+
+/* Génère le HTML du bloc AdBlue pour un véhicule donné */
+function renderBlocAdBlue(v) {
+  const hist = adblues.filter(a => a.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date));
+  const today = new Date().toISOString().slice(0,10);
+
+  // Dernière entrée pour affichage résumé dans la cellule
+  const last = hist[0] || null;
+  const lastStr = last
+    ? `<span style="color:var(--bleu);font-weight:700">${last.litre.toFixed(2)} L</span> le ${formatDate(last.date)}${last.km ? ' à ' + last.km.toLocaleString('fr-BE') + ' km' : ''}`
+    : '<span style="color:var(--texte-sec)">Aucun ajout enregistré</span>';
+
+  const histHtml = hist.length ? hist.map(a => `
+    <div class="adblue-hist-ligne">
+      <span class="ah-date">${formatDate(a.date)}</span>
+      <span class="ah-litre">${a.litre.toFixed(2)} L</span>
+      <span class="ah-km">${a.km ? a.km.toLocaleString('fr-BE') + ' km' : '—'}</span>
+      <button class="ah-del" onclick="deleteAdBlue(${a.id})" title="Supprimer">✕</button>
+    </div>`).join('') : '<p style="color:var(--texte-sec);font-size:12px;margin:4px 0">Aucun historique.</p>';
+
+  return `<div class="adblue-bloc">
+    <div class="adblue-titre">💧 AdBlue — ${lastStr}</div>
+    <div class="adblue-form">
+      <input type="date" id="ab-date-${v.id}" value="${today}" />
+      <input type="number" id="ab-litre-${v.id}" value="10.00" step="0.01" min="0.01" placeholder="Litres" />
+      <input type="number" id="ab-km-${v.id}" value="${v.km || ''}" placeholder="km" />
+      <button class="btn-adblue" onclick="saveAdBlue('${v.id}')">+ Enregistrer</button>
+    </div>
+    ${hist.length ? `<details class="adblue-hist">
+      <summary>Historique (${hist.length} entrée${hist.length>1?'s':''})</summary>
+      ${histHtml}
+    </details>` : `<div class="adblue-hist">${histHtml}</div>`}
+  </div>`;
+}
+
+// ============================================================
+// CAR WASH — fonctions
+// ============================================================
+
+function initCarWash() {
+  const selVeh = document.getElementById('cw-veh');
+  if (selVeh && selVeh.options.length <= 0) {
+    selVeh.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+  }
+  const selFilt = document.getElementById('cw-filter-veh');
+  if (selFilt && selFilt.options.length <= 1) {
+    vehicules.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      selFilt.appendChild(opt);
+    });
+  }
+  document.getElementById('cw-date').value = new Date().toISOString().slice(0,10);
+  renderCWTable();
+}
+
+function saveCarWash() {
+  const date    = document.getElementById('cw-date').value;
+  const vehId   = document.getElementById('cw-veh').value;
+  const lieu    = document.getElementById('cw-lieu').value;
+  const montant = document.getElementById('cw-montant').value;
+  if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
+  carwashes.unshift({ id: Date.now(), date, vehId, lieu, montant: montant ? parseFloat(montant) : null });
+  saveAll();
+  clearCWForm();
+  renderCWTable();
+  toast('Lavage enregistré ✅');
+}
+
+function clearCWForm() {
+  document.getElementById('cw-montant').value = '';
+  document.getElementById('cw-date').value = new Date().toISOString().slice(0,10);
+}
+
+function deleteCW(id) {
+  if (!confirm('Supprimer ce lavage ?')) return;
+  carwashes = carwashes.filter(c => c.id !== id);
+  saveAll(); renderCWTable(); toast('Entrée supprimée');
+}
+
+function renderCWTable() {
+  const filterVeh = document.getElementById('cw-filter-veh')?.value || '';
+  const rows = carwashes.filter(c => !filterVeh || c.vehId === filterVeh)
+                        .sort((a,b) => b.date.localeCompare(a.date));
+  const tbody = document.getElementById('cw-tbody');
+  if (!tbody) return;
+  let total = 0;
+  tbody.innerHTML = rows.length
+    ? rows.map(c => {
+        const v = vehicules.find(x => x.id === c.vehId);
+        if (c.montant) total += c.montant;
+        return `<tr>
+          <td>${formatDate(c.date)}</td>
+          <td>${v ? v.marque + ' ' + v.immat : c.vehId}</td>
+          <td>${c.lieu}</td>
+          <td>${c.montant != null ? Number(c.montant).toFixed(2) + ' €' : '—'}</td>
+          <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCW(${c.id})">✕</button></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun lavage enregistré</td></tr>';
+  const totalEl = document.getElementById('cw-total');
+  if (totalEl) totalEl.textContent = rows.length ? `Total : ${total.toFixed(2)} €` : '';
+}
+
+// ============================================================
+// ALERTE CHAUFFEUR — fonctions
+// ============================================================
+
+function initChauf() {
+  // Peupler les selects
+  ['chauf-veh', 'chauf-filter'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const isFilter = selId === 'chauf-filter';
+    if (sel.options.length <= (isFilter ? 1 : 0)) {
+      if (isFilter) {
+        vehicules.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+          sel.appendChild(opt);
+        });
+      } else {
+        sel.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+      }
+    }
+  });
+  renderMessagesChauf();
+}
+
+function sendMessageChauf() {
+  const vehId  = document.getElementById('chauf-veh').value;
+  const auteur = document.getElementById('chauf-auteur').value.trim();
+  const msg    = document.getElementById('chauf-msg').value.trim();
+  if (!vehId || !msg) { toast('Veuillez sélectionner un véhicule et décrire le problème.'); return; }
+  if (!auteur) { toast('Veuillez indiquer votre prénom.'); return; }
+
+  messagesChauf.unshift({
+    id: Date.now(), vehId, auteur, msg,
+    date: new Date().toISOString(),
+    statut: 'nonlu'
+  });
+  saveAll();
+
+  // Réinitialiser le formulaire
+  document.getElementById('chauf-msg').value = '';
+  document.getElementById('chauf-auteur').value = '';
+
+  renderMessagesChauf();
+  updateTabChauf();
+  toast('🚨 Signalement envoyé aux administrateurs !');
+}
+
+function markChaufLu(id) {
+  const m = messagesChauf.find(x => x.id === id);
+  if (m) { m.statut = 'lu'; saveAll(); renderMessagesChauf(); updateTabChauf(); }
+}
+
+function markChaufNonLu(id) {
+  const m = messagesChauf.find(x => x.id === id);
+  if (m) { m.statut = 'nonlu'; saveAll(); renderMessagesChauf(); updateTabChauf(); }
+}
+
+function deleteChauf(id) {
+  if (!confirm('Supprimer ce signalement ?')) return;
+  messagesChauf = messagesChauf.filter(m => m.id !== id);
+  saveAll(); renderMessagesChauf(); updateTabChauf();
+}
+
+function renderMessagesChauf() {
+  const filterVeh    = document.getElementById('chauf-filter')?.value || '';
+  const filterStatut = document.getElementById('chauf-filter-statut')?.value || '';
+  const list = document.getElementById('chauf-msg-list');
+  if (!list) return;
+
+  let msgs = [...messagesChauf];
+  if (filterVeh)    msgs = msgs.filter(m => m.vehId === filterVeh);
+  if (filterStatut) msgs = msgs.filter(m => m.statut === filterStatut);
+
+  const nonLus = messagesChauf.filter(m => m.statut === 'nonlu').length;
+  const titreEl = document.getElementById('chauf-nb-titre');
+  if (titreEl) titreEl.textContent = `Signalements${nonLus > 0 ? ` — ${nonLus} non traité${nonLus>1?'s':''}` : ''}`;
+
+  if (!msgs.length) {
+    list.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucun signalement.</p>';
+    return;
+  }
+
+  list.innerHTML = msgs.map(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    const vNom = v ? `${v.marque} — ${v.immat}` : m.vehId;
+    const dateStr = new Date(m.date).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const isNonLu = m.statut === 'nonlu';
+
+    // Boutons admin
+    const adminBtns = isAdmin ? `
+      ${isNonLu
+        ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="markChaufLu(${m.id})">✅ Marquer traité</button>`
+        : `<button class="btn btn-sm" style="color:var(--gris)" onclick="markChaufNonLu(${m.id})">↩ Rouvrir</button>`}
+      <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteChauf(${m.id})">🗑 Supprimer</button>
+    ` : '';
+
+    return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'}">
+      <div class="msg-header">
+        <span class="badge ${isNonLu ? 'urgent' : 'ok'}" style="font-size:11px">${isNonLu ? '⚠ Non traité' : '✅ Traité'}</span>
+        <span class="msg-veh">🚑 ${vNom}</span>
+        <span class="msg-date">${dateStr}</span>
+      </div>
+      <div class="msg-body">
+        <div>${m.msg}</div>
+        <div class="msg-auteur">— ${m.auteur}</div>
+      </div>
+      ${adminBtns ? `<div class="msg-actions">${adminBtns}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function initAdBlueOnglet() {
+  const selVeh = document.getElementById('ab-ong-veh');
+  if (selVeh && selVeh.options.length <= 0) {
+    selVeh.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+  }
+  const selFilt = document.getElementById('ab-filter-veh');
+  if (selFilt && selFilt.options.length <= 1) {
+    vehicules.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      selFilt.appendChild(opt);
+    });
+  }
+  // Pré-remplir km avec le km actuel du véhicule sélectionné
+  const vehId = selVeh ? selVeh.value : null;
+  const veh = vehId ? vehicules.find(x => x.id === vehId) : null;
+  const kmEl = document.getElementById('ab-ong-km');
+  if (kmEl && veh) kmEl.value = veh.km;
+  document.getElementById('ab-ong-date').value = new Date().toISOString().slice(0,10);
+  renderAdBlueTable();
+}
+
+function saveAdBlueOnglet() {
+  const date  = document.getElementById('ab-ong-date').value;
+  const vehId = document.getElementById('ab-ong-veh').value;
+  const litre = parseFloat(String(document.getElementById('ab-ong-litre').value).replace(',','.'));
+  const km    = document.getElementById('ab-ong-km').value ? parseInt(document.getElementById('ab-ong-km').value) : null;
+  if (!date || !vehId || isNaN(litre) || litre <= 0) { toast('Veuillez remplir la date, le véhicule et le volume.'); return; }
+  adblues.unshift({ id: Date.now(), vehId, date, litre, km });
+  saveAll();
+  clearABForm();
+  renderAdBlueTable();
+  if (document.getElementById('page-vehicules').classList.contains('active')) renderVehicules();
+  toast(`AdBlue enregistré — ${litre.toFixed(2)} L ✅`);
+}
+
+function clearABForm() {
+  document.getElementById('ab-ong-litre').value = '10.00';
+  document.getElementById('ab-ong-km').value = '';
+  document.getElementById('ab-ong-date').value = new Date().toISOString().slice(0,10);
+}
+
+function deleteAdBlueOnglet(id) {
+  if (!confirm('Supprimer cette entrée ?')) return;
+  adblues = adblues.filter(a => a.id !== id);
+  saveAll(); renderAdBlueTable(); toast('Entrée supprimée');
+}
+
+function renderAdBlueTable() {
+  const filterVeh = document.getElementById('ab-filter-veh')?.value || '';
+  const rows = adblues.filter(a => !filterVeh || a.vehId === filterVeh)
+                      .sort((a,b) => b.date.localeCompare(a.date));
+  const tbody = document.getElementById('ab-tbody');
+  if (!tbody) return;
+  let total = 0;
+  tbody.innerHTML = rows.length
+    ? rows.map(a => {
+        const v = vehicules.find(x => x.id === a.vehId);
+        total += a.litre;
+        const src = a.source === 'maintenance' ? '<span style="font-size:11px;color:var(--texte-sec)">maintenance</span>' : '—';
+        return `<tr>
+          <td>${formatDate(a.date)}</td>
+          <td>${v ? v.marque + ' ' + v.immat : a.vehId}</td>
+          <td style="color:var(--bleu);font-weight:700">${a.litre.toFixed(2)} L</td>
+          <td>${a.km ? parseInt(a.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
+          <td>${src}</td>
+          <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteAdBlueOnglet(${a.id})">✕</button></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée enregistrée</td></tr>';
+  const totalEl = document.getElementById('ab-total');
+  if (totalEl) totalEl.textContent = rows.length ? `Total : ${total.toFixed(2)} L` : '';
+}
+
+function ctStatus(veh) {
+  const j = daysUntil(veh.ct_valid);
+  if (j === null) return { cls:'warn', txt:'Date CT inconnue' };
+  if (j < 0) return { cls:'urgent', txt:`EXPIRÉ (${Math.abs(j)}j)` };
+  if (j <= 30) return { cls:'urgent', txt:`Expire dans ${j}j` };
+  if (j <= 90) return { cls:'warn', txt:`Expire dans ${j}j` };
+  return { cls:'ok', txt:`Valide ${j}j` };
+}
+
+function entretienStatus(veh) {
+  const reste = veh.prochain_entretien_km - veh.km;
+  const isCamion = veh.type === 'Camionnette';
+  // Seuils : VSL = urgent < 1500 km, warn < 3000 km ; camionnette = urgent < 300 km, warn < 600 km
+  const seuilUrgent = isCamion ? 300 : 1500;
+  const seuilWarn   = isCamion ? 600 : 3000;
+  if (reste < 0) return { cls:'urgent', txt:`DÉPASSÉ (${Math.abs(reste).toLocaleString('fr-BE')} km)` };
+  if (reste < seuilUrgent) return { cls:'urgent', txt:`Urgent: ${reste.toLocaleString('fr-BE')} km restants` };
+  if (reste < seuilWarn)   return { cls:'warn',   txt:`Bientôt: ${reste.toLocaleString('fr-BE')} km` };
+  return { cls:'ok', txt:`${reste.toLocaleString('fr-BE')} km restants` };
+}
+
+/* Vérifie si l'entretien doit déclencher une alerte par date (indépendamment du km) */
+function entretienDateAlert(veh) {
+  if (!veh.dernier_entretien_date) return null;
+  const isCamion = veh.type === 'Camionnette';
+  // VSL : alerte si dernier entretien + 1 an - 15 jours est dépassé ou proche
+  // Camionnette : alerte si dernier entretien + 2 ans - 7 jours est dépassé ou proche
+  const anneesLimit = isCamion ? 2 : 1;
+  const joursAvance = isCamion ? 7 : 15;
+  const d = parseDate(veh.dernier_entretien_date);
+  if (!d) return null;
+  const limit = new Date(d);
+  limit.setFullYear(limit.getFullYear() + anneesLimit);
+  limit.setDate(limit.getDate() - joursAvance);
+  const j = Math.round((limit - TODAY) / 86400000);
+  if (j <= 0) return { level:'urgent', txt:`Délai annuel${isCamion?' (2 ans)':''} dépassé depuis ${Math.abs(j)}j`, dateLimit: limit };
+  if (j <= 30) return { level:'urgent', txt:`Délai ${isCamion?'2 ans':'1 an'} dans ${j}j`, dateLimit: limit };
+  if (j <= 90) return { level:'warn', txt:`Délai ${isCamion?'2 ans':'1 an'} dans ${j}j`, dateLimit: limit };
+  return null;
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  // Stoppe le clignotement quand on est sur l'onglet Alertes
+  const tabAlertes = document.querySelectorAll('.tab-btn')[2];
+  if (id === 'alertes' && tabAlertes) tabAlertes.classList.remove('tab-urgent');
+
+  if (id === 'accueil') renderAccueil();
+  if (id === 'vehicules') renderVehicules();
+  if (id === 'alertes') renderAlertesFull();
+  if (id === 'historique') renderHistorique();
+  if (id === 'garages') populateEditSelects();
+  if (id === 'maintenance') populateMaintSelect();
+  if (id === 'carwash') initCarWash();
+  if (id === 'adblue') initAdBlueOnglet();
+  if (id === 'chauf') {
+    initChauf();
+    const tab = document.getElementById('tab-chauf');
+    if (tab) tab.classList.remove('tab-msg-urgent');
+  }
+
+  if (id !== 'alertes') updateTabAlertes();
+  if (id !== 'chauf') updateTabChauf();
+}
+
+// Hash SHA-256 du mot de passe admin (mot de passe jamais stocké en clair)
+const ADMIN_HASH = '06013b7c20bc10c6d95065b0ebcb61c58ed9f7a3c77faf01eccd9f2ae69b7747';
+
+function toggleRole() {
+  if (isAdmin) {
+    // Déconnexion immédiate
+    isAdmin = false;
+    document.getElementById('role-badge').textContent = 'Chauffeur';
+    document.getElementById('role-badge').style.background = 'rgba(255,255,255,0.2)';
+    document.getElementById('btn-role').textContent = '🔐';
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+    // Revenir à l'accueil si on était sur un onglet admin
+    showPage('accueil', document.querySelectorAll('.tab-btn')[0]);
+    updateTabChauf();
+    toast('Déconnecté du mode administrateur');
+  } else {
+    // Ouvrir le modal de connexion
+    document.getElementById('login-error').style.display = 'none';
+    document.getElementById('login-pwd').value = '';
+    document.getElementById('modal-login').classList.add('open');
+    setTimeout(() => document.getElementById('login-pwd').focus(), 100);
+  }
+}
+
+async function checkAdmin() {
+  const pwd = document.getElementById('login-pwd').value;
+  if (!pwd) return;
+  // Hacher le mot de passe saisi avec SHA-256 (API Web Crypto native, disponible partout)
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pwd);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+  if (hashHex === ADMIN_HASH) {
+    isAdmin = true;
+    document.getElementById('role-badge').textContent = '⚙ Administrateur';
+    document.getElementById('role-badge').style.background = 'rgba(255,200,0,0.3)';
+    document.getElementById('btn-role').textContent = '🔓';
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    closeModal('modal-login');
+    document.getElementById('login-pwd').value = '';
+    updateTabChauf();
+    demanderPermissionNotif(); // demander permission notifications
+    toast('Mode administrateur activé ✅');
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-pwd').value = '';
+    document.getElementById('login-pwd').focus();
+  }
+}
+
+// ============================================================
+// RENDER ACCUEIL
+// ============================================================
+function renderAccueil() {
+  const alertes = buildAlertes();
+  const nbUrgent = alertes.filter(a => a.level === 'urgent').length;
+  const nbWarn   = alertes.filter(a => a.level === 'warn').length;
+  const nbOK     = vehicules.filter(v => {
+    const j = daysUntil(v.ct_valid);
+    const ent = entretienStatus(v);
+    const da = entretienDateAlert(v);
+    return j !== null && j > 60 && ent.cls === 'ok' && !da;
+  }).length;
+
+  const hasCarteRouge = alertes.some(a => a.carteRouge);
+  const urgentPulse = (nbUrgent > 0 || hasCarteRouge) ? 'style="animation:pulse-rouge 1.6s ease infinite"' : '';
+
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
+      <div class="num">${vehicules.length}</div><div class="lbl">Véhicules actifs</div>
+    </div>
+    <div class="summary-card rouge" onclick="goToAlertesFilter('urgent')" title="Voir les alertes urgentes" ${urgentPulse}>
+      <div class="num">${nbUrgent}</div><div class="lbl">Alertes urgentes</div>
+    </div>
+    <div class="summary-card orange" onclick="goToAlertesFilter('warn')" title="Voir les alertes à surveiller">
+      <div class="num">${nbWarn}</div><div class="lbl">Alertes à surveiller</div>
+    </div>
+    <div class="summary-card vert" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir les véhicules">
+      <div class="num">${nbOK}</div><div class="lbl">Véhicules OK</div>
+    </div>
+  `;
+
+  const top = alertes.slice(0, 8);
+  const html = top.length ? top.map(a => renderAlerte(a)).join('') : '<p style="color:var(--texte-sec)">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
+  document.getElementById('alertes-dashboard').innerHTML = `<h3 style="margin-bottom:12px">🔔 Alertes prioritaires</h3><div class="alertes-list">${html}</div>`;
+
+  // ── Bloc Prochaine Maintenance ───────────────────────────
+  const samedi = prochainSamediFinDeMois();
+  const samediStr = samedi.toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const joursAvant = Math.round((samedi - TODAY) / 86400000);
+  const joursLabel = joursAvant === 0 ? "Aujourd'hui !" : joursAvant === 1 ? 'Demain' : `Dans ${joursAvant} jours`;
+
+  // Pour chaque véhicule, trouver la dernière maintenance enregistrée
+  const lignesVeh = vehicules.map(v => {
+    const lastM = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+    const lastDateStr = lastM ? formatDate(lastM.date) : '—';
+    const lastKmStr   = lastM ? lastM.km.toLocaleString('fr-BE') + ' km' : '—';
+    const lastRem     = lastM && lastM.rem ? `<span style="font-size:11px;color:var(--texte-sec);display:block;margin-top:1px">${lastM.rem.substring(0,60)}${lastM.rem.length>60?'…':''}</span>` : '';
+
+    return `<tr>
+      <td style="padding:7px 10px;font-size:13px;font-weight:500">${v.marque}<br><span style="font-size:11px;font-family:monospace;background:var(--texte);color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span></td>
+      <td style="padding:7px 10px;font-size:13px">${lastDateStr}</td>
+      <td style="padding:7px 10px;font-size:13px">${lastKmStr}</td>
+      <td style="padding:7px 10px;font-size:13px">${lastRem || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('alertes-dashboard').innerHTML += `
+    <div style="margin-top:20px">
+      <h3 style="margin-bottom:10px">🔧 Prochaine maintenance mensuelle</h3>
+      <div class="form-card" style="padding:12px 16px;margin-bottom:0">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-size:20px;font-weight:800;color:var(--bleu)">📅 ${samediStr}</div>
+          <span class="badge info" style="font-size:12px;padding:4px 12px">${joursLabel}</span>
+        </div>
+        <div class="table-wrap">
+          <table style="width:100%;border-collapse:collapse;background:var(--blanc);font-size:13px">
+            <thead style="background:var(--gris-clair)">
+              <tr>
+                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Véhicule</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Dernière maintenance</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Km relevé</th>
+                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Remarque</th>
+              </tr>
+            </thead>
+            <tbody>${lignesVeh}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+
+  updateTabAlertes();
+}
+
+/* Met à jour la classe clignotante de l'onglet Alertes */
+function updateTabAlertes() {
+  const tabAlertes = document.querySelectorAll('.tab-btn')[2];
+  if (!tabAlertes) return;
+  const hasUrgent = buildAlertes().some(a => a.level === 'urgent');
+  tabAlertes.classList.toggle('tab-urgent', hasUrgent && !tabAlertes.classList.contains('active'));
+}
+
+/* Met à jour le badge et clignotement de l'onglet Alerte chauffeur (côté admin uniquement) */
+function updateTabChauf() {
+  const tab = document.getElementById('tab-chauf');
+  if (!tab) return;
+  const nonLus = messagesChauf.filter(m => m.statut === 'nonlu').length;
+  // Badge numérique
+  let badge = tab.querySelector('.tab-badge');
+  if (nonLus > 0) {
+    if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge'; tab.appendChild(badge); }
+    badge.textContent = nonLus;
+  } else if (badge) badge.remove();
+  // Clignotement côté admin seulement si messages non lus
+  const shouldPulse = isAdmin && nonLus > 0 && !tab.classList.contains('active');
+  tab.classList.toggle('tab-msg-urgent', shouldPulse);
+}
+
+/* Navigation rapide vers l'onglet Alertes avec filtre de niveau */
+let _alerteFilter = '';
+function goToAlertesFilter(level) {
+  _alerteFilter = level;
+  showPage('alertes', document.querySelectorAll('.tab-btn')[2]);
+}
+
+// ============================================================
+// ALERTES
+// ============================================================
+
+/* Retourne le RV actif (planifié, non annulé) le plus récent pour un véhicule + type */
+function rvActif(vehId, typeRV) {
+  return rendezvous.find(r => r.vehId === vehId && r.type === typeRV && r.statut !== 'annule' && r.statut !== 'fait') || null;
+}
+
+function buildAlertes() {
+  const alertes = [];
+  vehicules.forEach(v => {
+    const j = daysUntil(v.ct_valid);
+    const isCamion = v.type === 'Camionnette';
+    const seuilKmUrgent = isCamion ? 300 : 1500;
+    const seuilKmWarn   = isCamion ? 600 : 3000;
+
+    // ── CT ──────────────────────────────────────────────────
+    const rvCT = rvActif(v.id, 'ct');
+
+    // Carte rouge CT : CT refusé, valable max 15 jours belges (on stocke dans v.ct_carte_rouge_date)
+    if (v.ct_carte_rouge_date) {
+      const jCR = daysUntil(v.ct_carte_rouge_date);
+      alertes.push({ level:'urgent', icon:'🚨', vehId:v.id, typeRV:'ct', carteRouge:true,
+        titre:`🔴 CARTE ROUGE — ${v.marque} ${v.immat}`,
+        detail:`CT refusé. Circulation autorisée jusqu'au ${formatDate(v.ct_carte_rouge_date)}${jCR !== null ? ` (encore ${Math.max(0,jCR)} jour${jCR>1?'s':''})` : ''}. RV de repassage obligatoire !` });
+    } else if (rvCT) {
+      if (j !== null && j <= 60) {
+        alertes.push({ level:'rv', icon:'📅', vehId:v.id, typeRV:'ct', rv:rvCT,
+          titre:`CT planifié — ${v.marque} ${v.immat}`,
+          detail:`CT valable jusqu'au ${formatDate(v.ct_valid)}. RV le ${formatDate(rvCT.date)}${rvCT.heure ? ' à ' + rvCT.heure : ''}${rvCT.garage ? ' — ' + rvCT.garage : ''}.` });
+      }
+    } else {
+      if (j !== null && j < 0) {
+        alertes.push({ level:'urgent', icon:'🚨', vehId:v.id, typeRV:'ct',
+          titre:`CT expiré — ${v.marque} ${v.immat}`,
+          detail:`CT expiré depuis ${Math.abs(j)} jours ! Action immédiate requise.` });
+      } else if (j !== null && j <= 30) {
+        // Moins de 30 jours : urgent + bouton Prendre RV
+        alertes.push({ level:'urgent', icon:'⚠️', vehId:v.id, typeRV:'ct',
+          titre:`CT urgent — ${v.marque} ${v.immat}`,
+          detail:`CT expire le ${formatDate(v.ct_valid)} (dans ${j} jour${j>1?'s':''}).` });
+      } else if (j !== null && j <= 60) {
+        // 31–60 jours : avertissement + bouton Prendre RV
+        alertes.push({ level:'warn', icon:'📅', vehId:v.id, typeRV:'ct',
+          titre:`CT à planifier — ${v.marque} ${v.immat}`,
+          detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} (dans ${j} jours). Prenez RV maintenant.` });
+      }
+    }
+
+    // ── Entretien garage ─────────────────────────────────────
+    const reste = v.prochain_entretien_km - v.km;
+    const rvGarage = rvActif(v.id, 'garage');
+    const dateAlert = entretienDateAlert(v);
+
+    // Construire les messages combinés km + date
+    function entretienDetail(inclRV) {
+      const kmPart = reste < 0
+        ? `Entretien dépassé de ${Math.abs(reste).toLocaleString('fr-BE')} km.`
+        : `Encore ${reste.toLocaleString('fr-BE')} km avant entretien (à ${v.prochain_entretien_km.toLocaleString('fr-BE')} km).`;
+      const datePart = dateAlert ? ` — ${dateAlert.txt}` : '';
+      const garagePart = ` Garage: ${v.garage}.`;
+      return kmPart + datePart + garagePart;
+    }
+
+    // Niveau le plus grave entre km et date
+    const kmLevel = reste < 0 ? 'urgent' : reste < seuilKmUrgent ? 'urgent' : reste < seuilKmWarn ? 'warn' : 'ok';
+    const dateLevel = dateAlert ? dateAlert.level : 'ok';
+    const globalLevel = (kmLevel === 'urgent' || dateLevel === 'urgent') ? 'urgent'
+                      : (kmLevel === 'warn'   || dateLevel === 'warn')   ? 'warn' : 'ok';
+
+    if (rvGarage) {
+      if (globalLevel !== 'ok') {
+        alertes.push({ level:'rv', icon:'🔧', vehId:v.id, typeRV:'garage', rv:rvGarage,
+          titre:`Entretien planifié — ${v.marque} ${v.immat}`,
+          detail:`Prochain entretien à ${v.prochain_entretien_km.toLocaleString('fr-BE')} km (${reste >= 0 ? reste.toLocaleString('fr-BE') + ' km restants' : 'DÉPASSÉ'}). RV le ${formatDate(rvGarage.date)}${rvGarage.heure ? ' à ' + rvGarage.heure : ''} — ${rvGarage.garage || v.garage}.` });
+      }
+    } else {
+      if (globalLevel === 'urgent') {
+        const icon = reste < 0 ? '🔧' : '🔧';
+        alertes.push({ level:'urgent', icon, vehId:v.id, typeRV:'garage',
+          titre:`Entretien urgent — ${v.marque} ${v.immat}`,
+          detail: entretienDetail() });
+      } else if (globalLevel === 'warn') {
+        alertes.push({ level:'warn', icon:'🔩', vehId:v.id, typeRV:'garage',
+          titre:`Entretien à planifier — ${v.marque} ${v.immat}`,
+          detail: entretienDetail() });
+      }
+    }
+
+    // ── Pneus ─────────────────────────────────────────────────
+    if (v.remarques && v.remarques.includes('pneu') && (v.remarques.includes('prévoir') || v.remarques.includes('remplacer') || v.remarques.includes('usé'))) {
+      alertes.push({ level:'warn', icon:'🔵', vehId:null, typeRV:null,
+        titre:`Pneus — ${v.marque} ${v.immat}`, detail:v.remarques });
+    }
+
+    // ── Carte Total ───────────────────────────────────────────
+    const jCarte = daysUntil(v.carte_total_valid);
+    if (jCarte !== null && jCarte < 0) {
+      alertes.push({ level:'urgent', icon:'💳', vehId:null, typeRV:null,
+        titre:`Carte Total expirée — ${v.marque} ${v.immat}`,
+        detail:`Carte n°${v.carte_total_code} expirée depuis ${Math.abs(jCarte)} jours.` });
+    } else if (jCarte !== null && jCarte <= 30) {
+      alertes.push({ level:'urgent', icon:'💳', vehId:null, typeRV:null,
+        titre:`Carte Total — renouvellement urgent — ${v.immat}`,
+        detail:`Carte n°${v.carte_total_code} expire le ${formatDate(v.carte_total_valid)} (dans ${jCarte} jour${jCarte>1?'s':''}).` });
+    } else if (jCarte !== null && jCarte <= 90) {
+      alertes.push({ level:'warn', icon:'💳', vehId:null, typeRV:null,
+        titre:`Carte Total à renouveler — ${v.immat}`,
+        detail:`Carte n°${v.carte_total_code} expire le ${formatDate(v.carte_total_valid)} (dans ${jCarte} jours).` });
+    }
+
+    // ── Vignette SPW ──────────────────────────────────────────
+    const jSPW = daysUntil(v.spw_valid);
+    if (jSPW !== null && jSPW < 0) {
+      alertes.push({ level:'urgent', icon:'🪧', vehId:null, typeRV:null,
+        titre:`Vignette SPW expirée — ${v.marque} ${v.immat}`,
+        detail:`Vignette SPW expirée depuis ${Math.abs(jSPW)} jours.` });
+    } else if (jSPW !== null && jSPW <= 30) {
+      alertes.push({ level:'urgent', icon:'🪧', vehId:null, typeRV:null,
+        titre:`Vignette SPW urgent — ${v.immat}`,
+        detail:`Vignette SPW expire le ${formatDate(v.spw_valid)} (dans ${jSPW} jour${jSPW>1?'s':''}).` });
+    } else if (jSPW !== null && jSPW <= 90) {
+      alertes.push({ level:'warn', icon:'🪧', vehId:null, typeRV:null,
+        titre:`Vignette SPW à renouveler — ${v.immat}`,
+        detail:`Expire le ${formatDate(v.spw_valid)} (dans ${jSPW} jours).` });
+    }
+
+    // ── Extincteur ────────────────────────────────────────────
+    const jExt = daysUntil(v.extincteur_valid);
+    if (jExt !== null && jExt < 0) {
+      alertes.push({ level:'urgent', icon:'🧯', vehId:null, typeRV:null,
+        titre:`Extincteur expiré — ${v.marque} ${v.immat}`,
+        detail:`Extincteur expiré depuis ${Math.abs(jExt)} jours.` });
+    } else if (jExt !== null && jExt <= 30) {
+      alertes.push({ level:'urgent', icon:'🧯', vehId:null, typeRV:null,
+        titre:`Extincteur urgent — ${v.immat}`,
+        detail:`Extincteur expire le ${formatDate(v.extincteur_valid)} (dans ${jExt} jour${jExt>1?'s':''}).` });
+    } else if (jExt !== null && jExt <= 90) {
+      alertes.push({ level:'warn', icon:'🧯', vehId:null, typeRV:null,
+        titre:`Extincteur à renouveler — ${v.immat}`,
+        detail:`Expire le ${formatDate(v.extincteur_valid)} (dans ${jExt} jours).` });
+    }
+  });
+
+  alertes.sort((a,b) => {
+    const o = { urgent:0, warn:1, rv:2, info:3 };
+    // Les cartes rouges CT en tout premier
+    if (a.carteRouge && !b.carteRouge) return -1;
+    if (!a.carteRouge && b.carteRouge) return 1;
+    return (o[a.level]??3) - (o[b.level]??3);
+  });
+  return alertes;
+}
+
+function renderAlerte(a) {
+  // Carte RV planifié
+  if (a.level === 'rv') {
+    const r = a.rv;
+    const icon = a.typeRV === 'ct' ? '🏥' : '🔧';
+    return `<div class="alerte-item" style="border-left-color:var(--vert);background:var(--vert-clair)">
+      <div class="alerte-icon">${icon}</div>
+      <div class="alerte-text" style="flex:1">
+        <h4 style="color:#1a6b38">${a.titre}</h4>
+        <p>${a.detail}</p>
+        ${r.notes ? `<p style="font-style:italic;margin-top:2px">${r.notes}</p>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
+        <span class="badge ok" style="font-size:11px">✅ RV confirmé</span>
+        ${isAdmin ? `<button class="alerte-rv-btn" style="color:#1a6b38;border-color:var(--vert);font-size:11px" onclick="openRV('${a.vehId}','${a.typeRV}')">Modifier</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  // Carte rouge CT clignotante
+  if (a.carteRouge) {
+    return `<div class="alerte-item urgent carte-rouge">
+      <div class="alerte-icon" style="font-size:28px">🔴</div>
+      <div class="alerte-text" style="flex:1">
+        <h4 style="color:var(--rouge-fonce);font-size:15px">${a.titre}</h4>
+        <p style="font-weight:600">${a.detail}</p>
+      </div>
+      ${isAdmin ? `<button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 RV repassage</button>` : ''}
+    </div>`;
+  }
+
+  // Alerte normale — bouton Prendre RV visible uniquement pour les admins
+  const btnRV = (isAdmin && a.vehId)
+    ? `<button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 Prendre RV</button>`
+    : '';
+  return `<div class="alerte-item ${a.level}">
+    <div class="alerte-icon">${a.icon}</div>
+    <div class="alerte-text" style="flex:1"><h4>${a.titre}</h4><p>${a.detail}</p></div>
+    ${btnRV}
+  </div>`;
+}
+
+function renderAlertesFull() {
+  let alertes = buildAlertes();
+  // Appliquer filtre de niveau si venu du dashboard
+  if (_alerteFilter) {
+    alertes = alertes.filter(a => a.level === _alerteFilter);
+    _alerteFilter = ''; // reset après usage
+  }
+  document.getElementById('alertes-full').innerHTML = alertes.length
+    ? alertes.map(a => renderAlerte(a)).join('')
+    : '<p style="color:var(--texte-sec);padding:20px">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
+  // On est sur l'onglet Alertes : stopper le clignotement
+  const tabAlertes = document.querySelectorAll('.tab-btn')[2];
+  if (tabAlertes) tabAlertes.classList.remove('tab-urgent');
+}
+
+// ============================================================
+// RENDER VEHICULES
+// ============================================================
+// Ordre d'affichage imposé
+const ORDRE_VEHICULES = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM941','TLAN527','TLAN910','1RER037'];
+
+function renderVehicules() {
+  // Trier selon l'ordre imposé
+  const ordonnes = [...vehicules].sort((a, b) => {
+    const ia = ORDRE_VEHICULES.indexOf(a.id);
+    const ib = ORDRE_VEHICULES.indexOf(b.id);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+
+  document.getElementById('vehicules-grid').innerHTML = ordonnes.map(v => {
+    const ct = ctStatus(v);
+    const ent = entretienStatus(v);
+    const isCamion = v.type === 'Camionnette';
+
+    // Dernière maintenance enregistrée pour ce véhicule
+    const lastM = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+    const lastMStr = lastM ? ` <span style="color:var(--texte-sec);font-size:11px;font-weight:400">— maint. ${formatDate(lastM.date)}</span>` : '';
+
+    // Date limite entretien = dernier entretien + 1 an (VSL) ou 2 ans (camion)
+    let dateEntretienStr = '';
+    if (v.dernier_entretien_date) {
+      const d = parseDate(v.dernier_entretien_date);
+      if (d) {
+        const limite = new Date(d);
+        limite.setFullYear(limite.getFullYear() + (isCamion ? 2 : 1));
+        const jLimite = Math.round((limite - TODAY) / 86400000);
+        const limCls = jLimite < 0 ? 'danger' : jLimite <= 30 ? 'warn' : '';
+        dateEntretienStr = ` <span class="${limCls}" style="font-size:11px">et/ou ${formatDate(limite.toISOString().slice(0,10))}</span>`;
+      }
+    }
+
+    // Dernière entrée AdBlue
+    const lastAbDirect = adblues.filter(a => a.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+    const lastAbMaintRaw = maintenances.filter(m => m.vehId === v.id && m.adblue && m.adblue.trim()).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+    const lastAbMaint = lastAbMaintRaw ? { date: lastAbMaintRaw.date, litre: parseFloat(String(lastAbMaintRaw.adblue).replace(',','.').replace(/[^0-9.]/g,'')) || null } : null;
+    let lastAb = null;
+    if (lastAbDirect && lastAbMaint) lastAb = lastAbDirect.date >= lastAbMaint.date ? lastAbDirect : lastAbMaint;
+    else lastAb = lastAbDirect || lastAbMaint;
+    const abRow = lastAb && lastAb.litre
+      ? `<div class="veh-row"><span class="label" style="color:var(--bleu)">💧 AdBlue</span><span class="val" style="color:var(--bleu);font-weight:600">${lastAb.litre.toFixed(2)} L — ${formatDate(lastAb.date)}</span></div>`
+      : '';
+
+    // Dernier Car Wash
+    const lastCW = carwashes.filter(c => c.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+    const cwRow = lastCW
+      ? `<div class="veh-row"><span class="label">🚿 Car Wash</span><span class="val" style="color:var(--texte-sec)">le ${formatDate(lastCW.date)} — ${lastCW.lieu}</span></div>`
+      : '';
+
+    // Équipement (rampe / élévateur)
+    const equipBadge = v.equipement
+      ? `<span class="badge info" style="font-size:10px;margin-top:3px">${v.equipement === 'Élévateur' ? '🔼 Élévateur' : '📐 Rampe'}</span>`
+      : '';
+
+    return `<div class="veh-card">
+      <div class="veh-card-header">
+        <div class="veh-icon ${isCamion?'camion':'vsl'}">${isCamion?'🚐':'🚑'}</div>
+        <div class="veh-info" style="flex:1;min-width:0">
+          <h3>${v.marque}</h3>
+          <span class="immat">${v.immat}</span>
+          ${equipBadge}
+          <div style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:4px;letter-spacing:0.5px;word-break:break-all">${v.chassis}</div>
+        </div>
+        <div class="veh-badges" style="flex-shrink:0">
+          <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls.toUpperCase()}</span>
+          <span class="badge ${ent.cls}">${ent.cls==='ok'?'ENT OK':ent.cls.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="veh-body">
+        <div class="veh-row">
+          <span class="label">Kilométrage</span>
+          <span class="val">${v.km.toLocaleString('fr-BE')} km${lastMStr}</span>
+        </div>
+        <div class="veh-row">
+          <span class="label">CT valable jusqu'au</span>
+          <span class="val ${ct.cls}">${formatDate(v.ct_valid)}</span>
+        </div>
+        <div class="veh-row">
+          <span class="label">Prochain entretien</span>
+          <span class="val ${ent.cls}">${v.prochain_entretien_km.toLocaleString('fr-BE')} km${dateEntretienStr}</span>
+        </div>
+        <div class="veh-row"><span class="label">Garage attitré</span><span class="val">${v.garage}</span></div>
+        <div class="veh-row"><span class="label">Mise en circulation</span><span class="val">${formatDate(v.mise_en_circulation)}</span></div>
+        ${abRow}
+        ${cwRow}
+      </div>
+      <div class="veh-actions">
+        <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
+        ${isAdmin ? `<button class="btn btn-sm primary" onclick="quickEdit('${v.id}')">✏️ Modifier</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openVehDetail(id) {
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('modal-veh-title').textContent = `${v.marque} — ${v.immat}`;
+
+  // Fonction locale pour afficher une ligne avec alerte optionnelle
+  function detailRow(label, value, alertCls, alertTxt) {
+    const alertBadge = alertCls ? `<span class="badge ${alertCls}" style="margin-left:6px;font-size:10px">${alertTxt}</span>` : '';
+    return `<tr>
+      <td style="padding:7px 0;color:var(--texte-sec);width:48%;font-size:13px">${label}</td>
+      <td style="font-weight:500;font-size:13px">${value || '—'}${alertBadge}</td>
+    </tr>`;
+  }
+
+  // Alertes sur dates de validité (1 mois = 30 jours)
+  function validiteAlert(dateStr) {
+    const j = daysUntil(dateStr);
+    if (j === null) return null;
+    if (j < 0) return { cls:'urgent', txt:'EXPIRÉ' };
+    if (j <= 30) return { cls:'urgent', txt:`Expire dans ${j}j` };
+    if (j <= 90) return { cls:'warn', txt:`Expire dans ${j}j` };
+    return null;
+  }
+
+  // Carte Total
+  const ctAlert = validiteAlert(v.carte_total_valid);
+  // SPW
+  const spwAlert = validiteAlert(v.spw_valid);
+  // Extincteur
+  const extAlert = validiteAlert(v.extincteur_valid);
+
+  const estEditable = isAdmin;
+  const editBtn = estEditable ? `<button class="btn btn-sm primary" style="margin-top:14px" onclick="closeModal('modal-veh');quickEdit('${v.id}')">✏️ Modifier le véhicule</button>` : '';
+
+  // Section éditable admin (carte Total, SPW, extincteur, Recht)
+  const adminEdit = estEditable ? `
+    <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">⚙️ Données éditables (admin)</td></tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Code carte Total</td>
+      <td><input type="text" value="${v.carte_total_code||''}" onchange="updateVehField('${v.id}','carte_total_code',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Validité carte Total</td>
+      <td><input type="date" value="${v.carte_total_valid||''}" onchange="updateVehField('${v.id}','carte_total_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Vignette SPW valable jusqu'au</td>
+      <td><input type="date" value="${v.spw_valid||''}" onchange="updateVehField('${v.id}','spw_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Extincteur valable jusqu'au</td>
+      <td><input type="date" value="${v.extincteur_valid||''}" onchange="updateVehField('${v.id}','extincteur_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    ${v.equipement ? `<tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dernière visite Recht (date)</td>
+      <td><input type="date" value="${v.recht_date||''}" onchange="updateVehField('${v.id}','recht_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Motif visite Recht</td>
+      <td><input type="text" value="${v.recht_motif||''}" onchange="updateVehField('${v.id}','recht_motif',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation H→É (date)</td>
+      <td><input type="date" value="${v.permut_hiver_ete_date||''}" onchange="updateVehField('${v.id}','permut_hiver_ete_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation H→É (km)</td>
+      <td><input type="number" value="${v.permut_hiver_ete_km||''}" onchange="updateVehField('${v.id}','permut_hiver_ete_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation É→H (date)</td>
+      <td><input type="date" value="${v.permut_ete_hiver_date||''}" onchange="updateVehField('${v.id}','permut_ete_hiver_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation É→H (km)</td>
+      <td><input type="number" value="${v.permut_ete_hiver_km||''}" onchange="updateVehField('${v.id}','permut_ete_hiver_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>` : ''}
+  ` : '';
+
+  document.getElementById('modal-veh-body').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;">
+
+      <tr><td colspan="2" style="padding:10px 0 6px;font-weight:700;font-size:13px">💳 Carte carburant Total</td></tr>
+      ${detailRow('Code carte', v.carte_total_code, ctAlert?.cls, ctAlert?.txt)}
+      ${detailRow('Valable jusqu\'au', formatDate(v.carte_total_valid), ctAlert?.cls, ctAlert?.txt)}
+
+      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🪧 Vignette SPW</td></tr>
+      ${detailRow('Valable jusqu\'au', v.spw_valid ? formatDate(v.spw_valid) : '— (à compléter)', spwAlert?.cls, spwAlert?.txt)}
+
+      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🧯 Extincteur</td></tr>
+      ${detailRow('Valable jusqu\'au', v.extincteur_valid ? formatDate(v.extincteur_valid) : '— (à compléter)', extAlert?.cls, extAlert?.txt)}
+
+      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🏔 Pneumatiques</td></tr>
+      ${detailRow('Dimensions pneus été 🔴', v.dim_ete || v.pneus_ete)}
+      ${detailRow('Marque pneus été', v.pneus_ete)}
+      ${detailRow('Dimensions pneus hiver 🟤', v.dim_hiver)}
+      ${detailRow('Marque pneus hiver', v.pneus_hiver)}
+
+      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔄 Permutations pneus</td></tr>
+      ${detailRow('Hiver → Été (date)', formatDate(v.permut_hiver_ete_date))}
+      ${detailRow('Hiver → Été (km)', v.permut_hiver_ete_km ? v.permut_hiver_ete_km.toLocaleString('fr-BE') + ' km' : '—')}
+      ${detailRow('Été → Hiver (date)', formatDate(v.permut_ete_hiver_date))}
+      ${detailRow('Été → Hiver (km)', v.permut_ete_hiver_km ? v.permut_ete_hiver_km.toLocaleString('fr-BE') + ' km' : '—')}
+
+      ${v.equipement ? `
+      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔧 ${v.equipement} — Dernière visite Recht</td></tr>
+      ${detailRow('Date de visite', formatDate(v.recht_date))}
+      ${detailRow('Motif', v.recht_motif)}
+      ` : ''}
+
+      ${adminEdit}
+    </table>
+    ${editBtn}
+  `;
+  document.getElementById('modal-veh').classList.add('open');
+}
+
+/* Met à jour un champ d'un véhicule en mémoire et sauvegarde */
+function updateVehField(vehId, field, value) {
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  v[field] = value;
+  saveAll();
+  toast(`${field.replace(/_/g,' ')} mis à jour ✅`);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// ============================================================
+// RENDEZ-VOUS
+// ============================================================
+let _rvVehId = null;
+
+/* Met à jour garage + visibilité km quand le type change dans le formulaire */
+function onRVTypeChange() {
+  const type = document.getElementById('rv-type').value;
+  const garageInput = document.getElementById('rv-garage');
+  const kmWrap = document.getElementById('rv-km-wrap');
+  const v = vehicules.find(x => x.id === _rvVehId);
+  if (type === 'ct') {
+    garageInput.value = 'Bièvre (Centre CT)';
+    if (kmWrap) kmWrap.style.display = 'none';
+    document.getElementById('rv-km').value = '';
+  } else {
+    garageInput.value = v ? (v.garage || '') : '';
+    if (kmWrap) kmWrap.style.display = '';
+    document.getElementById('rv-km').value = v ? (v.km || '') : '';
+  }
+}
+
+function openRV(vehId, typeRV) {
+  if (!isAdmin) { toast('Accès réservé aux administrateurs.'); return; }
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  _rvVehId = vehId;
+
+  // Pré-remplir type
+  const selType = document.getElementById('rv-type');
+  if (typeRV) selType.value = typeRV;
+
+  // Garage et km selon type
+  const garageInput = document.getElementById('rv-garage');
+  const kmWrap = document.getElementById('rv-km-wrap');
+  if (typeRV === 'ct') {
+    garageInput.value = 'Bièvre (Centre CT)';
+    if (kmWrap) kmWrap.style.display = 'none'; // pas de km pour CT
+    document.getElementById('rv-km').value = '';
+  } else {
+    garageInput.value = v.garage || '';
+    if (kmWrap) kmWrap.style.display = '';
+    document.getElementById('rv-km').value = v.km || '';
+  }
+
+  document.getElementById('rv-heure').value = '';
+  document.getElementById('rv-notes').value = '';
+  document.getElementById('rv-statut').value = 'planifie';
+  document.getElementById('rv-date').value = '';
+
+  // Titre modal
+  document.getElementById('modal-rv-title').textContent = `📅 RV — ${v.marque} ${v.immat}`;
+
+  // Récapitulatif
+  const ct = ctStatus(v);
+  const ent = entretienStatus(v);
+  const j = daysUntil(v.ct_valid);
+  const reste = v.prochain_entretien_km - v.km;
+
+  document.getElementById('rv-recap-body').innerHTML = `
+    <h4>Récapitulatif ${v.marque} ${v.immat}</h4>
+    <div class="rv-recap-grid">
+      <div class="rv-recap-item">
+        <span class="rlbl">Kilométrage actuel</span>
+        <span class="rval">${v.km.toLocaleString('fr-BE')} km</span>
+      </div>
+      <div class="rv-recap-item">
+        <span class="rlbl">Garage attitré</span>
+        <span class="rval">${v.garage}</span>
+      </div>
+      <div class="rv-recap-item">
+        <span class="rlbl">CT valable jusqu'au</span>
+        <span class="rval ${ct.cls}">${formatDate(v.ct_valid)} — ${ct.txt}</span>
+      </div>
+      <div class="rv-recap-item">
+        <span class="rlbl">Prochain entretien à</span>
+        <span class="rval ${ent.cls}">${v.prochain_entretien_km.toLocaleString('fr-BE')} km — ${reste >= 0 ? reste.toLocaleString('fr-BE') + ' km restants' : 'DÉPASSÉ'}</span>
+      </div>
+      <div class="rv-recap-item">
+        <span class="rlbl">Dernier entretien le</span>
+        <span class="rval">${formatDate(v.dernier_entretien_date)}</span>
+      </div>
+      <div class="rv-recap-item">
+        <span class="rlbl">Intervalle entretien</span>
+        <span class="rval">tous les ${v.interval_entretien_km.toLocaleString('fr-BE')} km</span>
+      </div>
+      ${typeRV === 'ct' && j !== null ? `<div class="rv-recap-item" style="grid-column:1/-1">
+        <span class="rlbl">Motif de l'alerte CT</span>
+        <span class="rval ${ct.cls}">${j < 0 ? 'CT EXPIRÉ depuis ' + Math.abs(j) + ' jours' : 'CT expire dans ' + j + ' jours (le ' + formatDate(v.ct_valid) + ')'}</span>
+      </div>` : ''}
+      ${typeRV === 'garage' ? `<div class="rv-recap-item" style="grid-column:1/-1">
+        <span class="rlbl">Motif de l'alerte entretien</span>
+        <span class="rval ${ent.cls}">${reste < 0 ? 'Entretien dépassé de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km' : 'Entretien dans ' + reste.toLocaleString('fr-BE') + ' km'}</span>
+      </div>` : ''}
+    </div>
+  `;
+
+  renderRVHistorique(vehId);
+  document.getElementById('modal-rv').classList.add('open');
+}
+
+function renderRVHistorique(vehId) {
+  const vRvs = rendezvous.filter(r => r.vehId === vehId).sort((a,b) => b.date.localeCompare(a.date));
+  const ICONES = { ct:'🏥', garage:'🔧', planifie:'📅', fait:'✅', annule:'❌', 'en-attente':'⏳' };
+  const LABELS = { ct:'Contrôle Technique', garage:'Entretien Garage' };
+
+  document.getElementById('rv-historique-body').innerHTML = vRvs.length
+    ? vRvs.map(r => {
+        const dotCls = r.statut === 'fait' ? r.type : r.statut === 'annule' ? 'annule' : 'planifie';
+        const icon = r.type === 'ct' ? '🏥' : '🔧';
+        const heureStr = r.heure ? ` à ${r.heure}` : '';
+        return `<div class="rv-timeline-item">
+          <div class="rv-dot ${dotCls}">${icon}</div>
+          <div class="rv-info">
+            <div class="rv-date">${formatDate(r.date)}${heureStr}</div>
+            <div class="rv-titre">${LABELS[r.type] || r.type}${r.garage ? ' — ' + r.garage : ''}</div>
+            ${r.km ? `<div class="rv-detail">Km estimé : ${parseInt(r.km).toLocaleString('fr-BE')}</div>` : ''}
+            ${r.notes ? `<div class="rv-detail" style="margin-top:2px;font-style:italic">${r.notes}</div>` : ''}
+          </div>
+          <span class="rv-statut ${r.statut}">${r.statut === 'planifie' ? 'Planifié' : r.statut === 'fait' ? 'Effectué' : r.statut === 'annule' ? 'Annulé' : r.statut}</span>
+          <button style="background:none;border:none;color:var(--gris);cursor:pointer;font-size:16px;padding:0 4px;margin-left:4px" title="Supprimer" onclick="deleteRV(${r.id})">✕</button>
+        </div>`;
+      }).join('')
+    : '<p style="color:var(--texte-sec);font-size:13px;padding:8px 0">Aucun rendez-vous enregistré pour ce véhicule.</p>';
+}
+
+function saveRV() {
+  const date = document.getElementById('rv-date').value;
+  const type = document.getElementById('rv-type').value;
+  if (!date) { toast('Veuillez indiquer une date de rendez-vous.'); return; }
+
+  const rec = {
+    id: Date.now(),
+    vehId: _rvVehId,
+    date,
+    type,
+    heure: document.getElementById('rv-heure').value,
+    garage: document.getElementById('rv-garage').value,
+    km: document.getElementById('rv-km').value,
+    statut: document.getElementById('rv-statut').value,
+    notes: document.getElementById('rv-notes').value,
+    createdAt: new Date().toISOString()
+  };
+
+  rendezvous.unshift(rec);
+  saveAll();
+
+  // Mettre à jour ctEvents si effectué
+  if (rec.statut === 'fait') {
+    ctEvents.unshift({ id: Date.now()+1, date: rec.date, vehId: rec.vehId, type: rec.type, km: rec.km, result: rec.garage, rem: rec.notes });
+  }
+
+  // Notifications push (uniquement si RV planifié)
+  if (rec.statut === 'planifie') {
+    const veh = vehicules.find(v => v.id === rec.vehId);
+    notifRV(rec, veh);         // notification immédiate
+    programmerRappel(rec, veh); // rappel 24h avant
+  }
+
+  renderRVHistorique(_rvVehId);
+  // Réinitialiser le formulaire
+  document.getElementById('rv-date').value = '';
+  document.getElementById('rv-heure').value = '';
+  document.getElementById('rv-notes').value = '';
+  document.getElementById('rv-statut').value = 'planifie';
+
+  toast('Rendez-vous enregistré ✅');
+  // Rafraîchir alertes si on est sur ces pages
+  renderAccueil();
+  if (document.getElementById('page-alertes').classList.contains('active')) renderAlertesFull();
+}
+
+function deleteRV(id) {
+  if (!confirm('Supprimer ce rendez-vous ?')) return;
+  rendezvous = rendezvous.filter(r => r.id !== id);
+  saveAll();
+  renderRVHistorique(_rvVehId);
+  toast('Rendez-vous supprimé');
+}
+
+// ============================================================
+// FORMULAIRE MAINTENANCE
+// ============================================================
+function populateMaintSelect() {
+  const sel = document.getElementById('maint-veh');
+  sel.innerHTML = ORDRE_VEHICULES.map(id => {
+    const v = vehicules.find(x => x.id === id);
+    return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+  }).join('');
+  document.getElementById('maint-date').value = new Date().toISOString().slice(0,10);
+  renderMaintTable();
+}
+
+/* Gère les listes déroulantes avec option "Autre" */
+function handleSelectOther(sel, customId) {
+  const customEl = document.getElementById(customId);
+  if (!customEl) return;
+  if (sel.value === '__other__') {
+    customEl.style.display = '';
+    customEl.focus();
+  } else {
+    customEl.style.display = 'none';
+    customEl.value = '';
+  }
+}
+
+/* Récupère la valeur finale d'un select avec option Autre */
+function getSelectVal(selId, customId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return '';
+  if (sel.value === '__other__') {
+    const custom = document.getElementById(customId);
+    return custom ? custom.value.trim() : '';
+  }
+  return sel.value;
+}
+
+/* Affiche/masque les champs Car Wash lieu et montant */
+function toggleCWFields() {
+  const cw = document.getElementById('maint-cw').value;
+  const show = cw === 'oui';
+  document.getElementById('maint-cw-lieu').style.display = show ? '' : 'none';
+  document.getElementById('maint-cw-montant').style.display = show ? '' : 'none';
+}
+
+/* Prévisualise les photos sélectionnées */
+function previewPhotos() {
+  const input = document.getElementById('maint-photos');
+  const preview = document.getElementById('maint-photos-preview');
+  preview.innerHTML = '';
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:6px;border:1.5px solid var(--gris-bord);cursor:pointer';
+      img.title = file.name;
+      img.onclick = () => window.open(e.target.result, '_blank');
+      preview.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* Encode les photos en base64 pour stockage */
+async function encodePhotos() {
+  const input = document.getElementById('maint-photos');
+  if (!input.files.length) return [];
+  const promises = Array.from(input.files).map(file => new Promise(res => {
+    const reader = new FileReader();
+    reader.onload = e => res({ name: file.name, data: e.target.result });
+    reader.readAsDataURL(file);
+  }));
+  return Promise.all(promises);
+}
+
+async function saveMaintenance() {
+  const date  = document.getElementById('maint-date').value;
+  const vehId = document.getElementById('maint-veh').value;
+  const km    = parseInt(document.getElementById('maint-km').value);
+  if (!date || !vehId || !km) { toast('Veuillez remplir au moins la date, le véhicule et le kilométrage.'); return; }
+
+  // Valeurs des listes dynamiques
+  const cwVal     = document.getElementById('maint-cw').value;
+  const cwLieu    = cwVal === 'oui' ? document.getElementById('maint-cw-lieu').value : '';
+  const cwMontant = cwVal === 'oui' ? parseFloat(document.getElementById('maint-cw-montant').value) || null : null;
+  const abVal     = getSelectVal('maint-adblue', 'maint-adblue-custom');
+  const abLitre   = abVal ? parseFloat(String(abVal).replace(',','.').replace(/[^0-9.]/g,'')) || null : null;
+
+  // Photos encodées en base64
+  const photos = await encodePhotos();
+
+  const rec = {
+    id: Date.now(),
+    date, vehId, km,
+    lg:     getSelectVal('maint-lg',    'maint-lg-custom'),
+    hm:     getSelectVal('maint-hm',    'maint-hm-custom'),
+    hf:     getSelectVal('maint-hf',    'maint-hf-custom'),
+    lr:     getSelectVal('maint-lr',    'maint-lr-custom'),
+    ecl:    getSelectVal('maint-ecl',   'maint-ecl-custom'),
+    pneus:  getSelectVal('maint-pneus', 'maint-pneus-custom'),
+    ext:    getSelectVal('maint-ext',   'maint-ext-custom'),
+    cw: cwVal, cwLieu, cwMontant,
+    adblue: abVal,
+    photos,
+    rem: document.getElementById('maint-rem').value
+  };
+
+  maintenances.unshift(rec);
+
+  // Mettre à jour km du véhicule
+  const veh = vehicules.find(v => v.id === vehId);
+  if (veh && km > veh.km) veh.km = km;
+
+  // Car Wash → créer entrée dans carwashes si oui
+  if (cwVal === 'oui') {
+    const dejaExiste = carwashes.some(c => c.vehId === vehId && c.date === date);
+    if (!dejaExiste) {
+      carwashes.unshift({ id: Date.now() + 2, vehId, date, lieu: cwLieu, montant: cwMontant });
+    }
+  }
+
+  // AdBlue → créer entrée dans adblues
+  if (abLitre && abLitre > 0) {
+    const dejaExiste = adblues.some(a => a.vehId === vehId && a.date === date && a.litre === abLitre);
+    if (!dejaExiste) {
+      adblues.unshift({ id: Date.now() + 1, vehId, date, litre: abLitre, km, source: 'maintenance' });
+    }
+  }
+
+  await saveAll();
+  clearMaintForm();
+  renderMaintTable();
+  if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
+  toast('Maintenance enregistrée ✅');
+}
+
+function renderMaintTable() {
+  const tbody = document.getElementById('maint-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = maintenances.map(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    const photosHtml = m.photos && m.photos.length
+      ? m.photos.map(p => `<img src="${p.data}" title="${p.name}" style="width:36px;height:28px;object-fit:cover;border-radius:4px;cursor:pointer;margin-right:2px" onclick="window.open('${p.data}','_blank')" />`).join('')
+      : '';
+    return `<tr>
+      <td>${formatDate(m.date)}</td>
+      <td>${v ? v.marque + ' ' + v.immat : m.vehId}</td>
+      <td>${m.km.toLocaleString('fr-BE')} km</td>
+      <td>${m.cw === 'oui' ? `✅ ${m.cwLieu||''}${m.cwMontant ? ' ' + Number(m.cwMontant).toFixed(2) + '€' : ''}` : (m.cw === 'non' ? '—' : '')}</td>
+      <td style="font-size:12px">${m.ext || '—'}${photosHtml ? '<br>' + photosHtml : ''}</td>
+      <td style="max-width:180px;font-size:12px">${m.rem || '—'}</td>
+      <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteMaint(${m.id})">✕</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="color:var(--texte-sec);text-align:center;padding:20px">Aucune maintenance enregistrée</td></tr>';
+}
+
+function deleteMaint(id) {
+  if (!confirm('Supprimer cette entrée ?')) return;
+  maintenances = maintenances.filter(m => m.id !== id);
+  saveAll(); renderMaintTable(); toast('Entrée supprimée');
+}
+
+function clearMaintForm() {
+  // Réinitialiser les selects
+  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-adblue','maint-ext'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  // Masquer les champs custom
+  ['maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom','maint-ecl-custom','maint-pneus-custom','maint-adblue-custom','maint-ext-custom'].forEach(id => {
+    const el = document.getElementById(id); if(el) { el.value = ''; el.style.display = 'none'; }
+  });
+  // Car Wash
+  document.getElementById('maint-cw').value = '';
+  document.getElementById('maint-cw-lieu').style.display = 'none';
+  document.getElementById('maint-cw-montant').style.display = 'none';
+  document.getElementById('maint-cw-montant').value = '';
+  // Km et remarques
+  const kmEl = document.getElementById('maint-km'); if(kmEl) kmEl.value = '';
+  const remEl = document.getElementById('maint-rem'); if(remEl) remEl.value = '';
+  // Photos
+  const photosEl = document.getElementById('maint-photos'); if(photosEl) photosEl.value = '';
+  const previewEl = document.getElementById('maint-photos-preview'); if(previewEl) previewEl.innerHTML = '';
+}
+
+// ============================================================
+// FORMULAIRE CT / GARAGE
+// ============================================================
+function populateEditSelects() {
+  ['ct-veh','edit-veh'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (sel) sel.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+  });
+}
+
+function saveCT() {
+  const date = document.getElementById('ct-date').value;
+  const vehId = document.getElementById('ct-veh').value;
+  const type = document.getElementById('ct-type').value;
+  if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
+
+  const rec = {
+    id: Date.now(), date, vehId, type,
+    km: document.getElementById('ct-km').value,
+    result: document.getElementById('ct-result').value,
+    next: document.getElementById('ct-next').value,
+    rem: document.getElementById('ct-rem').value
+  };
+  ctEvents.unshift(rec);
+
+  if (type === 'ct' && rec.next) {
+    const veh = vehicules.find(v => v.id === vehId);
+    if (veh) veh.ct_valid = rec.next;
+  }
+
+  saveAll(); clearCTForm(); toast('Enregistrement sauvegardé ✅');
+}
+
+function clearCTForm() {
+  ['ct-km','ct-result','ct-next','ct-rem'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+}
+
+function loadVehData() {
+  const id = document.getElementById('edit-veh').value;
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('edit-km').value = v.km;
+  document.getElementById('edit-ct-valid').value = v.ct_valid || '';
+  document.getElementById('edit-ct-carte-rouge').value = v.ct_carte_rouge_date || '';
+  document.getElementById('edit-next-entretien-km').value = v.prochain_entretien_km;
+  document.getElementById('edit-last-entretien-date').value = v.dernier_entretien_date || '';
+  document.getElementById('edit-last-entretien-km').value = v.dernier_entretien_km || '';
+}
+
+function saveVehEdit() {
+  const id = document.getElementById('edit-veh').value;
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  v.km = parseInt(document.getElementById('edit-km').value) || v.km;
+  v.ct_valid = document.getElementById('edit-ct-valid').value || v.ct_valid;
+  v.ct_carte_rouge_date = document.getElementById('edit-ct-carte-rouge').value || null;
+  v.prochain_entretien_km = parseInt(document.getElementById('edit-next-entretien-km').value) || v.prochain_entretien_km;
+  v.dernier_entretien_date = document.getElementById('edit-last-entretien-date').value || v.dernier_entretien_date;
+  v.dernier_entretien_km = parseInt(document.getElementById('edit-last-entretien-km').value) || v.dernier_entretien_km;
+  saveAll();
+  renderAccueil();
+  toast(`${v.marque} ${v.immat} mis à jour ✅`);
+}
+
+function quickEdit(id) {
+  showPage('garages', document.querySelectorAll('.tab-btn')[4]);
+  setTimeout(() => {
+    const sel = document.getElementById('edit-veh');
+    if (sel) { sel.value = id; loadVehData(); }
+  }, 100);
+}
+
+// ============================================================
+// HISTORIQUE
+// ============================================================
+function renderHistorique() {
+  const filterVeh = document.getElementById('hist-filter-veh')?.value || '';
+  const filterType = document.getElementById('hist-filter-type')?.value || '';
+
+  const sel = document.getElementById('hist-filter-veh');
+  if (sel && sel.options.length <= 1) {
+    vehicules.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      sel.appendChild(opt);
+    });
+  }
+
+  let rows = [];
+
+  maintenances.forEach(m => {
+    if (filterType && filterType !== 'maintenance') return;
+    if (filterVeh && m.vehId !== filterVeh) return;
+    const v = vehicules.find(x => x.id === m.vehId);
+    rows.push({ date: m.date, veh: v ? v.marque + ' ' + v.immat : m.vehId, type:'Maintenance', km: m.km, detail: m.rem || (m.lg ? `LG: ${m.lg}` : '') });
+  });
+
+  ctEvents.forEach(c => {
+    if (filterType && filterType !== c.type) return;
+    if (filterVeh && c.vehId !== filterVeh) return;
+    const v = vehicules.find(x => x.id === c.vehId);
+    const typeLabel = c.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
+    rows.push({ date: c.date, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: typeLabel, km: c.km, detail: c.result + (c.rem ? ' — ' + c.rem : '') });
+  });
+
+  rendezvous.forEach(r => {
+    if (filterType && filterType !== 'rv') return;
+    if (filterVeh && r.vehId !== filterVeh) return;
+    const v = vehicules.find(x => x.id === r.vehId);
+    const typeLabel = r.type === 'ct' ? 'CT' : 'Entretien';
+    const statutLabel = r.statut === 'planifie' ? '📅 Planifié' : r.statut === 'fait' ? '✅ Effectué' : '❌ Annulé';
+    const heureStr = r.heure ? ` ${r.heure}` : '';
+    rows.push({ date: r.date, veh: v ? v.marque + ' ' + v.immat : r.vehId, type: `RV ${typeLabel}`, km: r.km, detail: `${statutLabel}${r.garage ? ' — ' + r.garage : ''}${r.notes ? ' — ' + r.notes : ''}${heureStr}` });
+  });
+
+  // AdBlue
+  adblues.forEach(a => {
+    if (filterType && filterType !== 'adblue') return;
+    if (filterVeh && a.vehId !== filterVeh) return;
+    const v = vehicules.find(x => x.id === a.vehId);
+    rows.push({ date: a.date, veh: v ? v.marque + ' ' + v.immat : a.vehId, type: '💧 AdBlue', km: a.km, detail: `${a.litre.toFixed(2)} L${a.source === 'maintenance' ? ' (via maintenance)' : ''}` });
+  });
+
+  // Car Wash
+  carwashes.forEach(c => {
+    if (filterType && filterType !== 'carwash') return;
+    if (filterVeh && c.vehId !== filterVeh) return;
+    const v = vehicules.find(x => x.id === c.vehId);
+    rows.push({ date: c.date, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: '🚿 Car Wash', km: null, detail: `${c.lieu} — ${c.montant ? Number(c.montant).toFixed(2) + ' €' : '—'}` });
+  });
+
+  rows.sort((a,b) => b.date.localeCompare(a.date));
+
+  document.getElementById('hist-tbody').innerHTML = rows.length
+    ? rows.map(r => `<tr>
+        <td>${formatDate(r.date)}</td>
+        <td>${r.veh}</td>
+        <td><span class="badge info">${r.type}</span></td>
+        <td>${r.km ? parseInt(r.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
+        <td style="font-size:12px;max-width:250px">${r.detail || '—'}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée trouvée</td></tr>';
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+function exportCSV() {
+  const rows = [['Date','Véhicule','Type','Kilomètres','Détails']];
+  maintenances.forEach(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    rows.push([m.date, v ? v.marque + ' ' + v.immat : m.vehId, 'Maintenance', m.km, m.rem || '']);
+  });
+  ctEvents.forEach(c => {
+    const v = vehicules.find(x => x.id === c.vehId);
+    rows.push([c.date, v ? v.marque + ' ' + v.immat : c.vehId, c.type === 'ct' ? 'CT' : 'Garage', c.km || '', c.result || '']);
+  });
+  downloadCSV(rows, 'MCR_historique.csv');
+}
+
+function exportAllCSV() {
+  const rows = [['Immat','Marque','Type','Km_actuel','CT_valide_jusquau','Prochain_entretien_km','Dernier_entretien_le','Garage','Remarques']];
+  vehicules.forEach(v => {
+    rows.push([v.immat, v.marque, v.type, v.km, v.ct_valid || '', v.prochain_entretien_km, v.dernier_entretien_date || '', v.garage, v.remarques || '']);
+  });
+  downloadCSV(rows, 'MCR_vehicules.csv');
+}
+
+function downloadCSV(rows, filename) {
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+  toast('Fichier CSV exporté ✅');
+}
+
+function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').slice(1);
+    let count = 0;
+    lines.forEach(line => {
+      const cols = line.split(';').map(c => c.replace(/^"|"$/g,'').trim());
+      if (cols.length >= 4 && cols[0]) {
+        maintenances.push({ id: Date.now() + count, date: cols[0], vehId: cols[1], type: cols[2], km: parseInt(cols[3]) || 0, rem: cols[4] || '' });
+        count++;
+      }
+    });
+    saveAll(); toast(`${count} entrées importées`);
+    renderMaintTable();
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ============================================================
+// RAPPORTS IMPRESSION
+// ============================================================
+function printReport(type) {
+  const d = new Date().toLocaleDateString('fr-BE');
+  let content = `<html><head><meta charset="UTF-8"><title>MCR Rapport</title>
+  <style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f0f0f0}h1{font-size:16px}h2{font-size:14px;margin-top:20px}.ok{color:green}.warn{color:orange}.urgent{color:red}</style>
+  </head><body>`;
+  content += `<h1>MCR Opont — Rapport ${type === 'ct' ? 'Contrôles Techniques' : type === 'entretien' ? 'Entretiens Garage' : 'Maintenances'}</h1><p>Généré le ${d}</p>`;
+
+  if (type === 'ct') {
+    content += `<table><tr><th>Véhicule</th><th>Immat</th><th>CT valable jusqu'au</th><th>Statut</th><th>Prochaine action</th></tr>`;
+    vehicules.forEach(v => {
+      const ct = ctStatus(v);
+      content += `<tr><td>${v.marque}</td><td>${v.immat}</td><td>${formatDate(v.ct_valid)}</td><td class="${ct.cls}">${ct.txt}</td><td>${v.garage}</td></tr>`;
+    });
+    content += '</table>';
+  } else if (type === 'entretien') {
+    content += `<table><tr><th>Véhicule</th><th>Km actuel</th><th>Dernier entretien</th><th>Prochain à</th><th>Statut</th><th>Garage</th></tr>`;
+    vehicules.forEach(v => {
+      const ent = entretienStatus(v);
+      content += `<tr><td>${v.marque} ${v.immat}</td><td>${v.km.toLocaleString('fr-BE')}</td><td>${formatDate(v.dernier_entretien_date)}</td><td>${v.prochain_entretien_km.toLocaleString('fr-BE')}</td><td class="${ent.cls}">${ent.txt}</td><td>${v.garage}</td></tr>`;
+    });
+    content += '</table>';
+  } else {
+    content += `<table><tr><th>Date</th><th>Véhicule</th><th>Km</th><th>Remarques</th></tr>`;
+    maintenances.slice(0,50).forEach(m => {
+      const v = vehicules.find(x => x.id === m.vehId);
+      content += `<tr><td>${formatDate(m.date)}</td><td>${v ? v.marque + ' ' + v.immat : m.vehId}</td><td>${m.km.toLocaleString('fr-BE')}</td><td>${m.rem || '—'}</td></tr>`;
+    });
+    content += '</table>';
+  }
+
+  content += '</body></html>';
+  const w = window.open('', '_blank');
+  w.document.write(content);
+  w.document.close();
+  w.print();
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+// ============================================================
+// VERSION & SERVICE WORKER
+// ============================================================
+const APP_VERSION = '1.0.0';
+
+let _swRegistration = null;
+
+function applyUpdate() {
+  if (_swRegistration && _swRegistration.waiting) {
+    _swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+  }
+  window.location.reload();
+}
+
+// ── Notifications push ───────────────────────────────────────
+
+/* Demande la permission de notifier (appelée à la connexion admin) */
+async function demanderPermissionNotif() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  if (Notification.permission === 'denied') return;
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') toast('🔔 Notifications activées');
+}
+
+/* Envoie une notification immédiate via le SW */
+function notifRV(rv, vehicule) {
+  if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
+  const typeLabel = rv.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
+  const heureStr  = rv.heure ? ` à ${rv.heure}` : '';
+  const garageStr = rv.garage ? ` — ${rv.garage}` : '';
+  const vNom = vehicule ? `${vehicule.marque} ${vehicule.immat}` : rv.vehId;
+
+  navigator.serviceWorker.ready.then(reg => {
+    reg.showNotification(`📅 RV planifié — ${vNom}`, {
+      body: `${typeLabel} le ${formatDate(rv.date)}${heureStr}${garageStr}`,
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: `rv-${rv.id}`,
+      data: { url: window.location.href },
+      requireInteraction: false
+    });
+  });
+}
+
+/* Programme un rappel 24h avant le RV via le SW (message postMessage) */
+function programmerRappel(rv, vehicule) {
+  if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
+  if (!rv.date) return;
+
+  // Calculer le timestamp du RV
+  const dateStr  = rv.date + (rv.heure ? 'T' + rv.heure : 'T08:00');
+  const rvTime   = new Date(dateStr).getTime();
+  const rappelTime = rvTime - 24 * 60 * 60 * 1000; // 24h avant
+  const now      = Date.now();
+
+  if (rappelTime <= now) return; // RV passé ou dans moins de 24h
+
+  const typeLabel = rv.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
+  const heureStr  = rv.heure ? ` à ${rv.heure}` : '';
+  const garageStr = rv.garage ? ` — ${rv.garage}` : '';
+  const vNom = vehicule ? `${vehicule.marque} ${vehicule.immat}` : rv.vehId;
+
+  navigator.serviceWorker.ready.then(reg => {
+    reg.active.postMessage({
+      type: 'PROGRAMMER_RAPPEL',
+      payload: {
+        id:       rv.id,
+        titre:    `⏰ Rappel RV demain — ${vNom}`,
+        corps:    `${typeLabel} le ${formatDate(rv.date)}${heureStr}${garageStr}`,
+        delai:    rappelTime - now, // ms avant d'envoyer
+        tag:      `rappel-${rv.id}`
+      }
+    });
+  });
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        _swRegistration = reg;
+
+        // Détecter une mise à jour disponible
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              document.getElementById('update-banner').style.display = 'flex';
+            }
+          });
+        });
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          document.getElementById('update-banner').style.display = 'flex';
+        }
+
+        // Recevoir les messages du SW (clics sur notifications)
+        navigator.serviceWorker.addEventListener('message', e => {
+          if (e.data && e.data.type === 'NOTIF_CLICK') {
+            showPage('alertes', document.querySelectorAll('.tab-btn')[2]);
+          }
+        });
+      })
+      .catch(e => console.warn('Service Worker non enregistré:', e));
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  // Fermer modals en cliquant dehors
+  document.getElementById('modal-veh').addEventListener('click', function(e) {
+    if (e.target === this) closeModal('modal-veh');
+  });
+  document.getElementById('modal-rv').addEventListener('click', function(e) {
+    if (e.target === this) closeModal('modal-rv');
+  });
+  document.getElementById('modal-login').addEventListener('click', function(e) {
+    if (e.target === this) { closeModal('modal-login'); document.getElementById('login-pwd').value = ''; }
+  });
+
+  // Pré-remplir date maintenance
+  const md = document.getElementById('maint-date');
+  if (md) md.value = new Date().toISOString().slice(0,10);
+
+  function initUI() {
+    // Synchroniser depuis window si Firebase a déjà chargé
+    if (window._fbData_vehicules)      vehicules     = window._fbData_vehicules;
+    if (window._fbData_maintenances)   maintenances  = window._fbData_maintenances;
+    if (window._fbData_ctEvents)       ctEvents      = window._fbData_ctEvents;
+    if (window._fbData_rendezvous)     rendezvous    = window._fbData_rendezvous;
+    if (window._fbData_adblues)        adblues       = window._fbData_adblues;
+    if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
+    if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+
+    renderAccueil();
+    updateTabAlertes();
+    updateTabChauf();
+  }
+
+  // Attendre Firebase (max 4 secondes, sinon démarrer avec localStorage)
+  const timeout = setTimeout(() => {
+    console.warn('Firebase timeout — démarrage avec données locales');
+    initUI();
+  }, 4000);
+
+  window.addEventListener('firebase-ready', () => {
+    clearTimeout(timeout);
+    initUI();
+  }, { once: true });
+
+  // Si Firebase déjà prêt (cache navigateur)
+  if (window._fbData_vehicules !== undefined) {
+    clearTimeout(timeout);
+    initUI();
+  }
+});
+</script>
+</body>
+</html>
