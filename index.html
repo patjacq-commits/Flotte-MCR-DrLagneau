@@ -781,13 +781,20 @@ td.ok { color: var(--vert); font-weight: 600; }
           <option value="treuil">Treuil bloqué</option>
           <option value="crevaison">Crevaison</option>
           <option value="livraison">Livraison nouveau véhicule</option>
+          <option value="marquage">Marquage véhicule</option>
           <option value="autre">Autre…</option>
         </select>
       </div>
-      <!-- Champ motif libre pour "Autre" -->
+      <!-- Champ motif libre pour "Autre" avec ajout à la liste -->
       <div class="form-group" id="ct-autre-wrap" style="display:none">
         <label>Précisez le motif</label>
-        <input type="text" id="ct-autre-motif" placeholder="ex: Révision climatisation…" />
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="ct-autre-motif" placeholder="ex: Révision climatisation…"
+            style="flex:1"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterMotifALaListe();}" />
+          <button type="button" class="btn primary btn-sm" onclick="ajouterMotifALaListe()" title="Enregistrer dans la liste">➕ Ajouter</button>
+        </div>
+        <div id="ct-motifs-libres-liste" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
       <div class="form-group">
         <label>Date du RV</label>
@@ -844,6 +851,7 @@ td.ok { color: var(--vert); font-weight: 600; }
         <option value="reparation-lift">Réparation lift/rampe</option>
         <option value="enrouleur">Enrouleur</option>
         <option value="treuil">Treuil bloqué</option>
+        <option value="marquage">Marquage véhicule</option>
         <option value="crevaison">Crevaison</option>
         <option value="autre">Autre</option>
       </select>
@@ -3174,6 +3182,7 @@ const CT_TYPE_GARAGE = {
   'enrouleur':      'Recht',
   'treuil':         'Recht',
   'livraison':      'Recht',
+  'marquage':       'Arlon',
   'autre':          '',
 };
 
@@ -3194,6 +3203,7 @@ const CT_TYPE_LABELS = {
   'treuil':         '🔼 Treuil bloqué',
   'crevaison':      '🛞 Crevaison',
   'livraison':      '🚐 Livraison nouveau véhicule',
+  'marquage':       '🏷 Marquage véhicule',
   'autre':          '📝 Autre',
 };
 
@@ -3245,10 +3255,13 @@ function enregistrerMotifLibre(motif) {
 function chargerMotifsLibres() {
   const sel = document.getElementById('ct-type');
   if (!sel) return;
+
   // Supprimer les options custom déjà injectées
   [...sel.options].filter(o => o.dataset.customLibre).forEach(o => o.remove());
+
   const motifs = getMotifLibres();
   const autreOpt = [...sel.options].find(o => o.value === 'autre');
+
   motifs.forEach(m => {
     const opt = document.createElement('option');
     opt.value = 'libre_' + m;
@@ -3256,10 +3269,44 @@ function chargerMotifsLibres() {
     opt.dataset.customLibre = '1';
     if (autreOpt) sel.insertBefore(opt, autreOpt);
     else sel.appendChild(opt);
-    // Enregistrer dans les tables de lookup
     CT_TYPE_LABELS['libre_' + m] = '📝 ' + m;
     CT_TYPE_GARAGE['libre_' + m] = '';
   });
+
+  // Afficher les pastilles de gestion dans le formulaire (si visible)
+  const liste = document.getElementById('ct-motifs-libres-liste');
+  if (liste) {
+    liste.innerHTML = motifs.length
+      ? motifs.map(m => `
+        <span style="background:var(--bleu-clair);color:var(--bleu);font-size:12px;padding:3px 8px;border-radius:12px;display:inline-flex;align-items:center;gap:5px">
+          📝 ${m}
+          <button onclick="supprimerMotifLibre('${m.replace(/'/g,"\\'")}')" title="Supprimer de la liste"
+            style="background:none;border:none;color:var(--bleu);cursor:pointer;font-size:13px;padding:0;line-height:1">✕</button>
+        </span>`).join('')
+      : '<span style="font-size:11px;color:var(--texte-sec)">Aucun motif personnalisé enregistré</span>';
+  }
+}
+
+/* Ajoute le motif saisi dans la liste, sélectionne l'option correspondante et masque le champ */
+function ajouterMotifALaListe() {
+  const input = document.getElementById('ct-autre-motif');
+  if (!input) return;
+  const motif = input.value.trim();
+  if (!motif) { toast('Veuillez saisir un motif.'); return; }
+
+  enregistrerMotifLibre(motif); // sauvegarde + rafraîchit le select
+
+  // Sélectionner le nouveau motif dans le select
+  const sel = document.getElementById('ct-type');
+  if (sel) {
+    const opt = [...sel.options].find(o => o.value === 'libre_' + motif);
+    if (opt) {
+      sel.value = 'libre_' + motif;
+      onCTTypeChange(); // mettre à jour garage / km / masquer champ Autre
+    }
+  }
+  input.value = '';
+  toast(`"${motif}" ajouté à la liste ✅`);
 }
 
 function supprimerMotifLibre(motif) {
@@ -3299,9 +3346,11 @@ function onCTTypeChange() {
   }
 
   // Afficher/masquer le champ "Autre" motif libre
-  // Un type libre_* est un motif enregistré → pas besoin du champ Autre
   const autreWrap = document.getElementById('ct-autre-wrap');
-  if (autreWrap) autreWrap.style.display = type === 'autre' ? '' : 'none';
+  if (autreWrap) {
+    autreWrap.style.display = type === 'autre' ? '' : 'none';
+    if (type === 'autre') chargerMotifsLibres(); // rafraîchir les pastilles
+  }
   if (type !== 'autre') {
     const motif = document.getElementById('ct-autre-motif');
     if (motif) motif.value = '';
