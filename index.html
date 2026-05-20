@@ -492,6 +492,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn active" onclick="showPage('accueil',this)">📊 Tableau de bord</button>
   <button class="tab-btn" onclick="showPage('vehicules',this)">🚐 Véhicules</button>
   <button class="tab-btn" onclick="showPage('alertes',this)">🔔 Alertes</button>
+  <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Alerte chauffeur</button>
   <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
@@ -520,6 +521,42 @@ td.ok { color: var(--vert); font-weight: 600; }
 <div id="page-alertes" class="page">
   <h2 style="margin-bottom:14px">🔔 Alertes actives</h2>
   <div id="alertes-full" class="alertes-list"></div>
+</div>
+
+<!-- PAGE KILOMÉTRAGE -->
+<div id="page-kilometrage" class="page">
+  <h2 style="margin-bottom:4px">📈 Kilométrage mensuel</h2>
+  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Km effectués par véhicule depuis janvier 2026 — calculés à partir des relevés de maintenance.</p>
+
+  <!-- Sélecteur d'année -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <label style="font-weight:600;font-size:14px">Année :</label>
+    <select id="km-annee" onchange="renderKilometrage()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:14px">
+      <option value="2026">2026</option>
+      <option value="2027">2027</option>
+      <option value="2028">2028</option>
+    </select>
+    <select id="km-filtre-veh" onchange="renderKilometrage()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:14px">
+      <option value="">Tous les véhicules</option>
+    </select>
+  </div>
+
+  <!-- Graphique SVG -->
+  <div class="form-card" style="padding:16px;margin-bottom:14px;overflow-x:auto">
+    <h3 style="margin-bottom:12px">Graphique mensuel</h3>
+    <div id="km-graphique"></div>
+  </div>
+
+  <!-- Tableau croisé -->
+  <div class="form-card" style="padding:0;overflow-x:auto">
+    <div class="table-wrap">
+      <table id="km-table" style="min-width:700px">
+        <thead id="km-thead"></thead>
+        <tbody id="km-tbody"></tbody>
+        <tfoot id="km-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- PAGE ALERTE CHAUFFEUR -->
@@ -1618,6 +1655,7 @@ window._refreshUI = function() {
     if (activePage === 'chauf')       renderMessagesChauf();
     if (activePage === 'historique')  renderHistorique();
     if (activePage === 'maintenance') renderMaintTable();
+    if (activePage === 'kilometrage') renderKilometrage();
     updateTabAlertes();
     updateTabChauf();
     // Afficher indicateur de sync
@@ -2301,9 +2339,10 @@ function showPage(id, btn) {
   const tabAlertes = document.querySelectorAll('.tab-btn')[2];
   if (id === 'alertes' && tabAlertes) tabAlertes.classList.remove('tab-urgent');
 
-  if (id === 'accueil') renderAccueil();
-  if (id === 'vehicules') renderVehicules();
-  if (id === 'alertes') renderAlertesFull();
+  if (id === 'accueil')     renderAccueil();
+  if (id === 'vehicules')   renderVehicules();
+  if (id === 'alertes')     renderAlertesFull();
+  if (id === 'kilometrage') initKilometrage();
   if (id === 'historique') renderHistorique();
   if (id === 'garages') populateEditSelects();
   if (id === 'maintenance') populateMaintSelect();
@@ -2500,6 +2539,175 @@ function renderAccueil() {
     </div>`;
 
   updateTabAlertes();
+}
+
+// ============================================================
+// KILOMÉTRAGE MENSUEL
+// ============================================================
+
+const MOIS_NOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+// Couleurs par véhicule (ordre ORDRE_VEHICULES)
+const VEH_COLORS = ['#2980b9','#27ae60','#e67e22','#9b59b6','#1abc9c','#e74c3c','#f39c12','#16a085','#7f8c8d'];
+
+function initKilometrage() {
+  // Peupler le filtre véhicule (une seule fois)
+  const sel = document.getElementById('km-filtre-veh');
+  if (sel && sel.options.length <= 1) {
+    ORDRE_VEHICULES.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      sel.appendChild(opt);
+    });
+  }
+  renderKilometrage();
+}
+
+function renderKilometrage() {
+  const annee    = parseInt(document.getElementById('km-annee')?.value || '2026');
+  const filtVeh  = document.getElementById('km-filtre-veh')?.value || '';
+
+  // Véhicules à afficher (ordre imposé, filtre optionnel)
+  const vehList = ORDRE_VEHICULES
+    .map(id => vehicules.find(v => v.id === id))
+    .filter(v => v && (!filtVeh || v.id === filtVeh));
+
+  // Mois de l'année (1–12), on n'affiche que jusqu'au mois courant + 1
+  const moisMax = new Date().getFullYear() === annee ? new Date().getMonth() + 1 : 12;
+  const mois = Array.from({length: moisMax}, (_, i) => i + 1); // [1,2,...,moisMax]
+
+  /* Calcule les km d'un véhicule pour un mois donné à partir des maintenances.
+     Méthode : on cherche le relevé km du dernier jour du mois et celui du premier
+     jour du mois (= dernier relevé du mois précédent). La différence est les km du mois. */
+  function kmVehMois(vehId, annee, mois) {
+    const mList = maintenances
+      .filter(m => m.vehId === vehId && m.km && m.date)
+      .map(m => ({ date: m.date, km: parseInt(m.km) }))
+      .filter(m => !isNaN(m.km))
+      .sort((a,b) => a.date.localeCompare(b.date));
+
+    if (mList.length < 2) return null;
+
+    // Dernier relevé ≤ fin du mois
+    const finMois = `${annee}-${String(mois).padStart(2,'0')}-31`;
+    const releveFin = [...mList].filter(m => m.date <= finMois).pop();
+    if (!releveFin) return null;
+
+    // Dernier relevé strictement avant le début de ce mois
+    const debutMois = `${annee}-${String(mois).padStart(2,'0')}-01`;
+    const releveDebut = [...mList].filter(m => m.date < debutMois).pop();
+    if (!releveDebut) return null;
+
+    const delta = releveFin.km - releveDebut.km;
+    return delta >= 0 ? delta : null;
+  }
+
+  // Construire la matrice [veh][mois] = km
+  const matrice = vehList.map(v => ({
+    veh: v,
+    kms: mois.map(m => kmVehMois(v.id, annee, m))
+  }));
+
+  // Totaux par mois et par véhicule
+  const totauxMois = mois.map((m, mi) =>
+    matrice.reduce((s, row) => s + (row.kms[mi] || 0), 0)
+  );
+  const totauxVeh = matrice.map(row =>
+    row.kms.reduce((s, k) => s + (k || 0), 0)
+  );
+  const grandTotal = totauxVeh.reduce((s, t) => s + t, 0);
+
+  // ── Tableau ────────────────────────────────────────────────
+  const thStyle = 'padding:8px 10px;text-align:right;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);white-space:nowrap;font-size:12px';
+  const thVStyle = 'padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);font-size:12px';
+  const tdStyle = 'padding:6px 10px;text-align:right;font-size:12px;border-bottom:0.5px solid #f0f0f0';
+
+  document.getElementById('km-thead').innerHTML = `<tr>
+    <th style="${thVStyle}">Véhicule</th>
+    ${mois.map(m => `<th style="${thStyle}">${MOIS_NOMS[m-1]}</th>`).join('')}
+    <th style="${thStyle};color:var(--bleu)">Total</th>
+  </tr>`;
+
+  document.getElementById('km-tbody').innerHTML = matrice.map((row, ri) => {
+    const color = VEH_COLORS[ORDRE_VEHICULES.indexOf(row.veh.id) % VEH_COLORS.length];
+    return `<tr>
+      <td style="${tdStyle};text-align:left;font-weight:500">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:6px;vertical-align:middle"></span>
+        ${row.veh.marque} <span style="font-family:monospace;font-size:10px;background:#eee;padding:1px 4px;border-radius:3px">${row.veh.immat}</span>
+      </td>
+      ${row.kms.map(k => `<td style="${tdStyle}${k === null ? ';color:#ccc' : k > 2500 ? ';color:var(--rouge);font-weight:600' : k > 1500 ? ';color:var(--orange)' : ''}">${k !== null ? k.toLocaleString('fr-BE') : '—'}</td>`).join('')}
+      <td style="${tdStyle};font-weight:700;color:var(--bleu)">${totauxVeh[ri] > 0 ? totauxVeh[ri].toLocaleString('fr-BE') : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('km-tfoot').innerHTML = `<tr style="background:var(--gris-clair)">
+    <td style="${tdStyle};text-align:left;font-weight:700">Total flotte</td>
+    ${totauxMois.map(t => `<td style="${tdStyle};font-weight:700">${t > 0 ? t.toLocaleString('fr-BE') : '—'}</td>`).join('')}
+    <td style="${tdStyle};font-weight:700;color:var(--bleu);font-size:13px">${grandTotal > 0 ? grandTotal.toLocaleString('fr-BE') : '—'}</td>
+  </tr>`;
+
+  // ── Graphique SVG à barres groupées ───────────────────────
+  const W = Math.max(600, mois.length * (vehList.length * 14 + 20));
+  const H = 200;
+  const PAD = { top: 20, right: 20, bottom: 40, left: 55 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const maxKm  = Math.max(1, ...matrice.flatMap(r => r.kms.filter(k => k !== null)));
+  const scale  = innerH / maxKm;
+  const groupW = innerW / mois.length;
+  const barW   = Math.max(4, Math.min(12, groupW / vehList.length - 1));
+
+  // Lignes de grille horizontales
+  const nbLines = 4;
+  const gridLines = Array.from({length: nbLines + 1}, (_, i) => {
+    const val = Math.round(maxKm * i / nbLines);
+    const y   = PAD.top + innerH - val * scale;
+    return `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#eee" stroke-width="1"/>
+      <text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end" font-size="9" fill="#aaa">${val.toLocaleString('fr-BE')}</text>`;
+  }).join('');
+
+  // Étiquettes mois en bas
+  const moisLabels = mois.map((m, mi) => {
+    const cx = PAD.left + mi * groupW + groupW / 2;
+    return `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="10" fill="#777">${MOIS_NOMS[m-1]}</text>`;
+  }).join('');
+
+  // Barres + tooltips
+  const barsSvg = matrice.map((row, ri) => {
+    const color = VEH_COLORS[ORDRE_VEHICULES.indexOf(row.veh.id) % VEH_COLORS.length];
+    return row.kms.map((k, mi) => {
+      if (!k) return '';
+      const bh = k * scale;
+      const x  = PAD.left + mi * groupW + ri * (barW + 1) + (groupW - vehList.length * (barW + 1)) / 2;
+      const y  = PAD.top + innerH - bh;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}"
+        fill="${color}" rx="2" opacity="0.85">
+        <title>${row.veh.immat} — ${MOIS_NOMS[mi]} : ${k.toLocaleString('fr-BE')} km</title>
+      </rect>`;
+    }).join('');
+  }).join('');
+
+  // Légende
+  const legendItems = vehList.map((v, i) => {
+    const color = VEH_COLORS[ORDRE_VEHICULES.indexOf(v.id) % VEH_COLORS.length];
+    const lx = 10 + i * 110;
+    return `<rect x="${lx}" y="4" width="10" height="10" fill="${color}" rx="2"/>
+      <text x="${lx + 14}" y="13" font-size="10" fill="#555">${v.immat}</text>`;
+  }).join('');
+  const legendW = vehList.length * 110 + 20;
+
+  document.getElementById('km-graphique').innerHTML = `
+    <div style="overflow-x:auto">
+      <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="display:block">
+        ${gridLines}
+        ${barsSvg}
+        ${moisLabels}
+      </svg>
+    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" width="${Math.min(legendW, 900)}" height="22" style="margin-top:6px;display:block;overflow:visible">
+      ${legendItems}
+    </svg>`;
 }
 
 /* Met à jour la classe clignotante de l'onglet Alertes */
@@ -3493,6 +3701,7 @@ async function saveMaintenance() {
   clearMaintForm();
   renderMaintTable();
   if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
+  if (document.getElementById('page-kilometrage').classList.contains('active')) renderKilometrage();
   toast('Maintenance enregistrée ✅');
 }
 
