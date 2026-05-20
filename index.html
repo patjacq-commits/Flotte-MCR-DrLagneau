@@ -2237,6 +2237,17 @@ let ORDRE_VEHICULES = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM94
 let VEHICULES_ADBLUE = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
 
 function renderVehicules() {
+  // Nettoyer l'éventuel bouton "Ajouter" précédent pour éviter les doublons
+  const oldBtn = document.getElementById('btn-ajouter-veh');
+  if (oldBtn) oldBtn.remove();
+
+  // Si les véhicules ne sont pas encore chargés, afficher un indicateur
+  if (!vehicules || vehicules.length === 0) {
+    document.getElementById('vehicules-grid').innerHTML =
+      '<p style="color:var(--texte-sec);padding:20px;text-align:center">⏳ Chargement des véhicules…</p>';
+    return;
+  }
+
   const ordonnes = [...vehicules].sort((a, b) => {
     const ia = ORDRE_VEHICULES.indexOf(a.id);
     const ib = ORDRE_VEHICULES.indexOf(b.id);
@@ -2252,7 +2263,7 @@ function renderVehicules() {
     const lastM = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
 
     // Kilométrage = celui relevé à la dernière maintenance (sinon celui du véhicule)
-    const kmAffiche = lastM ? lastM.km : v.km;
+    const kmAffiche = (lastM && lastM.km) ? lastM.km : v.km;
     const lastMStr  = lastM
       ? ` <span style="color:var(--texte-sec);font-size:11px;font-weight:400">— maint. ${formatDate(lastM.date)}</span>`
       : '';
@@ -2302,7 +2313,7 @@ function renderVehicules() {
           <h3>${v.marque}</h3>
           <span class="immat">${v.immat}</span>
           ${equipBadge}
-          <div style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:4px;letter-spacing:0.5px;word-break:break-all">${v.chassis}</div>
+          <div style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:4px;letter-spacing:0.5px;word-break:break-all">${v.chassis || ''}</div>
         </div>
         <div class="veh-badges" style="flex-shrink:0">
           <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls.toUpperCase()}</span>
@@ -2322,7 +2333,7 @@ function renderVehicules() {
           <span class="label">Prochain entretien</span>
           <span class="val ${ent.cls}">${v.prochain_entretien_km.toLocaleString('fr-BE')} km${dateEntretienStr}</span>
         </div>
-        <div class="veh-row"><span class="label">Garage attitré</span><span class="val">${v.garage}</span></div>
+        <div class="veh-row"><span class="label">Garage attitré</span><span class="val">${v.garage || '—'}</span></div>
         <div class="veh-row"><span class="label">Mise en circulation</span><span class="val">${formatDate(v.mise_en_circulation)}</span></div>
         ${abRow}
         ${cwRow}
@@ -2335,13 +2346,13 @@ function renderVehicules() {
     </div>`;
   }).join('');
 
-  // Bouton ajouter véhicule (admin)
+  // Bouton ajouter véhicule (admin) — avec id unique pour éviter les doublons
   if (isAdmin) {
-    document.getElementById('vehicules-grid').insertAdjacentHTML('afterend',
-      `<div style="margin-top:12px">
-        <button class="btn primary" onclick="openModalNouveauVeh()">➕ Ajouter un véhicule</button>
-      </div>`
-    );
+    const wrap = document.createElement('div');
+    wrap.id = 'btn-ajouter-veh';
+    wrap.style.marginTop = '12px';
+    wrap.innerHTML = `<button class="btn primary" onclick="openModalNouveauVeh()">➕ Ajouter un véhicule</button>`;
+    document.getElementById('vehicules-grid').insertAdjacentElement('afterend', wrap);
   }
 }
 
