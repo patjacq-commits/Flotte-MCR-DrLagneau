@@ -21,6 +21,35 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
+  // ── Mode offline : files d'attente automatique hors réseau ───
+  db.enablePersistence({ synchronizeTabs: true })
+    .then(() => console.log('✅ Firebase persistence activée'))
+    .catch(e => {
+      if (e.code === 'failed-precondition') {
+        // Plusieurs onglets ouverts — persistence désactivée sur cet onglet
+        console.warn('Firebase persistence : plusieurs onglets ouverts');
+      } else if (e.code === 'unimplemented') {
+        // Navigateur ne supporte pas IndexedDB
+        console.warn('Firebase persistence non supportée sur ce navigateur');
+      }
+    });
+
+  // ── Indicateur réseau (online/offline) ──────────────────────
+  function updateNetworkStatus() {
+    const ind = document.getElementById('sync-indicator');
+    if (!ind) return;
+    if (navigator.onLine) {
+      ind.textContent = '☁ Sync';
+      ind.style.color = 'rgba(255,255,255,0.8)';
+    } else {
+      ind.textContent = '⚡ Hors ligne';
+      ind.style.color = '#f9ca24';
+      ind.style.opacity = '1';
+    }
+  }
+  window.addEventListener('online',  () => { updateNetworkStatus(); });
+  window.addEventListener('offline', () => { updateNetworkStatus(); });
+
   // ── Helpers Firestore ────────────────────────────────────────
 
   async function fbSaveCollection(colName, arr) {
