@@ -451,6 +451,42 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .tab-btn.tab-msg-urgent { animation:tab-msg-pulse 1.2s ease infinite; font-weight:700; }
 
+/* ===== AIDE RECHERCHE MAINTENANCE ===== */
+.aide-recherche {
+  position:relative;
+}
+.aide-bulle {
+  display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:150;
+  background:var(--blanc); border:1.5px solid var(--bleu); border-radius:8px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.15); max-height:180px; overflow-y:auto;
+}
+.aide-item {
+  padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:0.5px solid var(--gris-bord);
+  display:flex; align-items:center; gap:8px;
+}
+.aide-item:last-child { border-bottom:none; }
+.aide-item:hover { background:var(--bleu-clair); }
+.aide-item .ai-date { font-size:11px; color:var(--texte-sec); min-width:60px; }
+.aide-item .ai-val  { font-weight:600; color:var(--texte); }
+.aide-item .ai-veh  { font-size:10px; color:var(--texte-sec); margin-left:auto; }
+
+/* ===== PHOTOS MAINTENANCE ===== */
+.photo-wrap {
+  position:relative; display:inline-block;
+}
+.photo-wrap img {
+  width:80px; height:60px; object-fit:cover; border-radius:6px;
+  border:1.5px solid var(--gris-bord); display:block;
+}
+.photo-del {
+  position:absolute; top:-6px; right:-6px;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--rouge); color:#fff; border:none; cursor:pointer;
+  font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  line-height:1;
+}
+.photo-del:hover { background:var(--rouge-fonce); }
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 500px) {
   .content { padding: 10px; }
@@ -622,7 +658,11 @@ td.ok { color: var(--vert); font-weight: 600; }
       </div>
       <div class="form-group">
         <label>Kilométrage relevé</label>
-        <input type="number" id="maint-km" placeholder="ex: 72000" />
+        <div class="aide-recherche">
+          <input type="number" id="maint-km" placeholder="ex: 72000"
+            oninput="aideKm()" onfocus="aideKm()" onblur="setTimeout(()=>fermerAide('aide-km'),200)" />
+          <div class="aide-bulle" id="aide-km"></div>
+        </div>
       </div>
     </div>
     <div class="form-grid" style="margin-top:12px">
@@ -761,10 +801,15 @@ td.ok { color: var(--vert); font-weight: 600; }
     <!-- Photos -->
     <div class="form-group" style="margin-top:12px">
       <label>📷 Photos (extérieur / anomalies)</label>
-      <input type="file" id="maint-photos" accept="image/*" multiple capture="environment"
-        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px;background:var(--blanc);width:100%"
-        onchange="previewPhotos()" />
-      <div id="maint-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="btn" style="cursor:pointer;margin:0">
+          📷 Ajouter photo(s)
+          <input type="file" id="maint-photos" accept="image/*" multiple capture="environment"
+            style="display:none" onchange="ajouterPhotos()" />
+        </label>
+        <span style="font-size:12px;color:var(--texte-sec)">Les photos sont stockées localement</span>
+      </div>
+      <div id="maint-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
     </div>
 
     <div class="form-group" style="margin-top:12px">
@@ -3612,36 +3657,139 @@ function toggleCWFields() {
   document.getElementById('maint-cw-montant').style.display = show ? '' : 'none';
 }
 
-/* Prévisualise les photos sélectionnées */
-function previewPhotos() {
+// ── Photos maintenance ────────────────────────────────────────
+// Stockage temporaire des photos (base64) en mémoire pendant la saisie
+let _photosEnCours = []; // [{ name, data }]
+
+/* Ajoute les nouvelles photos sélectionnées à _photosEnCours */
+function ajouterPhotos() {
   const input = document.getElementById('maint-photos');
-  const preview = document.getElementById('maint-photos-preview');
-  preview.innerHTML = '';
-  Array.from(input.files).forEach(file => {
+  if (!input.files.length) return;
+  const promises = Array.from(input.files).map(file => new Promise(res => {
+    // Compression : redimensionner à max 800px et qualité 0.7
     const reader = new FileReader();
     reader.onload = e => {
-      const img = document.createElement('img');
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        const ratio = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        res({ name: file.name, data: canvas.toDataURL('image/jpeg', 0.72) });
+      };
       img.src = e.target.result;
-      img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:6px;border:1.5px solid var(--gris-bord);cursor:pointer';
-      img.title = file.name;
-      img.onclick = () => window.open(e.target.result, '_blank');
-      preview.appendChild(img);
     };
     reader.readAsDataURL(file);
+  }));
+  Promise.all(promises).then(nouvelles => {
+    _photosEnCours = [..._photosEnCours, ...nouvelles];
+    input.value = ''; // réinitialiser pour permettre re-sélection
+    rafraichirPreviewPhotos();
   });
 }
 
-/* Encode les photos en base64 pour stockage */
-async function encodePhotos() {
-  const input = document.getElementById('maint-photos');
-  if (!input.files.length) return [];
-  const promises = Array.from(input.files).map(file => new Promise(res => {
-    const reader = new FileReader();
-    reader.onload = e => res({ name: file.name, data: e.target.result });
-    reader.readAsDataURL(file);
-  }));
-  return Promise.all(promises);
+/* Supprime une photo de la liste en cours */
+function supprimerPhoto(idx) {
+  _photosEnCours.splice(idx, 1);
+  rafraichirPreviewPhotos();
 }
+
+/* Rafraîchit la prévisualisation avec boutons ✕ */
+function rafraichirPreviewPhotos() {
+  const preview = document.getElementById('maint-photos-preview');
+  if (!preview) return;
+  preview.innerHTML = _photosEnCours.map((p, i) => `
+    <div class="photo-wrap">
+      <img src="${p.data}" title="${p.name}" onclick="window.open('${p.data}','_blank')" style="cursor:pointer" />
+      <button class="photo-del" onclick="supprimerPhoto(${i})" title="Supprimer cette photo">✕</button>
+    </div>`).join('');
+}
+
+/* Encode les photos en cours pour le stockage (retourne _photosEnCours) */
+async function encodePhotos() {
+  return [..._photosEnCours]; // déjà encodées lors de l'ajout
+}
+
+/* Compatibilité legacy */
+function previewPhotos() { ajouterPhotos(); }
+
+// ── Aide de recherche intelligente ────────────────────────────
+/* Affiche les derniers km relevés pour ce véhicule */
+function aideKm() {
+  const vehId  = document.getElementById('maint-veh').value;
+  const kmVal  = document.getElementById('maint-km').value;
+  const bulle  = document.getElementById('aide-km');
+  if (!bulle || !vehId) return;
+
+  // Dernières maintenances de ce véhicule (5 max)
+  const hist = maintenances
+    .filter(m => m.vehId === vehId && m.km)
+    .sort((a,b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+
+  // Km actuel du véhicule comme suggestion de départ
+  const veh = vehicules.find(v => v.id === vehId);
+  const kmActuel = veh ? veh.km : null;
+
+  if (!hist.length && !kmActuel) { bulle.style.display = 'none'; return; }
+
+  let items = '';
+
+  // Suggestion : km actuel + estimation basée sur km/mois moyen
+  if (kmActuel && hist.length >= 2) {
+    const lastM = hist[0];
+    const prevM = hist[1];
+    if (lastM.km && prevM.km && lastM.date && prevM.date) {
+      const joursDiff = Math.max(1, Math.round((new Date(lastM.date) - new Date(prevM.date)) / 86400000));
+      const kmMois = Math.round((lastM.km - prevM.km) / joursDiff * 30);
+      const joursSinceLastM = Math.round((new Date() - new Date(lastM.date)) / 86400000);
+      const estimation = lastM.km + Math.round(kmMois * joursSinceLastM / 30);
+      items += `<div class="aide-item" onclick="choisirKm(${estimation})">
+        <span class="ai-date">Estimé</span>
+        <span class="ai-val">≈ ${estimation.toLocaleString('fr-BE')} km</span>
+        <span class="ai-veh">~${kmMois.toLocaleString('fr-BE')} km/mois</span>
+      </div>`;
+    }
+  } else if (kmActuel) {
+    items += `<div class="aide-item" onclick="choisirKm(${kmActuel})">
+      <span class="ai-date">Actuel</span>
+      <span class="ai-val">${kmActuel.toLocaleString('fr-BE')} km</span>
+      <span class="ai-veh">véhicule</span>
+    </div>`;
+  }
+
+  // Historique des relevés
+  hist.forEach(m => {
+    if (kmVal && !String(m.km).startsWith(kmVal)) return; // filtre si saisie en cours
+    items += `<div class="aide-item" onclick="choisirKm(${m.km})">
+      <span class="ai-date">${formatDate(m.date)}</span>
+      <span class="ai-val">${m.km.toLocaleString('fr-BE')} km</span>
+      <span class="ai-veh">${m.rem ? m.rem.substring(0,20) : ''}</span>
+    </div>`;
+  });
+
+  if (!items) { bulle.style.display = 'none'; return; }
+  bulle.innerHTML = items;
+  bulle.style.display = 'block';
+}
+
+function choisirKm(km) {
+  const el = document.getElementById('maint-km');
+  if (el) { el.value = km; el.dispatchEvent(new Event('input')); }
+  fermerAide('aide-km');
+}
+
+function fermerAide(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+// Fermer l'aide si on clique ailleurs
+document.addEventListener('click', e => {
+  if (!e.target.closest('.aide-recherche')) fermerAide('aide-km');
+});
 
 async function saveMaintenance() {
   const date  = document.getElementById('maint-date').value;
@@ -3697,6 +3845,19 @@ async function saveMaintenance() {
     }
   }
 
+  // Photos : stocker UNIQUEMENT en localStorage (base64 trop volumineux pour Firebase)
+  // On retire les photos de rec avant Firebase, on les sauvegarde à part
+  const photosData = rec.photos || [];
+  const recSansPhotos = { ...rec, photos: [] }; // version sans photos pour Firebase
+  maintenances[0] = recSansPhotos; // remplacer dans le tableau
+  if (photosData.length) {
+    try {
+      const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+      photosLS[rec.id] = photosData;
+      localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
+    } catch(e) { console.warn('Photos trop volumineuses pour localStorage:', e); }
+  }
+
   await saveAll();
   clearMaintForm();
   renderMaintTable();
@@ -3710,8 +3871,13 @@ function renderMaintTable() {
   if (!tbody) return;
   tbody.innerHTML = maintenances.map(m => {
     const v = vehicules.find(x => x.id === m.vehId);
-    const photosHtml = m.photos && m.photos.length
-      ? m.photos.map(p => `<img src="${p.data}" title="${p.name}" style="width:36px;height:28px;object-fit:cover;border-radius:4px;cursor:pointer;margin-right:2px" onclick="window.open('${p.data}','_blank')" />`).join('')
+    // Charger les photos depuis localStorage (stockées séparément)
+    const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+    const photos   = photosLS[m.id] || m.photos || [];
+    const photosHtml = photos.length
+      ? photos.map((p, pi) => `<img src="${p.data}" title="${p.name}"
+          style="width:36px;height:28px;object-fit:cover;border-radius:4px;cursor:pointer;margin-right:2px"
+          onclick="window.open('${p.data}','_blank')" />`).join('')
       : '';
     return `<tr>
       <td>${formatDate(m.date)}</td>
@@ -3749,8 +3915,9 @@ function clearMaintForm() {
   const kmEl = document.getElementById('maint-km'); if(kmEl) kmEl.value = '';
   const remEl = document.getElementById('maint-rem'); if(remEl) remEl.value = '';
   // Photos
-  const photosEl = document.getElementById('maint-photos'); if(photosEl) photosEl.value = '';
-  const previewEl = document.getElementById('maint-photos-preview'); if(previewEl) previewEl.innerHTML = '';
+  _photosEnCours = [];
+  const photosEl = document.getElementById('maint-photos'); if (photosEl) photosEl.value = '';
+  const previewEl = document.getElementById('maint-photos-preview'); if (previewEl) previewEl.innerHTML = '';
 }
 
 // ============================================================
