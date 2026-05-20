@@ -3206,23 +3206,33 @@ function populateEditSelects() {
 }
 
 /* Pré-remplit le garage selon le type sélectionné */
+// Types qui nécessitent un kilométrage
+const CT_TYPES_KM = ['garage','permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','reparation'];
+
 function onCTTypeChange() {
   const type   = document.getElementById('ct-type').value;
   const vehId  = document.getElementById('ct-veh').value;
   const veh    = vehicules.find(v => v.id === vehId);
   const garage = document.getElementById('ct-result');
 
-  // Garage attitré pour les types "garage attitré"
+  // Garage pré-rempli selon le type
   const garagesAttitre = ['garage','reparation','rappel-garage'];
-  if (garagesAttitre.includes(type)) {
-    garage.value = veh ? (veh.garage || '') : '';
-  } else {
-    garage.value = CT_TYPE_GARAGE[type] || '';
-  }
+  garage.value = garagesAttitre.includes(type)
+    ? (veh ? veh.garage || '' : '')
+    : (CT_TYPE_GARAGE[type] || '');
 
-  // Afficher/masquer le champ "Prochain CT" selon le type
-  const nextCtWrap = document.getElementById('ct-next');
-  if (nextCtWrap) nextCtWrap.parentElement.style.display = type === 'ct' ? '' : 'none';
+  // Afficher/masquer "Prochain CT valable jusqu'au" — uniquement pour CT
+  const nextWrap = document.getElementById('ct-next');
+  if (nextWrap) nextWrap.parentElement.style.display = type === 'ct' ? '' : 'none';
+
+  // Afficher/masquer "Kilométrage" — pour les types concernés
+  const kmWrap = document.getElementById('ct-km');
+  if (kmWrap) {
+    const showKm = CT_TYPES_KM.includes(type);
+    kmWrap.parentElement.style.display = showKm ? '' : 'none';
+    if (showKm && veh && !kmWrap.value) kmWrap.value = veh.km || '';
+    if (!showKm) kmWrap.value = '';
+  }
 }
 
 /* Filtre les options selon le véhicule sélectionné (enrouleur = lift uniquement) */
@@ -3458,10 +3468,18 @@ function editHistItem(srcType, srcId) {
     const v = vehicules.find(x => x.id === m.vehId);
     const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
     openEditModal(`Maintenance — ${vNom} — ${formatDate(m.date)}`, [
-      { label:'Date',        type:'date',   key:'date',  val: m.date },
-      { label:'Km',          type:'number', key:'km',    val: m.km },
-      { label:'Remarques',   type:'text',   key:'rem',   val: m.rem || '' },
+      { label:'Date',             type:'date',   key:'date',  val: m.date },
+      { label:'Kilométrage (km)', type:'number', key:'km',    val: m.km || '' },
+      { label:'Lave-glace',       type:'text',   key:'lg',    val: m.lg || '' },
+      { label:'Huile moteur',     type:'text',   key:'hm',    val: m.hm || '' },
+      { label:'Huile frein',      type:'text',   key:'hf',    val: m.hf || '' },
+      { label:'Refroidissement',  type:'text',   key:'lr',    val: m.lr || '' },
+      { label:'Éclairage',        type:'text',   key:'ecl',   val: m.ecl || '' },
+      { label:'Pneus',            type:'text',   key:'pneus', val: m.pneus || '' },
+      { label:'Extérieur',        type:'text',   key:'ext',   val: m.ext || '' },
+      { label:'Remarques',        type:'text',   key:'rem',   val: m.rem || '' },
     ], (changes) => {
+      if (changes.km) changes.km = parseInt(changes.km);
       Object.assign(m, changes);
       saveAll(); renderHistorique(); toast('Maintenance modifiée ✅');
     });
@@ -3469,13 +3487,18 @@ function editHistItem(srcType, srcId) {
     const c = ctEvents.find(x => x.id === id);
     if (!c) return;
     const v = vehicules.find(x => x.id === c.vehId);
-    openEditModal(`RV — ${v ? v.marque + ' ' + v.immat : c.vehId} — ${formatDate(c.date)}`, [
+    const needsKm = CT_TYPES_KM.includes(c.type);
+    const fields = [
       { label:'Date',    type:'date',  key:'date',   val: c.date },
       { label:'Heure',   type:'time',  key:'heure',  val: c.heure || '' },
       { label:'Garage',  type:'text',  key:'result', val: c.result || '' },
       { label:'Motif',   type:'text',  key:'rem',    val: c.rem || '' },
-      { label:'CT valable jusqu\'au', type:'date', key:'next', val: c.next || '' },
-    ], (changes) => {
+    ];
+    if (needsKm) fields.splice(2, 0, { label:'Kilométrage (km)', type:'number', key:'km', val: c.km || '' });
+    if (c.type === 'ct') fields.push({ label:"CT valable jusqu'au", type:'date', key:'next', val: c.next || '' });
+
+    openEditModal(`${CT_TYPE_LABELS?.[c.type] || 'RV'} — ${v ? v.marque + ' ' + v.immat : c.vehId} — ${formatDate(c.date)}`, fields, (changes) => {
+      if (changes.km) changes.km = parseInt(changes.km);
       Object.assign(c, changes);
       if (c.type === 'ct' && c.next) {
         const veh = vehicules.find(x => x.id === c.vehId);
@@ -3488,11 +3511,12 @@ function editHistItem(srcType, srcId) {
     if (!a) return;
     const v = vehicules.find(x => x.id === a.vehId);
     openEditModal(`AdBlue — ${v ? v.marque + ' ' + v.immat : a.vehId} — ${formatDate(a.date)}`, [
-      { label:'Date',    type:'date',   key:'date',  val: a.date },
-      { label:'Litres',  type:'number', key:'litre', val: a.litre },
-      { label:'Km',      type:'number', key:'km',    val: a.km || '' },
+      { label:'Date',             type:'date',   key:'date',  val: a.date },
+      { label:'Litres',           type:'number', key:'litre', val: a.litre },
+      { label:'Kilométrage (km)', type:'number', key:'km',    val: a.km || '' },
     ], (changes) => {
       if (changes.litre) changes.litre = parseFloat(changes.litre);
+      if (changes.km)    changes.km    = parseInt(changes.km);
       Object.assign(a, changes);
       saveAll(); renderHistorique(); toast('AdBlue modifié ✅');
     });
@@ -3501,9 +3525,9 @@ function editHistItem(srcType, srcId) {
     if (!c) return;
     const v = vehicules.find(x => x.id === c.vehId);
     openEditModal(`Car Wash — ${v ? v.marque + ' ' + v.immat : c.vehId} — ${formatDate(c.date)}`, [
-      { label:'Date',     type:'date',   key:'date',    val: c.date },
-      { label:'Lieu',     type:'text',   key:'lieu',    val: c.lieu || '' },
-      { label:'Montant €',type:'number', key:'montant', val: c.montant || '' },
+      { label:'Date',      type:'date',   key:'date',    val: c.date },
+      { label:'Lieu',      type:'text',   key:'lieu',    val: c.lieu || '' },
+      { label:'Montant €', type:'number', key:'montant', val: c.montant || '' },
     ], (changes) => {
       if (changes.montant) changes.montant = parseFloat(changes.montant);
       Object.assign(c, changes);
@@ -3513,12 +3537,17 @@ function editHistItem(srcType, srcId) {
     const r = rendezvous.find(x => x.id === id);
     if (!r) return;
     const v = vehicules.find(x => x.id === r.vehId);
-    openEditModal(`RV planifié — ${v ? v.marque + ' ' + v.immat : r.vehId} — ${formatDate(r.date)}`, [
+    const needsKm = CT_TYPES_KM.includes(r.type);
+    const fields = [
       { label:'Date',   type:'date', key:'date',   val: r.date },
       { label:'Heure',  type:'time', key:'heure',  val: r.heure || '' },
       { label:'Garage', type:'text', key:'garage', val: r.garage || '' },
       { label:'Notes',  type:'text', key:'notes',  val: r.notes || '' },
-    ], (changes) => {
+    ];
+    if (needsKm) fields.splice(2, 0, { label:'Kilométrage (km)', type:'number', key:'km', val: r.km || '' });
+
+    openEditModal(`RV planifié — ${v ? v.marque + ' ' + v.immat : r.vehId} — ${formatDate(r.date)}`, fields, (changes) => {
+      if (changes.km) changes.km = parseInt(changes.km);
       Object.assign(r, changes);
       saveAll(); renderHistorique(); toast('RV modifié ✅');
     });
