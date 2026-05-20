@@ -778,6 +778,7 @@ td.ok { color: var(--vert); font-weight: 600; }
           <option value="entretien-lift">Entretien lift/rampe</option>
           <option value="reparation-lift">Réparation lift/rampe</option>
           <option value="enrouleur">Problème enrouleur</option>
+          <option value="treuil">Treuil bloqué</option>
           <option value="crevaison">Crevaison</option>
           <option value="livraison">Livraison nouveau véhicule</option>
           <option value="autre">Autre…</option>
@@ -842,6 +843,7 @@ td.ok { color: var(--vert); font-weight: 600; }
         <option value="entretien-lift">Entretien lift/rampe</option>
         <option value="reparation-lift">Réparation lift/rampe</option>
         <option value="enrouleur">Enrouleur</option>
+        <option value="treuil">Treuil bloqué</option>
         <option value="crevaison">Crevaison</option>
         <option value="autre">Autre</option>
       </select>
@@ -3157,9 +3159,9 @@ function clearMaintForm() {
 // Mapping type → garage par défaut
 const CT_TYPE_GARAGE = {
   'ct':             'Bièvre (Centre CT)',
-  'garage':         '', // garage attitré du véhicule
-  'reparation':     '', // garage attitré
-  'rappel-garage':  '', // garage attitré
+  'garage':         '',
+  'reparation':     '',
+  'rappel-garage':  '',
   'permutation':    'Culot pneus',
   'pneus-av':       'Culot pneus',
   'pneus-ar':       'Culot pneus',
@@ -3170,6 +3172,7 @@ const CT_TYPE_GARAGE = {
   'entretien-lift': 'Recht',
   'reparation-lift':'Recht',
   'enrouleur':      'Recht',
+  'treuil':         'Recht',
   'livraison':      'Recht',
   'autre':          '',
 };
@@ -3188,6 +3191,7 @@ const CT_TYPE_LABELS = {
   'entretien-lift': '🔼 Entretien lift/rampe',
   'reparation-lift':'🔼 Réparation lift/rampe',
   'enrouleur':      '🔼 Enrouleur',
+  'treuil':         '🔼 Treuil bloqué',
   'crevaison':      '🛞 Crevaison',
   'livraison':      '🚐 Livraison nouveau véhicule',
   'autre':          '📝 Autre',
@@ -3202,6 +3206,9 @@ function populateEditSelects() {
       return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
     }).join('');
   });
+
+  // Charger les motifs libres persistés
+  chargerMotifsLibres();
 
   // Filtre véhicule dans l'historique CT
   const filtSel = document.getElementById('ct-filter-veh');
@@ -3219,8 +3226,52 @@ function populateEditSelects() {
 }
 
 /* Pré-remplit le garage selon le type sélectionné */
+// ── Motifs libres persistés dans la liste déroulante type RV ──
+const LS_MOTIFS_LIBRES = 'mcr_motifs_libres_rv';
+
+function getMotifLibres() {
+  return JSON.parse(localStorage.getItem(LS_MOTIFS_LIBRES) || '[]');
+}
+
+function enregistrerMotifLibre(motif) {
+  if (!motif) return;
+  const motifs = getMotifLibres();
+  if (motifs.includes(motif)) return;
+  motifs.push(motif);
+  localStorage.setItem(LS_MOTIFS_LIBRES, JSON.stringify(motifs));
+  chargerMotifsLibres();
+}
+
+function chargerMotifsLibres() {
+  const sel = document.getElementById('ct-type');
+  if (!sel) return;
+  // Supprimer les options custom déjà injectées
+  [...sel.options].filter(o => o.dataset.customLibre).forEach(o => o.remove());
+  const motifs = getMotifLibres();
+  const autreOpt = [...sel.options].find(o => o.value === 'autre');
+  motifs.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = 'libre_' + m;
+    opt.textContent = '📝 ' + m;
+    opt.dataset.customLibre = '1';
+    if (autreOpt) sel.insertBefore(opt, autreOpt);
+    else sel.appendChild(opt);
+    // Enregistrer dans les tables de lookup
+    CT_TYPE_LABELS['libre_' + m] = '📝 ' + m;
+    CT_TYPE_GARAGE['libre_' + m] = '';
+  });
+}
+
+function supprimerMotifLibre(motif) {
+  const motifs = getMotifLibres().filter(m => m !== motif);
+  localStorage.setItem(LS_MOTIFS_LIBRES, JSON.stringify(motifs));
+  delete CT_TYPE_LABELS['libre_' + motif];
+  delete CT_TYPE_GARAGE['libre_' + motif];
+  chargerMotifsLibres();
+}
+
 // Types qui nécessitent un kilométrage
-const CT_TYPES_KM = ['garage','permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','reparation','livraison'];
+const CT_TYPES_KM = ['garage','permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','treuil','reparation','livraison'];
 
 function onCTTypeChange() {
   const type   = document.getElementById('ct-type').value;
@@ -3248,6 +3299,7 @@ function onCTTypeChange() {
   }
 
   // Afficher/masquer le champ "Autre" motif libre
+  // Un type libre_* est un motif enregistré → pas besoin du champ Autre
   const autreWrap = document.getElementById('ct-autre-wrap');
   if (autreWrap) autreWrap.style.display = type === 'autre' ? '' : 'none';
   if (type !== 'autre') {
@@ -3263,7 +3315,7 @@ function onCTVehChange() {
   const hasLift = veh && (veh.equipement === 'Élévateur' || veh.equipement === 'Rampe');
 
   // Options lift/enrouleur
-  const liftTypes = ['entretien-lift','reparation-lift','enrouleur'];
+  const liftTypes = ['entretien-lift','reparation-lift','enrouleur','treuil'];
   const sel = document.getElementById('ct-type');
   [...sel.options].forEach(opt => {
     if (liftTypes.includes(opt.value)) {
@@ -3294,6 +3346,9 @@ function saveCT() {
     const motif = document.getElementById('ct-autre-motif').value.trim();
     if (!motif) { toast('Veuillez préciser le motif pour "Autre".'); return; }
     remVal = motif + (remVal ? ' — ' + remVal : '');
+
+    // Enregistrer le motif comme option personnalisée persistée dans la liste
+    enregistrerMotifLibre(motif);
   }
 
   const rec = {
