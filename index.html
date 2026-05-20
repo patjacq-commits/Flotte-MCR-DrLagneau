@@ -472,6 +472,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div id="navbar-maint" style="font-size:10px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);padding:3px 8px;border-radius:8px;white-space:nowrap;flex-shrink:0;text-align:center;line-height:1.4">
     <div style="font-size:9px;opacity:0.75;text-transform:uppercase;letter-spacing:0.5px">Proch. maint.</div>
     <div id="navbar-maint-date" style="font-weight:700"></div>
+    <div id="navbar-maint-jours" style="font-size:9px;opacity:0.85"></div>
   </div>
   <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.5.0</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
@@ -778,8 +779,14 @@ td.ok { color: var(--vert); font-weight: 600; }
           <option value="reparation-lift">Réparation lift/rampe</option>
           <option value="enrouleur">Problème enrouleur</option>
           <option value="crevaison">Crevaison</option>
-          <option value="autre">Autre (motif libre)</option>
+          <option value="livraison">Livraison nouveau véhicule</option>
+          <option value="autre">Autre…</option>
         </select>
+      </div>
+      <!-- Champ motif libre pour "Autre" -->
+      <div class="form-group" id="ct-autre-wrap" style="display:none">
+        <label>Précisez le motif</label>
+        <input type="text" id="ct-autre-motif" placeholder="ex: Révision climatisation…" />
       </div>
       <div class="form-group">
         <label>Date du RV</label>
@@ -1533,18 +1540,22 @@ function daysUntil(s) {
 
 /* Met à jour la date de prochaine maintenance dans la navbar */
 function updateNavbarMaint() {
-  const el = document.getElementById('navbar-maint-date');
+  const el   = document.getElementById('navbar-maint-date');
+  const elJ  = document.getElementById('navbar-maint-jours');
   if (!el) return;
   const sam = prochainSamediFinDeMois();
   const j   = Math.round((sam - TODAY) / 86400000);
-  el.textContent = sam.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit' });
+  el.textContent  = sam.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit' });
+  if (elJ) elJ.textContent = j === 0 ? "Aujourd'hui !" : j === 1 ? 'Demain' : `J-${j}`;
   const wrap = document.getElementById('navbar-maint');
   if (wrap) {
-    wrap.style.background = j <= 3
-      ? 'rgba(231,76,60,0.55)'
-      : j <= 7
-        ? 'rgba(230,126,34,0.45)'
-        : 'rgba(255,255,255,0.12)';
+    wrap.style.background = j === 0
+      ? 'rgba(192,57,43,0.75)'   // rouge vif si aujourd'hui
+      : j <= 3
+        ? 'rgba(231,76,60,0.55)' // rouge si ≤ 3 jours
+        : j <= 7
+          ? 'rgba(230,126,34,0.45)' // orange si dans la semaine
+          : 'rgba(255,255,255,0.12)';
   }
 }
 
@@ -3159,6 +3170,7 @@ const CT_TYPE_GARAGE = {
   'entretien-lift': 'Recht',
   'reparation-lift':'Recht',
   'enrouleur':      'Recht',
+  'livraison':      'Recht',
   'autre':          '',
 };
 
@@ -3177,6 +3189,7 @@ const CT_TYPE_LABELS = {
   'reparation-lift':'🔼 Réparation lift/rampe',
   'enrouleur':      '🔼 Enrouleur',
   'crevaison':      '🛞 Crevaison',
+  'livraison':      '🚐 Livraison nouveau véhicule',
   'autre':          '📝 Autre',
 };
 
@@ -3207,7 +3220,7 @@ function populateEditSelects() {
 
 /* Pré-remplit le garage selon le type sélectionné */
 // Types qui nécessitent un kilométrage
-const CT_TYPES_KM = ['garage','permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','reparation'];
+const CT_TYPES_KM = ['garage','permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','reparation','livraison'];
 
 function onCTTypeChange() {
   const type   = document.getElementById('ct-type').value;
@@ -3232,6 +3245,14 @@ function onCTTypeChange() {
     kmWrap.parentElement.style.display = showKm ? '' : 'none';
     if (showKm && veh && !kmWrap.value) kmWrap.value = veh.km || '';
     if (!showKm) kmWrap.value = '';
+  }
+
+  // Afficher/masquer le champ "Autre" motif libre
+  const autreWrap = document.getElementById('ct-autre-wrap');
+  if (autreWrap) autreWrap.style.display = type === 'autre' ? '' : 'none';
+  if (type !== 'autre') {
+    const motif = document.getElementById('ct-autre-motif');
+    if (motif) motif.value = '';
   }
 }
 
@@ -3267,6 +3288,14 @@ function saveCT() {
   const type  = document.getElementById('ct-type').value;
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
 
+  // Pour "Autre", récupérer le motif libre et le stocker dans rem
+  let remVal = document.getElementById('ct-rem').value;
+  if (type === 'autre') {
+    const motif = document.getElementById('ct-autre-motif').value.trim();
+    if (!motif) { toast('Veuillez préciser le motif pour "Autre".'); return; }
+    remVal = motif + (remVal ? ' — ' + remVal : '');
+  }
+
   const rec = {
     id:     Date.now(),
     date, vehId, type,
@@ -3274,7 +3303,7 @@ function saveCT() {
     km:     document.getElementById('ct-km').value,
     result: document.getElementById('ct-result').value,
     next:   document.getElementById('ct-next').value,
-    rem:    document.getElementById('ct-rem').value
+    rem:    remVal
   };
   ctEvents.unshift(rec);
 
@@ -3291,10 +3320,12 @@ function saveCT() {
 }
 
 function clearCTForm() {
-  ['ct-km','ct-result','ct-next','ct-rem','ct-heure'].forEach(id => {
+  ['ct-km','ct-result','ct-next','ct-rem','ct-heure','ct-autre-motif'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('ct-type').value = 'ct';
+  const autreWrap = document.getElementById('ct-autre-wrap');
+  if (autreWrap) autreWrap.style.display = 'none';
   onCTTypeChange();
 }
 
