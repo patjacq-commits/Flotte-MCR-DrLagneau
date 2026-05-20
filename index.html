@@ -489,7 +489,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn" onclick="showPage('alertes',this)">🔔 Alertes</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Alerte chauffeur</button>
   <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
-  <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">🏪 Garages/CT</button>
+  <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
   <button class="tab-btn admin-only" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
   <button class="tab-btn admin-only" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
   <button class="tab-btn admin-only" onclick="showPage('historique',this)" style="display:none">📋 Historique</button>
@@ -748,46 +748,94 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE GARAGES/CT (admin) -->
 <div id="page-garages" class="page">
-  <h2 style="margin-bottom:14px">🏪 Contrôles techniques & Entretiens garage</h2>
-  
+  <h2 style="margin-bottom:14px">📋 RV à prendre</h2>
+
   <div class="form-card">
-    <h3>Enregistrer un rendez-vous / résultat CT</h3>
+    <h3>Enregistrer un rendez-vous</h3>
     <div class="form-grid">
       <div class="form-group">
         <label>Véhicule</label>
-        <select id="ct-veh"></select>
+        <select id="ct-veh" onchange="onCTVehChange()"></select>
       </div>
       <div class="form-group">
-        <label>Type</label>
-        <select id="ct-type">
+        <label>Type de RV</label>
+        <select id="ct-type" onchange="onCTTypeChange()">
           <option value="ct">Contrôle Technique</option>
           <option value="garage">Entretien Garage</option>
+          <option value="permutation">Permutation pneus</option>
+          <option value="pneus-av">Nouveaux pneus AV</option>
+          <option value="pneus-ar">Nouveaux pneus AR</option>
+          <option value="pneus-4">4 nouveaux pneus</option>
+          <option value="geometrie">Géométrie</option>
+          <option value="reparation">Réparation</option>
+          <option value="rappel-garage">Rappel du garage</option>
+          <option value="vitre">Réparation vitre</option>
+          <option value="entretien-lift">Entretien lift/rampe</option>
+          <option value="reparation-lift">Réparation lift/rampe</option>
+          <option value="enrouleur">Problème enrouleur</option>
+          <option value="crevaison">Crevaison</option>
+          <option value="autre">Autre (motif libre)</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Date du RV / Résultat</label>
+        <label>Date du RV</label>
         <input type="date" id="ct-date" />
+      </div>
+      <div class="form-group">
+        <label>Garage / Centre</label>
+        <input type="text" id="ct-result" placeholder="Garage pré-rempli selon le type" />
       </div>
       <div class="form-group">
         <label>Kilométrage à cette date</label>
         <input type="number" id="ct-km" placeholder="Optionnel" />
       </div>
       <div class="form-group">
-        <label>Résultat / Garage</label>
-        <input type="text" id="ct-result" placeholder="ex: Picard / CT favorable / refusé..." />
-      </div>
-      <div class="form-group">
         <label>Prochain CT valable jusqu'au</label>
         <input type="date" id="ct-next" />
       </div>
     </div>
+    <!-- Motif libre (toujours visible) -->
     <div class="form-group" style="margin-top:12px">
-      <label>Remarques</label>
-      <textarea id="ct-rem" style="min-height:50px" placeholder="Travaux effectués, remarques CT..."></textarea>
+      <label>Motif / Remarques</label>
+      <textarea id="ct-rem" style="min-height:60px" placeholder="Précisez le motif, les travaux à effectuer..."></textarea>
     </div>
-    <div style="margin-top:12px; display:flex; gap:10px;">
+    <div style="margin-top:12px;display:flex;gap:10px;">
       <button class="btn primary" onclick="saveCT()">💾 Enregistrer</button>
       <button class="btn" onclick="clearCTForm()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <!-- Historique des RV enregistrés -->
+  <div class="form-card">
+    <h3>RV enregistrés</h3>
+    <div class="export-bar" style="margin-bottom:10px">
+      <select id="ct-filter-veh" onchange="renderCTTable()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="">Tous les véhicules</option>
+      </select>
+      <select id="ct-filter-type" onchange="renderCTTable()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="">Tous les types</option>
+        <option value="ct">CT</option>
+        <option value="garage">Entretien Garage</option>
+        <option value="permutation">Permutation pneus</option>
+        <option value="pneus-av">Pneus AV</option>
+        <option value="pneus-ar">Pneus AR</option>
+        <option value="pneus-4">4 pneus</option>
+        <option value="geometrie">Géométrie</option>
+        <option value="reparation">Réparation</option>
+        <option value="rappel-garage">Rappel garage</option>
+        <option value="vitre">Vitre</option>
+        <option value="entretien-lift">Entretien lift/rampe</option>
+        <option value="reparation-lift">Réparation lift/rampe</option>
+        <option value="enrouleur">Enrouleur</option>
+        <option value="crevaison">Crevaison</option>
+        <option value="autre">Autre</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Garage</th><th>Motif</th><th>Action</th></tr></thead>
+        <tbody id="ct-tbody"></tbody>
+      </table>
     </div>
   </div>
 
@@ -3047,38 +3095,179 @@ function clearMaintForm() {
 // ============================================================
 // FORMULAIRE CT / GARAGE
 // ============================================================
+// Mapping type → garage par défaut
+const CT_TYPE_GARAGE = {
+  'ct':             'Bièvre (Centre CT)',
+  'garage':         '', // garage attitré du véhicule
+  'reparation':     '', // garage attitré
+  'rappel-garage':  '', // garage attitré
+  'permutation':    'Culot pneus',
+  'pneus-av':       'Culot pneus',
+  'pneus-ar':       'Culot pneus',
+  'pneus-4':        'Culot pneus',
+  'geometrie':      'Culot pneus',
+  'crevaison':      'Culot pneus',
+  'vitre':          'Carglass à Marche',
+  'entretien-lift': 'Recht',
+  'reparation-lift':'Recht',
+  'enrouleur':      'Recht',
+  'autre':          '',
+};
+
+const CT_TYPE_LABELS = {
+  'ct':             '🏥 Contrôle Technique',
+  'garage':         '🔧 Entretien Garage',
+  'permutation':    '🔄 Permutation pneus',
+  'pneus-av':       '🔵 Pneus AV',
+  'pneus-ar':       '🔵 Pneus AR',
+  'pneus-4':        '🔵 4 pneus',
+  'geometrie':      '📐 Géométrie',
+  'reparation':     '🔩 Réparation',
+  'rappel-garage':  '📞 Rappel garage',
+  'vitre':          '🪟 Vitre',
+  'entretien-lift': '🔼 Entretien lift/rampe',
+  'reparation-lift':'🔼 Réparation lift/rampe',
+  'enrouleur':      '🔼 Enrouleur',
+  'crevaison':      '🛞 Crevaison',
+  'autre':          '📝 Autre',
+};
+
 function populateEditSelects() {
   ['ct-veh','edit-veh'].forEach(selId => {
     const sel = document.getElementById(selId);
-    if (sel) sel.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+    if (!sel) return;
+    sel.innerHTML = ORDRE_VEHICULES.map(id => {
+      const v = vehicules.find(x => x.id === id);
+      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+    }).join('');
   });
+
+  // Filtre véhicule dans l'historique CT
+  const filtSel = document.getElementById('ct-filter-veh');
+  if (filtSel && filtSel.options.length <= 1) {
+    vehicules.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      filtSel.appendChild(opt);
+    });
+  }
+
+  // Masquer "enrouleur" pour les véhicules sans équipement au chargement
+  onCTVehChange();
+  renderCTTable();
+}
+
+/* Pré-remplit le garage selon le type sélectionné */
+function onCTTypeChange() {
+  const type   = document.getElementById('ct-type').value;
+  const vehId  = document.getElementById('ct-veh').value;
+  const veh    = vehicules.find(v => v.id === vehId);
+  const garage = document.getElementById('ct-result');
+
+  // Garage attitré pour les types "garage attitré"
+  const garagesAttitre = ['garage','reparation','rappel-garage'];
+  if (garagesAttitre.includes(type)) {
+    garage.value = veh ? (veh.garage || '') : '';
+  } else {
+    garage.value = CT_TYPE_GARAGE[type] || '';
+  }
+
+  // Afficher/masquer le champ "Prochain CT" selon le type
+  const nextCtWrap = document.getElementById('ct-next');
+  if (nextCtWrap) nextCtWrap.parentElement.style.display = type === 'ct' ? '' : 'none';
+}
+
+/* Filtre les options selon le véhicule sélectionné (enrouleur = lift uniquement) */
+function onCTVehChange() {
+  const vehId = document.getElementById('ct-veh').value;
+  const veh   = vehicules.find(v => v.id === vehId);
+  const hasLift = veh && (veh.equipement === 'Élévateur' || veh.equipement === 'Rampe');
+
+  // Options lift/enrouleur
+  const liftTypes = ['entretien-lift','reparation-lift','enrouleur'];
+  const sel = document.getElementById('ct-type');
+  [...sel.options].forEach(opt => {
+    if (liftTypes.includes(opt.value)) {
+      opt.disabled = !hasLift;
+      opt.style.color = hasLift ? '' : 'var(--texte-sec)';
+      opt.textContent = CT_TYPE_LABELS[opt.value] + (hasLift ? '' : ' (non équipé)');
+    }
+  });
+
+  // Si type actuel est lift mais véhicule sans équipement → reset
+  if (!hasLift && liftTypes.includes(sel.value)) {
+    sel.value = 'ct';
+  }
+
+  // Mettre à jour le garage
+  onCTTypeChange();
 }
 
 function saveCT() {
-  const date = document.getElementById('ct-date').value;
+  const date  = document.getElementById('ct-date').value;
   const vehId = document.getElementById('ct-veh').value;
-  const type = document.getElementById('ct-type').value;
+  const type  = document.getElementById('ct-type').value;
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
 
   const rec = {
-    id: Date.now(), date, vehId, type,
-    km: document.getElementById('ct-km').value,
+    id:     Date.now(),
+    date, vehId, type,
+    km:     document.getElementById('ct-km').value,
     result: document.getElementById('ct-result').value,
-    next: document.getElementById('ct-next').value,
-    rem: document.getElementById('ct-rem').value
+    next:   document.getElementById('ct-next').value,
+    rem:    document.getElementById('ct-rem').value
   };
   ctEvents.unshift(rec);
 
+  // Mettre à jour la date CT si CT
   if (type === 'ct' && rec.next) {
     const veh = vehicules.find(v => v.id === vehId);
     if (veh) veh.ct_valid = rec.next;
   }
 
-  saveAll(); clearCTForm(); toast('Enregistrement sauvegardé ✅');
+  saveAll();
+  clearCTForm();
+  renderCTTable();
+  toast('RV enregistré ✅');
 }
 
 function clearCTForm() {
-  ['ct-km','ct-result','ct-next','ct-rem'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['ct-km','ct-result','ct-next','ct-rem'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('ct-type').value = 'ct';
+  onCTTypeChange();
+}
+
+function deleteCT(id) {
+  if (!confirm('Supprimer ce RV ?')) return;
+  ctEvents = ctEvents.filter(c => c.id !== id);
+  saveAll(); renderCTTable(); toast('RV supprimé');
+}
+
+function renderCTTable() {
+  const filterVeh  = document.getElementById('ct-filter-veh')?.value  || '';
+  const filterType = document.getElementById('ct-filter-type')?.value || '';
+  const tbody = document.getElementById('ct-tbody');
+  if (!tbody) return;
+
+  const rows = ctEvents
+    .filter(c => !filterVeh  || c.vehId === filterVeh)
+    .filter(c => !filterType || c.type  === filterType)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  tbody.innerHTML = rows.length ? rows.map(c => {
+    const v   = vehicules.find(x => x.id === c.vehId);
+    const lbl = CT_TYPE_LABELS[c.type] || c.type;
+    return `<tr>
+      <td>${formatDate(c.date)}</td>
+      <td style="font-size:12px">${v ? v.marque + ' ' + v.immat : c.vehId}</td>
+      <td><span class="badge info" style="font-size:10px;white-space:nowrap">${lbl}</span></td>
+      <td style="font-size:12px">${c.result || '—'}</td>
+      <td style="font-size:12px;max-width:200px">${c.rem || '—'}</td>
+      <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCT(${c.id})">✕</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun RV enregistré</td></tr>';
 }
 
 function loadVehData() {

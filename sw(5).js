@@ -1,8 +1,8 @@
 // ============================================================
-// SERVICE WORKER — MCR Opont Gestion de Flotte v1.0.0
+// SERVICE WORKER — MCR Opont Gestion de Flotte v1.5.0
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v1.0.0';
+const CACHE_NAME = 'mcr-flotte-v1.5.0';
 
 const CACHE_URLS = [
   './',
