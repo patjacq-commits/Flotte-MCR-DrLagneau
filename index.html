@@ -1036,6 +1036,117 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
 </div>
 
+<!-- MODAL NOUVEAU VÉHICULE -->
+<div class="modal-overlay" id="modal-nouveau-veh">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeModal('modal-nouveau-veh')">✕</button>
+    <h2 style="margin-bottom:16px">➕ Ajouter un véhicule</h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Immatriculation *</label>
+        <input type="text" id="nv-immat" placeholder="ex: TLAN999" style="text-transform:uppercase" />
+      </div>
+      <div class="form-group">
+        <label>Marque *</label>
+        <input type="text" id="nv-marque" placeholder="ex: Renault Kangoo" />
+      </div>
+      <div class="form-group">
+        <label>Type *</label>
+        <select id="nv-type">
+          <option value="VSL">VSL</option>
+          <option value="Camionnette">Camionnette</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>N° Châssis</label>
+        <input type="text" id="nv-chassis" placeholder="ex: VF1RFK00X69093954" style="text-transform:uppercase" />
+      </div>
+      <div class="form-group">
+        <label>Mise en circulation</label>
+        <input type="date" id="nv-mise-en-circ" />
+      </div>
+      <div class="form-group">
+        <label>Garage attitré</label>
+        <input type="text" id="nv-garage" placeholder="ex: MIA, Picard…" />
+      </div>
+      <div class="form-group">
+        <label>Kilométrage actuel *</label>
+        <input type="number" id="nv-km" placeholder="ex: 15000" />
+      </div>
+      <div class="form-group">
+        <label>CT valable jusqu'au</label>
+        <input type="date" id="nv-ct-valid" />
+      </div>
+      <div class="form-group">
+        <label>Intervalle entretien (km)</label>
+        <select id="nv-interval">
+          <option value="20000">20 000 km (VSL)</option>
+          <option value="15000">15 000 km (Camionnette)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Prochain entretien à (km)</label>
+        <input type="number" id="nv-next-entretien" placeholder="ex: 20000" />
+      </div>
+      <div class="form-group">
+        <label>Dernier entretien le</label>
+        <input type="date" id="nv-last-entretien-date" />
+      </div>
+      <div class="form-group">
+        <label>Dernier entretien à (km)</label>
+        <input type="number" id="nv-last-entretien-km" placeholder="ex: 0" />
+      </div>
+      <div class="form-group">
+        <label>Équipement</label>
+        <select id="nv-equipement">
+          <option value="">Aucun</option>
+          <option value="Élévateur">Élévateur</option>
+          <option value="Rampe">Rampe</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>AdBlue</label>
+        <select id="nv-adblue">
+          <option value="non">Non</option>
+          <option value="oui">Oui</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Dimensions pneus été</label>
+        <input type="text" id="nv-dim-ete" placeholder="ex: 205/60R16 96H" />
+      </div>
+      <div class="form-group">
+        <label>Marque pneus été</label>
+        <input type="text" id="nv-pneus-ete" placeholder="ex: Michelin Primacy 4" />
+      </div>
+      <div class="form-group">
+        <label>Dimensions pneus hiver</label>
+        <input type="text" id="nv-dim-hiver" placeholder="ex: 205/60R16 96H" />
+      </div>
+      <div class="form-group">
+        <label>Marque pneus hiver</label>
+        <input type="text" id="nv-pneus-hiver" placeholder="ex: Vredestein Wintrac" />
+      </div>
+      <div class="form-group">
+        <label>Code carte Total</label>
+        <input type="text" id="nv-carte-total-code" placeholder="ex: 1234" />
+      </div>
+      <div class="form-group">
+        <label>Carte Total valable jusqu'au</label>
+        <input type="date" id="nv-carte-total-valid" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Remarques</label>
+      <textarea id="nv-remarques" placeholder="Notes diverses…" style="min-height:60px"></textarea>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="btn primary" onclick="sauvegarderNouveauVeh()">💾 Ajouter le véhicule</button>
+      <button class="btn" onclick="closeModal('modal-nouveau-veh')">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1779,6 +1890,7 @@ async function checkAdmin() {
     closeModal('modal-login');
     document.getElementById('login-pwd').value = '';
     updateTabChauf();
+    demanderPermissionNotif(); // demander permission notifications
     toast('Mode administrateur activé ✅');
   } else {
     document.getElementById('login-error').style.display = 'block';
@@ -2117,11 +2229,10 @@ function renderAlertesFull() {
 // ============================================================
 // RENDER VEHICULES
 // ============================================================
-// Ordre d'affichage imposé
-const ORDRE_VEHICULES = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM941','TLAN527','TLAN910','1RER037'];
+// Véhicules équipés AdBlue
+const VEHICULES_ADBLUE = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
 
 function renderVehicules() {
-  // Trier selon l'ordre imposé
   const ordonnes = [...vehicules].sort((a, b) => {
     const ia = ORDRE_VEHICULES.indexOf(a.id);
     const ib = ORDRE_VEHICULES.indexOf(b.id);
@@ -2135,9 +2246,14 @@ function renderVehicules() {
 
     // Dernière maintenance enregistrée pour ce véhicule
     const lastM = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
-    const lastMStr = lastM ? ` <span style="color:var(--texte-sec);font-size:11px;font-weight:400">— maint. ${formatDate(lastM.date)}</span>` : '';
 
-    // Date limite entretien = dernier entretien + 1 an (VSL) ou 2 ans (camion)
+    // Kilométrage = celui relevé à la dernière maintenance (sinon celui du véhicule)
+    const kmAffiche = lastM ? lastM.km : v.km;
+    const lastMStr  = lastM
+      ? ` <span style="color:var(--texte-sec);font-size:11px;font-weight:400">— maint. ${formatDate(lastM.date)}</span>`
+      : '';
+
+    // Date limite entretien
     let dateEntretienStr = '';
     if (v.dernier_entretien_date) {
       const d = parseDate(v.dernier_entretien_date);
@@ -2150,16 +2266,19 @@ function renderVehicules() {
       }
     }
 
-    // Dernière entrée AdBlue
-    const lastAbDirect = adblues.filter(a => a.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
-    const lastAbMaintRaw = maintenances.filter(m => m.vehId === v.id && m.adblue && m.adblue.trim()).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
-    const lastAbMaint = lastAbMaintRaw ? { date: lastAbMaintRaw.date, litre: parseFloat(String(lastAbMaintRaw.adblue).replace(',','.').replace(/[^0-9.]/g,'')) || null } : null;
-    let lastAb = null;
-    if (lastAbDirect && lastAbMaint) lastAb = lastAbDirect.date >= lastAbMaint.date ? lastAbDirect : lastAbMaint;
-    else lastAb = lastAbDirect || lastAbMaint;
-    const abRow = lastAb && lastAb.litre
-      ? `<div class="veh-row"><span class="label" style="color:var(--bleu)">💧 AdBlue</span><span class="val" style="color:var(--bleu);font-weight:600">${lastAb.litre.toFixed(2)} L — ${formatDate(lastAb.date)}</span></div>`
-      : '';
+    // AdBlue — uniquement pour les véhicules concernés
+    let abRow = '';
+    if (VEHICULES_ADBLUE.includes(v.id)) {
+      const lastAbDirect = adblues.filter(a => a.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+      const lastAbMaintRaw = maintenances.filter(m => m.vehId === v.id && m.adblue && m.adblue.trim()).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+      const lastAbMaint = lastAbMaintRaw ? { date: lastAbMaintRaw.date, litre: parseFloat(String(lastAbMaintRaw.adblue).replace(',','.').replace(/[^0-9.]/g,'')) || null } : null;
+      let lastAb = null;
+      if (lastAbDirect && lastAbMaint) lastAb = lastAbDirect.date >= lastAbMaint.date ? lastAbDirect : lastAbMaint;
+      else lastAb = lastAbDirect || lastAbMaint;
+      if (lastAb && lastAb.litre) {
+        abRow = `<div class="veh-row"><span class="label" style="color:var(--bleu)">💧 AdBlue</span><span class="val" style="color:var(--bleu);font-weight:600">${lastAb.litre.toFixed(2)} L — ${formatDate(lastAb.date)}</span></div>`;
+      }
+    }
 
     // Dernier Car Wash
     const lastCW = carwashes.filter(c => c.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
@@ -2167,7 +2286,7 @@ function renderVehicules() {
       ? `<div class="veh-row"><span class="label">🚿 Car Wash</span><span class="val" style="color:var(--texte-sec)">le ${formatDate(lastCW.date)} — ${lastCW.lieu}</span></div>`
       : '';
 
-    // Équipement (rampe / élévateur)
+    // Équipement
     const equipBadge = v.equipement
       ? `<span class="badge info" style="font-size:10px;margin-top:3px">${v.equipement === 'Élévateur' ? '🔼 Élévateur' : '📐 Rampe'}</span>`
       : '';
@@ -2189,7 +2308,7 @@ function renderVehicules() {
       <div class="veh-body">
         <div class="veh-row">
           <span class="label">Kilométrage</span>
-          <span class="val">${v.km.toLocaleString('fr-BE')} km${lastMStr}</span>
+          <span class="val">${kmAffiche.toLocaleString('fr-BE')} km${lastMStr}</span>
         </div>
         <div class="veh-row">
           <span class="label">CT valable jusqu'au</span>
@@ -2207,9 +2326,19 @@ function renderVehicules() {
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
         ${isAdmin ? `<button class="btn btn-sm primary" onclick="quickEdit('${v.id}')">✏️ Modifier</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule('${v.id}')">🗑</button>` : ''}
       </div>
     </div>`;
   }).join('');
+
+  // Bouton ajouter véhicule (admin)
+  if (isAdmin) {
+    document.getElementById('vehicules-grid').insertAdjacentHTML('afterend',
+      `<div style="margin-top:12px">
+        <button class="btn primary" onclick="openModalNouveauVeh()">➕ Ajouter un véhicule</button>
+      </div>`
+    );
+  }
 }
 
 function openVehDetail(id) {
@@ -2494,6 +2623,13 @@ function saveRV() {
     ctEvents.unshift({ id: Date.now()+1, date: rec.date, vehId: rec.vehId, type: rec.type, km: rec.km, result: rec.garage, rem: rec.notes });
   }
 
+  // Notifications push (uniquement si RV planifié)
+  if (rec.statut === 'planifie') {
+    const veh = vehicules.find(v => v.id === rec.vehId);
+    notifRV(rec, veh);         // notification immédiate
+    programmerRappel(rec, veh); // rappel 24h avant
+  }
+
   renderRVHistorique(_rvVehId);
   // Réinitialiser le formulaire
   document.getElementById('rv-date').value = '';
@@ -2525,20 +2661,184 @@ function populateMaintSelect() {
     return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
   }).join('');
   document.getElementById('maint-date').value = new Date().toISOString().slice(0,10);
+  injecterToutesCustomOpts(); // injecter les options personnalisées sauvegardées
   renderMaintTable();
 }
 
-/* Gère les listes déroulantes avec option "Autre" */
+/* ── Options personnalisées persistées par champ ───────────────
+   Chaque select de maintenance peut avoir des options ajoutées
+   par l'admin, stockées dans localStorage sous la clé
+   'mcr_custom_opts_<selId>' */
+
+function getCustomOpts(selId) {
+  return JSON.parse(localStorage.getItem('mcr_custom_opts_' + selId) || '[]');
+}
+function saveCustomOpts(selId, opts) {
+  localStorage.setItem('mcr_custom_opts_' + selId, JSON.stringify(opts));
+}
+
+/* Injecte les options personnalisées dans un select au chargement */
+function injecterCustomOpts(selId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const opts = getCustomOpts(selId);
+  // Supprimer les anciennes custom (marquées data-custom)
+  [...sel.options].filter(o => o.dataset.custom).forEach(o => o.remove());
+  // Trouver l'option "Autre…"
+  const autreOpt = [...sel.options].find(o => o.value === '__other__');
+  opts.forEach(val => {
+    const opt = document.createElement('option');
+    opt.value = val; opt.textContent = val; opt.dataset.custom = '1';
+    if (autreOpt) sel.insertBefore(opt, autreOpt);
+    else sel.appendChild(opt);
+  });
+}
+
+/* Appelé au chargement de l'onglet Maintenance */
+function injecterToutesCustomOpts() {
+  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-adblue','maint-ext'].forEach(injecterCustomOpts);
+}
+
+/* Gère "Autre…" : affiche le champ texte et, à la validation (blur/Enter), enregistre l'option */
 function handleSelectOther(sel, customId) {
   const customEl = document.getElementById(customId);
   if (!customEl) return;
   if (sel.value === '__other__') {
     customEl.style.display = '';
+    customEl.value = '';
     customEl.focus();
+    // Enregistrer la valeur quand l'utilisateur quitte le champ ou appuie sur Entrée
+    const enregistrer = () => {
+      const val = customEl.value.trim();
+      if (!val) return;
+      // Ajouter à la liste persistée si pas déjà présente
+      const opts = getCustomOpts(sel.id);
+      if (!opts.includes(val)) {
+        opts.push(val);
+        saveCustomOpts(sel.id, opts);
+        injecterCustomOpts(sel.id);
+      }
+      // Sélectionner la nouvelle valeur
+      sel.value = val;
+      customEl.style.display = 'none';
+      customEl.value = '';
+    };
+    customEl.onblur = enregistrer;
+    customEl.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); enregistrer(); } };
   } else {
     customEl.style.display = 'none';
     customEl.value = '';
   }
+}
+
+// ============================================================
+// NOUVEAU VÉHICULE
+// ============================================================
+
+function openModalNouveauVeh() {
+  // Réinitialiser le formulaire
+  ['nv-immat','nv-marque','nv-chassis','nv-garage','nv-km','nv-next-entretien',
+   'nv-last-entretien-km','nv-dim-ete','nv-pneus-ete','nv-dim-hiver','nv-pneus-hiver',
+   'nv-carte-total-code','nv-remarques'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  ['nv-ct-valid','nv-mise-en-circ','nv-last-entretien-date','nv-carte-total-valid'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('nv-type').value = 'VSL';
+  document.getElementById('nv-equipement').value = '';
+  document.getElementById('nv-adblue').value = 'non';
+  document.getElementById('nv-interval').value = '20000';
+  document.getElementById('modal-nouveau-veh').classList.add('open');
+}
+
+function sauvegarderNouveauVeh() {
+  const immat  = document.getElementById('nv-immat').value.trim().toUpperCase();
+  const marque = document.getElementById('nv-marque').value.trim();
+  const km     = parseInt(document.getElementById('nv-km').value);
+
+  if (!immat || !marque || !km) {
+    toast('Immatriculation, marque et kilométrage sont obligatoires.'); return;
+  }
+  if (vehicules.find(v => v.id === immat)) {
+    toast('Un véhicule avec cette immatriculation existe déjà.'); return;
+  }
+
+  const hasAdblue = document.getElementById('nv-adblue').value === 'oui';
+
+  const nvVeh = {
+    id:                    immat,
+    immat,
+    marque,
+    type:                  document.getElementById('nv-type').value,
+    chassis:               document.getElementById('nv-chassis').value.trim().toUpperCase(),
+    mise_en_circulation:   document.getElementById('nv-mise-en-circ').value || null,
+    garage:                document.getElementById('nv-garage').value.trim(),
+    km,
+    ct_valid:              document.getElementById('nv-ct-valid').value || null,
+    ct_carte_rouge_date:   null,
+    dernier_entretien_date:document.getElementById('nv-last-entretien-date').value || null,
+    dernier_entretien_km:  parseInt(document.getElementById('nv-last-entretien-km').value) || null,
+    interval_entretien_km: parseInt(document.getElementById('nv-interval').value) || 20000,
+    prochain_entretien_km: parseInt(document.getElementById('nv-next-entretien').value) || km + 20000,
+    equipement:            document.getElementById('nv-equipement').value || null,
+    dim_ete:               document.getElementById('nv-dim-ete').value.trim(),
+    pneus_ete:             document.getElementById('nv-pneus-ete').value.trim(),
+    dim_hiver:             document.getElementById('nv-dim-hiver').value.trim(),
+    pneus_hiver:           document.getElementById('nv-pneus-hiver').value.trim(),
+    carte_total_code:      document.getElementById('nv-carte-total-code').value.trim(),
+    carte_total_valid:     document.getElementById('nv-carte-total-valid').value || null,
+    spw_valid:             null,
+    extincteur_valid:      null,
+    permut_hiver_ete_date: null, permut_hiver_ete_km: null,
+    permut_ete_hiver_date: null, permut_ete_hiver_km: null,
+    recht_date:            null, recht_motif:          null,
+    remarques:             document.getElementById('nv-remarques').value.trim()
+  };
+
+  vehicules.push(nvVeh);
+
+  // Ajouter à l'ordre d'affichage s'il n'y est pas
+  if (!ORDRE_VEHICULES.includes(immat)) ORDRE_VEHICULES.push(immat);
+
+  // AdBlue activé → ajouter à la liste
+  if (hasAdblue && !VEHICULES_ADBLUE.includes(immat)) VEHICULES_ADBLUE.push(immat);
+
+  saveAll();
+  closeModal('modal-nouveau-veh');
+  renderVehicules();
+  toast(`${marque} ${immat} ajouté ✅`);
+}
+
+// ============================================================
+// SUPPRIMER VÉHICULE
+// ============================================================
+
+function supprimerVehicule(id) {
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  const confirmMsg = `⚠️ Supprimer définitivement ${v.marque} ${v.immat} ?\n\nToutes les maintenances, RV, AdBlue et Car Wash associés à ce véhicule seront également supprimés.\n\nCette action est irréversible.`;
+  if (!confirm(confirmMsg)) return;
+
+  // Supprimer le véhicule et toutes ses données associées
+  vehicules     = vehicules.filter(x => x.id !== id);
+  maintenances  = maintenances.filter(m => m.vehId !== id);
+  rendezvous    = rendezvous.filter(r => r.vehId !== id);
+  adblues       = adblues.filter(a => a.vehId !== id);
+  carwashes     = carwashes.filter(c => c.vehId !== id);
+  ctEvents      = ctEvents.filter(c => c.vehId !== id);
+  messagesChauf = messagesChauf.filter(m => m.vehId !== id);
+
+  // Retirer de l'ordre
+  const idx = ORDRE_VEHICULES.indexOf(id);
+  if (idx > -1) ORDRE_VEHICULES.splice(idx, 1);
+  const idxAb = VEHICULES_ADBLUE.indexOf(id);
+  if (idxAb > -1) VEHICULES_ADBLUE.splice(idxAb, 1);
+
+  saveAll();
+  renderVehicules();
+  renderAccueil();
+  toast(`${v.marque} ${v.immat} supprimé`);
 }
 
 /* Récupère la valeur finale d'un select avec option Autre */
@@ -2962,6 +3262,69 @@ function applyUpdate() {
   window.location.reload();
 }
 
+// ── Notifications push ───────────────────────────────────────
+
+/* Demande la permission de notifier (appelée à la connexion admin) */
+async function demanderPermissionNotif() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  if (Notification.permission === 'denied') return;
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') toast('🔔 Notifications activées');
+}
+
+/* Envoie une notification immédiate via le SW */
+function notifRV(rv, vehicule) {
+  if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
+  const typeLabel = rv.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
+  const heureStr  = rv.heure ? ` à ${rv.heure}` : '';
+  const garageStr = rv.garage ? ` — ${rv.garage}` : '';
+  const vNom = vehicule ? `${vehicule.marque} ${vehicule.immat}` : rv.vehId;
+
+  navigator.serviceWorker.ready.then(reg => {
+    reg.showNotification(`📅 RV planifié — ${vNom}`, {
+      body: `${typeLabel} le ${formatDate(rv.date)}${heureStr}${garageStr}`,
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: `rv-${rv.id}`,
+      data: { url: window.location.href },
+      requireInteraction: false
+    });
+  });
+}
+
+/* Programme un rappel 24h avant le RV via le SW (message postMessage) */
+function programmerRappel(rv, vehicule) {
+  if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
+  if (!rv.date) return;
+
+  // Calculer le timestamp du RV
+  const dateStr  = rv.date + (rv.heure ? 'T' + rv.heure : 'T08:00');
+  const rvTime   = new Date(dateStr).getTime();
+  const rappelTime = rvTime - 24 * 60 * 60 * 1000; // 24h avant
+  const now      = Date.now();
+
+  if (rappelTime <= now) return; // RV passé ou dans moins de 24h
+
+  const typeLabel = rv.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
+  const heureStr  = rv.heure ? ` à ${rv.heure}` : '';
+  const garageStr = rv.garage ? ` — ${rv.garage}` : '';
+  const vNom = vehicule ? `${vehicule.marque} ${vehicule.immat}` : rv.vehId;
+
+  navigator.serviceWorker.ready.then(reg => {
+    reg.active.postMessage({
+      type: 'PROGRAMMER_RAPPEL',
+      payload: {
+        id:       rv.id,
+        titre:    `⏰ Rappel RV demain — ${vNom}`,
+        corps:    `${typeLabel} le ${formatDate(rv.date)}${heureStr}${garageStr}`,
+        delai:    rappelTime - now, // ms avant d'envoyer
+        tag:      `rappel-${rv.id}`
+      }
+    });
+  });
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
@@ -2973,20 +3336,23 @@ if ('serviceWorker' in navigator) {
           const newWorker = reg.installing;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Nouvelle version disponible — afficher la bannière
               document.getElementById('update-banner').style.display = 'flex';
             }
           });
         });
-
-        // Si le SW en attente existait déjà au chargement
         if (reg.waiting && navigator.serviceWorker.controller) {
           document.getElementById('update-banner').style.display = 'flex';
         }
+
+        // Recevoir les messages du SW (clics sur notifications)
+        navigator.serviceWorker.addEventListener('message', e => {
+          if (e.data && e.data.type === 'NOTIF_CLICK') {
+            showPage('alertes', document.querySelectorAll('.tab-btn')[2]);
+          }
+        });
       })
       .catch(e => console.warn('Service Worker non enregistré:', e));
 
-    // Rechargement automatique quand le nouveau SW prend le contrôle
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       window.location.reload();
     });
@@ -3006,6 +3372,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('modal-login').addEventListener('click', function(e) {
     if (e.target === this) { closeModal('modal-login'); document.getElementById('login-pwd').value = ''; }
+  });
+  document.getElementById('modal-nouveau-veh').addEventListener('click', function(e) {
+    if (e.target === this) closeModal('modal-nouveau-veh');
   });
 
   // Pré-remplir date maintenance
