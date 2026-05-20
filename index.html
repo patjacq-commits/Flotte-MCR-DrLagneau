@@ -496,6 +496,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
   <button class="tab-btn admin-only" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
+  <button class="tab-btn admin-only" onclick="showPage('pneus',this)" style="display:none">🛞 Pneus</button>
   <button class="tab-btn admin-only" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
   <button class="tab-btn admin-only" onclick="showPage('historique',this)" style="display:none">📋 Historique</button>
   <button class="tab-btn admin-only" onclick="showPage('rapports',this)" style="display:none">📄 Rapports</button>
@@ -902,6 +903,92 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
 </div>
 
+<!-- PAGE PNEUS (admin) -->
+<div id="page-pneus" class="page">
+  <h2 style="margin-bottom:14px">🛞 Gestion des pneus</h2>
+  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Tous les VSL (sauf 1RER037 — 4 saisons). Permutations été↔hiver à enregistrer ici.</p>
+
+  <!-- Saisie permutation -->
+  <div class="form-card">
+    <h3>Enregistrer une permutation</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="pneu-date" />
+      </div>
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="pneu-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="pneu-type">
+          <option value="hiver-ete">❄ → ☀ Hiver vers Été</option>
+          <option value="ete-hiver">☀ → ❄ Été vers Hiver</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Kilométrage</label>
+        <input type="number" id="pneu-km" placeholder="km au compteur" />
+      </div>
+      <div class="form-group">
+        <label>Lieu</label>
+        <input type="text" id="pneu-lieu" placeholder="ex: Culot pneus" value="Culot pneus" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Remarques</label>
+      <textarea id="pneu-rem" placeholder="ex: pneus usés AV, contrôle pression…" style="min-height:50px"></textarea>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px">
+      <button class="btn primary" onclick="savePermutation()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearPneuForm()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <!-- Tableau récapitulatif par véhicule -->
+  <div class="form-card">
+    <h3>État des pneus par véhicule</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Véhicule</th>
+            <th>Pneus été</th>
+            <th>Pneus hiver</th>
+            <th>Dern. H→É</th>
+            <th>Km H→É</th>
+            <th>Dern. É→H</th>
+            <th>Km É→H</th>
+          </tr>
+        </thead>
+        <tbody id="pneu-recap-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Historique des permutations -->
+  <div class="form-card">
+    <h3>Historique des permutations</h3>
+    <div class="export-bar" style="margin-bottom:10px">
+      <select id="pneu-filter-veh" onchange="renderPneuHistorique()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="">Tous les véhicules</option>
+      </select>
+      <select id="pneu-filter-type" onchange="renderPneuHistorique()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="">Tous</option>
+        <option value="hiver-ete">Hiver → Été</option>
+        <option value="ete-hiver">Été → Hiver</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Km</th><th>Lieu</th><th>Remarques</th><th>Action</th></tr></thead>
+        <tbody id="pneu-hist-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- PAGE ADBLUE (admin) -->
 <div id="page-adblue" class="page">
   <h2 style="margin-bottom:14px">💧 AdBlue</h2>
@@ -950,8 +1037,10 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- PAGE CAR WASH (admin) -->
 <div id="page-carwash" class="page">
   <h2 style="margin-bottom:14px">🚿 Car Wash</h2>
+
+  <!-- Lavage -->
   <div class="form-card">
-    <h3>Enregistrer un lavage</h3>
+    <h3>🚿 Enregistrer un lavage</h3>
     <div class="form-grid">
       <div class="form-group">
         <label>Date</label>
@@ -978,6 +1067,41 @@ td.ok { color: var(--vert); font-weight: 600; }
       <button class="btn" onclick="clearCWForm()">✕ Effacer</button>
     </div>
   </div>
+
+  <!-- Recharge clé -->
+  <div class="form-card">
+    <h3>🔑 Recharge clé Car Wash</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="cwk-date" />
+      </div>
+      <div class="form-group">
+        <label>Lieu</label>
+        <select id="cwk-lieu">
+          <option value="Noirefontaine">Noirefontaine</option>
+          <option value="Bièvre">Bièvre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Montant (€)</label>
+        <input type="number" id="cwk-montant" step="0.01" min="0" placeholder="ex: 20.00" />
+      </div>
+      <div class="form-group">
+        <label>Gratuité</label>
+        <select id="cwk-gratuit">
+          <option value="non">Non</option>
+          <option value="oui">Oui (gratuit)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;">
+      <button class="btn primary" onclick="saveRechargeKey()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearCWKForm()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <!-- Historique lavages -->
   <div class="form-card">
     <h3>Historique des lavages</h3>
     <div class="export-bar" style="margin-bottom:10px">
@@ -992,6 +1116,18 @@ td.ok { color: var(--vert); font-weight: 600; }
       </table>
     </div>
     <div id="cw-total" style="text-align:right;font-weight:700;font-size:14px;margin-top:10px;color:var(--texte-sec)"></div>
+  </div>
+
+  <!-- Historique recharges clé -->
+  <div class="form-card">
+    <h3>Historique des recharges clé</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Lieu</th><th>Montant</th><th>Gratuité</th><th>Action</th></tr></thead>
+        <tbody id="cwk-tbody"></tbody>
+      </table>
+    </div>
+    <div id="cwk-total" style="text-align:right;font-weight:700;font-size:14px;margin-top:10px;color:var(--texte-sec)"></div>
   </div>
 </div>
 
@@ -1447,6 +1583,8 @@ let vehicules     = window._fbData_vehicules      || JSON.parse(localStorage.get
 let rendezvous    = window._fbData_rendezvous     || JSON.parse(localStorage.getItem('mcr_rv')           || '[]');
 let adblues       = window._fbData_adblues        || JSON.parse(localStorage.getItem('mcr_adblue')       || '[]');
 let carwashes     = window._fbData_carwashes      || JSON.parse(localStorage.getItem('mcr_carwash')      || '[]');
+let rechargesCle  = window._fbData_rechargesCle   || JSON.parse(localStorage.getItem('mcr_recharges_cle')|| '[]');
+let permutations  = window._fbData_permutations   || JSON.parse(localStorage.getItem('mcr_permutations') || '[]');
 let messagesChauf = window._fbData_messagesChauf  || JSON.parse(localStorage.getItem('mcr_chauf')        || '[]');
 
 // Expose les variables au module Firebase (listeners temps réel)
@@ -1495,8 +1633,10 @@ async function saveAll() {
   localStorage.setItem('mcr_vehicules',    JSON.stringify(vehicules));
   localStorage.setItem('mcr_rv',           JSON.stringify(rendezvous));
   localStorage.setItem('mcr_adblue',       JSON.stringify(adblues));
-  localStorage.setItem('mcr_carwash',      JSON.stringify(carwashes));
-  localStorage.setItem('mcr_chauf',        JSON.stringify(messagesChauf));
+  localStorage.setItem('mcr_carwash',       JSON.stringify(carwashes));
+  localStorage.setItem('mcr_recharges_cle', JSON.stringify(rechargesCle));
+  localStorage.setItem('mcr_permutations',  JSON.stringify(permutations));
+  localStorage.setItem('mcr_chauf',         JSON.stringify(messagesChauf));
 
   // Firebase (cloud, synchronisé entre appareils)
   if (window._fb) {
@@ -1510,6 +1650,8 @@ async function saveAll() {
       fbSaveCollection('rendezvous',    ensureId(rendezvous,    'rv')),
       fbSaveCollection('adblues',       ensureId(adblues,       'ab')),
       fbSaveCollection('carwashes',     ensureId(carwashes,     'cw')),
+      fbSaveCollection('rechargesCle',  ensureId(rechargesCle,  'rk')),
+      fbSaveCollection('permutations',  ensureId(permutations,  'pm')),
       fbSaveCollection('messagesChauf', ensureId(messagesChauf, 'chauf')),
     ]).catch(e => console.warn('Firebase saveAll error:', e));
   }
@@ -1664,7 +1806,10 @@ function renderBlocAdBlue(v) {
 function initCarWash() {
   const selVeh = document.getElementById('cw-veh');
   if (selVeh && selVeh.options.length <= 0) {
-    selVeh.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+    selVeh.innerHTML = ORDRE_VEHICULES.map(id => {
+      const v = vehicules.find(x => x.id === id);
+      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+    }).join('');
   }
   const selFilt = document.getElementById('cw-filter-veh');
   if (selFilt && selFilt.options.length <= 1) {
@@ -1675,7 +1820,10 @@ function initCarWash() {
     });
   }
   document.getElementById('cw-date').value = new Date().toISOString().slice(0,10);
+  const cwkDate = document.getElementById('cwk-date');
+  if (cwkDate) cwkDate.value = new Date().toISOString().slice(0,10);
   renderCWTable();
+  renderCWKTable();
 }
 
 function saveCarWash() {
@@ -1685,10 +1833,7 @@ function saveCarWash() {
   const montant = document.getElementById('cw-montant').value;
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
   carwashes.unshift({ id: Date.now(), date, vehId, lieu, montant: montant ? parseFloat(montant) : null });
-  saveAll();
-  clearCWForm();
-  renderCWTable();
-  toast('Lavage enregistré ✅');
+  saveAll(); clearCWForm(); renderCWTable(); toast('Lavage enregistré ✅');
 }
 
 function clearCWForm() {
@@ -1724,6 +1869,175 @@ function renderCWTable() {
     : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun lavage enregistré</td></tr>';
   const totalEl = document.getElementById('cw-total');
   if (totalEl) totalEl.textContent = rows.length ? `Total : ${total.toFixed(2)} €` : '';
+}
+
+// ── Recharge clé Car Wash ─────────────────────────────────────
+function saveRechargeKey() {
+  const date    = document.getElementById('cwk-date').value;
+  const lieu    = document.getElementById('cwk-lieu').value;
+  const montant = document.getElementById('cwk-montant').value;
+  const gratuit = document.getElementById('cwk-gratuit').value;
+  if (!date) { toast('Veuillez indiquer une date.'); return; }
+  rechargesCle.unshift({
+    id: Date.now(), date, lieu,
+    montant: (gratuit === 'oui' || !montant) ? null : parseFloat(montant),
+    gratuit: gratuit === 'oui'
+  });
+  saveAll(); clearCWKForm(); renderCWKTable(); toast('Recharge clé enregistrée ✅');
+}
+
+function clearCWKForm() {
+  const d = document.getElementById('cwk-date'); if (d) d.value = new Date().toISOString().slice(0,10);
+  const m = document.getElementById('cwk-montant'); if (m) m.value = '';
+  const g = document.getElementById('cwk-gratuit'); if (g) g.value = 'non';
+}
+
+function deleteCWK(id) {
+  if (!confirm('Supprimer cette recharge ?')) return;
+  rechargesCle = rechargesCle.filter(r => r.id !== id);
+  saveAll(); renderCWKTable(); toast('Entrée supprimée');
+}
+
+function renderCWKTable() {
+  const tbody = document.getElementById('cwk-tbody');
+  if (!tbody) return;
+  const rows = [...rechargesCle].sort((a,b) => b.date.localeCompare(a.date));
+  let total = 0;
+  tbody.innerHTML = rows.length
+    ? rows.map(r => {
+        if (r.montant) total += r.montant;
+        const montantStr = r.gratuit ? '<span class="badge ok">Gratuit</span>' : (r.montant != null ? Number(r.montant).toFixed(2) + ' €' : '—');
+        return `<tr>
+          <td>${formatDate(r.date)}</td>
+          <td>${r.lieu}</td>
+          <td>${r.gratuit ? '—' : (r.montant != null ? Number(r.montant).toFixed(2) + ' €' : '—')}</td>
+          <td>${r.gratuit ? '<span class="badge ok">Oui</span>' : '—'}</td>
+          <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCWK(${r.id})">✕</button></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune recharge enregistrée</td></tr>';
+  const totalEl = document.getElementById('cwk-total');
+  if (totalEl) totalEl.textContent = rows.length && total > 0 ? `Total chargé : ${total.toFixed(2)} €` : '';
+}
+
+// ============================================================
+// PNEUS — fonctions
+// ============================================================
+
+// Véhicules concernés par la permutation (tous sauf 1RER037)
+const VEHICULES_PNEUS = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM941','TLAN527','TLAN910'];
+
+function initPneus() {
+  const selVeh = document.getElementById('pneu-veh');
+  if (selVeh && selVeh.options.length <= 0) {
+    selVeh.innerHTML = VEHICULES_PNEUS.map(id => {
+      const v = vehicules.find(x => x.id === id);
+      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+    }).join('');
+  }
+  const selFilt = document.getElementById('pneu-filter-veh');
+  if (selFilt && selFilt.options.length <= 1) {
+    VEHICULES_PNEUS.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      selFilt.appendChild(opt);
+    });
+  }
+  document.getElementById('pneu-date').value = new Date().toISOString().slice(0,10);
+  renderPneuRecap();
+  renderPneuHistorique();
+}
+
+function savePermutation() {
+  const date  = document.getElementById('pneu-date').value;
+  const vehId = document.getElementById('pneu-veh').value;
+  const type  = document.getElementById('pneu-type').value;
+  const km    = document.getElementById('pneu-km').value;
+  const lieu  = document.getElementById('pneu-lieu').value;
+  const rem   = document.getElementById('pneu-rem').value;
+  if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
+
+  permutations.unshift({ id: Date.now(), date, vehId, type, km: km ? parseInt(km) : null, lieu, rem });
+
+  // Mettre à jour les champs du véhicule
+  const veh = vehicules.find(v => v.id === vehId);
+  if (veh) {
+    if (type === 'hiver-ete') {
+      veh.permut_hiver_ete_date = date;
+      if (km) veh.permut_hiver_ete_km = parseInt(km);
+    } else {
+      veh.permut_ete_hiver_date = date;
+      if (km) veh.permut_ete_hiver_km = parseInt(km);
+    }
+  }
+
+  saveAll(); clearPneuForm(); renderPneuRecap(); renderPneuHistorique();
+  toast('Permutation enregistrée ✅');
+}
+
+function clearPneuForm() {
+  ['pneu-km','pneu-rem'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('pneu-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('pneu-lieu').value = 'Culot pneus';
+}
+
+function deletePermutation(id) {
+  if (!confirm('Supprimer cette permutation ?')) return;
+  permutations = permutations.filter(p => p.id !== id);
+  saveAll(); renderPneuRecap(); renderPneuHistorique(); toast('Supprimé');
+}
+
+function renderPneuRecap() {
+  const tbody = document.getElementById('pneu-recap-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = VEHICULES_PNEUS.map(id => {
+    const v = vehicules.find(x => x.id === id);
+    if (!v) return '';
+    // Dernière permutation de chaque type (depuis le tableau permutations ou les données véhicule)
+    const lastHE = permutations.filter(p => p.vehId === id && p.type === 'hiver-ete').sort((a,b) => b.date.localeCompare(a.date))[0];
+    const lastEH = permutations.filter(p => p.vehId === id && p.type === 'ete-hiver').sort((a,b) => b.date.localeCompare(a.date))[0];
+    const dateHE = lastHE ? lastHE.date : v.permut_hiver_ete_date;
+    const kmHE   = lastHE ? lastHE.km   : v.permut_hiver_ete_km;
+    const dateEH = lastEH ? lastEH.date : v.permut_ete_hiver_date;
+    const kmEH   = lastEH ? lastEH.km   : v.permut_ete_hiver_km;
+    return `<tr>
+      <td style="font-weight:500">${v.marque}<br><span class="immat" style="font-size:10px">${v.immat}</span></td>
+      <td style="font-size:12px">${v.pneus_ete ? `<b>${v.dim_ete || ''}</b><br><span style="color:var(--texte-sec)">${v.pneus_ete}</span>` : '—'}</td>
+      <td style="font-size:12px">${v.pneus_hiver ? `<b>${v.dim_hiver || ''}</b><br><span style="color:var(--texte-sec)">${v.pneus_hiver}</span>` : '—'}</td>
+      <td style="font-size:12px">${formatDate(dateHE)}</td>
+      <td style="font-size:12px">${kmHE ? parseInt(kmHE).toLocaleString('fr-BE') + ' km' : '—'}</td>
+      <td style="font-size:12px">${formatDate(dateEH)}</td>
+      <td style="font-size:12px">${kmEH ? parseInt(kmEH).toLocaleString('fr-BE') + ' km' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPneuHistorique() {
+  const filterVeh  = document.getElementById('pneu-filter-veh')?.value  || '';
+  const filterType = document.getElementById('pneu-filter-type')?.value || '';
+  const tbody = document.getElementById('pneu-hist-tbody');
+  if (!tbody) return;
+  const rows = [...permutations]
+    .filter(p => !filterVeh  || p.vehId === filterVeh)
+    .filter(p => !filterType || p.type  === filterType)
+    .sort((a,b) => b.date.localeCompare(a.date));
+  tbody.innerHTML = rows.length
+    ? rows.map(p => {
+        const v = vehicules.find(x => x.id === p.vehId);
+        const typeStr = p.type === 'hiver-ete' ? '❄→☀ H→É' : '☀→❄ É→H';
+        return `<tr>
+          <td>${formatDate(p.date)}</td>
+          <td style="font-size:12px">${v ? v.marque + ' ' + v.immat : p.vehId}</td>
+          <td><span class="badge info" style="font-size:10px">${typeStr}</span></td>
+          <td>${p.km ? parseInt(p.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
+          <td style="font-size:12px">${p.lieu || '—'}</td>
+          <td style="font-size:12px;max-width:150px">${p.rem || '—'}</td>
+          <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deletePermutation(${p.id})">✕</button></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="7" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune permutation enregistrée</td></tr>';
 }
 
 // ============================================================
@@ -1841,7 +2155,13 @@ function renderMessagesChauf() {
 function initAdBlueOnglet() {
   const selVeh = document.getElementById('ab-ong-veh');
   if (selVeh && selVeh.options.length <= 0) {
-    selVeh.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+    // Uniquement les véhicules concernés par l'AdBlue
+    selVeh.innerHTML = ORDRE_VEHICULES
+      .filter(id => VEHICULES_ADBLUE.includes(id))
+      .map(id => {
+        const v = vehicules.find(x => x.id === id);
+        return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+      }).join('');
   }
   const selFilt = document.getElementById('ab-filter-veh');
   if (selFilt && selFilt.options.length <= 1) {
@@ -1973,7 +2293,8 @@ function showPage(id, btn) {
   if (id === 'garages') populateEditSelects();
   if (id === 'maintenance') populateMaintSelect();
   if (id === 'carwash') initCarWash();
-  if (id === 'adblue') initAdBlueOnglet();
+  if (id === 'pneus')   initPneus();
+  if (id === 'adblue')  initAdBlueOnglet();
   if (id === 'chauf') {
     initChauf();
     const tab = document.getElementById('tab-chauf');
@@ -2427,7 +2748,8 @@ function renderVehicules() {
       if (lastAbDirect && lastAbMaint) lastAb = lastAbDirect.date >= lastAbMaint.date ? lastAbDirect : lastAbMaint;
       else lastAb = lastAbDirect || lastAbMaint;
       if (lastAb && lastAb.litre) {
-        abRow = `<div class="veh-row"><span class="label" style="color:var(--bleu)">💧 AdBlue</span><span class="val" style="color:var(--bleu);font-weight:600">${lastAb.litre.toFixed(2)} L — ${formatDate(lastAb.date)}</span></div>`;
+        const kmStr = lastAb.km ? ` — ${parseInt(lastAb.km).toLocaleString('fr-BE')} km` : '';
+        abRow = `<div class="veh-row"><span class="label" style="color:var(--bleu)">💧 AdBlue</span><span class="val" style="color:var(--bleu);font-weight:600">${lastAb.litre.toFixed(2)} L — ${formatDate(lastAb.date)}${kmStr}</span></div>`;
       }
     }
 
