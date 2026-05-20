@@ -82,7 +82,7 @@
     const COLS = {
       maintenances:  d => { window.maintenances   = d; window._refreshUI?.(); },
       ctEvents:      d => { window.ctEvents        = d; window._refreshUI?.(); },
-      vehicules:     d => { if(d.length){ window.vehicules = d; window._refreshUI?.(); } },
+      vehicules:     d => { if(d && d.length > 0){ window.vehicules = d; window._refreshUI?.(); } },
       rendezvous:    d => { window.rendezvous      = d; window._refreshUI?.(); },
       adblues:       d => { window.adblues         = d; window._refreshUI?.(); },
       carwashes:     d => { window.carwashes        = d; window._refreshUI?.(); },
@@ -1347,13 +1347,14 @@ window.messagesChauf  = messagesChauf;
 let _refreshTimer = null;
 window._refreshUI = function() {
   // Synchroniser les variables locales depuis window (mis à jour par les listeners)
-  maintenances  = window.maintenances;
-  ctEvents      = window.ctEvents;
-  vehicules     = window.vehicules;
-  rendezvous    = window.rendezvous;
-  adblues       = window.adblues;
-  carwashes     = window.carwashes;
-  messagesChauf = window.messagesChauf;
+  maintenances  = window.maintenances  || maintenances;
+  ctEvents      = window.ctEvents      || ctEvents;
+  // Véhicules : ne remplacer que si Firebase retourne un tableau non vide
+  if (window.vehicules && window.vehicules.length > 0) vehicules = window.vehicules;
+  rendezvous    = window.rendezvous    || rendezvous;
+  adblues       = window.adblues       || adblues;
+  carwashes     = window.carwashes     || carwashes;
+  messagesChauf = window.messagesChauf || messagesChauf;
   // Debounce pour éviter les rafraîchissements en cascade
   clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(() => {
@@ -2229,8 +2230,11 @@ function renderAlertesFull() {
 // ============================================================
 // RENDER VEHICULES
 // ============================================================
-// Véhicules équipés AdBlue
-const VEHICULES_ADBLUE = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
+// Ordre d'affichage (let pour permettre ajout/suppression dynamique)
+let ORDRE_VEHICULES = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM941','TLAN527','TLAN910','1RER037'];
+
+// Véhicules équipés AdBlue (let pour permettre ajout dynamique)
+let VEHICULES_ADBLUE = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
 
 function renderVehicules() {
   const ordonnes = [...vehicules].sort((a, b) => {
