@@ -2594,15 +2594,11 @@ function renderAccueil() {
   const htmlAlertes = top.length ? top.map(a => renderAlerte(a)).join('') : '<p style="color:var(--texte-sec)">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
   document.getElementById('alertes-dashboard').innerHTML = `<h3 style="margin-bottom:12px">🔔 Alertes prioritaires</h3><div class="alertes-list">${htmlAlertes}</div>`;
 
-  // ── 5 prochains RV programmés ────────────────────────────
+  // ── 5 prochains RV — juste après les alertes ─────────────
   const today = new Date().toISOString().slice(0,10);
   const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
     .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
-    .sort((a,b) => {
-      const da = a.date + (a.heure || '00:00');
-      const db = b.date + (b.heure || '00:00');
-      return da.localeCompare(db);
-    })
+    .sort((a,b) => (a.date + (a.heure||'00:00')).localeCompare(b.date + (b.heure||'00:00')))
     .slice(0, 5);
 
   if (prochainRV.length) {
@@ -2613,70 +2609,56 @@ function renderAccueil() {
       const heureStr  = r.heure ? ` à <b>${r.heure}</b>` : '';
       const garageStr = (r.result || r.garage) ? ` — ${r.result || r.garage}` : '';
       const j = Math.round((new Date(r.date) - new Date(today)) / 86400000);
-      const jStr = j === 0 ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui</span>'
+      const jStr = j === 0 ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui !</span>'
                  : j === 1 ? '<span style="color:var(--orange);font-weight:700">Demain</span>'
                  : `<span style="color:var(--texte-sec)">dans ${j}j</span>`;
-      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
+      const urgentStyle = j <= 1 ? 'background:var(--orange-clair);' : '';
+      return `<div style="${urgentStyle}display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
         <div style="min-width:70px;text-align:center">
-          <div style="font-size:11px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
-          <div style="font-size:10px">${jStr}</div>
+          <div style="font-size:12px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
+          <div style="font-size:11px">${jStr}</div>
         </div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px">${vNom}${heureStr}</div>
           <div style="font-size:12px;color:var(--texte-sec)">${typeLabel}${garageStr}</div>
         </div>
-        ${isAdmin ? `<button class="btn btn-sm" onclick="openRV('${r.vehId}','${r.type || 'ct'}')">✏️</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-sm" onclick="openRV('${r.vehId}','${r.type||'ct'}')">✏️</button>` : ''}
       </div>`;
     }).join('');
     document.getElementById('alertes-dashboard').innerHTML += `
-      <div style="margin-top:16px">
-        <h3 style="margin-bottom:10px">📅 Prochains rendez-vous</h3>
-        <div class="form-card" style="padding:0;overflow:hidden">
-          ${rvHtml}
-        </div>
+      <div style="margin-top:14px">
+        <h3 style="margin-bottom:8px">📅 Prochains rendez-vous</h3>
+        <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">${rvHtml}</div>
       </div>`;
   }
 
-  // ── Bloc Prochaine Maintenance avec km parcourus ─────────────
-  const samedi = prochainSamediFinDeMois();
-  const samediStr = samedi.toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-  const joursAvant = Math.round((samedi - TODAY) / 86400000);
-  const joursLabel = joursAvant === 0 ? "Aujourd'hui !" : joursAvant === 1 ? 'Demain' : `Dans ${joursAvant} jours`;
-
-  // Calculer km parcourus entre les 2 dernières maintenances pour chaque véhicule
+  // ── Tableau km parcourus entre 2 maintenances (sans la date de prochaine maint.) ─
   const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
-  let totalKmFlotte = 0; // total VSL (sans 1RER037)
-  const BARS_MAX_KM = 4000; // échelle max des barres
+  let totalKmFlotte = 0;
+  const BARS_MAX_KM = 4000;
 
   const lignesVeh = vehOrdre.map(v => {
     const mList = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date));
-    const lastM  = mList[0] || null;
-    const prevM  = mList[1] || null;
-
+    const lastM = mList[0] || null;
+    const prevM = mList[1] || null;
     const lastDateStr = lastM ? formatDate(lastM.date) : '—';
     const lastKmStr   = lastM && lastM.km ? lastM.km.toLocaleString('fr-BE') + ' km' : '—';
     const lastRem     = lastM && lastM.rem ? lastM.rem.substring(0,50) + (lastM.rem.length > 50 ? '…' : '') : '';
-
-    // Km parcourus entre les 2 dernières maintenances
-    let kmParcourus = null;
-    let kmDetail = '';
+    let kmParcourus = null, kmDetail = '';
     if (lastM && prevM && lastM.km && prevM.km) {
       kmParcourus = lastM.km - prevM.km;
       kmDetail = `${kmParcourus >= 0 ? '+' : ''}${kmParcourus.toLocaleString('fr-BE')} km (${formatDate(prevM.date)} → ${formatDate(lastM.date)})`;
       if (v.id !== '1RER037' && kmParcourus > 0) totalKmFlotte += kmParcourus;
     }
-
-    // Mini graphique à barres SVG
-    const barPct = kmParcourus && kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX_KM * 100)) : 0;
+    const barPct   = kmParcourus && kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX_KM * 100)) : 0;
     const barColor = kmParcourus > 3000 ? '#e74c3c' : kmParcourus > 2000 ? '#e67e22' : '#27ae60';
-    const barSvg = kmParcourus !== null ? `
+    const barSvg   = kmParcourus !== null ? `
       <div style="margin-top:3px;display:flex;align-items:center;gap:6px">
         <svg width="80" height="10" style="flex-shrink:0;border-radius:5px;overflow:hidden;background:#f0f0f0">
           <rect x="0" y="0" width="${barPct}%" height="10" fill="${barColor}" rx="5"/>
         </svg>
         <span style="font-size:10px;color:${barColor};font-weight:700">${kmParcourus.toLocaleString('fr-BE')} km</span>
       </div>` : '';
-
     return `<tr>
       <td style="padding:7px 10px;font-size:13px;font-weight:500">${v.marque}<br>
         <span style="font-size:11px;font-family:monospace;background:var(--texte);color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span>
@@ -2690,7 +2672,6 @@ function renderAccueil() {
     </tr>`;
   }).join('');
 
-  // Ardoise total km flotte VSL
   const ardoise = `
     <div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:12px;padding:14px 20px;
       color:#fff;display:flex;align-items:center;gap:16px;margin-bottom:12px;box-shadow:0 3px 12px rgba(41,128,185,0.35)">
@@ -2704,12 +2685,8 @@ function renderAccueil() {
 
   document.getElementById('alertes-dashboard').innerHTML += `
     <div style="margin-top:20px">
-      <h3 style="margin-bottom:10px">🔧 Prochaine maintenance mensuelle</h3>
+      <h3 style="margin-bottom:10px">🔧 Km entre maintenances</h3>
       <div class="form-card" style="padding:12px 16px;margin-bottom:0">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-          <div style="font-size:20px;font-weight:800;color:var(--bleu)">📅 ${samediStr}</div>
-          <span class="badge info" style="font-size:12px;padding:4px 12px">${joursLabel}</span>
-        </div>
         ${ardoise}
         <div class="table-wrap">
           <table style="width:100%;border-collapse:collapse;background:var(--blanc);font-size:13px">
@@ -2755,161 +2732,135 @@ function initKilometrage() {
 }
 
 function renderKilometrage() {
-  const annee    = parseInt(document.getElementById('km-annee')?.value || '2026');
-  const filtVeh  = document.getElementById('km-filtre-veh')?.value || '';
+  const annee   = parseInt(document.getElementById('km-annee')?.value || '2026');
+  const filtVeh = document.getElementById('km-filtre-veh')?.value || '';
 
-  // Véhicules à afficher (ordre imposé, filtre optionnel)
   const vehList = ORDRE_VEHICULES
     .map(id => vehicules.find(v => v.id === id))
     .filter(v => v && (!filtVeh || v.id === filtVeh));
 
-  // Mois de l'année (1–12), on n'affiche que jusqu'au mois courant + 1
-  const moisMax = new Date().getFullYear() === annee ? new Date().getMonth() + 1 : 12;
-  const mois = Array.from({length: moisMax}, (_, i) => i + 1); // [1,2,...,moisMax]
-
-  /* Calcule les km effectués dans un mois donné, de maintenance à maintenance.
-     Pour chaque mois : on cherche la dernière maintenance du mois (relevé de fin)
-     et la dernière maintenance AVANT ce mois (relevé de début).
-     Ex : maint. 03-01 (70 000) et maint. 31-01 (71 400) → janvier = 1 400 km.
-     Si la maintenance de fin est celle du mois précédent (ex : 31-01) et que
-     le mois courant n'a pas encore de maintenance, on retourne null. */
-  function kmVehMois(vehId, annee, mois) {
+  /* Intervalles réels : de date de maintenance à date de maintenance.
+     Chaque intervalle = { label:"03/01→31/01", km:delta, dateFin } */
+  function getIntervalles(vehId) {
     const mList = maintenances
       .filter(m => m.vehId === vehId && m.km && m.date)
       .map(m => ({ date: m.date, km: parseInt(m.km) }))
       .filter(m => !isNaN(m.km))
       .sort((a,b) => a.date.localeCompare(b.date));
-
-    if (mList.length < 2) return null;
-
-    const mm    = String(mois).padStart(2,'0');
-    const finMois   = `${annee}-${mm}-31`;
-    const debutMois = `${annee}-${mm}-01`;
-
-    // Dernière maintenance dans ce mois (inclus)
-    const releveFin = [...mList].filter(m => m.date >= debutMois && m.date <= finMois).pop();
-    if (!releveFin) return null; // pas de maintenance dans ce mois → pas de donnée
-
-    // Dernière maintenance strictement AVANT ce mois (= relevé de départ)
-    const releveDebut = [...mList].filter(m => m.date < debutMois).pop();
-    if (!releveDebut) return null;
-
-    const delta = releveFin.km - releveDebut.km;
-    return delta > 0 ? delta : null;
+    if (mList.length < 2) return [];
+    const result = [];
+    for (let i = 1; i < mList.length; i++) {
+      const debut = mList[i-1], fin = mList[i];
+      if (!fin.date.startsWith(String(annee))) continue;
+      const delta = fin.km - debut.km;
+      if (delta <= 0) continue;
+      const d1 = formatDate(debut.date).slice(0,5);
+      const d2 = formatDate(fin.date).slice(0,5);
+      result.push({ label:`${d1}→${d2}`, km:delta, dateFin:fin.date });
+    }
+    return result;
   }
 
-  // Construire la matrice [veh][mois] = km
-  const matrice = vehList.map(v => ({
-    veh: v,
-    kms: mois.map(m => kmVehMois(v.id, annee, m))
+  // Colonnes = intervalles uniques triés par dateFin
+  const allMap = new Map();
+  vehList.forEach(v => getIntervalles(v.id).forEach(iv => {
+    if (!allMap.has(iv.label)) allMap.set(iv.label, iv.dateFin);
   }));
+  const colonnes = [...allMap.entries()].sort((a,b) => a[1].localeCompare(b[1]));
 
-  // Totaux par mois et par véhicule
-  const totauxMois = mois.map((m, mi) =>
-    matrice.reduce((s, row) => s + (row.kms[mi] || 0), 0)
-  );
-  const totauxVeh = matrice.map(row =>
-    row.kms.reduce((s, k) => s + (k || 0), 0)
-  );
-  const grandTotal = totauxVeh.reduce((s, t) => s + t, 0);
+  if (!colonnes.length) {
+    document.getElementById('km-thead').innerHTML = '';
+    document.getElementById('km-tbody').innerHTML =
+      `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--texte-sec)">` +
+      `Aucune donnée pour ${annee}. Encodez au moins 2 maintenances par véhicule.</td></tr>`;
+    document.getElementById('km-tfoot').innerHTML = '';
+    document.getElementById('km-graphique').innerHTML = '';
+    return;
+  }
 
-  // ── Tableau ────────────────────────────────────────────────
-  const thStyle = 'padding:8px 10px;text-align:right;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);white-space:nowrap;font-size:12px';
-  const thVStyle = 'padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);font-size:12px';
-  const tdStyle = 'padding:6px 10px;text-align:right;font-size:12px;border-bottom:0.5px solid #f0f0f0';
+  const matrice = vehList.map(v => {
+    const ivMap = new Map(getIntervalles(v.id).map(iv => [iv.label, iv.km]));
+    return { veh:v, kms:colonnes.map(([lbl]) => ivMap.get(lbl) || null) };
+  });
+
+  const totauxCol = colonnes.map((_,ci) => matrice.reduce((s,r) => s+(r.kms[ci]||0), 0));
+  const totauxVeh = matrice.map(row => row.kms.reduce((s,k) => s+(k||0), 0));
+  const grandTotal = totauxVeh.reduce((s,t) => s+t, 0);
+
+  const thS  = 'padding:7px 8px;text-align:right;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);white-space:nowrap;font-size:11px';
+  const thVS = 'padding:7px 8px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);font-size:11px';
+  const tdS  = 'padding:5px 8px;text-align:right;font-size:11px;border-bottom:0.5px solid #f0f0f0';
 
   document.getElementById('km-thead').innerHTML = `<tr>
-    <th style="${thVStyle}">Véhicule</th>
-    ${mois.map(m => `<th style="${thStyle}">${MOIS_NOMS[m-1]}</th>`).join('')}
-    <th style="${thStyle};color:var(--bleu)">Total</th>
+    <th style="${thVS}">Véhicule</th>
+    ${colonnes.map(([lbl]) => `<th style="${thS}">${lbl}</th>`).join('')}
+    <th style="${thS};color:var(--bleu)">Total ${annee}</th>
   </tr>`;
 
-  document.getElementById('km-tbody').innerHTML = matrice.map((row, ri) => {
+  document.getElementById('km-tbody').innerHTML = matrice.map((row,ri) => {
     const color = VEH_COLORS[ORDRE_VEHICULES.indexOf(row.veh.id) % VEH_COLORS.length];
     return `<tr>
-      <td style="${tdStyle};text-align:left;font-weight:500">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:6px;vertical-align:middle"></span>
+      <td style="${tdS};text-align:left;font-weight:500">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};margin-right:5px;vertical-align:middle"></span>
         ${row.veh.marque} <span style="font-family:monospace;font-size:10px;background:#eee;padding:1px 4px;border-radius:3px">${row.veh.immat}</span>
       </td>
-      ${row.kms.map(k => `<td style="${tdStyle}${k === null ? ';color:#ccc' : k > 2500 ? ';color:var(--rouge);font-weight:600' : k > 1500 ? ';color:var(--orange)' : ''}">${k !== null ? k.toLocaleString('fr-BE') : '—'}</td>`).join('')}
-      <td style="${tdStyle};font-weight:700;color:var(--bleu)">${totauxVeh[ri] > 0 ? totauxVeh[ri].toLocaleString('fr-BE') : '—'}</td>
+      ${row.kms.map(k => `<td style="${tdS}${k===null?';color:#ccc':k>2500?';color:var(--rouge);font-weight:600':k>1500?';color:var(--orange)':''}">${k!==null?k.toLocaleString('fr-BE'):'—'}</td>`).join('')}
+      <td style="${tdS};font-weight:700;color:var(--bleu)">${totauxVeh[ri]>0?totauxVeh[ri].toLocaleString('fr-BE'):'—'}</td>
     </tr>`;
   }).join('');
 
   document.getElementById('km-tfoot').innerHTML = `<tr style="background:var(--gris-clair)">
-    <td style="${tdStyle};text-align:left;font-weight:700">Total flotte</td>
-    ${totauxMois.map(t => `<td style="${tdStyle};font-weight:700">${t > 0 ? t.toLocaleString('fr-BE') : '—'}</td>`).join('')}
-    <td style="${tdStyle};font-weight:700;color:var(--bleu);font-size:13px">${grandTotal > 0 ? grandTotal.toLocaleString('fr-BE') : '—'}</td>
+    <td style="${tdS};text-align:left;font-weight:700">Total flotte</td>
+    ${totauxCol.map(t => `<td style="${tdS};font-weight:700">${t>0?t.toLocaleString('fr-BE'):'—'}</td>`).join('')}
+    <td style="${tdS};font-weight:700;color:var(--bleu)">${grandTotal>0?grandTotal.toLocaleString('fr-BE'):'—'}</td>
   </tr>`;
 
-  // ── Graphique SVG à barres groupées ───────────────────────
-  const W = Math.max(600, mois.length * (vehList.length * 14 + 20));
-  const H = 200;
-  const PAD = { top: 20, right: 20, bottom: 40, left: 55 };
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  const maxKm  = Math.max(1, ...matrice.flatMap(r => r.kms.filter(k => k !== null)));
-  const scale  = innerH / maxKm;
-  const groupW = innerW / mois.length;
-  const barW   = Math.max(4, Math.min(12, groupW / vehList.length - 1));
+  // Graphique SVG
+  const nbCol=colonnes.length, nbVeh=vehList.length;
+  const W=Math.max(500, nbCol*(nbVeh*14+24)), H=200;
+  const PAD={top:20,right:20,bottom:50,left:55};
+  const innerW=W-PAD.left-PAD.right, innerH=H-PAD.top-PAD.bottom;
+  const maxKm=Math.max(1,...matrice.flatMap(r=>r.kms.filter(k=>k!==null)));
+  const scale=innerH/maxKm, groupW=innerW/nbCol;
+  const barW=Math.max(4,Math.min(12,groupW/nbVeh-1));
 
-  // Lignes de grille horizontales
-  const nbLines = 4;
-  const gridLines = Array.from({length: nbLines + 1}, (_, i) => {
-    const val = Math.round(maxKm * i / nbLines);
-    const y   = PAD.top + innerH - val * scale;
-    return `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="#eee" stroke-width="1"/>
-      <text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end" font-size="9" fill="#aaa">${val.toLocaleString('fr-BE')}</text>`;
+  const gridLines=[0,1,2,3,4].map(i=>{
+    const val=Math.round(maxKm*i/4), y=PAD.top+innerH-val*scale;
+    return `<line x1="${PAD.left}" y1="${y.toFixed(1)}" x2="${W-PAD.right}" y2="${y.toFixed(1)}" stroke="#eee" stroke-width="1"/>` +
+           `<text x="${PAD.left-6}" y="${(y+4).toFixed(1)}" text-anchor="end" font-size="9" fill="#aaa">${val.toLocaleString('fr-BE')}</text>`;
   }).join('');
 
-  // Étiquettes mois en bas
-  const moisLabels = mois.map((m, mi) => {
-    const cx = PAD.left + mi * groupW + groupW / 2;
-    return `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="10" fill="#777">${MOIS_NOMS[m-1]}</text>`;
+  const colLabels=colonnes.map(([lbl],ci)=>{
+    const cx=PAD.left+ci*groupW+groupW/2;
+    return `<text x="${cx.toFixed(1)}" y="${H-4}" text-anchor="middle" font-size="9" fill="#777">${lbl}</text>`;
   }).join('');
 
-  // Barres + tooltips
-  const barsSvg = matrice.map((row, ri) => {
-    const color = VEH_COLORS[ORDRE_VEHICULES.indexOf(row.veh.id) % VEH_COLORS.length];
-    return row.kms.map((k, mi) => {
-      if (!k) return '';
-      const bh = k * scale;
-      const x  = PAD.left + mi * groupW + ri * (barW + 1) + (groupW - vehList.length * (barW + 1)) / 2;
-      const y  = PAD.top + innerH - bh;
-      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}"
-        fill="${color}" rx="2" opacity="0.85">
-        <title>${row.veh.immat} — ${MOIS_NOMS[mi]} : ${k.toLocaleString('fr-BE')} km</title>
-      </rect>`;
+  const barsSvg=matrice.map((row,ri)=>{
+    const color=VEH_COLORS[ORDRE_VEHICULES.indexOf(row.veh.id)%VEH_COLORS.length];
+    return row.kms.map((k,ci)=>{
+      if(!k) return '';
+      const bh=k*scale, x=PAD.left+ci*groupW+ri*(barW+1)+(groupW-nbVeh*(barW+1))/2, y=PAD.top+innerH-bh;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}" fill="${color}" rx="2" opacity="0.85">` +
+             `<title>${row.veh.immat} ${colonnes[ci][0]} : ${k.toLocaleString('fr-BE')} km</title></rect>`;
     }).join('');
   }).join('');
 
-  // Légende
-  const legendItems = vehList.map((v, i) => {
-    const color = VEH_COLORS[ORDRE_VEHICULES.indexOf(v.id) % VEH_COLORS.length];
-    const lx = 10 + i * 110;
-    return `<rect x="${lx}" y="4" width="10" height="10" fill="${color}" rx="2"/>
-      <text x="${lx + 14}" y="13" font-size="10" fill="#555">${v.immat}</text>`;
+  const legendItems=vehList.map((v,i)=>{
+    const color=VEH_COLORS[ORDRE_VEHICULES.indexOf(v.id)%VEH_COLORS.length], lx=10+i*110;
+    return `<rect x="${lx}" y="4" width="10" height="10" fill="${color}" rx="2"/>` +
+           `<text x="${lx+14}" y="13" font-size="10" fill="#555">${v.immat}</text>`;
   }).join('');
-  const legendW = vehList.length * 110 + 20;
 
-  document.getElementById('km-graphique').innerHTML = `
-    <div style="overflow-x:auto">
-      <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="display:block">
-        ${gridLines}
-        ${barsSvg}
-        ${moisLabels}
-      </svg>
-    </div>
-    <svg xmlns="http://www.w3.org/2000/svg" width="${Math.min(legendW, 900)}" height="22" style="margin-top:6px;display:block;overflow:visible">
-      ${legendItems}
-    </svg>`;
+  document.getElementById('km-graphique').innerHTML =
+    `<div style="overflow-x:auto"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="display:block">` +
+    `${gridLines}${barsSvg}${colLabels}</svg></div>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.min(vehList.length*110+20,900)}" height="22" style="margin-top:4px;display:block;overflow:visible">${legendItems}</svg>`;
 }
-
 // ============================================================
 // RECHERCHE GLOBALE INTELLIGENTE
 // ============================================================
 
-let _rechercheIdx = -1; // index de navigation clavier
+let _rechercheIdx = -1;
 
 function ouvrirRecherche() {
   document.getElementById('modal-recherche').classList.add('open');
@@ -2917,15 +2868,13 @@ function ouvrirRecherche() {
   document.getElementById('search-input').value = '';
   afficherRaccourcis();
 }
-
 function fermerRecherche() {
   document.getElementById('modal-recherche').classList.remove('open');
   _rechercheIdx = -1;
 }
-
 function afficherRaccourcis() {
   document.getElementById('search-results').innerHTML = `
-    <div class="search-shortcuts" id="search-shortcuts">
+    <div class="search-shortcuts">
       <button class="search-shortcut" onclick="rechercheRaccourci('maintenance')">🔧 Nouvelle maintenance</button>
       <button class="search-shortcut" onclick="rechercheRaccourci('rv')">📅 Prendre un RV</button>
       <button class="search-shortcut" onclick="rechercheRaccourci('carwash')">🚿 Car Wash</button>
@@ -2936,185 +2885,75 @@ function afficherRaccourcis() {
       <button class="search-shortcut" onclick="rechercheRaccourci('vehicules')">🚐 Véhicules</button>
     </div>`;
 }
-
 function rechercheRaccourci(type) {
   fermerRecherche();
   const tabs = document.querySelectorAll('.tab-btn');
-  const tabMap = {
-    'accueil':      [tabs[0],'accueil'],
-    'vehicules':    [tabs[1],'vehicules'],
-    'alertes':      [tabs[2],'alertes'],
-    'kilometrage':  [tabs[3],'kilometrage'],
-    'alerte':       [tabs[4],'chauf'],
-    'maintenance':  [tabs[5],'maintenance'],
-    'garages':      [tabs[6],'garages'],
-    'carwash':      [tabs[7],'carwash'],
-    'pneus':        [tabs[8],'pneus'],
-    'adblue':       [tabs[9],'adblue'],
-    'historique':   [tabs[10],'historique'],
-    'rv':           [tabs[6],'garages'],
-  };
-  const [btn, page] = tabMap[type] || [tabs[0],'accueil'];
-  showPage(page, btn);
+  const m = {'accueil':[tabs[0],'accueil'],'vehicules':[tabs[1],'vehicules'],'alertes':[tabs[2],'alertes'],
+    'kilometrage':[tabs[3],'kilometrage'],'alerte':[tabs[4],'chauf'],'maintenance':[tabs[5],'maintenance'],
+    'garages':[tabs[6],'garages'],'rv':[tabs[6],'garages'],'carwash':[tabs[7],'carwash'],
+    'pneus':[tabs[8],'pneus'],'adblue':[tabs[9],'adblue'],'historique':[tabs[10],'historique']};
+  const [btn,page] = m[type]||[tabs[0],'accueil'];
+  showPage(page,btn);
 }
-
 function executerRecherche() {
-  const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
-  if (!q || q.length < 2) { afficherRaccourcis(); return; }
-  _rechercheIdx = -1;
-
-  const resultats = [];
-
-  // ── Véhicules ──────────────────────────────────────────────
-  vehicules.forEach(v => {
-    const score = [v.immat, v.marque, v.chassis, v.garage, v.type]
-      .filter(Boolean).join(' ').toLowerCase();
-    if (!score.includes(q)) return;
-    const ct = ctStatus(v);
-    resultats.push({
-      section: '🚐 Véhicules', icon: v.type === 'Camionnette' ? '🚐' : '🚑',
-      titre: `${v.marque} — ${v.immat}`,
-      detail: `CT ${formatDate(v.ct_valid)} • ${v.km.toLocaleString('fr-BE')} km • ${v.garage}`,
-      action: 'Voir la fiche',
-      fn: () => { fermerRecherche(); renderVehicules(); showPage('vehicules', document.querySelectorAll('.tab-btn')[1]); setTimeout(() => openVehDetail(v.id), 200); }
-    });
+  const q = (document.getElementById('search-input')?.value||'').trim().toLowerCase();
+  if(!q||q.length<2){afficherRaccourcis();return;}
+  _rechercheIdx=-1;
+  const res=[];
+  vehicules.forEach(v=>{
+    if(![v.immat,v.marque,v.chassis,v.garage,v.type].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
+    res.push({section:'🚐 Véhicules',icon:v.type==='Camionnette'?'🚐':'🚑',
+      titre:`${v.marque} — ${v.immat}`,detail:`CT ${formatDate(v.ct_valid)} • ${v.km.toLocaleString('fr-BE')} km • ${v.garage}`,action:'Voir la fiche',
+      fn:()=>{fermerRecherche();showPage('vehicules',document.querySelectorAll('.tab-btn')[1]);setTimeout(()=>openVehDetail(v.id),200);}});
   });
-
-  // ── Maintenances ───────────────────────────────────────────
-  maintenances.slice(0, 50).forEach(m => {
-    const v = vehicules.find(x => x.id === m.vehId);
-    const score = [v?.immat, v?.marque, m.date, m.rem, String(m.km)].filter(Boolean).join(' ').toLowerCase();
-    if (!score.includes(q)) return;
-    resultats.push({
-      section: '🔧 Maintenances', icon: '🔧',
-      titre: `Maintenance ${v ? v.immat : m.vehId} — ${formatDate(m.date)}`,
-      detail: `${m.km?.toLocaleString('fr-BE')} km${m.rem ? ' • ' + m.rem.substring(0,40) : ''}`,
-      action: 'Historique',
-      fn: () => { fermerRecherche(); showPage('historique', document.querySelectorAll('.tab-btn')[10]); }
-    });
+  maintenances.slice(0,50).forEach(m=>{
+    const v=vehicules.find(x=>x.id===m.vehId);
+    if(![v?.immat,v?.marque,m.date,m.rem,String(m.km)].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
+    res.push({section:'🔧 Maintenances',icon:'🔧',titre:`Maintenance ${v?v.immat:m.vehId} — ${formatDate(m.date)}`,
+      detail:`${m.km?.toLocaleString('fr-BE')} km${m.rem?' • '+m.rem.substring(0,40):''}`,action:'Historique',
+      fn:()=>{fermerRecherche();showPage('historique',document.querySelectorAll('.tab-btn')[10]);}});
   });
-
-  // ── RV planifiés ───────────────────────────────────────────
-  rendezvous.filter(r => r.statut !== 'annule').forEach(r => {
-    const v = vehicules.find(x => x.id === r.vehId);
-    const score = [v?.immat, v?.marque, r.date, r.garage, r.notes, CT_TYPE_LABELS?.[r.type]].filter(Boolean).join(' ').toLowerCase();
-    if (!score.includes(q)) return;
-    const lbl = CT_TYPE_LABELS?.[r.type] || r.type;
-    resultats.push({
-      section: '📅 Rendez-vous', icon: '📅',
-      titre: `RV ${v ? v.immat : r.vehId} — ${lbl}`,
-      detail: `${formatDate(r.date)}${r.heure ? ' à ' + r.heure : ''} • ${r.garage || ''}`,
-      action: 'Modifier',
-      fn: () => { fermerRecherche(); showPage('garages', document.querySelectorAll('.tab-btn')[6]); }
-    });
+  rendezvous.filter(r=>r.statut!=='annule').forEach(r=>{
+    const v=vehicules.find(x=>x.id===r.vehId);
+    if(![v?.immat,v?.marque,r.date,r.garage,r.notes].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
+    const lbl=CT_TYPE_LABELS?.[r.type]||r.type;
+    res.push({section:'📅 Rendez-vous',icon:'📅',titre:`RV ${v?v.immat:r.vehId} — ${lbl}`,
+      detail:`${formatDate(r.date)}${r.heure?' à '+r.heure:''} • ${r.garage||''}`,action:'Modifier',
+      fn:()=>{fermerRecherche();showPage('garages',document.querySelectorAll('.tab-btn')[6]);}});
   });
-
-  // ── CT enregistrés ─────────────────────────────────────────
-  ctEvents.slice(0, 30).forEach(c => {
-    const v = vehicules.find(x => x.id === c.vehId);
-    const lbl = CT_TYPE_LABELS?.[c.type] || c.type;
-    const score = [v?.immat, v?.marque, c.date, c.result, c.rem, lbl].filter(Boolean).join(' ').toLowerCase();
-    if (!score.includes(q)) return;
-    resultats.push({
-      section: '📋 RV enregistrés', icon: '📋',
-      titre: `${lbl} — ${v ? v.immat : c.vehId}`,
-      detail: `${formatDate(c.date)} • ${c.result || ''} ${c.rem ? '• ' + c.rem.substring(0,30) : ''}`,
-      action: 'Historique',
-      fn: () => { fermerRecherche(); showPage('garages', document.querySelectorAll('.tab-btn')[6]); }
-    });
+  messagesChauf.forEach(m=>{
+    const v=vehicules.find(x=>x.id===m.vehId);
+    if(![v?.immat,m.msg,m.auteur].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
+    res.push({section:'🚨 Alertes',icon:'🚨',titre:`${m.auteur} — ${v?v.immat:m.vehId}`,detail:m.msg.substring(0,60),action:'Voir',
+      fn:()=>{fermerRecherche();showPage('chauf',document.querySelectorAll('.tab-btn')[4]);}});
   });
-
-  // ── Alertes chauffeurs ─────────────────────────────────────
-  messagesChauf.forEach(m => {
-    const v = vehicules.find(x => x.id === m.vehId);
-    const score = [v?.immat, v?.marque, m.msg, m.auteur].filter(Boolean).join(' ').toLowerCase();
-    if (!score.includes(q)) return;
-    resultats.push({
-      section: '🚨 Alertes chauffeurs', icon: '🚨',
-      titre: `${m.auteur} — ${v ? v.immat : m.vehId}`,
-      detail: m.msg.substring(0, 60),
-      action: 'Voir',
-      fn: () => { fermerRecherche(); showPage('chauf', document.querySelectorAll('.tab-btn')[4]); }
-    });
+  if(!res.length){document.getElementById('search-results').innerHTML=`<div class="search-empty">🔍 Aucun résultat pour "<strong>${q}</strong>"</div>`;return;}
+  const sections={};
+  res.forEach((r,i)=>{r._idx=i;if(!sections[r.section])sections[r.section]=[];sections[r.section].push(r);});
+  window._searchResultFns=res.map(r=>r.fn);
+  let h='';
+  Object.entries(sections).forEach(([titre,items])=>{
+    h+=`<div class="search-section-title">${titre}</div>`;
+    h+=items.map(r=>`<div class="search-result-item" onclick="window._searchResultFns[${r._idx}]()"><span class="sri-icon">${r.icon}</span><div class="sri-main"><div class="sri-titre">${r.titre}</div><div class="sri-detail">${r.detail}</div></div><span class="sri-action">${r.action} →</span></div>`).join('');
   });
-
-  // ── AdBlue ─────────────────────────────────────────────────
-  adblues.slice(0, 20).forEach(a => {
-    const v = vehicules.find(x => x.id === a.vehId);
-    const score = [v?.immat, v?.marque, a.date, String(a.litre)].filter(Boolean).join(' ').toLowerCase();
-    if (!score.includes(q)) return;
-    resultats.push({
-      section: '💧 AdBlue', icon: '💧',
-      titre: `AdBlue ${v ? v.immat : a.vehId} — ${a.litre?.toFixed(2)} L`,
-      detail: `${formatDate(a.date)}${a.km ? ' • ' + parseInt(a.km).toLocaleString('fr-BE') + ' km' : ''}`,
-      action: 'Onglet AdBlue',
-      fn: () => { fermerRecherche(); showPage('adblue', document.querySelectorAll('.tab-btn')[9]); }
-    });
-  });
-
-  // ── Affichage ──────────────────────────────────────────────
-  if (!resultats.length) {
-    document.getElementById('search-results').innerHTML =
-      `<div class="search-empty">🔍 Aucun résultat pour "<strong>${q}</strong>"<br><small>Essayez une immatriculation, une date (JJ/MM), un garage…</small></div>`;
-    return;
-  }
-
-  // Grouper par section
-  const sections = {};
-  resultats.forEach((r, i) => {
-    r._idx = i;
-    if (!sections[r.section]) sections[r.section] = [];
-    sections[r.section].push(r);
-  });
-
-  // Stocker pour navigation clavier
-  window._searchResultFns = resultats.map(r => r.fn);
-
-  let html = '';
-  Object.entries(sections).forEach(([titre, items]) => {
-    html += `<div class="search-section-title">${titre}</div>`;
-    html += items.map(r => `
-      <div class="search-result-item" onclick="window._searchResultFns[${r._idx}]()" data-idx="${r._idx}">
-        <span class="sri-icon">${r.icon}</span>
-        <div class="sri-main">
-          <div class="sri-titre">${r.titre}</div>
-          <div class="sri-detail">${r.detail}</div>
-        </div>
-        <span class="sri-action">${r.action} →</span>
-      </div>`).join('');
-  });
-  document.getElementById('search-results').innerHTML = html;
+  document.getElementById('search-results').innerHTML=h;
 }
-
-/* Navigation clavier dans les résultats */
 function naviguerRecherche(e) {
-  if (e.key === 'Escape') { fermerRecherche(); return; }
-  const items = document.querySelectorAll('.search-result-item');
-  if (!items.length) return;
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    _rechercheIdx = Math.min(_rechercheIdx + 1, items.length - 1);
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    _rechercheIdx = Math.max(_rechercheIdx - 1, 0);
-  } else if (e.key === 'Enter' && _rechercheIdx >= 0) {
-    e.preventDefault();
-    items[_rechercheIdx]?.click();
-    return;
-  }
-  items.forEach((el, i) => {
-    el.style.background = i === _rechercheIdx ? 'var(--bleu-clair)' : '';
-  });
-  items[_rechercheIdx]?.scrollIntoView({ block:'nearest' });
+  if(e.key==='Escape'){fermerRecherche();return;}
+  const items=document.querySelectorAll('.search-result-item');
+  if(!items.length) return;
+  if(e.key==='ArrowDown'){e.preventDefault();_rechercheIdx=Math.min(_rechercheIdx+1,items.length-1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();_rechercheIdx=Math.max(_rechercheIdx-1,0);}
+  else if(e.key==='Enter'&&_rechercheIdx>=0){e.preventDefault();items[_rechercheIdx]?.click();return;}
+  items.forEach((el,i)=>{el.style.background=i===_rechercheIdx?'var(--bleu-clair)':'';});
+  items[_rechercheIdx]?.scrollIntoView({block:'nearest'});
 }
-
-// Raccourci clavier global Ctrl+K / Cmd+K
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); ouvrirRecherche(); }
-  if (e.key === 'Escape') fermerRecherche();
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();ouvrirRecherche();}
+  if(e.key==='Escape') fermerRecherche();
 });
 
-/* Programme les rappels 24h pour tous les RV à venir (rendezvous + ctEvents) */
+
 function programmerTousLesRappels() {
   if (Notification.permission !== 'granted') return;
   const todayStr = new Date().toISOString().slice(0,10);
