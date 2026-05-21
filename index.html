@@ -1149,7 +1149,15 @@ td.ok { color: var(--vert); font-weight: 600; }
       </div>
       <div class="form-group">
         <label>Garage / Centre</label>
-        <input type="text" id="ct-result" placeholder="Garage pré-rempli selon le type" />
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="ct-result" placeholder="Garage pré-rempli selon le type" style="flex:1" oninput="updateGarageTelDisplay()" />
+          <span id="ct-tel-display" style="font-size:12px;color:var(--bleu);white-space:nowrap;flex-shrink:0"></span>
+        </div>
+        <div id="ct-tel-edit-wrap" style="display:none;margin-top:4px">
+          <input type="tel" id="ct-tel-edit" placeholder="Téléphone" style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px" />
+          <button class="btn btn-sm" style="margin-top:4px" onclick="sauvegarderTelGarage()">💾 Sauvegarder N°</button>
+        </div>
+        <button onclick="toggleTelEdit()" style="background:none;border:none;font-size:11px;color:var(--texte-sec);cursor:pointer;margin-top:3px;padding:0">✏️ Modifier le téléphone</button>
       </div>
       <div class="form-group">
         <label>Kilométrage à cette date</label>
@@ -1394,14 +1402,21 @@ td.ok { color: var(--vert); font-weight: 600; }
       </div>
       <div class="form-group">
         <label>Lieu</label>
-        <select id="cw-lieu">
+        <select id="cw-lieu" onchange="updateCWMontants()">
           <option value="Noirefontaine">Noirefontaine</option>
           <option value="Bièvre">Bièvre</option>
         </select>
       </div>
       <div class="form-group">
         <label>Montant (€)</label>
-        <input type="number" id="cw-montant" step="0.01" min="0" placeholder="ex: 8.50" />
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center" id="cw-montant-wrap">
+          <select id="cw-montant-select" onchange="document.getElementById('cw-montant').value=this.value" style="flex:1">
+            <option value="11">11 €</option>
+            <option value="12">12 €</option>
+            <option value="13">13 €</option>
+          </select>
+          <input type="number" id="cw-montant" step="0.01" min="0" placeholder="autre" style="width:80px" />
+        </div>
       </div>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;">
@@ -2174,6 +2189,15 @@ function renderBlocAdBlue(v) {
 // CAR WASH — fonctions
 // ============================================================
 
+function updateCWMontants() {
+  const lieu = document.getElementById('cw-lieu')?.value;
+  const sel  = document.getElementById('cw-montant-select');
+  if (!sel || !lieu) return;
+  const montants = CW_MONTANTS[lieu] || [8, 10, 12];
+  sel.innerHTML = montants.map(m => `<option value="${m}">${m} €</option>`).join('');
+  document.getElementById('cw-montant').value = montants[0];
+}
+
 function initCarWash() {
   const selVeh = document.getElementById('cw-veh');
   if (selVeh && selVeh.options.length <= 0) {
@@ -2193,6 +2217,7 @@ function initCarWash() {
   document.getElementById('cw-date').value = new Date().toISOString().slice(0,10);
   const cwkDate = document.getElementById('cwk-date');
   if (cwkDate) cwkDate.value = new Date().toISOString().slice(0,10);
+  updateCWMontants();
   renderCWTable();
   renderCWKTable();
 }
@@ -2782,16 +2807,23 @@ function renderAccueil() {
     <div class="summary-card vert" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir les véhicules OK">
       <div class="num">${nbOK}</div><div class="lbl">Véhicules OK</div>
     </div>
-    <div class="summary-card bleu" onclick="document.getElementById('alertes-dashboard').querySelector('[style*=Prochains]')?.scrollIntoView({behavior:'smooth'})" title="Voir les RV programmés" style="cursor:pointer">
+    <div class="summary-card bleu" onclick="document.getElementById('bloc-prochains-rv')?.scrollIntoView({behavior:'smooth'})" title="Voir les RV programmés" style="cursor:pointer">
       <div class="num" style="color:var(--bleu)">${nbRVprog}</div><div class="lbl">RV programmés</div>
     </div>
   `;
 
-  const top = alertes.slice(0, 8);
-  const htmlAlertes = top.length ? top.map(a => renderAlerte(a)).join('') : '<p style="color:var(--texte-sec)">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
-  document.getElementById('alertes-dashboard').innerHTML = `<h3 style="margin-bottom:12px">🔔 Alertes prioritaires</h3><div class="alertes-list">${htmlAlertes}</div>`;
+  // Séparer alertes urgentes et alertes à surveiller
+  const alertesUrgentes = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
+  const alertesSurveiller = alertes.filter(a => a.level === 'warn' || a.level === 'rv');
 
-  // ── 5 prochains RV — juste après les alertes ─────────────
+  const htmlUrgentes = alertesUrgentes.length
+    ? alertesUrgentes.map(a => renderAlerte(a)).join('')
+    : '<p style="color:var(--texte-sec)">Aucune alerte urgente ✅</p>';
+
+  document.getElementById('alertes-dashboard').innerHTML =
+    `<h3 style="margin-bottom:12px">🔔 Alertes urgentes</h3><div class="alertes-list">${htmlUrgentes}</div>`;
+
+  // ── 5 prochains RV — entre urgentes et à surveiller ──────
   const today = new Date().toISOString().slice(0,10);
   const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
     .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
@@ -2823,10 +2855,17 @@ function renderAccueil() {
       </div>`;
     }).join('');
     document.getElementById('alertes-dashboard').innerHTML += `
-      <div style="margin-top:14px">
+      <div id="bloc-prochains-rv" style="margin-top:14px">
         <h3 style="margin-bottom:8px">📅 Prochains rendez-vous</h3>
         <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">${rvHtml}</div>
       </div>`;
+  }
+
+  // Alertes à surveiller APRÈS les RV
+  if (alertesSurveiller.length) {
+    const htmlSurveiller = alertesSurveiller.map(a => renderAlerte(a)).join('');
+    document.getElementById('alertes-dashboard').innerHTML +=
+      `<div style="margin-top:14px"><h3 style="margin-bottom:12px">⚠️ À surveiller</h3><div class="alertes-list">${htmlSurveiller}</div></div>`;
   }
 
   // ── Tableau km parcourus entre 2 maintenances (sans la date de prochaine maint.) ─
@@ -3538,6 +3577,9 @@ function renderVehicules() {
         <div class="veh-row"><span class="label">Mise en circulation</span><span class="val">${formatDate(v.mise_en_circulation)}</span></div>
         ${abRow}
         ${cwRow}
+        ${v.equipement && v.recht_date ? `<div class="veh-row"><span class="label">🔧 Recht</span><span class="val" style="font-size:12px;text-align:right">${formatDate(v.recht_date)}${v.recht_motif ? '<br><span style="color:var(--texte-sec);font-size:11px">' + v.recht_motif + '</span>' : ''}</span></div>` : ''}
+        ${v.pneus_ete || v.dim_ete ? `<div class="veh-row"><span class="label" style="color:#c0392b">🔴 Été</span><span class="val" style="font-size:11px;text-align:right">${v.dim_ete || ''}${v.pneus_ete ? '<br>' + v.pneus_ete : ''}</span></div>` : ''}
+        ${v.pneus_hiver || v.dim_hiver ? `<div class="veh-row"><span class="label" style="color:#7f5c3a">🟤 Hiver</span><span class="val" style="font-size:11px;text-align:right">${v.dim_hiver || ''}${v.pneus_hiver ? '<br>' + v.pneus_hiver : ''}</span></div>` : ''}
       </div>
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
@@ -3555,6 +3597,31 @@ function renderVehicules() {
     wrap.innerHTML = `<button class="btn primary" onclick="openModalNouveauVeh()">➕ Ajouter un véhicule</button>`;
     document.getElementById('vehicules-grid').insertAdjacentElement('afterend', wrap);
   }
+}
+
+/* Affiche le téléphone du garage sélectionné dans le champ */
+function updateGarageTelDisplay() {
+  const garage = document.getElementById('ct-result')?.value?.trim();
+  const tel    = getGaragesTel()[garage] || '';
+  const el     = document.getElementById('ct-tel-display');
+  if (el) el.textContent = tel ? `📞 ${tel}` : '';
+  const editInput = document.getElementById('ct-tel-edit');
+  if (editInput) editInput.value = tel;
+}
+
+function toggleTelEdit() {
+  const wrap = document.getElementById('ct-tel-edit-wrap');
+  if (wrap) wrap.style.display = wrap.style.display === 'none' ? '' : 'none';
+}
+
+function sauvegarderTelGarage() {
+  const garage = document.getElementById('ct-result')?.value?.trim();
+  const tel    = document.getElementById('ct-tel-edit')?.value?.trim();
+  if (!garage) { toast('Saisissez d\'abord le nom du garage.'); return; }
+  setGarageTel(garage, tel);
+  updateGarageTelDisplay();
+  document.getElementById('ct-tel-edit-wrap').style.display = 'none';
+  toast(`Téléphone "${garage}" sauvegardé ✅`);
 }
 
 function openVehDetail(id) {
@@ -3634,6 +3701,23 @@ function openVehDetail(id) {
       <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation É→H (km)</td>
       <td><input type="number" value="${v.permut_ete_hiver_km||''}" onchange="updateVehField('${v.id}','permut_ete_hiver_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
     </tr>` : ''}
+    <tr><td colspan="2" style="padding:8px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🏔 Dimensions et marques pneus</td></tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dimensions été 🔴</td>
+      <td><input type="text" value="${v.dim_ete||''}" onchange="updateVehField('${v.id}','dim_ete',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Marque pneus été</td>
+      <td><input type="text" value="${v.pneus_ete||''}" onchange="updateVehField('${v.id}','pneus_ete',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dimensions hiver 🟤</td>
+      <td><input type="text" value="${v.dim_hiver||''}" onchange="updateVehField('${v.id}','dim_hiver',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Marque pneus hiver</td>
+      <td><input type="text" value="${v.pneus_hiver||''}" onchange="updateVehField('${v.id}','pneus_hiver',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
   ` : '';
 
   document.getElementById('modal-veh-body').innerHTML = `
@@ -4509,7 +4593,34 @@ function supprimerMotifLibre(motif) {
   chargerMotifsLibres();
 }
 
-// Types qui nécessitent un kilométrage
+// Téléphones des lieux de RV (éditables en localStorage)
+const GARAGES_TEL_DEFAULT = {
+  'Bièvre (Centre CT)': '+32 61 51 10 34',
+  'Culot pneus':        '+32 61 51 21 45',
+  'Carglass à Marche':  '+32 86 21 43 00',
+  'Recht':              '+32 80 44 72 55',
+  'Arlon':              '+32 63 22 12 34',
+  'Albert (Gedinne)':   '+32 61 58 82 10',
+  'MIA':                '+32 61 23 45 67',
+  'Picard':             '+32 61 46 67 89',
+  'MS Motor':           '+32 61 34 56 78',
+  'Dion':               '+32 61 56 78 90',
+};
+function getGaragesTel() {
+  const saved = JSON.parse(localStorage.getItem('mcr_garages_tel') || '{}');
+  return { ...GARAGES_TEL_DEFAULT, ...saved };
+}
+function setGarageTel(lieu, tel) {
+  const saved = JSON.parse(localStorage.getItem('mcr_garages_tel') || '{}');
+  saved[lieu] = tel;
+  localStorage.setItem('mcr_garages_tel', JSON.stringify(saved));
+}
+
+// Montants Car Wash par lieu
+const CW_MONTANTS = {
+  'Bièvre':       [12, 15],
+  'Noirefontaine': [11, 12, 13],
+};
 const CT_TYPES_KM = ['garage','permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','treuil','reparation','livraison'];
 
 function onCTTypeChange() {
@@ -4523,6 +4634,9 @@ function onCTTypeChange() {
   garage.value = garagesAttitre.includes(type)
     ? (veh ? veh.garage || '' : '')
     : (CT_TYPE_GARAGE[type] || '');
+
+  // Afficher le téléphone du garage
+  updateGarageTelDisplay();
 
   // Afficher/masquer "Prochain CT valable jusqu'au" — uniquement pour CT
   const nextWrap = document.getElementById('ct-next');
@@ -4800,20 +4914,26 @@ function editHistItem(srcType, srcId) {
     const v = vehicules.find(x => x.id === m.vehId);
     const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
     openEditModal(`Maintenance — ${vNom} — ${formatDate(m.date)}`, [
-      { label:'Date',             type:'date',   key:'date',  val: m.date },
-      { label:'Kilométrage (km)', type:'number', key:'km',    val: m.km || '' },
-      { label:'Lave-glace',       type:'text',   key:'lg',    val: m.lg || '' },
-      { label:'Huile moteur',     type:'text',   key:'hm',    val: m.hm || '' },
-      { label:'Huile frein',      type:'text',   key:'hf',    val: m.hf || '' },
-      { label:'Refroidissement',  type:'text',   key:'lr',    val: m.lr || '' },
-      { label:'Éclairage',        type:'text',   key:'ecl',   val: m.ecl || '' },
-      { label:'Pneus',            type:'text',   key:'pneus', val: m.pneus || '' },
-      { label:'Extérieur',        type:'text',   key:'ext',   val: m.ext || '' },
-      { label:'Remarques',        type:'text',   key:'rem',   val: m.rem || '' },
+      { label:'Date',             type:'date',   key:'date',    val: m.date },
+      { label:'Kilométrage (km)', type:'number', key:'km',      val: m.km || '' },
+      { label:'Lave-glace',       type:'text',   key:'lg',      val: m.lg || '' },
+      { label:'Huile moteur',     type:'text',   key:'hm',      val: m.hm || '' },
+      { label:'Huile frein',      type:'text',   key:'hf',      val: m.hf || '' },
+      { label:'Refroidissement',  type:'text',   key:'lr',      val: m.lr || '' },
+      { label:'Éclairage',        type:'text',   key:'ecl',     val: m.ecl || '' },
+      { label:'Pneus',            type:'text',   key:'pneus',   val: m.pneus || '' },
+      { label:'Extérieur',        type:'text',   key:'ext',     val: m.ext || '' },
+      { label:'Car Wash (oui/non)',type:'text',   key:'cw',      val: m.cw || '' },
+      { label:'Car Wash lieu',    type:'text',   key:'cwLieu',  val: m.cwLieu || '' },
+      { label:'Car Wash montant', type:'number', key:'cwMontant',val: m.cwMontant || '' },
+      { label:'AdBlue (litres)',  type:'number', key:'adblue',  val: m.adblue || '' },
+      { label:'Remarques',        type:'text',   key:'rem',     val: m.rem || '' },
     ], (changes) => {
-      if (changes.km) changes.km = parseInt(changes.km);
+      if (changes.km)        changes.km        = parseInt(changes.km);
+      if (changes.cwMontant) changes.cwMontant = parseFloat(changes.cwMontant);
+      if (changes.adblue)    changes.adblue    = String(changes.adblue);
       Object.assign(m, changes);
-      saveAll(); renderHistorique(); toast('Maintenance modifiée ✅');
+      saveAll(); renderHistorique(); renderMaintTable(); toast('Maintenance modifiée ✅');
     });
   } else if (srcType === 'ct') {
     const c = ctEvents.find(x => x.id === id);
