@@ -487,6 +487,16 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .photo-del:hover { background:var(--rouge-fonce); }
 
+/* ===== PASTILLE RV ===== */
+.rv-pastille {
+  position:absolute; top:-6px; right:-6px;
+  background:var(--orange); color:#fff; border-radius:50%;
+  width:20px; height:20px; font-size:10px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 1px 4px rgba(0,0,0,0.25); z-index:2;
+}
+.veh-card { position:relative; }
+
 /* ===== NAVBAR MAINT FLASH ===== */
 @keyframes flash-maint {
   0%,100% { background:rgba(255,255,255,0.18); transform:scale(1); }
@@ -1651,7 +1661,7 @@ const VEHICULES_DATA = [
   },
   {
     id: 'TLAN910', marque: 'Renault Trafic', immat: 'TLAN910', type: 'VSL',
-    chassis: 'VF1JL000175966879', mise_en_circulation: '2026-02-27', garage: 'MIA',
+    chassis: 'VF1JL000175966879', mise_en_circulation: '2026-02-27', garage: 'Albert (Gedinne)',
     km: 1659, ct_valid: '2026-09-16',
     dernier_entretien_date: null, dernier_entretien_km: null,
     interval_entretien_km: 20000, prochain_entretien_km: 20000,
@@ -2535,7 +2545,11 @@ async function checkAdmin() {
     closeModal('modal-login');
     document.getElementById('login-pwd').value = '';
     updateTabChauf();
-    demanderPermissionNotif(); // demander permission notifications
+    demanderPermissionNotif();
+
+    // Programmer les rappels 24h pour tous les RV à venir (rendezvous + ctEvents)
+    setTimeout(() => programmerTousLesRappels(), 500);
+
     toast('Mode administrateur activé ✅');
   } else {
     document.getElementById('login-error').style.display = 'block';
@@ -2577,8 +2591,51 @@ function renderAccueil() {
   `;
 
   const top = alertes.slice(0, 8);
-  const html = top.length ? top.map(a => renderAlerte(a)).join('') : '<p style="color:var(--texte-sec)">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
-  document.getElementById('alertes-dashboard').innerHTML = `<h3 style="margin-bottom:12px">🔔 Alertes prioritaires</h3><div class="alertes-list">${html}</div>`;
+  const htmlAlertes = top.length ? top.map(a => renderAlerte(a)).join('') : '<p style="color:var(--texte-sec)">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
+  document.getElementById('alertes-dashboard').innerHTML = `<h3 style="margin-bottom:12px">🔔 Alertes prioritaires</h3><div class="alertes-list">${htmlAlertes}</div>`;
+
+  // ── 5 prochains RV programmés ────────────────────────────
+  const today = new Date().toISOString().slice(0,10);
+  const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
+    .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
+    .sort((a,b) => {
+      const da = a.date + (a.heure || '00:00');
+      const db = b.date + (b.heure || '00:00');
+      return da.localeCompare(db);
+    })
+    .slice(0, 5);
+
+  if (prochainRV.length) {
+    const rvHtml = prochainRV.map(r => {
+      const v = vehicules.find(x => x.id === r.vehId);
+      const vNom = v ? `${v.marque} <b>${v.immat}</b>` : r.vehId;
+      const typeLabel = CT_TYPE_LABELS?.[r.type] || (r.type === 'ct' ? '🏥 CT' : r.type === 'garage' ? '🔧 Entretien' : r.type || '📅 RV');
+      const heureStr  = r.heure ? ` à <b>${r.heure}</b>` : '';
+      const garageStr = (r.result || r.garage) ? ` — ${r.result || r.garage}` : '';
+      const j = Math.round((new Date(r.date) - new Date(today)) / 86400000);
+      const jStr = j === 0 ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui</span>'
+                 : j === 1 ? '<span style="color:var(--orange);font-weight:700">Demain</span>'
+                 : `<span style="color:var(--texte-sec)">dans ${j}j</span>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
+        <div style="min-width:70px;text-align:center">
+          <div style="font-size:11px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
+          <div style="font-size:10px">${jStr}</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px">${vNom}${heureStr}</div>
+          <div style="font-size:12px;color:var(--texte-sec)">${typeLabel}${garageStr}</div>
+        </div>
+        ${isAdmin ? `<button class="btn btn-sm" onclick="openRV('${r.vehId}','${r.type || 'ct'}')">✏️</button>` : ''}
+      </div>`;
+    }).join('');
+    document.getElementById('alertes-dashboard').innerHTML += `
+      <div style="margin-top:16px">
+        <h3 style="margin-bottom:10px">📅 Prochains rendez-vous</h3>
+        <div class="form-card" style="padding:0;overflow:hidden">
+          ${rvHtml}
+        </div>
+      </div>`;
+  }
 
   // ── Bloc Prochaine Maintenance avec km parcourus ─────────────
   const samedi = prochainSamediFinDeMois();
@@ -2710,9 +2767,12 @@ function renderKilometrage() {
   const moisMax = new Date().getFullYear() === annee ? new Date().getMonth() + 1 : 12;
   const mois = Array.from({length: moisMax}, (_, i) => i + 1); // [1,2,...,moisMax]
 
-  /* Calcule les km d'un véhicule pour un mois donné à partir des maintenances.
-     Méthode : on cherche le relevé km du dernier jour du mois et celui du premier
-     jour du mois (= dernier relevé du mois précédent). La différence est les km du mois. */
+  /* Calcule les km effectués dans un mois donné, de maintenance à maintenance.
+     Pour chaque mois : on cherche la dernière maintenance du mois (relevé de fin)
+     et la dernière maintenance AVANT ce mois (relevé de début).
+     Ex : maint. 03-01 (70 000) et maint. 31-01 (71 400) → janvier = 1 400 km.
+     Si la maintenance de fin est celle du mois précédent (ex : 31-01) et que
+     le mois courant n'a pas encore de maintenance, on retourne null. */
   function kmVehMois(vehId, annee, mois) {
     const mList = maintenances
       .filter(m => m.vehId === vehId && m.km && m.date)
@@ -2722,18 +2782,20 @@ function renderKilometrage() {
 
     if (mList.length < 2) return null;
 
-    // Dernier relevé ≤ fin du mois
-    const finMois = `${annee}-${String(mois).padStart(2,'0')}-31`;
-    const releveFin = [...mList].filter(m => m.date <= finMois).pop();
-    if (!releveFin) return null;
+    const mm    = String(mois).padStart(2,'0');
+    const finMois   = `${annee}-${mm}-31`;
+    const debutMois = `${annee}-${mm}-01`;
 
-    // Dernier relevé strictement avant le début de ce mois
-    const debutMois = `${annee}-${String(mois).padStart(2,'0')}-01`;
+    // Dernière maintenance dans ce mois (inclus)
+    const releveFin = [...mList].filter(m => m.date >= debutMois && m.date <= finMois).pop();
+    if (!releveFin) return null; // pas de maintenance dans ce mois → pas de donnée
+
+    // Dernière maintenance strictement AVANT ce mois (= relevé de départ)
     const releveDebut = [...mList].filter(m => m.date < debutMois).pop();
     if (!releveDebut) return null;
 
     const delta = releveFin.km - releveDebut.km;
-    return delta >= 0 ? delta : null;
+    return delta > 0 ? delta : null;
   }
 
   // Construire la matrice [veh][mois] = km
@@ -3052,7 +3114,32 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') fermerRecherche();
 });
 
-/* Met à jour la classe clignotante de l'onglet Alertes */
+/* Programme les rappels 24h pour tous les RV à venir (rendezvous + ctEvents) */
+function programmerTousLesRappels() {
+  if (Notification.permission !== 'granted') return;
+  const todayStr = new Date().toISOString().slice(0,10);
+
+  // RV planifiés (modal openRV)
+  rendezvous
+    .filter(r => r.statut === 'planifie' && r.date >= todayStr)
+    .forEach(r => {
+      const veh = vehicules.find(v => v.id === r.vehId);
+      programmerRappel(r, veh);
+    });
+
+  // RV enregistrés dans ctEvents (onglet RV à prendre)
+  ctEvents
+    .filter(c => c.date >= todayStr)
+    .forEach(c => {
+      const veh = vehicules.find(v => v.id === c.vehId);
+      const fakeRV = {
+        id: c.id, date: c.date, heure: c.heure || null,
+        type: c.type, garage: c.result || '', notes: c.rem || '',
+        vehId: c.vehId, statut: 'planifie'
+      };
+      programmerRappel(fakeRV, veh);
+    });
+}
 function updateTabAlertes() {
   const tabAlertes = document.querySelectorAll('.tab-btn')[2];
   if (!tabAlertes) return;
@@ -3375,7 +3462,16 @@ function renderVehicules() {
       ? `<span class="badge info" style="font-size:10px;margin-top:3px">${v.equipement === 'Élévateur' ? '🔼 Élévateur' : '📐 Rampe'}</span>`
       : '';
 
+    // Pastille RV : compte les RV planifiés à venir pour ce véhicule
+    const todayStr = new Date().toISOString().slice(0,10);
+    const nbRV = [...rendezvous, ...ctEvents]
+      .filter(r => r.vehId === v.id && r.statut !== 'annule' && r.statut !== 'fait' && r.date >= todayStr).length;
+    const pastilleRV = nbRV > 0
+      ? `<div class="rv-pastille" title="${nbRV} RV programmé${nbRV>1?'s':''}">${nbRV}</div>`
+      : '';
+
     return `<div class="veh-card">
+      ${pastilleRV}
       <div class="veh-card-header">
         <div class="veh-icon ${isCamion?'camion':'vsl'}">${isCamion?'🚐':'🚑'}</div>
         <div class="veh-info" style="flex:1;min-width:0">
@@ -4480,6 +4576,11 @@ function saveCT() {
   saveAll();
   clearCTForm();
   renderCTTable();
+  // Programmer rappel 24h si date future
+  if (Notification.permission === 'granted') {
+    const veh = vehicules.find(v => v.id === vehId);
+    programmerRappel({ id: rec.id, date: rec.date, heure: rec.heure, type: rec.type, garage: rec.result, notes: rec.rem, vehId, statut:'planifie' }, veh);
+  }
   toast('RV enregistré ✅');
 }
 
