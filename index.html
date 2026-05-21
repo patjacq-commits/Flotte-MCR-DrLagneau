@@ -487,6 +487,58 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .photo-del:hover { background:var(--rouge-fonce); }
 
+/* ===== NAVBAR MAINT FLASH ===== */
+@keyframes flash-maint {
+  0%,100% { background:rgba(255,255,255,0.18); transform:scale(1); }
+  50%      { background:rgba(255,255,0,0.35);   transform:scale(1.06); }
+}
+.navbar-maint-urgent { animation:flash-maint 1.4s ease infinite; }
+
+/* ===== RECHERCHE GLOBALE ===== */
+.search-modal-overlay {
+  display:none; position:fixed; inset:0; z-index:300;
+  background:rgba(0,0,0,0.5); align-items:flex-start; justify-content:center;
+  padding:80px 16px 16px;
+}
+.search-modal-overlay.open { display:flex; }
+.search-modal {
+  background:var(--blanc); border-radius:14px; width:100%; max-width:560px;
+  box-shadow:0 8px 40px rgba(0,0,0,0.25); overflow:hidden;
+}
+.search-input-wrap {
+  display:flex; align-items:center; gap:10px; padding:14px 16px;
+  border-bottom:1.5px solid var(--gris-bord);
+}
+.search-input-wrap input {
+  flex:1; border:none; outline:none; font-size:16px; color:var(--texte);
+  background:transparent;
+}
+.search-input-wrap .search-icon { font-size:18px; color:var(--texte-sec); }
+.search-close  { background:none; border:none; font-size:20px; color:var(--texte-sec); cursor:pointer; }
+.search-results { max-height:420px; overflow-y:auto; }
+.search-section-title {
+  padding:8px 16px 4px; font-size:11px; font-weight:700; color:var(--texte-sec);
+  text-transform:uppercase; letter-spacing:0.5px; background:var(--gris-clair);
+}
+.search-result-item {
+  display:flex; align-items:center; gap:10px; padding:11px 16px;
+  cursor:pointer; border-bottom:0.5px solid #f0f0f0; transition:background 0.1s;
+}
+.search-result-item:hover { background:var(--bleu-clair); }
+.search-result-item:last-child { border-bottom:none; }
+.sri-icon { font-size:20px; flex-shrink:0; }
+.sri-main { flex:1; min-width:0; }
+.sri-titre { font-size:13px; font-weight:600; color:var(--texte); }
+.sri-detail { font-size:12px; color:var(--texte-sec); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sri-action { font-size:11px; color:var(--bleu); font-weight:600; flex-shrink:0; }
+.search-empty { padding:30px; text-align:center; color:var(--texte-sec); font-size:14px; }
+.search-shortcuts { padding:12px 16px; border-top:1px solid var(--gris-bord); display:flex; flex-wrap:wrap; gap:8px; }
+.search-shortcut {
+  background:var(--gris-clair); border:none; border-radius:6px; padding:6px 12px;
+  font-size:12px; cursor:pointer; color:var(--texte); display:flex; align-items:center; gap:5px;
+}
+.search-shortcut:hover { background:var(--bleu-clair); color:var(--bleu); }
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 500px) {
   .content { padding: 10px; }
@@ -505,11 +557,19 @@ td.ok { color: var(--vert); font-weight: 600; }
     Maison Croix-Rouge — Opont
     <br><small style="opacity:0.7;font-size:11px">Gestion de flotte véhicules</small>
   </div>
-  <div id="navbar-maint" style="font-size:10px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);padding:3px 8px;border-radius:8px;white-space:nowrap;flex-shrink:0;text-align:center;line-height:1.4">
-    <div style="font-size:9px;opacity:0.75;text-transform:uppercase;letter-spacing:0.5px">Proch. maint.</div>
-    <div id="navbar-maint-date" style="font-weight:700"></div>
-    <div id="navbar-maint-jours" style="font-size:9px;opacity:0.85"></div>
+
+  <!-- Prochaine maintenance — bloc cliquable, animé selon l'urgence -->
+  <div id="navbar-maint" onclick="showPage('maintenance',document.querySelectorAll('.tab-btn')[5])"
+    style="cursor:pointer;padding:5px 10px;border-radius:10px;white-space:nowrap;flex-shrink:0;text-align:center;line-height:1.3;background:rgba(255,255,255,0.15);color:#fff;transition:background 0.3s">
+    <div style="font-size:9px;opacity:0.75;text-transform:uppercase;letter-spacing:0.5px">🔧 Maint.</div>
+    <div id="navbar-maint-date" style="font-weight:900;font-size:15px;letter-spacing:0.5px"></div>
+    <div id="navbar-maint-jours" style="font-size:11px;font-weight:700;opacity:0.95"></div>
   </div>
+
+  <!-- Bouton recherche globale -->
+  <button onclick="ouvrirRecherche()" title="Recherche rapide"
+    style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
+
   <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.5.0</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
@@ -1337,6 +1397,31 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
 </div>
 
+<!-- MODAL RECHERCHE GLOBALE -->
+<div class="search-modal-overlay" id="modal-recherche" onclick="if(event.target===this)fermerRecherche()">
+  <div class="search-modal">
+    <div class="search-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Chercher un véhicule, une immatriculation, un RV, une date…"
+        oninput="executerRecherche()" onkeydown="naviguerRecherche(event)" autocomplete="off" />
+      <button class="search-close" onclick="fermerRecherche()">✕</button>
+    </div>
+    <div id="search-results" class="search-results">
+      <!-- Raccourcis affichés par défaut -->
+      <div class="search-shortcuts" id="search-shortcuts">
+        <button class="search-shortcut" onclick="rechercheRaccourci('maintenance')">🔧 Nouvelle maintenance</button>
+        <button class="search-shortcut" onclick="rechercheRaccourci('rv')">📅 Prendre un RV</button>
+        <button class="search-shortcut" onclick="rechercheRaccourci('carwash')">🚿 Car Wash</button>
+        <button class="search-shortcut" onclick="rechercheRaccourci('adblue')">💧 AdBlue</button>
+        <button class="search-shortcut" onclick="rechercheRaccourci('alerte')">🚨 Alerte chauffeur</button>
+        <button class="search-shortcut" onclick="rechercheRaccourci('pneus')">🛞 Pneus</button>
+        <button class="search-shortcut" onclick="rechercheRaccourci('historique')">📋 Historique</button>
+        <button class="search-shortcut" onclick="rechercheRaccourci('vehicules')">🚐 Véhicules</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CONNEXION ADMIN -->
 <div class="modal-overlay" id="modal-login">
   <div class="modal" style="max-width:360px;text-align:center">
@@ -1777,20 +1862,23 @@ function daysUntil(s) {
 function updateNavbarMaint() {
   const el   = document.getElementById('navbar-maint-date');
   const elJ  = document.getElementById('navbar-maint-jours');
+  const wrap = document.getElementById('navbar-maint');
   if (!el) return;
   const sam = prochainSamediFinDeMois();
   const j   = Math.round((sam - TODAY) / 86400000);
   el.textContent  = sam.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit' });
-  if (elJ) elJ.textContent = j === 0 ? "Aujourd'hui !" : j === 1 ? 'Demain' : `J-${j}`;
-  const wrap = document.getElementById('navbar-maint');
+  elJ.textContent = j === 0 ? "AUJOURD'HUI !" : j === 1 ? 'DEMAIN' : `J - ${j}`;
   if (wrap) {
-    wrap.style.background = j === 0
-      ? 'rgba(192,57,43,0.75)'   // rouge vif si aujourd'hui
-      : j <= 3
-        ? 'rgba(231,76,60,0.55)' // rouge si ≤ 3 jours
-        : j <= 7
-          ? 'rgba(230,126,34,0.45)' // orange si dans la semaine
-          : 'rgba(255,255,255,0.12)';
+    // Animation flash si ≤ 7 jours, sinon sobre
+    if (j <= 3) {
+      wrap.style.background = '';
+      wrap.classList.add('navbar-maint-urgent');
+    } else {
+      wrap.classList.remove('navbar-maint-urgent');
+      wrap.style.background = j <= 7
+        ? 'rgba(230,126,34,0.45)'
+        : 'rgba(255,255,255,0.15)';
+    }
   }
 }
 
@@ -2755,6 +2843,215 @@ function renderKilometrage() {
     </svg>`;
 }
 
+// ============================================================
+// RECHERCHE GLOBALE INTELLIGENTE
+// ============================================================
+
+let _rechercheIdx = -1; // index de navigation clavier
+
+function ouvrirRecherche() {
+  document.getElementById('modal-recherche').classList.add('open');
+  setTimeout(() => document.getElementById('search-input')?.focus(), 80);
+  document.getElementById('search-input').value = '';
+  afficherRaccourcis();
+}
+
+function fermerRecherche() {
+  document.getElementById('modal-recherche').classList.remove('open');
+  _rechercheIdx = -1;
+}
+
+function afficherRaccourcis() {
+  document.getElementById('search-results').innerHTML = `
+    <div class="search-shortcuts" id="search-shortcuts">
+      <button class="search-shortcut" onclick="rechercheRaccourci('maintenance')">🔧 Nouvelle maintenance</button>
+      <button class="search-shortcut" onclick="rechercheRaccourci('rv')">📅 Prendre un RV</button>
+      <button class="search-shortcut" onclick="rechercheRaccourci('carwash')">🚿 Car Wash</button>
+      <button class="search-shortcut" onclick="rechercheRaccourci('adblue')">💧 AdBlue</button>
+      <button class="search-shortcut" onclick="rechercheRaccourci('alerte')">🚨 Alerte chauffeur</button>
+      <button class="search-shortcut" onclick="rechercheRaccourci('pneus')">🛞 Pneus</button>
+      <button class="search-shortcut" onclick="rechercheRaccourci('historique')">📋 Historique</button>
+      <button class="search-shortcut" onclick="rechercheRaccourci('vehicules')">🚐 Véhicules</button>
+    </div>`;
+}
+
+function rechercheRaccourci(type) {
+  fermerRecherche();
+  const tabs = document.querySelectorAll('.tab-btn');
+  const tabMap = {
+    'accueil':      [tabs[0],'accueil'],
+    'vehicules':    [tabs[1],'vehicules'],
+    'alertes':      [tabs[2],'alertes'],
+    'kilometrage':  [tabs[3],'kilometrage'],
+    'alerte':       [tabs[4],'chauf'],
+    'maintenance':  [tabs[5],'maintenance'],
+    'garages':      [tabs[6],'garages'],
+    'carwash':      [tabs[7],'carwash'],
+    'pneus':        [tabs[8],'pneus'],
+    'adblue':       [tabs[9],'adblue'],
+    'historique':   [tabs[10],'historique'],
+    'rv':           [tabs[6],'garages'],
+  };
+  const [btn, page] = tabMap[type] || [tabs[0],'accueil'];
+  showPage(page, btn);
+}
+
+function executerRecherche() {
+  const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+  if (!q || q.length < 2) { afficherRaccourcis(); return; }
+  _rechercheIdx = -1;
+
+  const resultats = [];
+
+  // ── Véhicules ──────────────────────────────────────────────
+  vehicules.forEach(v => {
+    const score = [v.immat, v.marque, v.chassis, v.garage, v.type]
+      .filter(Boolean).join(' ').toLowerCase();
+    if (!score.includes(q)) return;
+    const ct = ctStatus(v);
+    resultats.push({
+      section: '🚐 Véhicules', icon: v.type === 'Camionnette' ? '🚐' : '🚑',
+      titre: `${v.marque} — ${v.immat}`,
+      detail: `CT ${formatDate(v.ct_valid)} • ${v.km.toLocaleString('fr-BE')} km • ${v.garage}`,
+      action: 'Voir la fiche',
+      fn: () => { fermerRecherche(); renderVehicules(); showPage('vehicules', document.querySelectorAll('.tab-btn')[1]); setTimeout(() => openVehDetail(v.id), 200); }
+    });
+  });
+
+  // ── Maintenances ───────────────────────────────────────────
+  maintenances.slice(0, 50).forEach(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    const score = [v?.immat, v?.marque, m.date, m.rem, String(m.km)].filter(Boolean).join(' ').toLowerCase();
+    if (!score.includes(q)) return;
+    resultats.push({
+      section: '🔧 Maintenances', icon: '🔧',
+      titre: `Maintenance ${v ? v.immat : m.vehId} — ${formatDate(m.date)}`,
+      detail: `${m.km?.toLocaleString('fr-BE')} km${m.rem ? ' • ' + m.rem.substring(0,40) : ''}`,
+      action: 'Historique',
+      fn: () => { fermerRecherche(); showPage('historique', document.querySelectorAll('.tab-btn')[10]); }
+    });
+  });
+
+  // ── RV planifiés ───────────────────────────────────────────
+  rendezvous.filter(r => r.statut !== 'annule').forEach(r => {
+    const v = vehicules.find(x => x.id === r.vehId);
+    const score = [v?.immat, v?.marque, r.date, r.garage, r.notes, CT_TYPE_LABELS?.[r.type]].filter(Boolean).join(' ').toLowerCase();
+    if (!score.includes(q)) return;
+    const lbl = CT_TYPE_LABELS?.[r.type] || r.type;
+    resultats.push({
+      section: '📅 Rendez-vous', icon: '📅',
+      titre: `RV ${v ? v.immat : r.vehId} — ${lbl}`,
+      detail: `${formatDate(r.date)}${r.heure ? ' à ' + r.heure : ''} • ${r.garage || ''}`,
+      action: 'Modifier',
+      fn: () => { fermerRecherche(); showPage('garages', document.querySelectorAll('.tab-btn')[6]); }
+    });
+  });
+
+  // ── CT enregistrés ─────────────────────────────────────────
+  ctEvents.slice(0, 30).forEach(c => {
+    const v = vehicules.find(x => x.id === c.vehId);
+    const lbl = CT_TYPE_LABELS?.[c.type] || c.type;
+    const score = [v?.immat, v?.marque, c.date, c.result, c.rem, lbl].filter(Boolean).join(' ').toLowerCase();
+    if (!score.includes(q)) return;
+    resultats.push({
+      section: '📋 RV enregistrés', icon: '📋',
+      titre: `${lbl} — ${v ? v.immat : c.vehId}`,
+      detail: `${formatDate(c.date)} • ${c.result || ''} ${c.rem ? '• ' + c.rem.substring(0,30) : ''}`,
+      action: 'Historique',
+      fn: () => { fermerRecherche(); showPage('garages', document.querySelectorAll('.tab-btn')[6]); }
+    });
+  });
+
+  // ── Alertes chauffeurs ─────────────────────────────────────
+  messagesChauf.forEach(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    const score = [v?.immat, v?.marque, m.msg, m.auteur].filter(Boolean).join(' ').toLowerCase();
+    if (!score.includes(q)) return;
+    resultats.push({
+      section: '🚨 Alertes chauffeurs', icon: '🚨',
+      titre: `${m.auteur} — ${v ? v.immat : m.vehId}`,
+      detail: m.msg.substring(0, 60),
+      action: 'Voir',
+      fn: () => { fermerRecherche(); showPage('chauf', document.querySelectorAll('.tab-btn')[4]); }
+    });
+  });
+
+  // ── AdBlue ─────────────────────────────────────────────────
+  adblues.slice(0, 20).forEach(a => {
+    const v = vehicules.find(x => x.id === a.vehId);
+    const score = [v?.immat, v?.marque, a.date, String(a.litre)].filter(Boolean).join(' ').toLowerCase();
+    if (!score.includes(q)) return;
+    resultats.push({
+      section: '💧 AdBlue', icon: '💧',
+      titre: `AdBlue ${v ? v.immat : a.vehId} — ${a.litre?.toFixed(2)} L`,
+      detail: `${formatDate(a.date)}${a.km ? ' • ' + parseInt(a.km).toLocaleString('fr-BE') + ' km' : ''}`,
+      action: 'Onglet AdBlue',
+      fn: () => { fermerRecherche(); showPage('adblue', document.querySelectorAll('.tab-btn')[9]); }
+    });
+  });
+
+  // ── Affichage ──────────────────────────────────────────────
+  if (!resultats.length) {
+    document.getElementById('search-results').innerHTML =
+      `<div class="search-empty">🔍 Aucun résultat pour "<strong>${q}</strong>"<br><small>Essayez une immatriculation, une date (JJ/MM), un garage…</small></div>`;
+    return;
+  }
+
+  // Grouper par section
+  const sections = {};
+  resultats.forEach((r, i) => {
+    r._idx = i;
+    if (!sections[r.section]) sections[r.section] = [];
+    sections[r.section].push(r);
+  });
+
+  // Stocker pour navigation clavier
+  window._searchResultFns = resultats.map(r => r.fn);
+
+  let html = '';
+  Object.entries(sections).forEach(([titre, items]) => {
+    html += `<div class="search-section-title">${titre}</div>`;
+    html += items.map(r => `
+      <div class="search-result-item" onclick="window._searchResultFns[${r._idx}]()" data-idx="${r._idx}">
+        <span class="sri-icon">${r.icon}</span>
+        <div class="sri-main">
+          <div class="sri-titre">${r.titre}</div>
+          <div class="sri-detail">${r.detail}</div>
+        </div>
+        <span class="sri-action">${r.action} →</span>
+      </div>`).join('');
+  });
+  document.getElementById('search-results').innerHTML = html;
+}
+
+/* Navigation clavier dans les résultats */
+function naviguerRecherche(e) {
+  if (e.key === 'Escape') { fermerRecherche(); return; }
+  const items = document.querySelectorAll('.search-result-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _rechercheIdx = Math.min(_rechercheIdx + 1, items.length - 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _rechercheIdx = Math.max(_rechercheIdx - 1, 0);
+  } else if (e.key === 'Enter' && _rechercheIdx >= 0) {
+    e.preventDefault();
+    items[_rechercheIdx]?.click();
+    return;
+  }
+  items.forEach((el, i) => {
+    el.style.background = i === _rechercheIdx ? 'var(--bleu-clair)' : '';
+  });
+  items[_rechercheIdx]?.scrollIntoView({ block:'nearest' });
+}
+
+// Raccourci clavier global Ctrl+K / Cmd+K
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); ouvrirRecherche(); }
+  if (e.key === 'Escape') fermerRecherche();
+});
+
 /* Met à jour la classe clignotante de l'onglet Alertes */
 function updateTabAlertes() {
   const tabAlertes = document.querySelectorAll('.tab-btn')[2];
@@ -3447,7 +3744,11 @@ function populateMaintSelect() {
     const v = vehicules.find(x => x.id === id);
     return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
   }).join('');
-  document.getElementById('maint-date').value = new Date().toISOString().slice(0,10);
+
+  // Date par défaut = prochain samedi fin de mois (date de la prochaine maintenance)
+  const samedi = prochainSamediFinDeMois();
+  document.getElementById('maint-date').value = samedi.toISOString().slice(0,10);
+
   injecterToutesCustomOpts();
 
   // Valeur par défaut "OK" sur tous les selects sauf CW et AdBlue
