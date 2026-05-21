@@ -1149,15 +1149,32 @@ td.ok { color: var(--vert); font-weight: 600; }
       </div>
       <div class="form-group">
         <label>Garage / Centre</label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="ct-result" placeholder="Garage pré-rempli selon le type" style="flex:1" oninput="updateGarageTelDisplay()" />
-          <span id="ct-tel-display" style="font-size:12px;color:var(--bleu);white-space:nowrap;flex-shrink:0"></span>
+        <input type="text" id="ct-result" placeholder="Garage pré-rempli selon le type"
+          oninput="updateGarageTelDisplay()" style="width:100%" />
+        <!-- Affichage téléphones -->
+        <div id="ct-tel-display" style="margin-top:6px;display:none;background:var(--bleu-clair);border-radius:6px;padding:8px 12px">
+          <div style="font-size:11px;font-weight:700;color:var(--bleu);margin-bottom:4px">📞 Contacts</div>
+          <div id="ct-tel-lines" style="font-size:13px;color:var(--texte)"></div>
+          <button onclick="toggleTelEdit()" style="background:none;border:none;font-size:11px;color:var(--bleu);cursor:pointer;padding:4px 0 0 0;text-decoration:underline">✏️ Modifier</button>
         </div>
-        <div id="ct-tel-edit-wrap" style="display:none;margin-top:4px">
-          <input type="tel" id="ct-tel-edit" placeholder="Téléphone" style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px" />
-          <button class="btn btn-sm" style="margin-top:4px" onclick="sauvegarderTelGarage()">💾 Sauvegarder N°</button>
+        <!-- Formulaire édition téléphones -->
+        <div id="ct-tel-edit-wrap" style="display:none;margin-top:6px;background:var(--gris-clair);border-radius:6px;padding:10px">
+          <div style="font-size:11px;font-weight:700;color:var(--texte-sec);margin-bottom:8px">📞 Modifier les contacts</div>
+          <div class="form-group" style="margin-bottom:6px">
+            <label>Téléphone principal</label>
+            <input type="tel" id="ct-tel-principal" placeholder="ex: +32 61 51 10 34"
+              style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;font-size:14px;width:100%" />
+          </div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label>GSM / autre</label>
+            <input type="tel" id="ct-tel-gsm" placeholder="ex: +32 477 12 34 56"
+              style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;font-size:14px;width:100%" />
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary btn-sm" onclick="sauvegarderTelGarage()">💾 Sauvegarder</button>
+            <button class="btn btn-sm" onclick="toggleTelEdit()">Annuler</button>
+          </div>
         </div>
-        <button onclick="toggleTelEdit()" style="background:none;border:none;font-size:11px;color:var(--texte-sec);cursor:pointer;margin-top:3px;padding:0">✏️ Modifier le téléphone</button>
       </div>
       <div class="form-group">
         <label>Kilométrage à cette date</label>
@@ -3577,9 +3594,6 @@ function renderVehicules() {
         <div class="veh-row"><span class="label">Mise en circulation</span><span class="val">${formatDate(v.mise_en_circulation)}</span></div>
         ${abRow}
         ${cwRow}
-        ${v.equipement && v.recht_date ? `<div class="veh-row"><span class="label">🔧 Recht</span><span class="val" style="font-size:12px;text-align:right">${formatDate(v.recht_date)}${v.recht_motif ? '<br><span style="color:var(--texte-sec);font-size:11px">' + v.recht_motif + '</span>' : ''}</span></div>` : ''}
-        ${v.pneus_ete || v.dim_ete ? `<div class="veh-row"><span class="label" style="color:#c0392b">🔴 Été</span><span class="val" style="font-size:11px;text-align:right">${v.dim_ete || ''}${v.pneus_ete ? '<br>' + v.pneus_ete : ''}</span></div>` : ''}
-        ${v.pneus_hiver || v.dim_hiver ? `<div class="veh-row"><span class="label" style="color:#7f5c3a">🟤 Hiver</span><span class="val" style="font-size:11px;text-align:right">${v.dim_hiver || ''}${v.pneus_hiver ? '<br>' + v.pneus_hiver : ''}</span></div>` : ''}
       </div>
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
@@ -3599,29 +3613,48 @@ function renderVehicules() {
   }
 }
 
-/* Affiche le téléphone du garage sélectionné dans le champ */
+/* Affiche les téléphones du garage sélectionné */
 function updateGarageTelDisplay() {
   const garage = document.getElementById('ct-result')?.value?.trim();
-  const tel    = getGaragesTel()[garage] || '';
-  const el     = document.getElementById('ct-tel-display');
-  if (el) el.textContent = tel ? `📞 ${tel}` : '';
-  const editInput = document.getElementById('ct-tel-edit');
-  if (editInput) editInput.value = tel;
+  const display = document.getElementById('ct-tel-display');
+  const lines   = document.getElementById('ct-tel-lines');
+  if (!display || !lines) return;
+
+  const tels = garage ? (getGaragesTel()[garage] || { principal:'', gsm:'' }) : { principal:'', gsm:'' };
+
+  if (!tels.principal && !tels.gsm) {
+    display.style.display = 'none';
+    return;
+  }
+
+  display.style.display = '';
+  let html = '';
+  if (tels.principal) html += `<div>📞 <a href="tel:${tels.principal}" style="color:var(--texte);text-decoration:none">${tels.principal}</a></div>`;
+  if (tels.gsm)       html += `<div>📱 <a href="tel:${tels.gsm}" style="color:var(--texte);text-decoration:none">${tels.gsm}</a></div>`;
+  lines.innerHTML = html;
+
+  // Pré-remplir les champs d'édition
+  const p = document.getElementById('ct-tel-principal'); if (p) p.value = tels.principal || '';
+  const g = document.getElementById('ct-tel-gsm');       if (g) g.value = tels.gsm       || '';
 }
 
 function toggleTelEdit() {
   const wrap = document.getElementById('ct-tel-edit-wrap');
-  if (wrap) wrap.style.display = wrap.style.display === 'none' ? '' : 'none';
+  if (!wrap) return;
+  const isVisible = wrap.style.display !== 'none';
+  wrap.style.display = isVisible ? 'none' : '';
+  if (!isVisible) document.getElementById('ct-tel-principal')?.focus();
 }
 
 function sauvegarderTelGarage() {
-  const garage = document.getElementById('ct-result')?.value?.trim();
-  const tel    = document.getElementById('ct-tel-edit')?.value?.trim();
+  const garage    = document.getElementById('ct-result')?.value?.trim();
+  const principal = document.getElementById('ct-tel-principal')?.value?.trim();
+  const gsm       = document.getElementById('ct-tel-gsm')?.value?.trim();
   if (!garage) { toast('Saisissez d\'abord le nom du garage.'); return; }
-  setGarageTel(garage, tel);
+  setGarageTel(garage, principal, gsm);
   updateGarageTelDisplay();
   document.getElementById('ct-tel-edit-wrap').style.display = 'none';
-  toast(`Téléphone "${garage}" sauvegardé ✅`);
+  toast(`Contacts "${garage}" sauvegardés ✅`);
 }
 
 function openVehDetail(id) {
@@ -4594,25 +4627,35 @@ function supprimerMotifLibre(motif) {
 }
 
 // Téléphones des lieux de RV (éditables en localStorage)
+// Format: { principal: '...', gsm: '...' }
 const GARAGES_TEL_DEFAULT = {
-  'Bièvre (Centre CT)': '+32 61 51 10 34',
-  'Culot pneus':        '+32 61 51 21 45',
-  'Carglass à Marche':  '+32 86 21 43 00',
-  'Recht':              '+32 80 44 72 55',
-  'Arlon':              '+32 63 22 12 34',
-  'Albert (Gedinne)':   '+32 61 58 82 10',
-  'MIA':                '+32 61 23 45 67',
-  'Picard':             '+32 61 46 67 89',
-  'MS Motor':           '+32 61 34 56 78',
-  'Dion':               '+32 61 56 78 90',
+  'Bièvre (Centre CT)': { principal: '+32 61 51 10 34', gsm: '' },
+  'Culot pneus':        { principal: '+32 61 51 21 45', gsm: '' },
+  'Carglass à Marche':  { principal: '+32 86 21 43 00', gsm: '' },
+  'Recht':              { principal: '+32 80 44 72 55', gsm: '' },
+  'Arlon':              { principal: '+32 63 22 12 34', gsm: '' },
+  'Albert (Gedinne)':   { principal: '+32 61 58 82 10', gsm: '' },
+  'MIA':                { principal: '+32 61 23 45 67', gsm: '' },
+  'Picard':             { principal: '+32 61 46 67 89', gsm: '' },
+  'MS Motor':           { principal: '+32 61 34 56 78', gsm: '' },
+  'Dion':               { principal: '+32 61 56 78 90', gsm: '' },
 };
 function getGaragesTel() {
   const saved = JSON.parse(localStorage.getItem('mcr_garages_tel') || '{}');
-  return { ...GARAGES_TEL_DEFAULT, ...saved };
+  // Fusionner defaults + sauvegardés (les sauvegardés priment)
+  const result = {};
+  Object.keys({ ...GARAGES_TEL_DEFAULT, ...saved }).forEach(k => {
+    const def = GARAGES_TEL_DEFAULT[k] || { principal:'', gsm:'' };
+    const sv  = saved[k] || {};
+    // Compatibilité ancienne version (string)
+    if (typeof sv === 'string') result[k] = { principal: sv, gsm: '' };
+    else result[k] = { principal: sv.principal ?? def.principal, gsm: sv.gsm ?? def.gsm };
+  });
+  return result;
 }
-function setGarageTel(lieu, tel) {
+function setGarageTel(lieu, principal, gsm) {
   const saved = JSON.parse(localStorage.getItem('mcr_garages_tel') || '{}');
-  saved[lieu] = tel;
+  saved[lieu] = { principal: principal || '', gsm: gsm || '' };
   localStorage.setItem('mcr_garages_tel', JSON.stringify(saved));
 }
 
