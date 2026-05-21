@@ -2575,6 +2575,10 @@ function renderAccueil() {
   const hasCarteRouge = alertes.some(a => a.carteRouge);
   const urgentPulse = (nbUrgent > 0 || hasCarteRouge) ? 'style="animation:pulse-rouge 1.6s ease infinite"' : '';
 
+  const todayStr2 = new Date().toISOString().slice(0,10);
+  const nbRVprog  = [...rendezvous, ...ctEvents]
+    .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= todayStr2).length;
+
   document.getElementById('summary-grid').innerHTML = `
     <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
       <div class="num">${vehicules.length}</div><div class="lbl">Véhicules actifs</div>
@@ -2585,8 +2589,11 @@ function renderAccueil() {
     <div class="summary-card orange" onclick="goToAlertesFilter('warn')" title="Voir les alertes à surveiller">
       <div class="num">${nbWarn}</div><div class="lbl">Alertes à surveiller</div>
     </div>
-    <div class="summary-card vert" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir les véhicules">
+    <div class="summary-card vert" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir les véhicules OK">
       <div class="num">${nbOK}</div><div class="lbl">Véhicules OK</div>
+    </div>
+    <div class="summary-card bleu" onclick="document.getElementById('alertes-dashboard').querySelector('[style*=Prochains]')?.scrollIntoView({behavior:'smooth'})" title="Voir les RV programmés" style="cursor:pointer">
+      <div class="num" style="color:var(--bleu)">${nbRVprog}</div><div class="lbl">RV programmés</div>
     </div>
   `;
 
@@ -4963,6 +4970,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window._fbData_adblues)        adblues       = window._fbData_adblues;
     if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
     if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+
+    // ── Migration : corriger les données obsolètes depuis VEHICULES_DATA ──
+    let migrated = false;
+    VEHICULES_DATA.forEach(ref => {
+      const v = vehicules.find(x => x.id === ref.id);
+      if (v && v.garage !== ref.garage) {
+        v.garage = ref.garage; // ex: MIA → Albert (Gedinne) pour le 910
+        migrated = true;
+      }
+    });
+    if (migrated) saveAll(); // repousser la correction vers Firebase
 
     updateNavbarMaint();
     renderAccueil();
