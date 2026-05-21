@@ -549,12 +549,202 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .search-shortcut:hover { background:var(--bleu-clair); color:var(--bleu); }
 
-/* ===== RESPONSIVE ===== */
-@media (max-width: 500px) {
+/* ===== RESPONSIVE MOBILE — 320px (iPhone SE) → 412px (Galaxy S20) ===== */
+
+/* ── 640px : premier point de rupture tablette ─────────────── */
+@media (max-width: 640px) {
+
+  /* Navbar : compacter, masquer les éléments secondaires */
+  :root { --navbar-h: 52px; }
+
+  .navbar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .navbar-logo { font-size: 18px; }
+  .navbar-title { font-size: 11px; }
+  .navbar-title small { display: none; }   /* masquer le sous-titre */
+  #version-badge { display: none; }        /* masquer le badge version */
+  #sync-indicator { display: none; }       /* masquer ☁ Sync */
+  .navbar-role { font-size: 10px; padding: 2px 7px; }
+
+  /* Bloc maintenance navbar : plus compact */
+  #navbar-maint { padding: 2px 6px; }
+  #navbar-maint-date { font-size: 13px; }
+  #navbar-maint-jours { font-size: 10px; }
+
+  /* Onglets : réduire le padding et la police */
+  .tab-btn { padding: 0 12px; height: 40px; font-size: 12px; gap: 4px; }
+
+  /* Contenu : padding réduit */
   .content { padding: 10px; }
-  .vehicules-grid { grid-template-columns: 1fr; }
-  .summary-grid { grid-template-columns: repeat(2, 1fr); }
-  .form-grid { grid-template-columns: 1fr; }
+
+  /* Summary cards : 2 colonnes fixes */
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .summary-card { padding: 10px 8px; }
+  .summary-card .num { font-size: 24px; }
+  .summary-card .lbl { font-size: 11px; }
+
+  /* Véhicules : 1 colonne */
+  .vehicules-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .veh-card-header { padding: 10px 12px 8px; gap: 8px; }
+  .veh-body { padding: 10px 12px; }
+  .veh-actions { padding: 8px 12px; gap: 6px; }
+  .veh-row { font-size: 12px; }
+
+  /* Formulaires : 1 colonne */
+  .form-grid { grid-template-columns: 1fr; gap: 10px; }
+  .form-card { padding: 12px; }
+  .form-group input, .form-group select, .form-group textarea {
+    font-size: 16px; /* évite le zoom iOS sur focus */
+    padding: 9px 10px;
+  }
+
+  /* Tables : scroll horizontal préservé */
+  .table-wrap { border-radius: 8px; }
+  table { font-size: 12px; }
+  th, td { padding: 7px 8px; }
+
+  /* Alertes */
+  .alerte-item { padding: 10px 12px; gap: 8px; }
+  .alerte-icon { font-size: 18px; }
+  .alerte-text h4 { font-size: 13px; }
+  .alerte-text p { font-size: 12px; }
+  .alerte-rv-btn { padding: 4px 10px; font-size: 11px; }
+
+  /* Modaux : plein écran sur mobile */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 92vh;
+    padding: 16px;
+  }
+  .modal.modal-rv { max-width: 100%; }
+
+  /* Recherche globale */
+  .search-modal-overlay { padding: 60px 0 0; align-items: flex-end; }
+  .search-modal { border-radius: 16px 16px 0 0; max-height: 88vh; overflow-y: auto; }
+  .search-results { max-height: 55vh; }
+  .search-shortcuts { padding: 10px 12px; gap: 6px; }
+  .search-shortcut { padding: 5px 10px; font-size: 11px; }
+
+  /* Modal nouveau véhicule */
+  #modal-nouveau-veh .modal { max-height: 94vh; }
+
+  /* Recap RV : 1 colonne */
+  .rv-recap-grid { grid-template-columns: 1fr; }
+
+  /* Timeline RV */
+  .rv-timeline-item { gap: 8px; }
+
+  /* Boutons */
+  .btn { padding: 8px 12px; font-size: 13px; }
+  .btn-sm { padding: 5px 8px; font-size: 11px; }
+
+  /* Export bar */
+  .export-bar { gap: 6px; }
+  .export-bar select { font-size: 13px; }
+
+  /* Toast : pleine largeur */
+  .toast {
+    left: 10px; right: 10px; transform: none;
+    bottom: 12px; font-size: 13px; padding: 10px 16px;
+    text-align: center;
+  }
+
+  /* Alerte chauffeur */
+  .msg-header { padding: 8px 12px 6px; gap: 6px; }
+  .msg-body { padding: 8px 12px; font-size: 13px; }
+  .msg-actions { padding: 6px 12px; }
+
+  /* AdBlue */
+  .adblue-form { gap: 6px; }
+  .adblue-form input[type=date] { width: 110px; }
+  .adblue-form input[type=number] { width: 75px; }
+
+  /* Pneus : tableau récapitulatif */
+  #pneu-recap-tbody td { font-size: 11px; padding: 5px 6px; }
+
+  /* Kilométrage SVG : scroll horizontal déjà géré */
+  #km-graphique { overflow-x: auto; }
+}
+
+/* ── 412px : Galaxy S20 et similaires ─────────────────────── */
+@media (max-width: 412px) {
+
+  .navbar { gap: 5px; padding: 0 8px; }
+  .navbar-logo { font-size: 16px; }
+  .navbar-title { font-size: 10px; }
+  #navbar-maint { padding: 2px 5px; }
+  #navbar-maint-date { font-size: 12px; }
+
+  .tab-btn { padding: 0 9px; font-size: 11px; height: 38px; }
+
+  .summary-grid { gap: 6px; }
+  .summary-card .num { font-size: 22px; }
+  .summary-card .lbl { font-size: 10px; }
+
+  .veh-row { font-size: 11px; }
+  .form-card h3 { font-size: 14px; }
+
+  th, td { padding: 6px 7px; font-size: 11px; }
+
+  .alerte-text h4 { font-size: 12px; }
+  .alerte-text p { font-size: 11px; }
+}
+
+/* ── 320px : iPhone SE ────────────────────────────────────── */
+@media (max-width: 320px) {
+
+  :root { --navbar-h: 48px; }
+
+  .navbar { gap: 4px; padding: 0 6px; }
+  .navbar-logo { font-size: 14px; }
+  .navbar-title { display: none; }          /* masquer titre sur très petit écran */
+  .navbar-role { display: none; }           /* masquer le rôle */
+  #navbar-maint { padding: 1px 4px; }
+  #navbar-maint-date { font-size: 11px; }
+  #navbar-maint-jours { font-size: 9px; }
+
+  .tab-btn { padding: 0 8px; font-size: 10px; height: 36px; }
+
+  .content { padding: 8px; }
+
+  .summary-grid { grid-template-columns: repeat(2, 1fr); gap: 5px; }
+  .summary-card { padding: 8px 6px; }
+  .summary-card .num { font-size: 20px; }
+  .summary-card .lbl { font-size: 9px; }
+
+  .form-card { padding: 10px; }
+  .btn { padding: 7px 10px; font-size: 12px; }
+  .btn-sm { padding: 4px 7px; font-size: 10px; }
+
+  th, td { padding: 5px 6px; font-size: 10px; }
+
+  .modal { padding: 12px; }
+  .modal h2 { font-size: 15px; }
+}
+
+/* ── Utilitaires mobile universels ────────────────────────── */
+@media (hover: none) {
+  /* Sur mobile, désactiver les effets hover qui ne font rien au toucher */
+  .btn:hover { background: var(--blanc); }
+  .btn.primary:hover { background: var(--rouge); border-color: var(--rouge); }
+  .tab-btn:hover:not(.active) { background: none; }
+  .summary-card:hover { transform: none; box-shadow: var(--ombre); }
+}
+
+/* Éviter le zoom iOS sur les champs input (font-size < 16px) */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: 16px !important; }
 }
 </style>
 </head>
