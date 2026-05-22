@@ -1843,6 +1843,8 @@ const VEHICULES_DATA = [
     extincteur_valid: null,
     // Élévateur/rampe (non concerné)
     equipement: null, recht_date: null, recht_motif: null,
+    assurance_valid: '2027-01-31',
+    pression_av: '3.0', pression_ar: '3.0',
     remarques: 'RV Culot 7h30 le 27-04 pneus H pour pneus Eté'
   },
   {
@@ -1860,6 +1862,8 @@ const VEHICULES_DATA = [
     carte_total_code: '0633', carte_total_valid: '2029-03-25',
     spw_valid: null, extincteur_valid: null,
     equipement: 'Élévateur', recht_date: '2025-02-26', recht_motif: 'Mise en service / transfert de Recht',
+    assurance_valid: '2027-01-31',
+    pression_av: '3.5', pression_ar: '3.5',
     remarques: 'Roule déjà avec pneus été depuis la livraison'
   },
   {
@@ -1877,6 +1881,8 @@ const VEHICULES_DATA = [
     carte_total_code: '7912', carte_total_valid: '2028-04-25',
     spw_valid: null, extincteur_valid: null,
     equipement: 'Élévateur', recht_date: '2025-02-26', recht_motif: 'Contrôle périodique',
+    assurance_valid: '2027-01-31',
+    pression_av: '3.2', pression_ar: '3.5',
     remarques: '2 nouveaux pneus "été" à prévoir pour l\'AV'
   },
   {
@@ -1894,6 +1900,8 @@ const VEHICULES_DATA = [
     carte_total_code: '3210', carte_total_valid: '2028-04-25',
     spw_valid: null, extincteur_valid: null,
     equipement: 'Élévateur', recht_date: '2021-11-09', recht_motif: 'Contrôle périodique',
+    assurance_valid: '2027-01-31',
+    pression_av: '3.2', pression_ar: '3.5',
     remarques: ''
   },
   {
@@ -1911,6 +1919,8 @@ const VEHICULES_DATA = [
     carte_total_code: '0910', carte_total_valid: null,
     spw_valid: null, extincteur_valid: null,
     equipement: 'Élévateur', recht_date: '2026-03-10', recht_motif: 'Mise en service / transfert de Recht',
+    assurance_valid: '2027-01-31',
+    pression_av: '3.5', pression_ar: '3.5',
     remarques: 'Arrivée de Recht le 10-03. Roule avec pneus été'
   },
   {
@@ -1928,6 +1938,8 @@ const VEHICULES_DATA = [
     carte_total_code: '6004', carte_total_valid: '2029-03-25',
     spw_valid: null, extincteur_valid: null,
     equipement: null, recht_date: null, recht_motif: null,
+    assurance_valid: '2027-01-31',
+    pression_av: '3.0', pression_ar: '3.0',
     remarques: 'ARD s\'use extérieur. Pneus hiver à user en été — nouveaux pneus neige à prévoir'
   },
   {
@@ -1945,6 +1957,8 @@ const VEHICULES_DATA = [
     carte_total_code: '0895', carte_total_valid: '2029-03-25',
     spw_valid: null, extincteur_valid: null,
     equipement: 'Rampe', recht_date: '2023-06-05', recht_motif: 'Contrôle périodique',
+    assurance_valid: '2027-01-31',
+    pression_av: '3.2', pression_ar: '3.2',
     remarques: 'ARD s\'use extérieur. 3 nouveaux pneus été + roue de secours utilisée'
   },
   {
@@ -1962,6 +1976,8 @@ const VEHICULES_DATA = [
     carte_total_code: '0527', carte_total_valid: '2029-03-25',
     spw_valid: null, extincteur_valid: null,
     equipement: 'Rampe', recht_date: '2024-10-23', recht_motif: 'Mise en service',
+    assurance_valid: '2027-01-31',
+    pression_av: '2.6', pression_ar: '3.2',
     remarques: 'Roule avec pneus été. Pneus hiver à prévoir'
   },
   {
@@ -1979,6 +1995,8 @@ const VEHICULES_DATA = [
     carte_total_code: '3302', carte_total_valid: null,
     spw_valid: null, extincteur_valid: null,
     equipement: null, recht_date: null, recht_motif: null,
+    assurance_valid: '2027-01-31',
+    pression_av: '3.5', pression_ar: '3.5',
     remarques: 'Roule avec pneus 4 saisons (Vredestein Comtrac) — jauge huile moteur cassée'
   }
 ];
@@ -3420,6 +3438,22 @@ function buildAlertes() {
         titre:`Extincteur à renouveler — ${v.immat}`,
         detail:`Expire le ${formatDate(v.extincteur_valid)} (dans ${jExt} jours).` });
     }
+
+    // ── Assurance ─────────────────────────────────────────────
+    const jAss = daysUntil(v.assurance_valid);
+    if (jAss !== null && jAss < 0) {
+      alertes.push({ level:'urgent', icon:'🛡', vehId:null, typeRV:null,
+        titre:`Assurance expirée — ${v.marque} ${v.immat}`,
+        detail:`Assurance expirée depuis ${Math.abs(jAss)} jours !` });
+    } else if (jAss !== null && jAss <= 30) {
+      alertes.push({ level:'urgent', icon:'🛡', vehId:null, typeRV:null,
+        titre:`Assurance urgente — ${v.immat}`,
+        detail:`Assurance expire le ${formatDate(v.assurance_valid)} (dans ${jAss} jour${jAss>1?'s':''}).` });
+    } else if (jAss !== null && jAss <= 90) {
+      alertes.push({ level:'warn', icon:'🛡', vehId:null, typeRV:null,
+        titre:`Assurance à renouveler — ${v.immat}`,
+        detail:`Expire le ${formatDate(v.assurance_valid)} (dans ${jAss} jours).` });
+    }
   });
 
   alertes.sort((a,b) => {
@@ -3710,6 +3744,18 @@ function openVehDetail(id) {
   const adminEdit = estEditable ? `
     <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">⚙️ Données éditables (admin)</td></tr>
     <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">🛡 Assurance valable jusqu'au</td>
+      <td><input type="date" value="${v.assurance_valid||''}" onchange="updateVehField('${v.id}','assurance_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Pression AV (bar)</td>
+      <td><input type="text" value="${v.pression_av||''}" onchange="updateVehField('${v.id}','pression_av',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%" placeholder="ex: 3.0"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Pression AR (bar)</td>
+      <td><input type="text" value="${v.pression_ar||''}" onchange="updateVehField('${v.id}','pression_ar',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%" placeholder="ex: 3.0"></td>
+    </tr>
+    <tr>
       <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Code carte Total</td>
       <td><input type="text" value="${v.carte_total_code||''}" onchange="updateVehField('${v.id}','carte_total_code',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
     </tr>
@@ -3771,7 +3817,17 @@ function openVehDetail(id) {
   document.getElementById('modal-veh-body').innerHTML = `
     <table style="width:100%;border-collapse:collapse;">
 
-      <tr><td colspan="2" style="padding:10px 0 6px;font-weight:700;font-size:13px">💳 Carte carburant Total</td></tr>
+      <tr><td colspan="2" style="padding:10px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🛡 Assurance</td></tr>
+      ${(() => {
+        const aAlert = validiteAlert(v.assurance_valid);
+        return detailRow('Valable jusqu\'au', v.assurance_valid ? formatDate(v.assurance_valid) : '— (à compléter)', aAlert?.cls, aAlert?.txt);
+      })()}
+
+      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔴 Pression pneus recommandée</td></tr>
+      ${detailRow('Avant (bar)', v.pression_av ? v.pression_av + ' bar' : '—')}
+      ${detailRow('Arrière (bar)', v.pression_ar ? v.pression_ar + ' bar' : '—')}
+
+      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">💳 Carte carburant Total</td></tr>
       ${detailRow('Code carte', v.carte_total_code, ctAlert?.cls, ctAlert?.txt)}
       ${detailRow('Valable jusqu\'au', formatDate(v.carte_total_valid), ctAlert?.cls, ctAlert?.txt)}
 
@@ -5343,10 +5399,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let migrated = false;
     VEHICULES_DATA.forEach(ref => {
       const v = vehicules.find(x => x.id === ref.id);
-      if (v && v.garage !== ref.garage) {
-        v.garage = ref.garage; // ex: MIA → Albert (Gedinne) pour le 910
-        migrated = true;
-      }
+      if (!v) return;
+      if (v.garage !== ref.garage) { v.garage = ref.garage; migrated = true; }
+      // Ajouter les nouveaux champs s'ils manquent (assurance, pressions)
+      if (!v.assurance_valid) { v.assurance_valid = ref.assurance_valid; migrated = true; }
+      if (!v.pression_av)     { v.pression_av     = ref.pression_av;     migrated = true; }
+      if (!v.pression_ar)     { v.pression_ar     = ref.pression_ar;     migrated = true; }
     });
     if (migrated) saveAll(); // repousser la correction vers Firebase
 
