@@ -1523,26 +1523,49 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- PAGE HISTORIQUE -->
 <div id="page-historique" class="page">
   <h2 style="margin-bottom:14px">📋 Historique complet</h2>
-  <div class="export-bar">
+
+  <!-- Filtres globaux -->
+  <div class="export-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
     <select id="hist-filter-veh" onchange="renderHistorique()">
       <option value="">Tous les véhicules</option>
     </select>
     <select id="hist-filter-type" onchange="renderHistorique()">
       <option value="">Tous les types</option>
       <option value="maintenance">Maintenances</option>
-      <option value="ct">Contrôles techniques</option>
-      <option value="garage">Entretiens garage</option>
-      <option value="rv">Rendez-vous</option>
+      <option value="ct">CT / RV enregistrés</option>
+      <option value="rv">Rendez-vous planifiés</option>
       <option value="adblue">AdBlue</option>
       <option value="carwash">Car Wash</option>
     </select>
     <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Km</th><th>Détails</th><th>Actions</th></tr></thead>
-      <tbody id="hist-tbody"></tbody>
-    </table>
+
+  <!-- Vue détaillée maintenances (visible quand filtre = maintenance) -->
+  <div id="hist-maint-detail" style="display:none">
+    <div class="form-card" style="padding:12px 16px;margin-bottom:12px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0;flex:1;min-width:120px">
+          <label>Du</label>
+          <input type="date" id="hist-date-debut" onchange="renderHistorique()" />
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:120px">
+          <label>Au</label>
+          <input type="date" id="hist-date-fin" onchange="renderHistorique()" />
+        </div>
+        <button class="btn btn-sm" onclick="resetDatesFiltres()">✕ Effacer dates</button>
+      </div>
+    </div>
+    <div id="hist-maint-cards"></div>
+  </div>
+
+  <!-- Vue tableau standard (tous les autres types) -->
+  <div id="hist-table-view">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Km</th><th>Détails</th><th>Actions</th></tr></thead>
+        <tbody id="hist-tbody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -4928,10 +4951,19 @@ function quickEdit(id) {
 // ============================================================
 // HISTORIQUE
 // ============================================================
-function renderHistorique() {
-  const filterVeh = document.getElementById('hist-filter-veh')?.value || '';
-  const filterType = document.getElementById('hist-filter-type')?.value || '';
+function resetDatesFiltres() {
+  const d = document.getElementById('hist-date-debut'); if(d) d.value='';
+  const f = document.getElementById('hist-date-fin');   if(f) f.value='';
+  renderHistorique();
+}
 
+function renderHistorique() {
+  const filterVeh  = document.getElementById('hist-filter-veh')?.value  || '';
+  const filterType = document.getElementById('hist-filter-type')?.value || '';
+  const dateDebut  = document.getElementById('hist-date-debut')?.value  || '';
+  const dateFin    = document.getElementById('hist-date-fin')?.value    || '';
+
+  // Peupler le select véhicules une seule fois
   const sel = document.getElementById('hist-filter-veh');
   if (sel && sel.options.length <= 1) {
     ORDRE_VEHICULES.forEach(id => {
@@ -4943,25 +4975,26 @@ function renderHistorique() {
     });
   }
 
+  // Afficher/masquer la vue maintenance détaillée vs tableau général
+  const isMaint = filterType === 'maintenance';
+  document.getElementById('hist-maint-detail').style.display = isMaint ? '' : 'none';
+  document.getElementById('hist-table-view').style.display   = isMaint ? 'none' : '';
+
+  if (isMaint) {
+    renderHistMaintDetail(filterVeh, dateDebut, dateFin);
+    return;
+  }
+
+  // ── Vue tableau général ────────────────────────────────────
   let rows = [];
 
-  maintenances.forEach(m => {
-    if (filterType && filterType !== 'maintenance') return;
-    if (filterVeh && m.vehId !== filterVeh) return;
-    const v = vehicules.find(x => x.id === m.vehId);
-    const detail = [m.rem, m.ext, m.cw === 'oui' ? `CW ${m.cwLieu||''}` : ''].filter(Boolean).join(' — ') || (m.lg ? `LG: ${m.lg}` : '—');
-    rows.push({ date: m.date, veh: v ? v.marque + ' ' + v.immat : m.vehId, type:'Maintenance', km: m.km, detail, srcType:'maintenance', srcId: m.id });
-  });
-
   ctEvents.forEach(c => {
-    if (filterType && filterType !== c.type && filterType !== 'ct' && filterType !== 'garage') {
-      if (filterType !== c.type) return;
-    }
+    if (filterType && filterType !== 'ct') return;
     if (filterVeh && c.vehId !== filterVeh) return;
     const v = vehicules.find(x => x.id === c.vehId);
     const typeLabel = CT_TYPE_LABELS?.[c.type] || (c.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage');
     const heureStr = c.heure ? ` ${c.heure}` : '';
-    rows.push({ date: c.date + heureStr, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: typeLabel, km: c.km, detail: (c.result || '') + (c.rem ? ' — ' + c.rem : ''), srcType:'ct', srcId: c.id });
+    rows.push({ date: c.date + heureStr, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: typeLabel, km: c.km, detail: (c.result||'')+(c.rem?' — '+c.rem:''), srcType:'ct', srcId: c.id });
   });
 
   rendezvous.forEach(r => {
@@ -4978,7 +5011,7 @@ function renderHistorique() {
     if (filterType && filterType !== 'adblue') return;
     if (filterVeh && a.vehId !== filterVeh) return;
     const v = vehicules.find(x => x.id === a.vehId);
-    rows.push({ date: a.date, veh: v ? v.marque + ' ' + v.immat : a.vehId, type: '💧 AdBlue', km: a.km, detail: `${a.litre.toFixed(2)} L${a.source === 'maintenance' ? ' (via maintenance)' : ''}`, srcType:'adblue', srcId: a.id });
+    rows.push({ date: a.date, veh: v ? v.marque + ' ' + v.immat : a.vehId, type: '💧 AdBlue', km: a.km, detail: `${a.litre.toFixed(2)} L${a.source === 'maintenance' ? ' (via maint.)' : ''}`, srcType:'adblue', srcId: a.id });
   });
 
   carwashes.forEach(c => {
@@ -4988,23 +5021,121 @@ function renderHistorique() {
     rows.push({ date: c.date, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: '🚿 Car Wash', km: null, detail: `${c.lieu} — ${c.montant ? Number(c.montant).toFixed(2) + ' €' : '—'}`, srcType:'carwash', srcId: c.id });
   });
 
+  // Si aucun filtre de type → ajouter aussi les maintenances en résumé
+  if (!filterType) {
+    maintenances.forEach(m => {
+      if (filterVeh && m.vehId !== filterVeh) return;
+      const v = vehicules.find(x => x.id === m.vehId);
+      const detail = [m.rem, m.ext, m.cw === 'oui' ? `CW ${m.cwLieu||''}` : ''].filter(Boolean).join(' — ') || '—';
+      rows.push({ date: m.date, veh: v ? v.marque + ' ' + v.immat : m.vehId, type:'Maintenance', km: m.km, detail, srcType:'maintenance', srcId: m.id });
+    });
+  }
+
   rows.sort((a,b) => b.date.localeCompare(a.date));
 
   const adminBtns = (srcType, srcId) => isAdmin ? `
     <button class="btn btn-sm" onclick="editHistItem('${srcType}',${srcId})" title="Modifier">✏️</button>
-    <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteHistItem('${srcType}',${srcId})" title="Supprimer">✕</button>
-  ` : '';
+    <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteHistItem('${srcType}',${srcId})" title="Supprimer">✕</button>` : '';
 
   document.getElementById('hist-tbody').innerHTML = rows.length
     ? rows.map(r => `<tr>
-        <td style="white-space:nowrap">${formatDate(r.date.split(' ')[0])}${r.date.includes(' ') ? ' ' + r.date.split(' ')[1] : ''}</td>
+        <td style="white-space:nowrap">${formatDate(r.date.split(' ')[0])}${r.date.includes(' ') ? ' '+r.date.split(' ')[1] : ''}</td>
         <td style="font-size:12px">${r.veh}</td>
         <td><span class="badge info" style="font-size:10px;white-space:nowrap">${r.type}</span></td>
-        <td>${r.km ? parseInt(r.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
-        <td style="font-size:12px;max-width:200px">${r.detail || '—'}</td>
-        <td style="white-space:nowrap">${adminBtns(r.srcType, r.srcId)}</td>
+        <td>${r.km ? parseInt(r.km).toLocaleString('fr-BE')+' km' : '—'}</td>
+        <td style="font-size:12px;max-width:200px">${r.detail||'—'}</td>
+        <td style="white-space:nowrap">${adminBtns(r.srcType,r.srcId)}</td>
       </tr>`).join('')
     : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée trouvée</td></tr>';
+}
+
+/* Vue détaillée maintenances : une carte par maintenance avec tous les champs */
+function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
+  const container = document.getElementById('hist-maint-cards');
+  if (!container) return;
+
+  let mList = [...maintenances];
+  if (filterVeh) mList = mList.filter(m => m.vehId === filterVeh);
+  if (dateDebut) mList = mList.filter(m => m.date >= dateDebut);
+  if (dateFin)   mList = mList.filter(m => m.date <= dateFin);
+  mList.sort((a,b) => b.date.localeCompare(a.date));
+
+  if (!mList.length) {
+    container.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucune maintenance trouvée pour ces critères.</p>';
+    return;
+  }
+
+  const champs = [
+    ['lg',   '💧 Lave-glace'],
+    ['hm',   '🛢 Huile moteur'],
+    ['hf',   '🔴 Huile frein'],
+    ['lr',   '🌡 Refroidissement'],
+    ['ecl',  '💡 Éclairage'],
+    ['pneus','🛞 Pneus'],
+    ['ext',  '🚗 Extérieur'],
+  ];
+
+  const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+
+  container.innerHTML = mList.map(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    const vNom = v ? `${v.marque} — <span style="font-family:monospace;font-size:11px;background:var(--texte);color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span>` : m.vehId;
+
+    // Champs principaux
+    const champsHtml = champs
+      .filter(([key]) => m[key])
+      .map(([key, lbl]) => `
+        <div style="display:flex;gap:6px;padding:4px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px">
+          <span style="min-width:130px;color:var(--texte-sec)">${lbl}</span>
+          <span style="font-weight:500">${m[key]}</span>
+        </div>`).join('');
+
+    // Car Wash
+    const cwHtml = m.cw === 'oui'
+      ? `<div style="display:flex;gap:6px;padding:4px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px">
+          <span style="min-width:130px;color:var(--texte-sec)">🚿 Car Wash</span>
+          <span style="font-weight:500">Oui — ${m.cwLieu||''}${m.cwMontant ? ' — ' + Number(m.cwMontant).toFixed(2) + ' €' : ''}</span>
+        </div>` : '';
+
+    // AdBlue
+    const abHtml = m.adblue
+      ? `<div style="display:flex;gap:6px;padding:4px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px">
+          <span style="min-width:130px;color:var(--bleu)">💧 AdBlue</span>
+          <span style="font-weight:500;color:var(--bleu)">${m.adblue} L</span>
+        </div>` : '';
+
+    // Remarques
+    const remHtml = m.rem
+      ? `<div style="margin-top:6px;padding:6px 10px;background:var(--orange-clair);border-radius:6px;font-size:13px">
+          📝 ${m.rem}
+        </div>` : '';
+
+    // Photos
+    const photos = photosLS[m.id] || m.photos || [];
+    const photosHtml = photos.length
+      ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(p =>
+          `<img src="${p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="window.open('${p.data}','_blank')" />`).join('')}</div>`
+      : '';
+
+    const adminBtns = isAdmin
+      ? `<div style="display:flex;gap:6px;margin-top:10px">
+          <button class="btn btn-sm" onclick="editHistItem('maintenance',${m.id})">✏️ Modifier</button>
+          <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteHistItem('maintenance',${m.id})">🗑 Supprimer</button>
+        </div>` : '';
+
+    return `<div class="form-card" style="margin-bottom:10px;padding:12px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:700">${vNom}</div>
+          <div style="font-size:12px;color:var(--texte-sec)">📅 ${formatDate(m.date)} ${m.km ? '— ' + parseInt(m.km).toLocaleString('fr-BE') + ' km' : ''}</div>
+        </div>
+        <span class="badge info" style="font-size:11px">Maintenance</span>
+      </div>
+      ${champsHtml}${cwHtml}${abHtml}
+      ${remHtml}${photosHtml}
+      ${adminBtns}
+    </div>`;
+  }).join('');
 }
 
 /* Supprime un élément de l'historique */
