@@ -3,6 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#c0392b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MCR Opont">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="manifest" href="./manifest.json">
 <title>MCR Opont — Gestion de Flotte v1.5.0</title>
 
 <!-- Firebase SDK compat (plus fiable que les modules ESM) -->
@@ -752,7 +760,14 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- NAVBAR -->
 <div class="navbar">
-  <div class="navbar-logo">🏥 MCR</div>
+  <div class="navbar-logo">
+    <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="15" fill="#fff"/>
+      <circle cx="16" cy="16" r="15" fill="none" stroke="#dc241f" stroke-width="2"/>
+      <rect x="13" y="7" width="6" height="18" rx="1" fill="#dc241f"/>
+      <rect x="7" y="13" width="18" height="6" rx="1" fill="#dc241f"/>
+    </svg>
+  </div>
   <div class="navbar-title">
     Maison Croix-Rouge — Opont
     <br><small style="opacity:0.7;font-size:11px">Gestion de flotte véhicules</small>
