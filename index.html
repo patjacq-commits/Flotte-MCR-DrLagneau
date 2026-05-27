@@ -505,6 +505,17 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .veh-card { position:relative; }
 
+/* CT à prendre : clignotant orange */
+@keyframes pulse-ct {
+  0%,100% { border-left-color: var(--orange); background: var(--orange-clair); }
+  50%      { border-left-color: #e67e22;       background: #fdebd0cc; box-shadow: 0 0 10px rgba(230,126,34,0.4); }
+}
+.alerte-ct-pulse {
+  animation: pulse-ct 1.5s ease infinite;
+  border-left-color: var(--orange) !important;
+  background: var(--orange-clair) !important;
+}
+
 /* ===== NAVBAR MAINT FLASH ===== */
 @keyframes flash-maint {
   0%,100% { background:rgba(255,255,255,0.18); transform:scale(1); }
@@ -2719,9 +2730,9 @@ function renderAdBlueTable() {
 function ctStatus(veh) {
   const j = daysUntil(veh.ct_valid);
   if (j === null) return { cls:'warn', txt:'Date CT inconnue' };
-  if (j < 0) return { cls:'urgent', txt:`EXPIRÉ (${Math.abs(j)}j)` };
-  if (j <= 30) return { cls:'urgent', txt:`Expire dans ${j}j` };
-  if (j <= 90) return { cls:'warn', txt:`Expire dans ${j}j` };
+  if (j < 0)    return { cls:'urgent', txt:`EXPIRÉ (${Math.abs(j)}j)` };
+  if (j <= 7)   return { cls:'urgent', txt:`Expire dans ${j}j !` };
+  if (j <= 30)  return { cls:'warn',   txt:`CT dans ${j}j` };
   return { cls:'ok', txt:`Valide ${j}j` };
 }
 
@@ -3345,7 +3356,8 @@ function buildAlertes() {
         titre:`🔴 CARTE ROUGE — ${v.marque} ${v.immat}`,
         detail:`CT refusé. Circulation autorisée jusqu'au ${formatDate(v.ct_carte_rouge_date)}${jCR !== null ? ` (encore ${Math.max(0,jCR)} jour${jCR>1?'s':''})` : ''}. RV de repassage obligatoire !` });
     } else if (rvCT) {
-      if (j !== null && j <= 60) {
+      // RV planifié + CT dans moins d'1 mois → montrer le RV planifié
+      if (j !== null && j <= 30) {
         alertes.push({ level:'rv', icon:'📅', vehId:v.id, typeRV:'ct', rv:rvCT,
           titre:`CT planifié — ${v.marque} ${v.immat}`,
           detail:`CT valable jusqu'au ${formatDate(v.ct_valid)}. RV le ${formatDate(rvCT.date)}${rvCT.heure ? ' à ' + rvCT.heure : ''}${rvCT.garage ? ' — ' + rvCT.garage : ''}.` });
@@ -3355,16 +3367,16 @@ function buildAlertes() {
         alertes.push({ level:'urgent', icon:'🚨', vehId:v.id, typeRV:'ct',
           titre:`CT expiré — ${v.marque} ${v.immat}`,
           detail:`CT expiré depuis ${Math.abs(j)} jours ! Action immédiate requise.` });
+      } else if (j !== null && j <= 7) {
+        // Moins d'une semaine : urgent critique
+        alertes.push({ level:'urgent', icon:'🚨', vehId:v.id, typeRV:'ct',
+          titre:`CT URGENT — ${v.marque} ${v.immat}`,
+          detail:`CT expire le ${formatDate(v.ct_valid)} — dans ${j} jour${j>1?'s':''} ! Prenez RV immédiatement.` });
       } else if (j !== null && j <= 30) {
-        // Moins de 30 jours : urgent + bouton Prendre RV
-        alertes.push({ level:'urgent', icon:'⚠️', vehId:v.id, typeRV:'ct',
-          titre:`CT urgent — ${v.marque} ${v.immat}`,
-          detail:`CT expire le ${formatDate(v.ct_valid)} (dans ${j} jour${j>1?'s':''}).` });
-      } else if (j !== null && j <= 60) {
-        // 31–60 jours : avertissement + bouton Prendre RV
-        alertes.push({ level:'warn', icon:'📅', vehId:v.id, typeRV:'ct',
-          titre:`CT à planifier — ${v.marque} ${v.immat}`,
-          detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} (dans ${j} jours). Prenez RV maintenant.` });
+        // 8–30 jours : warn orange clignotant — CT à prendre dans le mois
+        alertes.push({ level:'warn', icon:'🔶', vehId:v.id, typeRV:'ct', ctAPrendre:true,
+          titre:`CT à prendre — ${v.marque} ${v.immat}`,
+          detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} — ${j} jour${j>1?'s':''} restants. Planifiez le RV à Bièvre.` });
       }
     }
 
@@ -3524,7 +3536,9 @@ function renderAlerte(a) {
   const btnRV = (isAdmin && a.vehId)
     ? `<button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 Prendre RV</button>`
     : '';
-  return `<div class="alerte-item ${a.level}">
+  // CT à prendre dans le mois → classe clignotante orange
+  const pulseClass = a.ctAPrendre ? 'alerte-ct-pulse' : a.level;
+  return `<div class="alerte-item ${pulseClass}">
     <div class="alerte-icon">${a.icon}</div>
     <div class="alerte-text" style="flex:1"><h4>${a.titre}</h4><p>${a.detail}</p></div>
     ${btnRV}
