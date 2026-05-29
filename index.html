@@ -2053,6 +2053,7 @@ let carwashes     = window._fbData_carwashes      || JSON.parse(localStorage.get
 let rechargesCle  = window._fbData_rechargesCle   || JSON.parse(localStorage.getItem('mcr_recharges_cle')|| '[]');
 let permutations  = window._fbData_permutations   || JSON.parse(localStorage.getItem('mcr_permutations') || '[]');
 let messagesChauf = window._fbData_messagesChauf  || JSON.parse(localStorage.getItem('mcr_chauf')        || '[]');
+let infosVehicules = JSON.parse(localStorage.getItem('mcr_infos_veh') || '{}');
 
 // Expose les variables au module Firebase (listeners temps réel)
 window.maintenances   = maintenances;
@@ -2105,6 +2106,7 @@ async function saveAll() {
   localStorage.setItem('mcr_recharges_cle', JSON.stringify(rechargesCle));
   localStorage.setItem('mcr_permutations',  JSON.stringify(permutations));
   localStorage.setItem('mcr_chauf',         JSON.stringify(messagesChauf));
+  localStorage.setItem('mcr_infos_veh',     JSON.stringify(infosVehicules));
 
   // Firebase (cloud, synchronisé entre appareils)
   if (window._fb) {
@@ -2946,12 +2948,59 @@ function renderAccueil() {
       </div>`;
   }
 
-  // Alertes à surveiller APRÈS les RV
+  // Alertes à surveiller — scindées par catégories (uniquement celles présentes)
   if (alertesSurveiller.length) {
-    const htmlSurveiller = alertesSurveiller.map(a => renderAlerte(a)).join('');
+    const CATEGORIES = [
+      { key:'ct',         label:'🏥 Contrôle Technique' },
+      { key:'entretien',  label:'🔧 Entretien garage' },
+      { key:'extincteur', label:'🧯 Extincteur' },
+      { key:'assurance',  label:'🛡 Assurance' },
+      { key:'spw',        label:'📋 Vignette SPW' },
+      { key:undefined,    label:'⚠️ Autres' },  // sans catégorie
+    ];
+
+    let htmlSurveiller = '';
+    CATEGORIES.forEach(cat => {
+      const items = cat.key === undefined
+        ? alertesSurveiller.filter(a => !a.category)
+        : alertesSurveiller.filter(a => a.category === cat.key);
+      if (!items.length) return; // catégorie vide → masquée
+      htmlSurveiller += `
+        <div style="margin-bottom:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;
+            letter-spacing:0.5px;margin-bottom:6px;padding:4px 8px;background:var(--gris-clair);
+            border-radius:4px">${cat.label}</div>
+          <div class="alertes-list">${items.map(a => renderAlerte(a)).join('')}</div>
+        </div>`;
+    });
+
     document.getElementById('alertes-dashboard').innerHTML +=
-      `<div style="margin-top:14px"><h3 style="margin-bottom:12px">⚠️ À surveiller</h3><div class="alertes-list">${htmlSurveiller}</div></div>`;
+      `<div style="margin-top:14px"><h3 style="margin-bottom:10px">⚠️ À surveiller</h3>${htmlSurveiller}</div>`;
   }
+
+  // ── Bloc Infos véhicules ──────────────────────────────────
+  const infosActives = getInfosActives();
+  if (infosActives.length) {
+    const infosHtml = infosActives.map(info => {
+      const v = vehicules.find(x => x.id === info.vehId);
+      const vNom = v ? `${v.marque} ${v.immat}` : info.vehId;
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 14px;
+        border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
+        <div style="font-size:18px">ℹ️</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;color:var(--bleu)">${vNom}</div>
+          <div style="font-size:13px">${info.texte}</div>
+          <div style="font-size:11px;color:var(--texte-sec);margin-top:2px">Ajouté le ${formatDate(info.dateAjout)}</div>
+        </div>
+        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+          onclick="supprimerInfoVeh('${info.vehId}')">✕</button>` : ''}
+      </div>`;
+    }).join('');
+    document.getElementById('alertes-dashboard').innerHTML +=
+      `<div style="margin-top:14px">
+        <h3 style="margin-bottom:8px">ℹ️ Infos véhicules</h3>
+        <div class="form-card" style="padding:0;overflow:hidden">${infosHtml}</div>
+      </div>`;
 
   // ── Tableau km parcourus entre 2 maintenances (sans la date de prochaine maint.) ─
   const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
@@ -3300,6 +3349,62 @@ function programmerTousLesRappels() {
       programmerRappel(fakeRV, veh);
     });
 }
+
+// ============================================================
+// INFOS VÉHICULES — remarques temporaires avec expiration auto
+// ============================================================
+
+function getInfosActives() {
+  const now = Date.now();
+  const actives = [];
+  Object.entries(infosVehicules).forEach(([vehId, info]) => {
+    if (!info || !info.texte) return;
+    // Chercher une date dans le texte (formats JJ/MM/AAAA ou JJ-MM-AAAA)
+    const dateMatch = info.texte.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (dateMatch) {
+      const y = dateMatch[3].length === 4 ? dateMatch[3] : '20' + dateMatch[3];
+      const m = dateMatch[2].padStart(2,'0');
+      const d = dateMatch[1].padStart(2,'0');
+      const dateExp = new Date(`${y}-${m}-${d}`);
+      if (!isNaN(dateExp.getTime())) {
+        if (now > dateExp.getTime() + 12 * 3600000) return; // expirée 12h après
+      }
+    }
+    actives.push({ vehId, ...info });
+  });
+  return actives;
+}
+
+function sauvegarderInfoVeh(vehId, texte) {
+  if (!texte || !texte.trim()) {
+    delete infosVehicules[vehId];
+  } else {
+    infosVehicules[vehId] = { texte: texte.trim(), dateAjout: new Date().toISOString().slice(0,10) };
+  }
+  localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
+  renderAccueil();
+  toast(texte && texte.trim() ? 'Info enregistrée ✅' : 'Info supprimée');
+}
+
+function supprimerInfoVeh(vehId) {
+  delete infosVehicules[vehId];
+  localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
+  renderAccueil();
+  toast('Info supprimée');
+}
+
+function ouvrirInfoVeh(vehId) {
+  if (!isAdmin) { toast('Réservé aux administrateurs.'); return; }
+  const v = vehicules.find(x => x.id === vehId);
+  const info = infosVehicules[vehId];
+  const texteActuel = info ? info.texte : '';
+  openEditModal(`ℹ️ Info — ${v ? v.marque + ' ' + v.immat : vehId}`, [
+    { label:'Info / Remarque (ex: immobilisé jusqu\'au 15/06/2026)', type:'text', key:'texte', val: texteActuel }
+  ], (changes) => {
+    sauvegarderInfoVeh(vehId, changes.texte || '');
+  });
+}
+
 function updateTabAlertes() {
   const tabAlertes = document.querySelectorAll('.tab-btn')[2];
   if (!tabAlertes) return;
@@ -3353,29 +3458,29 @@ function buildAlertes() {
     // Carte rouge CT : CT refusé, valable max 15 jours belges (on stocke dans v.ct_carte_rouge_date)
     if (v.ct_carte_rouge_date) {
       const jCR = daysUntil(v.ct_carte_rouge_date);
-      alertes.push({ level:'urgent', icon:'🚨', vehId:v.id, typeRV:'ct', carteRouge:true,
+      alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct', carteRouge:true,
         titre:`🔴 CARTE ROUGE — ${v.marque} ${v.immat}`,
         detail:`CT refusé. Circulation autorisée jusqu'au ${formatDate(v.ct_carte_rouge_date)}${jCR !== null ? ` (encore ${Math.max(0,jCR)} jour${jCR>1?'s':''})` : ''}. RV de repassage obligatoire !` });
     } else if (rvCT) {
       // RV planifié + CT dans moins d'1 mois → montrer le RV planifié
       if (j !== null && j <= 30) {
-        alertes.push({ level:'rv', icon:'📅', vehId:v.id, typeRV:'ct', rv:rvCT,
+        alertes.push({ level:'rv', icon:'📅', category:'ct', vehId:v.id, typeRV:'ct', rv:rvCT,
           titre:`CT planifié — ${v.marque} ${v.immat}`,
           detail:`CT valable jusqu'au ${formatDate(v.ct_valid)}. RV le ${formatDate(rvCT.date)}${rvCT.heure ? ' à ' + rvCT.heure : ''}${rvCT.garage ? ' — ' + rvCT.garage : ''}.` });
       }
     } else {
       if (j !== null && j < 0) {
-        alertes.push({ level:'urgent', icon:'🚨', vehId:v.id, typeRV:'ct',
+        alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct',
           titre:`CT expiré — ${v.marque} ${v.immat}`,
           detail:`CT expiré depuis ${Math.abs(j)} jours ! Action immédiate requise.` });
       } else if (j !== null && j <= 7) {
         // Moins d'une semaine : urgent critique
-        alertes.push({ level:'urgent', icon:'🚨', vehId:v.id, typeRV:'ct',
+        alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct',
           titre:`CT URGENT — ${v.marque} ${v.immat}`,
           detail:`CT expire le ${formatDate(v.ct_valid)} — dans ${j} jour${j>1?'s':''} ! Prenez RV immédiatement.` });
       } else if (j !== null && j <= 30) {
         // 8–30 jours : warn orange clignotant — CT à prendre dans le mois
-        alertes.push({ level:'warn', icon:'🔶', vehId:v.id, typeRV:'ct', ctAPrendre:true,
+        alertes.push({ level:'warn', icon:'🔶', category:'ct', vehId:v.id, typeRV:'ct', ctAPrendre:true,
           titre:`CT à prendre — ${v.marque} ${v.immat}`,
           detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} — ${j} jour${j>1?'s':''} restants. Planifiez le RV à Bièvre.` });
       }
@@ -3404,18 +3509,18 @@ function buildAlertes() {
 
     if (rvGarage) {
       if (globalLevel !== 'ok') {
-        alertes.push({ level:'rv', icon:'🔧', vehId:v.id, typeRV:'garage', rv:rvGarage,
+        alertes.push({ level:'rv', icon:'🔧', category:'entretien', vehId:v.id, typeRV:'garage', rv:rvGarage,
           titre:`Entretien planifié — ${v.marque} ${v.immat}`,
           detail:`Prochain entretien à ${v.prochain_entretien_km.toLocaleString('fr-BE')} km (${reste >= 0 ? reste.toLocaleString('fr-BE') + ' km restants' : 'DÉPASSÉ'}). RV le ${formatDate(rvGarage.date)}${rvGarage.heure ? ' à ' + rvGarage.heure : ''} — ${rvGarage.garage || v.garage}.` });
       }
     } else {
       if (globalLevel === 'urgent') {
         const icon = reste < 0 ? '🔧' : '🔧';
-        alertes.push({ level:'urgent', icon, vehId:v.id, typeRV:'garage',
+        alertes.push({ level:'urgent', icon, category:'entretien', vehId:v.id, typeRV:'garage',
           titre:`Entretien urgent — ${v.marque} ${v.immat}`,
           detail: entretienDetail() });
       } else if (globalLevel === 'warn') {
-        alertes.push({ level:'warn', icon:'🔩', vehId:v.id, typeRV:'garage',
+        alertes.push({ level:'warn', icon:'🔩', category:'entretien', vehId:v.id, typeRV:'garage',
           titre:`Entretien à planifier — ${v.marque} ${v.immat}`,
           detail: entretienDetail() });
       }
@@ -3462,31 +3567,31 @@ function buildAlertes() {
     // ── Extincteur ────────────────────────────────────────────
     const jExt = daysUntil(v.extincteur_valid);
     if (jExt !== null && jExt < 0) {
-      alertes.push({ level:'urgent', icon:'🧯', vehId:null, typeRV:null,
+      alertes.push({ level:'warn', icon:'🧯', category:'extincteur', vehId:null, typeRV:null,
         titre:`Extincteur expiré — ${v.marque} ${v.immat}`,
         detail:`Extincteur expiré depuis ${Math.abs(jExt)} jours.` });
     } else if (jExt !== null && jExt <= 30) {
-      alertes.push({ level:'urgent', icon:'🧯', vehId:null, typeRV:null,
-        titre:`Extincteur urgent — ${v.immat}`,
-        detail:`Extincteur expire le ${formatDate(v.extincteur_valid)} (dans ${jExt} jour${jExt>1?'s':''}).` });
-    } else if (jExt !== null && jExt <= 90) {
-      alertes.push({ level:'warn', icon:'🧯', vehId:null, typeRV:null,
+      alertes.push({ level:'warn', icon:'🧯', category:'extincteur', vehId:null, typeRV:null,
         titre:`Extincteur à renouveler — ${v.immat}`,
+        detail:`Expire le ${formatDate(v.extincteur_valid)} (dans ${jExt} jour${jExt>1?'s':''}).` });
+    } else if (jExt !== null && jExt <= 90) {
+      alertes.push({ level:'warn', icon:'🧯', category:'extincteur', vehId:null, typeRV:null,
+        titre:`Extincteur à surveiller — ${v.immat}`,
         detail:`Expire le ${formatDate(v.extincteur_valid)} (dans ${jExt} jours).` });
     }
 
     // ── Assurance ─────────────────────────────────────────────
     const jAss = daysUntil(v.assurance_valid);
     if (jAss !== null && jAss < 0) {
-      alertes.push({ level:'urgent', icon:'🛡', vehId:null, typeRV:null,
+      alertes.push({ level:'warn', icon:'🛡', category:'assurance', vehId:null, typeRV:null,
         titre:`Assurance expirée — ${v.marque} ${v.immat}`,
         detail:`Assurance expirée depuis ${Math.abs(jAss)} jours !` });
     } else if (jAss !== null && jAss <= 30) {
-      alertes.push({ level:'urgent', icon:'🛡', vehId:null, typeRV:null,
+      alertes.push({ level:'warn', icon:'🛡', category:'assurance', vehId:null, typeRV:null,
         titre:`Assurance urgente — ${v.immat}`,
-        detail:`Assurance expire le ${formatDate(v.assurance_valid)} (dans ${jAss} jour${jAss>1?'s':''}).` });
+        detail:`Expire le ${formatDate(v.assurance_valid)} (dans ${jAss} jour${jAss>1?'s':''}).` });
     } else if (jAss !== null && jAss <= 90) {
-      alertes.push({ level:'warn', icon:'🛡', vehId:null, typeRV:null,
+      alertes.push({ level:'warn', icon:'🛡', category:'assurance', vehId:null, typeRV:null,
         titre:`Assurance à renouveler — ${v.immat}`,
         detail:`Expire le ${formatDate(v.assurance_valid)} (dans ${jAss} jours).` });
     }
@@ -3681,10 +3786,21 @@ function renderVehicules() {
         <div class="veh-row"><span class="label">Mise en circulation</span><span class="val">${formatDate(v.mise_en_circulation)}</span></div>
         ${abRow}
         ${cwRow}
+        ${(() => {
+          const info = infosVehicules[v.id];
+          if (!info || !info.texte) return '';
+          const actives = getInfosActives().find(i => i.vehId === v.id);
+          if (!actives) return '';
+          return `<div class="veh-row" style="background:var(--bleu-clair);border-radius:6px;padding:5px 8px;margin-top:4px">
+            <span class="label" style="color:var(--bleu)">ℹ️ Info</span>
+            <span class="val" style="color:var(--bleu);font-size:12px">${info.texte}</span>
+          </div>`;
+        })()}
       </div>
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
         ${isAdmin ? `<button class="btn btn-sm primary" onclick="quickEdit('${v.id}')">✏️ Modifier</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu-clair)" onclick="ouvrirInfoVeh('${v.id}')">ℹ️ Info</button>` : ''}
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule('${v.id}')">🗑</button>` : ''}
       </div>
     </div>`;
