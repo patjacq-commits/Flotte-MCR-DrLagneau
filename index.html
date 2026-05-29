@@ -2884,6 +2884,10 @@ function renderAccueil() {
 
   const nbInfos = getInfosActives().length;
 
+  const todayStr2 = new Date().toISOString().slice(0,10);
+  const nbRVprog  = [...rendezvous, ...ctEvents]
+    .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= todayStr2).length;
+
   document.getElementById('summary-grid').innerHTML = `
     <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
       <div class="num">${vehicules.length}</div><div class="lbl">Véhicules actifs</div>
