@@ -2933,6 +2933,36 @@ function renderAccueil() {
   document.getElementById('alertes-dashboard').innerHTML =
     `<h3 style="margin-bottom:12px">🔔 Alertes urgentes</h3><div class="alertes-list">${htmlUrgentes}</div>`;
 
+  // ── Infos spéciales — juste après les alertes urgentes ───
+  const infosActives = getInfosActives();
+  if (infosActives.length) {
+    const infosHtml = infosActives.map(info => {
+      const v = vehicules.find(x => x.id === info.vehId);
+      const vNom = v ? `${v.marque} ${v.immat}` : info.vehId;
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;
+        border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap;
+        animation:pulse-info 2.5s ease infinite">
+        <div style="font-size:20px;flex-shrink:0">ℹ️</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;color:var(--bleu)">${vNom}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--bleu)">${info.texte}</div>
+          <div style="font-size:11px;color:var(--texte-sec);margin-top:2px">Ajouté le ${formatDate(info.dateAjout)}</div>
+        </div>
+        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+          onclick="supprimerInfoVeh('${info.vehId}')">✕</button>` : ''}
+      </div>`;
+    }).join('');
+    document.getElementById('alertes-dashboard').innerHTML +=
+      `<div id="bloc-infos-veh" style="margin-top:14px">
+        <h3 style="margin-bottom:8px">ℹ️ Infos spéciales</h3>
+        <div class="form-card" style="padding:0;overflow:hidden">${infosHtml}</div>
+      </div>`;
+  } else {
+    // Garder l'ID même si vide (pour le scrollIntoView)
+    document.getElementById('alertes-dashboard').innerHTML +=
+      `<div id="bloc-infos-veh"></div>`;
+  }
+
   // ── 5 prochains RV — entre urgentes et à surveiller ──────
   const today = new Date().toISOString().slice(0,10);
   const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
@@ -3001,34 +3031,7 @@ function renderAccueil() {
       `<div style="margin-top:14px"><h3 style="margin-bottom:10px">⚠️ À surveiller</h3>${htmlSurveiller}</div>`;
   }
 
-  // ── Bloc Infos véhicules ──────────────────────────────────
-  const infosActives = getInfosActives();
-  if (infosActives.length) {
-    const infosHtml = infosActives.map(info => {
-      const v = vehicules.find(x => x.id === info.vehId);
-      const vNom = v ? `${v.marque} ${v.immat}` : info.vehId;
-      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;
-        border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap;
-        animation:pulse-info 2.5s ease infinite">
-        <div style="font-size:20px;flex-shrink:0">ℹ️</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:700;color:var(--bleu)">${vNom}</div>
-          <div style="font-size:14px;font-weight:700;color:var(--bleu)">${info.texte}</div>
-          <div style="font-size:11px;color:var(--texte-sec);margin-top:2px">Ajouté le ${formatDate(info.dateAjout)}</div>
-        </div>
-        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-          onclick="supprimerInfoVeh('${info.vehId}')">✕</button>` : ''}
-      </div>`;
-    }).join('');
-    document.getElementById('alertes-dashboard').innerHTML +=
-      `<div id="bloc-infos-veh" style="margin-top:14px">
-        <h3 style="margin-bottom:8px">ℹ️ Infos véhicules</h3>
-        <div class="form-card" style="padding:0;overflow:hidden">${infosHtml}</div>
-      </div>`;
-
-  } // fin if infosActives
-
-  // ── Tableau km parcourus entre 2 maintenances (sans la date de prochaine maint.) ─
+  // ── Tableau km parcourus entre 2 maintenances ─────────────
   const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
   let totalKmFlotte = 0;
   const BARS_MAX_KM = 4000;
@@ -3413,16 +3416,12 @@ function getInfosActives() {
   const actives = [];
   Object.entries(infosVehicules).forEach(([vehId, info]) => {
     if (!info || !info.texte) return;
-    // Chercher une date dans le texte (formats JJ/MM/AAAA ou JJ-MM-AAAA)
-    const dateMatch = info.texte.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    // Regex STRICTE : année 4 chiffres obligatoire
+    // Évite les faux positifs sur "2.6/3.2 bar", "27-04 pneus", etc.
+    const dateMatch = info.texte.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
     if (dateMatch) {
-      const y = dateMatch[3].length === 4 ? dateMatch[3] : '20' + dateMatch[3];
-      const m = dateMatch[2].padStart(2,'0');
-      const d = dateMatch[1].padStart(2,'0');
-      const dateExp = new Date(`${y}-${m}-${d}`);
-      if (!isNaN(dateExp.getTime())) {
-        if (now > dateExp.getTime() + 12 * 3600000) return; // expirée 12h après
-      }
+      const dateExp = new Date(`${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`);
+      if (!isNaN(dateExp.getTime()) && now > dateExp.getTime() + 12 * 3600000) return;
     }
     actives.push({ vehId, ...info });
   });
