@@ -1613,17 +1613,46 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- PAGE RAPPORTS -->
 <div id="page-rapports" class="page">
   <h2 style="margin-bottom:14px">📄 Rapports</h2>
+
+  <!-- Rapport maintenances -->
   <div class="form-card">
-    <h3>Export des données</h3>
-    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">Générez des rapports pour impression ou archivage.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <h3>🔧 Rapport maintenances</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
+      Sélectionnez un véhicule et/ou une période puis imprimez.
+    </p>
+    <div class="form-grid" style="margin-bottom:12px">
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="rpt-maint-veh">
+          <option value="">Tous les véhicules</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Du</label>
+        <input type="date" id="rpt-maint-debut" />
+      </div>
+      <div class="form-group">
+        <label>Au</label>
+        <input type="date" id="rpt-maint-fin" />
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" onclick="printRapportMaint()">🖨 Imprimer rapport maintenances</button>
+      <button class="btn" onclick="document.getElementById('rpt-maint-veh').value='';document.getElementById('rpt-maint-debut').value='';document.getElementById('rpt-maint-fin').value=''">✕ Effacer filtres</button>
+    </div>
+  </div>
+
+  <!-- Autres rapports -->
+  <div class="form-card">
+    <h3>📋 Autres rapports</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn primary" onclick="printReport('ct')">🖨 Rapport CT (tous)</button>
       <button class="btn" onclick="printReport('entretien')">🖨 Rapport entretiens</button>
-      <button class="btn" onclick="printReport('maintenance')">🖨 Rapport maintenances</button>
       <button class="btn" onclick="exportAllCSV()">📊 Export complet CSV</button>
     </div>
   </div>
 
+  <!-- Import -->
   <div class="form-card">
     <h3>Import de données</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">Importez un fichier CSV pour enrichir les données existantes.</p>
@@ -1631,7 +1660,6 @@ td.ok { color: var(--vert); font-weight: 600; }
       <label>Fichier CSV</label>
       <input type="file" id="import-file" accept=".csv" onchange="importCSV(event)">
     </div>
-    <p style="font-size:11px;color:var(--texte-sec);margin-top:8px">Format attendu : date, véhicule, type, km, détails</p>
   </div>
 </div>
 
@@ -2821,6 +2849,7 @@ function showPage(id, btn) {
   if (id === 'maintenance') populateMaintSelect();
   if (id === 'carwash') initCarWash();
   if (id === 'pneus')   initPneus();
+  if (id === 'rapports') initRapports();
   if (id === 'adblue')  initAdBlueOnglet();
   if (id === 'chauf') {
     initChauf();
@@ -5667,39 +5696,219 @@ function importCSV(event) {
 // ============================================================
 // RAPPORTS IMPRESSION
 // ============================================================
+// ============================================================
+// RAPPORTS — impression
+// ============================================================
+
+/* Peupler le select véhicules de l'onglet rapports */
+function initRapports() {
+  const sel = document.getElementById('rpt-maint-veh');
+  if (!sel || sel.options.length > 1) return;
+  ORDRE_VEHICULES.forEach(id => {
+    const v = vehicules.find(x => x.id === id);
+    if (!v) return;
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = v.marque + ' — ' + v.immat;
+    sel.appendChild(opt);
+  });
+}
+
+/* CSS commun pour les rapports imprimés */
+function cssRapport() {
+  return `
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #222; margin: 0; padding: 20px; }
+      h1 { font-size: 16px; color: #c0392b; margin-bottom: 4px; }
+      h2 { font-size: 13px; color: #333; margin: 18px 0 6px; border-bottom: 2px solid #c0392b; padding-bottom: 4px; }
+      .meta { font-size: 11px; color: #666; margin-bottom: 16px; }
+      .veh-header { background: #2c3e50; color: #fff; padding: 8px 12px; border-radius: 6px 6px 0 0; margin-top: 20px; font-size: 13px; font-weight: 700; }
+      .maint-card { border: 1px solid #ddd; border-radius: 0 0 6px 6px; margin-bottom: 16px; }
+      .maint-date { background: #ecf0f1; padding: 5px 12px; font-weight: 700; font-size: 12px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+      .maint-body { padding: 8px 12px; }
+      .champ-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 0.5px solid #f0f0f0; }
+      .champ-label { min-width: 140px; color: #666; font-size: 11px; }
+      .champ-val { font-weight: 600; font-size: 11px; }
+      .champ-val.ok { color: #27ae60; }
+      .champ-val.warn { color: #e67e22; }
+      .rem-box { background: #fef9e7; border-left: 3px solid #f39c12; padding: 5px 8px; margin-top: 6px; font-size: 11px; border-radius: 3px; }
+      table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+      th, td { border: 1px solid #ddd; padding: 5px 8px; text-align: left; font-size: 11px; }
+      th { background: #f0f0f0; font-weight: 700; }
+      .ok { color: #27ae60; } .warn { color: #e67e22; } .urgent { color: #e74c3c; }
+      .logo { color: #c0392b; font-size: 20px; }
+      .header-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+      @media print { body { padding: 10px; } .no-print { display: none; } }
+    </style>`;
+}
+
+/* En-tête commun des rapports */
+function headerRapport(titre, filtres) {
+  const d = new Date().toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  return `
+    <div class="header-bar">
+      <svg width="28" height="28" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc241f" stroke-width="2"/>
+        <rect x="13" y="7" width="6" height="18" rx="1" fill="#dc241f"/>
+        <rect x="7" y="13" width="18" height="6" rx="1" fill="#dc241f"/>
+      </svg>
+      <div>
+        <h1>Maison Croix-Rouge — Opont</h1>
+        <div class="meta">${titre} — Généré le ${d}${filtres ? ' — ' + filtres : ''}</div>
+      </div>
+    </div>`;
+}
+
+/* Rapport maintenances détaillé avec tous les champs */
+function printRapportMaint() {
+  const filtVeh  = document.getElementById('rpt-maint-veh')?.value || '';
+  const filtDeb  = document.getElementById('rpt-maint-debut')?.value || '';
+  const filtFin  = document.getElementById('rpt-maint-fin')?.value || '';
+
+  // Filtrer et trier
+  let mList = [...maintenances];
+  if (filtVeh) mList = mList.filter(m => m.vehId === filtVeh);
+  if (filtDeb) mList = mList.filter(m => m.date >= filtDeb);
+  if (filtFin) mList = mList.filter(m => m.date <= filtFin);
+  mList.sort((a,b) => a.date.localeCompare(b.date));
+
+  if (!mList.length) { toast('Aucune maintenance pour ces critères.'); return; }
+
+  // Grouper par véhicule
+  const parVeh = {};
+  mList.forEach(m => {
+    if (!parVeh[m.vehId]) parVeh[m.vehId] = [];
+    parVeh[m.vehId].push(m);
+  });
+
+  const filtreStr = [
+    filtVeh ? vehicules.find(v=>v.id===filtVeh)?.immat : 'Tous véhicules',
+    filtDeb ? 'du ' + formatDate(filtDeb) : '',
+    filtFin ? 'au ' + formatDate(filtFin) : '',
+  ].filter(Boolean).join(' ');
+
+  // Champs à afficher
+  const CHAMPS = [
+    { key:'lg',    label:'Lave-glace',        valOk:'OK' },
+    { key:'hm',    label:'Huile moteur',       valOk:'OK' },
+    { key:'hf',    label:'Huile de frein',     valOk:'OK' },
+    { key:'lr',    label:'Refroidissement',    valOk:'OK' },
+    { key:'ecl',   label:'Éclairage',          valOk:'OK' },
+    { key:'pneus', label:'Pneus',              valOk:'OK' },
+    { key:'ext',   label:'Extérieur',          valOk:'OK' },
+  ];
+
+  let body = headerRapport('Rapport Maintenances', filtreStr);
+
+  // Pour chaque véhicule, afficher ses maintenances
+  ORDRE_VEHICULES.forEach(vehId => {
+    if (!parVeh[vehId]) return;
+    const v = vehicules.find(x => x.id === vehId);
+    const vNom = v ? `${v.marque} — ${v.immat} (${v.type})` : vehId;
+
+    body += `<div class="veh-header">🚑 ${vNom}</div>`;
+    body += `<div class="maint-card">`;
+
+    parVeh[vehId].forEach((m, idx) => {
+      const kmStr = m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '—';
+      body += `<div class="maint-date">
+        <span>📅 ${formatDate(m.date)}</span>
+        <span>🔢 ${kmStr}</span>
+      </div>`;
+      body += `<div class="maint-body">`;
+
+      // Champs liquides / état
+      let hasChamps = false;
+      CHAMPS.forEach(c => {
+        if (!m[c.key]) return;
+        hasChamps = true;
+        const isOk = m[c.key] === c.valOk || m[c.key] === 'OK';
+        body += `<div class="champ-row">
+          <span class="champ-label">${c.label}</span>
+          <span class="champ-val ${isOk ? 'ok' : 'warn'}">${m[c.key]}</span>
+        </div>`;
+      });
+
+      // Car Wash
+      if (m.cw === 'oui') {
+        body += `<div class="champ-row">
+          <span class="champ-label">🚿 Car Wash</span>
+          <span class="champ-val">${m.cwLieu || ''}${m.cwMontant ? ' — ' + Number(m.cwMontant).toFixed(2) + ' €' : ''}</span>
+        </div>`;
+        hasChamps = true;
+      }
+
+      // AdBlue
+      if (m.adblue) {
+        body += `<div class="champ-row">
+          <span class="champ-label">💧 AdBlue</span>
+          <span class="champ-val" style="color:#2980b9">${m.adblue} L</span>
+        </div>`;
+        hasChamps = true;
+      }
+
+      if (!hasChamps) {
+        body += `<div class="champ-row"><span class="champ-label" style="color:#aaa">Aucun champ renseigné</span></div>`;
+      }
+
+      // Remarques
+      if (m.rem) {
+        body += `<div class="rem-box">📝 ${m.rem}</div>`;
+      }
+
+      body += `</div>`; // fin maint-body
+      // Séparateur entre maintenances sauf la dernière
+      if (idx < parVeh[vehId].length - 1) {
+        body += `<div style="border-top:1px solid #eee"></div>`;
+      }
+    });
+
+    body += `</div>`; // fin maint-card
+  });
+
+  // Résumé en bas
+  body += `<div style="margin-top:20px;border-top:2px solid #c0392b;padding-top:10px;font-size:11px;color:#666">
+    Total : <strong>${mList.length} maintenance(s)</strong> — 
+    ${Object.keys(parVeh).length} véhicule(s) — 
+    MCR Opont © ${new Date().getFullYear()}
+  </div>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport Maintenances MCR</title>${cssRapport()}</head><body>${body}</body></html>`);
+  w.document.close();
+  w.print();
+}
+
 function printReport(type) {
   const d = new Date().toLocaleDateString('fr-BE');
-  let content = `<html><head><meta charset="UTF-8"><title>MCR Rapport</title>
-  <style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f0f0f0}h1{font-size:16px}h2{font-size:14px;margin-top:20px}.ok{color:green}.warn{color:orange}.urgent{color:red}</style>
-  </head><body>`;
-  content += `<h1>MCR Opont — Rapport ${type === 'ct' ? 'Contrôles Techniques' : type === 'entretien' ? 'Entretiens Garage' : 'Maintenances'}</h1><p>Généré le ${d}</p>`;
+  let body = headerRapport(
+    type === 'ct' ? 'Rapport Contrôles Techniques' : 'Rapport Entretiens Garage',
+    null
+  );
 
   if (type === 'ct') {
-    content += `<table><tr><th>Véhicule</th><th>Immat</th><th>CT valable jusqu'au</th><th>Statut</th><th>Prochaine action</th></tr>`;
-    vehicules.forEach(v => {
+    body += `<table><tr><th>Véhicule</th><th>Immatriculation</th><th>CT valable jusqu'au</th><th>Statut</th><th>Garage</th></tr>`;
+    ORDRE_VEHICULES.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
       const ct = ctStatus(v);
-      content += `<tr><td>${v.marque}</td><td>${v.immat}</td><td>${formatDate(v.ct_valid)}</td><td class="${ct.cls}">${ct.txt}</td><td>${v.garage}</td></tr>`;
+      body += `<tr><td>${v.marque}</td><td><strong>${v.immat}</strong></td><td>${formatDate(v.ct_valid)}</td><td class="${ct.cls}">${ct.txt}</td><td>${v.garage}</td></tr>`;
     });
-    content += '</table>';
-  } else if (type === 'entretien') {
-    content += `<table><tr><th>Véhicule</th><th>Km actuel</th><th>Dernier entretien</th><th>Prochain à</th><th>Statut</th><th>Garage</th></tr>`;
-    vehicules.forEach(v => {
-      const ent = entretienStatus(v);
-      content += `<tr><td>${v.marque} ${v.immat}</td><td>${v.km.toLocaleString('fr-BE')}</td><td>${formatDate(v.dernier_entretien_date)}</td><td>${v.prochain_entretien_km.toLocaleString('fr-BE')}</td><td class="${ent.cls}">${ent.txt}</td><td>${v.garage}</td></tr>`;
-    });
-    content += '</table>';
+    body += '</table>';
   } else {
-    content += `<table><tr><th>Date</th><th>Véhicule</th><th>Km</th><th>Remarques</th></tr>`;
-    maintenances.slice(0,50).forEach(m => {
-      const v = vehicules.find(x => x.id === m.vehId);
-      content += `<tr><td>${formatDate(m.date)}</td><td>${v ? v.marque + ' ' + v.immat : m.vehId}</td><td>${m.km.toLocaleString('fr-BE')}</td><td>${m.rem || '—'}</td></tr>`;
+    body += `<table><tr><th>Véhicule</th><th>Km actuel</th><th>Dernier entretien</th><th>Prochain à (km)</th><th>Statut</th><th>Garage</th></tr>`;
+    ORDRE_VEHICULES.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
+      const ent = entretienStatus(v);
+      body += `<tr><td>${v.marque} <strong>${v.immat}</strong></td><td>${v.km.toLocaleString('fr-BE')}</td><td>${formatDate(v.dernier_entretien_date)}</td><td>${v.prochain_entretien_km?.toLocaleString('fr-BE') || '—'}</td><td class="${ent.cls}">${ent.txt}</td><td>${v.garage}</td></tr>`;
     });
-    content += '</table>';
+    body += '</table>';
   }
 
-  content += '</body></html>';
   const w = window.open('', '_blank');
-  w.document.write(content);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport MCR</title>${cssRapport()}</head><body>${body}</body></html>`);
   w.document.close();
   w.print();
 }
