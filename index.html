@@ -936,17 +936,17 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div class="form-grid">
       <div class="form-group">
         <label>Date de relevé</label>
-        <input type="date" id="maint-date" />
+        <input type="date" id="maint-date" onchange="sauvegarderBrouillon()" />
       </div>
       <div class="form-group">
         <label>Véhicule</label>
-        <select id="maint-veh"></select>
+        <select id="maint-veh" onchange="sauvegarderBrouillon()"></select>
       </div>
       <div class="form-group">
         <label>Kilométrage relevé</label>
         <div class="aide-recherche">
           <input type="number" id="maint-km" placeholder="ex: 72000"
-            oninput="aideKm()" onfocus="aideKm()" onblur="setTimeout(()=>fermerAide('aide-km'),200)" />
+            oninput="aideKm(); sauvegarderBrouillon()" onfocus="aideKm()" onblur="setTimeout(()=>fermerAide('aide-km'),200)" />
           <div class="aide-bulle" id="aide-km"></div>
         </div>
       </div>
@@ -1100,11 +1100,12 @@ td.ok { color: var(--vert); font-weight: 600; }
 
     <div class="form-group" style="margin-top:12px">
       <label>Remarques / anomalies</label>
-      <textarea id="maint-rem" placeholder="Décrire toute anomalie constatée..."></textarea>
+      <textarea id="maint-rem" placeholder="Décrire toute anomalie constatée..." onchange="sauvegarderBrouillon()"></textarea>
     </div>
-    <div style="margin-top:14px; display:flex; gap:10px;">
+    <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
       <button class="btn primary" onclick="saveMaintenance()">💾 Enregistrer</button>
       <button class="btn" onclick="clearMaintForm()">✕ Effacer</button>
+      <span id="maint-brouillon-indicator" style="display:none;font-size:12px;color:var(--vert);font-weight:600;padding:4px 10px;background:var(--vert-clair);border-radius:6px"></span>
     </div>
   </div>
   
@@ -4095,6 +4096,93 @@ function deleteRV(id) {
 // ============================================================
 // FORMULAIRE MAINTENANCE
 // ============================================================
+// ============================================================
+// BROUILLON MAINTENANCE — sauvegarde automatique
+// ============================================================
+const BROUILLON_KEY = 'mcr_maint_brouillon';
+
+const CHAMPS_MAINT = [
+  'maint-veh','maint-date','maint-km',
+  'maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus',
+  'maint-cw','maint-cw-lieu','maint-cw-montant',
+  'maint-adblue','maint-ext','maint-rem',
+  'maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom',
+  'maint-ecl-custom','maint-pneus-custom','maint-adblue-custom','maint-ext-custom',
+];
+
+/* Sauvegarde tous les champs du formulaire en localStorage */
+function sauvegarderBrouillon() {
+  const data = {};
+  CHAMPS_MAINT.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) data[id] = el.value;
+  });
+  // Champs display (visibilité CW, custom)
+  const cwLieu    = document.getElementById('maint-cw-lieu');
+  const cwMontant = document.getElementById('maint-cw-montant');
+  data['_cw_visible']     = cwLieu    ? cwLieu.style.display    !== 'none' : false;
+  data['_cwm_visible']    = cwMontant ? cwMontant.style.display !== 'none' : false;
+  data['_photos']         = _photosEnCours.map(p => ({ name: p.name, data: p.data }));
+  data['_ts'] = Date.now();
+  localStorage.setItem(BROUILLON_KEY, JSON.stringify(data));
+  updateIndicateurBrouillon(true);
+}
+
+/* Restaure le brouillon si disponible */
+function restaurerBrouillon() {
+  const raw = localStorage.getItem(BROUILLON_KEY);
+  if (!raw) return;
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { return; }
+
+  // Restaurer chaque champ
+  CHAMPS_MAINT.forEach(id => {
+    if (!(id in data)) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = data[id] || '';
+    // Si c'est un champ custom visible → l'afficher
+    if (id.endsWith('-custom') && data[id]) el.style.display = '';
+  });
+
+  // Restaurer visibilité CW
+  if (data['_cw_visible']) {
+    const cwLieu    = document.getElementById('maint-cw-lieu');
+    const cwMontant = document.getElementById('maint-cw-montant');
+    if (cwLieu)    cwLieu.style.display    = '';
+    if (cwMontant) cwMontant.style.display = '';
+  }
+
+  // Restaurer les photos
+  if (data['_photos'] && data['_photos'].length) {
+    _photosEnCours = data['_photos'];
+    rafraichirPreviewPhotos();
+  }
+
+  updateIndicateurBrouillon(true);
+}
+
+/* Supprime le brouillon (après enregistrement) */
+function effacerBrouillon() {
+  localStorage.removeItem(BROUILLON_KEY);
+  updateIndicateurBrouillon(false);
+}
+
+/* Met à jour l'indicateur visuel */
+function updateIndicateurBrouillon(actif) {
+  const el = document.getElementById('maint-brouillon-indicator');
+  if (!el) return;
+  if (actif && localStorage.getItem(BROUILLON_KEY)) {
+    const data = JSON.parse(localStorage.getItem(BROUILLON_KEY) || '{}');
+    const ago  = data._ts ? Math.round((Date.now() - data._ts) / 60000) : 0;
+    el.style.display = '';
+    el.textContent   = `📝 Brouillon sauvegardé${ago < 1 ? ' à l\'instant' : ' il y a ' + ago + ' min'}`;
+  } else {
+    el.style.display = 'none';
+    el.textContent   = '';
+  }
+}
+
 function populateMaintSelect() {
   const sel = document.getElementById('maint-veh');
   sel.innerHTML = ORDRE_VEHICULES.map(id => {
@@ -4102,20 +4190,24 @@ function populateMaintSelect() {
     return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
   }).join('');
 
-  // Date par défaut = prochain samedi fin de mois (date de la prochaine maintenance)
-  const samedi = prochainSamediFinDeMois();
-  document.getElementById('maint-date').value = samedi.toISOString().slice(0,10);
-
   injecterToutesCustomOpts();
 
-  // Valeur par défaut "OK" sur tous les selects sauf CW et AdBlue
-  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = 'OK';
-  });
-  // CW et AdBlue restent vides
-  const cw = document.getElementById('maint-cw'); if (cw) cw.value = '';
-  const ab = document.getElementById('maint-adblue'); if (ab) ab.value = '';
+  // Vérifier si un brouillon existe
+  const brouillon = localStorage.getItem(BROUILLON_KEY);
+  if (brouillon) {
+    // Restaurer le brouillon (prioritaire sur les valeurs par défaut)
+    restaurerBrouillon();
+  } else {
+    // Pas de brouillon → valeurs par défaut
+    const samedi = prochainSamediFinDeMois();
+    document.getElementById('maint-date').value = samedi.toISOString().slice(0,10);
+    ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = 'OK';
+    });
+    const cw = document.getElementById('maint-cw'); if (cw) cw.value = '';
+    const ab = document.getElementById('maint-adblue'); if (ab) ab.value = '';
+  }
 
   renderMaintTable();
 }
@@ -4180,6 +4272,7 @@ function handleSelectOther(sel, customId) {
     };
     customEl.onblur = enregistrer;
     customEl.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); enregistrer(); } };
+    customEl.oninput = () => sauvegarderBrouillon();
   } else {
     customEl.style.display = 'none';
     customEl.value = '';
@@ -4309,10 +4402,11 @@ function getSelectVal(selId, customId) {
 
 /* Affiche/masque les champs Car Wash lieu et montant */
 function toggleCWFields() {
-  const cw = document.getElementById('maint-cw').value;
+  const cw   = document.getElementById('maint-cw').value;
   const show = cw === 'oui';
-  document.getElementById('maint-cw-lieu').style.display = show ? '' : 'none';
+  document.getElementById('maint-cw-lieu').style.display    = show ? '' : 'none';
   document.getElementById('maint-cw-montant').style.display = show ? '' : 'none';
+  sauvegarderBrouillon();
 }
 
 // ── Photos maintenance ────────────────────────────────────────
@@ -4517,6 +4611,7 @@ async function saveMaintenance() {
   }
 
   await saveAll();
+  effacerBrouillon();
   clearMaintForm();
   renderMaintTable();
   if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
@@ -4556,6 +4651,8 @@ function deleteMaint(id) {
 }
 
 function clearMaintForm() {
+  // Effacer le brouillon
+  effacerBrouillon();
   // Réinitialiser les selects
   ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-adblue','maint-ext'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
