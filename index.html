@@ -4396,15 +4396,27 @@ function populateMaintSelect() {
 
   injecterToutesCustomOpts();
 
+  // Date de la prochaine maintenance (samedi le plus proche du dernier jour du mois)
+  const samedi = prochainSamediFinDeMois();
+  const samediStr = samedi.toISOString().slice(0,10);
+
   // Vérifier si un brouillon existe
   const brouillon = localStorage.getItem(BROUILLON_KEY);
   if (brouillon) {
-    // Restaurer le brouillon (prioritaire sur les valeurs par défaut)
+    // Restaurer le brouillon
     restaurerBrouillon();
+    // Mais TOUJOURS forcer la date à la prochaine maintenance
+    // (si le brouillon contient une date dépassée, on la remplace)
+    const maintDateEl = document.getElementById('maint-date');
+    const brouillonDate = maintDateEl ? maintDateEl.value : '';
+    const today = new Date().toISOString().slice(0,10);
+    // Remplacer si la date du brouillon est dans le passé ou vide
+    if (!brouillonDate || brouillonDate < today) {
+      if (maintDateEl) maintDateEl.value = samediStr;
+    }
   } else {
     // Pas de brouillon → valeurs par défaut
-    const samedi = prochainSamediFinDeMois();
-    document.getElementById('maint-date').value = samedi.toISOString().slice(0,10);
+    document.getElementById('maint-date').value = samediStr;
     ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = 'OK';
