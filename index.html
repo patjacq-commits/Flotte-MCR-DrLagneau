@@ -98,8 +98,10 @@
     fbGetCollection('rendezvous'),
     fbGetCollection('adblues'),
     fbGetCollection('carwashes'),
-    fbGetCollection('messagesChauf')
-  ]).then(([maint, ct, veh, rv, ab, cw, chauf]) => {
+    fbGetCollection('messagesChauf'),
+    fbGetCollection('rechargesCle').catch(() => null),
+    fbGetCollection('permutations').catch(() => null),
+  ]).then(([maint, ct, veh, rv, ab, cw, chauf, rk, pm]) => {
     if (maint  && maint.length)  window._fbData_maintenances  = maint;
     if (ct     && ct.length)     window._fbData_ctEvents      = ct;
     if (veh    && veh.length)    window._fbData_vehicules     = veh;
@@ -107,6 +109,8 @@
     if (ab     && ab.length)     window._fbData_adblues       = ab;
     if (cw     && cw.length)     window._fbData_carwashes     = cw;
     if (chauf  && chauf.length)  window._fbData_messagesChauf = chauf;
+    if (rk     && rk.length)     window._fbData_rechargesCle  = rk;
+    if (pm     && pm.length)     window._fbData_permutations  = pm;
     window.dispatchEvent(new Event('firebase-ready'));
   }).catch(e => {
     console.warn('Firebase init error:', e);
@@ -114,16 +118,15 @@
   });
 
   // ── Listeners temps réel ────────────────────────────────────
-  // (démarrés après DOMContentLoaded pour ne pas bloquer le rendu)
   window.addEventListener('firebase-ready', () => {
     const COLS = {
-      maintenances:  d => { window.maintenances   = d; window._refreshUI?.(); },
-      ctEvents:      d => { window.ctEvents        = d; window._refreshUI?.(); },
-      vehicules:     d => { if(d && d.length > 0){ window.vehicules = d; window._refreshUI?.(); } },
-      rendezvous:    d => { window.rendezvous      = d; window._refreshUI?.(); },
-      adblues:       d => { window.adblues         = d; window._refreshUI?.(); },
-      carwashes:     d => { window.carwashes        = d; window._refreshUI?.(); },
-      messagesChauf: d => { window.messagesChauf   = d; window._refreshUI?.(); window.updateTabChauf?.(); }
+      maintenances:  d => { if(d&&d.length){ window.maintenances   = d; } window._refreshUI?.(); },
+      ctEvents:      d => { if(d&&d.length){ window.ctEvents        = d; } window._refreshUI?.(); },
+      vehicules:     d => { if(d&&d.length){ window.vehicules       = d; } window._refreshUI?.(); },
+      rendezvous:    d => { if(d&&d.length){ window.rendezvous      = d; } window._refreshUI?.(); },
+      adblues:       d => { if(d&&d.length){ window.adblues         = d; } window._refreshUI?.(); },
+      carwashes:     d => { if(d&&d.length){ window.carwashes       = d; } window._refreshUI?.(); },
+      messagesChauf: d => { if(d&&d.length){ window.messagesChauf   = d; } window._refreshUI?.(); window.updateTabChauf?.(); }
     };
     Object.entries(COLS).forEach(([col, cb]) => fbListen(col, cb));
   }, { once: true });
@@ -586,6 +589,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   #version-badge { display: none; }        /* masquer le badge version */
   #sync-indicator { display: none; }       /* masquer ☁ Sync */
   .navbar-role { font-size: 10px; padding: 2px 7px; }
+  #btn-role { flex-shrink: 0 !important; opacity: 1 !important; display: block !important; }
 
   /* Bloc maintenance navbar : plus compact */
   #navbar-maint { padding: 2px 6px; }
@@ -638,15 +642,16 @@ td.ok { color: var(--vert); font-weight: 600; }
   .alerte-text p { font-size: 12px; }
   .alerte-rv-btn { padding: 4px 10px; font-size: 11px; }
 
-  /* Modaux : plein écran sur mobile */
-  .modal-overlay { padding: 0; align-items: flex-end; }
-  .modal {
-    max-width: 100%;
+  /* Modaux : plein écran sur mobile — SAUF login qui reste centré */
+  .modal-overlay { padding: 16px; align-items: center; }
+  .modal-overlay:not(#modal-login):not(#modal-edit-hist) {
+    padding: 0; align-items: flex-end;
+  }
+  .modal:not(#modal-login .modal):not(#modal-edit-hist .modal) {
     border-radius: 16px 16px 0 0;
     max-height: 92vh;
-    padding: 16px;
   }
-  .modal.modal-rv { max-width: 100%; }
+  #modal-login .modal { border-radius: 12px; max-width: 92vw; }
 
   /* Recherche globale */
   .search-modal-overlay { padding: 60px 0 0; align-items: flex-end; }
