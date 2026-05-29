@@ -3007,6 +3007,8 @@ function renderAccueil() {
         <div class="form-card" style="padding:0;overflow:hidden">${infosHtml}</div>
       </div>`;
 
+  } // fin if infosActives
+
   // ── Tableau km parcourus entre 2 maintenances (sans la date de prochaine maint.) ─
   const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
   let totalKmFlotte = 0;
