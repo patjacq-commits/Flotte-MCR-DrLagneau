@@ -1,61 +1,72 @@
 // ============================================================
-// SERVICE WORKER — MCR Opont Gestion de Flotte v1.5.0
+// SERVICE WORKER — MCR Opont Gestion de Flotte v1.6.0
+// STRATÉGIE : Network First (toujours le réseau, cache en fallback)
+// Chaque mise à jour du code → incrémenter la version ici
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v1.5.0';
-
-const CACHE_URLS = [
-  './',
-  './index.html'
-];
+const CACHE_NAME = 'mcr-flotte-v1.6.0';
+const CACHE_URLS = ['./', './index.html', './icon-192.png', './manifest.json'];
 
 // Rappels en mémoire { id, titre, corps, tag, fireAt }
 let rappelsProgrammes = [];
 
-// ── Installation ─────────────────────────────────────────────
+// ── Installation ──────────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(CACHE_URLS))
       .catch(e => console.warn('SW cache partiel:', e))
   );
+  // Prendre le contrôle immédiatement sans attendre
   self.skipWaiting();
 });
 
-// ── Activation ───────────────────────────────────────────────
+// ── Activation : supprimer les anciens caches ─────────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k !== CACHE_NAME).map(k => {
+          console.log('SW: suppression ancien cache:', k);
+          return caches.delete(k);
+        })
       ))
       .then(() => self.clients.claim())
   );
 });
 
-// ── Cache réseau ─────────────────────────────────────────────
+// ── Fetch : NETWORK FIRST avec fallback cache ────────────────
+// → Toujours essayer le réseau en premier
+// → Si pas de réseau (offline), utiliser le cache
+// → Firebase et Google passent toujours sans cache
 self.addEventListener('fetch', event => {
-  // Laisser passer Firebase et Google sans cache
   const url = event.request.url;
+
+  // Firebase / Google : jamais mis en cache
   if (url.includes('firestore') || url.includes('firebase') ||
-      url.includes('googleapis') || url.includes('gstatic')) {
+      url.includes('googleapis') || url.includes('gstatic') ||
+      url.includes('google.com')) {
     return;
   }
 
+  // Requêtes non-GET : pas de cache
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      // Toujours tenter le réseau en arrière-plan pour mettre à jour le cache
-      const networkFetch = fetch(event.request).then(response => {
-        if (response && response.status === 200 && event.request.method === 'GET') {
+    fetch(event.request)
+      .then(response => {
+        // Succès réseau → mettre à jour le cache et retourner
+        if (response && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
         }
         return response;
-      }).catch(() => null);
-
-      // Retourner le cache immédiatement si disponible, sinon attendre le réseau
-      return cached || networkFetch || caches.match('./index.html');
-    })
+      })
+      .catch(() => {
+        // Pas de réseau → fallback cache
+        return caches.match(event.request)
+          .then(cached => cached || caches.match('./index.html'));
+      })
   );
 });
 
@@ -74,7 +85,6 @@ self.addEventListener('message', event => {
     const fireAt = Date.now() + delai;
     rappelsProgrammes = rappelsProgrammes.filter(r => r.id !== id);
     rappelsProgrammes.push({ id, titre, corps, tag, fireAt });
-    // Planifier via setTimeout (fiable dans les SW modernes)
     setTimeout(() => envoyerRappel(id), delai);
     console.log('SW: rappel dans', Math.round(delai / 3600000), 'h — RV', id);
     return;
@@ -90,12 +100,12 @@ function envoyerRappel(id) {
   const r = rappelsProgrammes.find(x => x.id === id);
   if (!r) return;
   self.registration.showNotification(r.titre, {
-    body:             r.corps,
-    icon:             './icon-192.png',
-    badge:            './icon-192.png',
-    tag:              r.tag,
+    body:               r.corps,
+    icon:               './icon-192.png',
+    badge:              './icon-192.png',
+    tag:                r.tag,
     requireInteraction: true,
-    actions:          [{ action: 'voir', title: 'Voir le RV' }]
+    actions:            [{ action: 'voir', title: 'Voir le RV' }]
   });
   rappelsProgrammes = rappelsProgrammes.filter(x => x.id !== id);
 }
