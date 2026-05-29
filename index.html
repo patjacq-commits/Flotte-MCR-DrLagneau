@@ -2978,9 +2978,6 @@ function renderAccueil() {
     <div class="summary-card orange" onclick="goToAlertesFilter('warn')" title="Voir les alertes à surveiller">
       <div class="num">${nbWarn}</div><div class="lbl">Alertes à surveiller</div>
     </div>
-    <div class="summary-card vert" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir les véhicules OK">
-      <div class="num">${nbOK}</div><div class="lbl">Véhicules OK</div>
-    </div>
     <div class="summary-card bleu" onclick="document.getElementById('bloc-prochains-rv')?.scrollIntoView({behavior:'smooth'})" title="Voir les RV programmés">
       <div class="num">${nbRVprog}</div><div class="lbl">RV programmés</div>
     </div>
@@ -3658,14 +3655,23 @@ function buildAlertes() {
       }
     } else {
       if (globalLevel === 'urgent') {
-        const icon = reste < 0 ? '🔧' : '🔧';
-        alertes.push({ level:'urgent', icon, category:'entretien', vehId:v.id, typeRV:'garage',
-          titre:`Entretien urgent — ${v.marque} ${v.immat}`,
-          detail: entretienDetail() });
+        // Message précis selon la cause (km dépassé, délai annuel, ou 8j ouvrables avant délai)
+        const causeKm   = reste < 0;
+        const causeDate = dateAlert && dateAlert.level === 'urgent';
+        let titreUrgent = `Entretien urgent — ${v.marque} ${v.immat}`;
+        if (causeDate && !causeKm) {
+          titreUrgent = `⚠️ Entretien à prendre — ${v.marque} ${v.immat}`;
+        }
+        alertes.push({ level:'urgent', icon:'🔧', category:'entretien', vehId:v.id, typeRV:'garage',
+          titre: titreUrgent,
+          detail: entretienDetail(false) +
+            (causeDate && !causeKm
+              ? ` Rappel : délai de prise de RV = 8 jours ouvrables avant l'échéance.`
+              : '') });
       } else if (globalLevel === 'warn') {
         alertes.push({ level:'warn', icon:'🔩', category:'entretien', vehId:v.id, typeRV:'garage',
           titre:`Entretien à planifier — ${v.marque} ${v.immat}`,
-          detail: entretienDetail() });
+          detail: entretienDetail(false) });
       }
     }
 
@@ -5726,28 +5732,58 @@ function importCSV(event) {
 // ============================================================
 /* Ouvre une fenêtre d'impression — compatible mobile via iframe si popup bloqué */
 function ouvrirImpression(htmlContent) {
-  // Essayer window.open (PC) — si bloqué, fallback iframe (mobile)
-  const w = window.open('', '_blank');
-  if (w && !w.closed) {
-    w.document.write(htmlContent);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  } else {
-    // Fallback : iframe caché dans la page courante
-    let iframe = document.getElementById('print-iframe');
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.id = 'print-iframe';
-      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none';
-      document.body.appendChild(iframe);
+  // Sur mobile Android/iOS, window.open peut être bloqué ou retourner
+  // un objet invalide. On utilise un Blob URL + iframe comme fallback fiable.
+
+  // Méthode 1 : window.open (PC, navigateurs sans restriction)
+  let w = null;
+  try {
+    w = window.open('', '_blank');
+    if (w && w.document) {
+      w.document.open();
+      w.document.write(htmlContent);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { try { w.print(); } catch(e) {} }, 400);
+      return;
     }
-    iframe.srcdoc = htmlContent;
-    iframe.onload = () => {
-      try { iframe.contentWindow.print(); }
-      catch(e) { toast('Ouvrez les popups pour imprimer ⚠️'); }
+  } catch(e) { /* bloqué */ }
+
+  // Méthode 2 : Blob URL (mobile Chrome/Samsung)
+  try {
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const wBlob = window.open(url, '_blank');
+    if (wBlob) {
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      return;
+    }
+  } catch(e) { /* bloqué */ }
+
+  // Méthode 3 : iframe srcdoc (dernier recours, déclenche print depuis la page)
+  let iframe = document.getElementById('print-iframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'print-iframe';
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;background:#fff';
+    document.body.appendChild(iframe);
+    // Bouton fermer
+    const btnClose = document.createElement('button');
+    btnClose.textContent = '✕ Fermer';
+    btnClose.style.cssText = 'position:fixed;top:10px;right:10px;z-index:10000;background:#c0392b;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:14px;cursor:pointer';
+    btnClose.onclick = () => {
+      iframe.remove();
+      btnClose.remove();
     };
+    document.body.appendChild(btnClose);
   }
+  iframe.srcdoc = htmlContent;
+  iframe.onload = () => {
+    setTimeout(() => {
+      try { iframe.contentWindow.print(); }
+      catch(e) { toast('Appuyez sur le bouton imprimer de votre navigateur'); }
+    }, 300);
+  };
 }
 
 /* Peupler le select véhicules de l'onglet rapports */
