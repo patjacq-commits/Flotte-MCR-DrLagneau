@@ -101,7 +101,9 @@
     fbGetCollection('messagesChauf'),
     fbGetCollection('rechargesCle').catch(() => null),
     fbGetCollection('permutations').catch(() => null),
-  ]).then(([maint, ct, veh, rv, ab, cw, chauf, rk, pm]) => {
+    // infosVehicules : stocké comme un seul document dans la collection 'config'
+    db.collection('config').doc('infosVehicules').get().catch(() => null),
+  ]).then(([maint, ct, veh, rv, ab, cw, chauf, rk, pm, infosDoc]) => {
     if (maint  && maint.length)  window._fbData_maintenances  = maint;
     if (ct     && ct.length)     window._fbData_ctEvents      = ct;
     if (veh    && veh.length)    window._fbData_vehicules     = veh;
@@ -111,6 +113,11 @@
     if (chauf  && chauf.length)  window._fbData_messagesChauf = chauf;
     if (rk     && rk.length)     window._fbData_rechargesCle  = rk;
     if (pm     && pm.length)     window._fbData_permutations  = pm;
+    // Charger infosVehicules depuis Firebase (prioritaire sur localStorage)
+    if (infosDoc && infosDoc.exists) {
+      const data = infosDoc.data();
+      window._fbData_infosVehicules = data.infos || {};
+    }
     window.dispatchEvent(new Event('firebase-ready'));
   }).catch(e => {
     console.warn('Firebase init error:', e);
@@ -129,6 +136,17 @@
       messagesChauf: d => { if(d&&d.length){ window.messagesChauf   = d; } window._refreshUI?.(); window.updateTabChauf?.(); }
     };
     Object.entries(COLS).forEach(([col, cb]) => fbListen(col, cb));
+
+    // Listener temps réel pour infosVehicules (document unique dans config)
+    db.collection('config').doc('infosVehicules').onSnapshot(snap => {
+      if (snap.exists) {
+        infosVehicules = snap.data().infos || {};
+        localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
+      } else {
+        infosVehicules = JSON.parse(localStorage.getItem('mcr_infos_veh') || '{}');
+      }
+      window._refreshUI?.();
+    }, e => console.warn('Firebase infosVehicules listen error:', e));
   }, { once: true });
 </script>
 <style>
@@ -2086,9 +2104,7 @@ window._refreshUI = function() {
   adblues       = window.adblues       || adblues;
   carwashes     = window.carwashes     || carwashes;
   messagesChauf = window.messagesChauf || messagesChauf;
-
-  // infosVehicules : stocké uniquement en localStorage — recharger à chaque refresh
-  infosVehicules = JSON.parse(localStorage.getItem('mcr_infos_veh') || '{}');
+  // infosVehicules est mis à jour directement par le listener onSnapshot Firebase
 
   clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(() => {
@@ -2939,13 +2955,14 @@ function renderAccueil() {
     const infosHtml = infosActives.map(info => {
       const v = vehicules.find(x => x.id === info.vehId);
       const vNom = v ? `${v.marque} ${v.immat}` : info.vehId;
+      const texte = v ? (v.infoSpec || info.texte) : info.texte;
       return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;
         border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap;
         animation:pulse-info 2.5s ease infinite">
         <div style="font-size:20px;flex-shrink:0">ℹ️</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:700;color:var(--bleu)">${vNom}</div>
-          <div style="font-size:14px;font-weight:700;color:var(--bleu)">${info.texte}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--bleu)">${texte}</div>
           <div style="font-size:11px;color:var(--texte-sec);margin-top:2px">Ajouté le ${formatDate(info.dateAjout)}</div>
         </div>
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
@@ -3413,39 +3430,38 @@ function updateCardInfosSpec(n) {
 
 function getInfosActives() {
   const now = Date.now();
-  const actives = [];
-  Object.entries(infosVehicules).forEach(([vehId, info]) => {
-    if (!info || !info.texte) return;
-    // Regex STRICTE : année 4 chiffres obligatoire
-    // Évite les faux positifs sur "2.6/3.2 bar", "27-04 pneus", etc.
-    const dateMatch = info.texte.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+  return vehicules.filter(v => {
+    if (!v.infoSpec || !v.infoSpec.trim()) return false;
+    // Regex STRICTE : année 4 chiffres — évite les faux positifs
+    const dateMatch = v.infoSpec.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
     if (dateMatch) {
       const dateExp = new Date(`${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`);
-      if (!isNaN(dateExp.getTime()) && now > dateExp.getTime() + 12 * 3600000) return;
+      if (!isNaN(dateExp.getTime()) && now > dateExp.getTime() + 12 * 3600000) return false;
     }
-    actives.push({ vehId, ...info });
-  });
-  return actives;
+    return true;
+  }).map(v => ({ vehId: v.id, texte: v.infoSpec, dateAjout: v.infoSpecDate || '' }));
 }
 
 function sauvegarderInfoVeh(vehId, texte) {
-  if (!texte || !texte.trim()) {
-    delete infosVehicules[vehId];
-  } else {
-    infosVehicules[vehId] = { texte: texte.trim(), dateAjout: new Date().toISOString().slice(0,10) };
+  // Gardé pour compatibilité mais maintenant géré via ouvrirInfoVeh
+  const veh = vehicules.find(x => x.id === vehId);
+  if (veh) {
+    veh.infoSpec = texte ? texte.trim() || null : null;
+    veh.infoSpecDate = texte && texte.trim() ? new Date().toISOString().slice(0,10) : null;
   }
-  localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
+  localStorage.setItem('mcr_infos_veh', JSON.stringify({})); // vider l'ancien stockage
+  saveAll();
   const n = getInfosActives().length;
   updateCardInfosSpec(n);
-  // Rafraîchir les pages concernées quelle que soit la page active
   renderAccueil();
   renderVehicules();
   toast(texte && texte.trim() ? 'Info enregistrée ✅' : 'Info supprimée');
 }
 
 function supprimerInfoVeh(vehId) {
-  delete infosVehicules[vehId];
-  localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
+  const veh = vehicules.find(x => x.id === vehId);
+  if (veh) { veh.infoSpec = null; veh.infoSpecDate = null; }
+  saveAll();
   const n = getInfosActives().length;
   updateCardInfosSpec(n);
   renderAccueil();
@@ -3456,12 +3472,22 @@ function supprimerInfoVeh(vehId) {
 function ouvrirInfoVeh(vehId) {
   if (!isAdmin) { toast('Réservé aux administrateurs.'); return; }
   const v = vehicules.find(x => x.id === vehId);
-  const info = infosVehicules[vehId];
-  const texteActuel = info ? info.texte : '';
+  const texteActuel = v ? (v.infoSpec || '') : '';
   openEditModal(`ℹ️ Info — ${v ? v.marque + ' ' + v.immat : vehId}`, [
     { label:'Info / Remarque (ex: immobilisé jusqu\'au 15/06/2026)', type:'text', key:'texte', val: texteActuel }
   ], (changes) => {
-    sauvegarderInfoVeh(vehId, changes.texte || '');
+    const texte = changes.texte || '';
+    const veh = vehicules.find(x => x.id === vehId);
+    if (veh) {
+      veh.infoSpec     = texte.trim() || null;
+      veh.infoSpecDate = texte.trim() ? new Date().toISOString().slice(0,10) : null;
+    }
+    saveAll();
+    const n = getInfosActives().length;
+    updateCardInfosSpec(n);
+    renderAccueil();
+    renderVehicules();
+    toast(texte.trim() ? 'Info enregistrée ✅' : 'Info supprimée');
   });
 }
 
@@ -3847,12 +3873,15 @@ function renderVehicules() {
         ${abRow}
         ${cwRow}
         ${(() => {
-          const info = infosVehicules[v.id];
-          if (!info || !info.texte) return '';
-          const actives = getInfosActives().find(i => i.vehId === v.id);
-          if (!actives) return '';
+          if (!v.infoSpec || !v.infoSpec.trim()) return '';
+          // Vérification expiration (même logique que getInfosActives)
+          const dateMatch = v.infoSpec.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+          if (dateMatch) {
+            const dateExp = new Date(`${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`);
+            if (!isNaN(dateExp.getTime()) && Date.now() > dateExp.getTime() + 12*3600000) return '';
+          }
           return `<div class="veh-row info-veh-row" style="background:var(--bleu-clair);border-radius:6px;padding:6px 10px;margin-top:5px;border-left:3px solid var(--bleu);animation:pulse-info 2s ease infinite">
-            <span style="font-size:13px;color:var(--bleu);font-weight:700">ℹ️ ${info.texte}</span>
+            <span style="font-size:13px;color:var(--bleu);font-weight:700">ℹ️ ${v.infoSpec}</span>
           </div>`;
         })()}
       </div>
@@ -5817,6 +5846,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window._fbData_adblues)        adblues       = window._fbData_adblues;
     if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
     if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+    // infosVehicules : depuis Firebase si disponible, sinon localStorage
+    if (window._fbData_infosVehicules) {
+      infosVehicules = window._fbData_infosVehicules;
+      localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
+    }
 
     // ── Migration : corriger les données obsolètes depuis VEHICULES_DATA ──
     let migrated = false;
