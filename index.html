@@ -508,6 +508,12 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .veh-card { position:relative; }
 
+/* Pastille Infos spéciales */
+@keyframes pulse-info {
+  0%,100% { box-shadow: 0 0 0 0 rgba(41,128,185,0.4); }
+  50%      { box-shadow: 0 0 0 8px rgba(41,128,185,0); }
+}
+
 /* CT à prendre : clignotant orange */
 @keyframes pulse-ct {
   0%,100% { border-left-color: var(--orange); background: var(--orange-clair); }
@@ -2072,16 +2078,18 @@ window.messagesChauf  = messagesChauf;
 /* Rafraîchit l'UI quand Firebase pousse une mise à jour temps réel */
 let _refreshTimer = null;
 window._refreshUI = function() {
-  // Synchroniser les variables locales depuis window (mis à jour par les listeners)
+  // Synchroniser les variables locales depuis window (mis à jour par les listeners Firebase)
   maintenances  = window.maintenances  || maintenances;
   ctEvents      = window.ctEvents      || ctEvents;
-  // Véhicules : ne remplacer que si Firebase retourne un tableau non vide
   if (window.vehicules && window.vehicules.length > 0) vehicules = window.vehicules;
   rendezvous    = window.rendezvous    || rendezvous;
   adblues       = window.adblues       || adblues;
   carwashes     = window.carwashes     || carwashes;
   messagesChauf = window.messagesChauf || messagesChauf;
-  // Debounce pour éviter les rafraîchissements en cascade
+
+  // infosVehicules : stocké uniquement en localStorage — recharger à chaque refresh
+  infosVehicules = JSON.parse(localStorage.getItem('mcr_infos_veh') || '{}');
+
   clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(() => {
     const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
@@ -2094,7 +2102,6 @@ window._refreshUI = function() {
     if (activePage === 'kilometrage') renderKilometrage();
     updateTabAlertes();
     updateTabChauf();
-    // Afficher indicateur de sync
     showSyncIndicator();
   }, 400);
 };
@@ -2904,16 +2911,16 @@ function renderAccueil() {
     <div class="summary-card bleu" onclick="document.getElementById('bloc-prochains-rv')?.scrollIntoView({behavior:'smooth'})" title="Voir les RV programmés">
       <div class="num">${nbRVprog}</div><div class="lbl">RV programmés</div>
     </div>
-    <div class="summary-card" onclick="document.getElementById('bloc-infos-veh')?.scrollIntoView({behavior:'smooth'})"
-      title="Voir les infos spéciales"
-      style="background:${nbInfos > 0 ? 'var(--bleu-clair)' : 'var(--gris-clair)'};cursor:pointer;
-             ${nbInfos > 0 ? 'border:2px solid var(--bleu);animation:pulse-rouge 2s ease infinite' : 'border:2px solid var(--gris-bord)'}">
-      <div class="num" style="color:${nbInfos > 0 ? 'var(--bleu)' : 'var(--gris)'}">
-        ${nbInfos > 0 ? nbInfos : 'ℹ️'}
-      </div>
-      <div class="lbl" style="color:${nbInfos > 0 ? 'var(--bleu)' : 'var(--texte-sec)'}">Infos spéciales</div>
+    <div class="summary-card" id="card-infos-spec"
+      onclick="scrollToInfosVeh()"
+      title="Voir les infos spéciales">
+      <div class="num" id="card-infos-num">ℹ️</div>
+      <div class="lbl">Infos spéciales</div>
     </div>
   `;
+
+  // Mettre à jour la pastille infos via une fonction dédiée (évite les bugs mobile avec style inline complexe)
+  updateCardInfosSpec(nbInfos);
 
   // Séparer alertes urgentes et alertes à surveiller
   const alertesUrgentes = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
@@ -3000,12 +3007,13 @@ function renderAccueil() {
     const infosHtml = infosActives.map(info => {
       const v = vehicules.find(x => x.id === info.vehId);
       const vNom = v ? `${v.marque} ${v.immat}` : info.vehId;
-      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 14px;
-        border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
-        <div style="font-size:18px">ℹ️</div>
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 14px;
+        border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap;
+        animation:pulse-info 2.5s ease infinite">
+        <div style="font-size:20px;flex-shrink:0">ℹ️</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:700;color:var(--bleu)">${vNom}</div>
-          <div style="font-size:13px">${info.texte}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--bleu)">${info.texte}</div>
           <div style="font-size:11px;color:var(--texte-sec);margin-top:2px">Ajouté le ${formatDate(info.dateAjout)}</div>
         </div>
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
@@ -3372,6 +3380,34 @@ function programmerTousLesRappels() {
 // INFOS VÉHICULES — remarques temporaires avec expiration auto
 // ============================================================
 
+function scrollToInfosVeh() {
+  const el = document.getElementById('bloc-infos-veh');
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
+}
+
+function updateCardInfosSpec(n) {
+  const card = document.getElementById('card-infos-spec');
+  const num  = document.getElementById('card-infos-num');
+  if (!card || !num) return;
+  if (n > 0) {
+    card.style.background = 'var(--bleu-clair)';
+    card.style.border     = '2px solid var(--bleu)';
+    card.style.animation  = 'pulse-info 2s ease infinite';
+    num.textContent       = n;
+    num.style.color       = 'var(--bleu)';
+    num.style.fontSize    = '22px';
+    card.querySelector('.lbl').style.color = 'var(--bleu)';
+  } else {
+    card.style.background = 'var(--gris-clair)';
+    card.style.border     = '2px solid var(--gris-bord)';
+    card.style.animation  = 'none';
+    num.textContent       = 'ℹ️';
+    num.style.color       = 'var(--texte-sec)';
+    num.style.fontSize    = '22px';
+    card.querySelector('.lbl').style.color = 'var(--texte-sec)';
+  }
+}
+
 function getInfosActives() {
   const now = Date.now();
   const actives = [];
@@ -3400,14 +3436,20 @@ function sauvegarderInfoVeh(vehId, texte) {
     infosVehicules[vehId] = { texte: texte.trim(), dateAjout: new Date().toISOString().slice(0,10) };
   }
   localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
-  renderAccueil();
+  const n = getInfosActives().length;
+  updateCardInfosSpec(n);
+  if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
+  if (document.getElementById('page-vehicules').classList.contains('active')) renderVehicules();
   toast(texte && texte.trim() ? 'Info enregistrée ✅' : 'Info supprimée');
 }
 
 function supprimerInfoVeh(vehId) {
   delete infosVehicules[vehId];
   localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
-  renderAccueil();
+  const n = getInfosActives().length;
+  updateCardInfosSpec(n);
+  if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
+  if (document.getElementById('page-vehicules').classList.contains('active')) renderVehicules();
   toast('Info supprimée');
 }
 
@@ -3809,9 +3851,8 @@ function renderVehicules() {
           if (!info || !info.texte) return '';
           const actives = getInfosActives().find(i => i.vehId === v.id);
           if (!actives) return '';
-          return `<div class="veh-row" style="background:var(--bleu-clair);border-radius:6px;padding:5px 8px;margin-top:4px">
-            <span class="label" style="color:var(--bleu)">ℹ️ Info</span>
-            <span class="val" style="color:var(--bleu);font-size:12px">${info.texte}</span>
+          return `<div class="veh-row info-veh-row" style="background:var(--bleu-clair);border-radius:6px;padding:6px 10px;margin-top:5px;border-left:3px solid var(--bleu);animation:pulse-info 2s ease infinite">
+            <span style="font-size:13px;color:var(--bleu);font-weight:700">ℹ️ ${info.texte}</span>
           </div>`;
         })()}
       </div>
