@@ -2882,9 +2882,7 @@ function renderAccueil() {
   const hasCarteRouge = alertes.some(a => a.carteRouge);
   const urgentPulse = (nbUrgent > 0 || hasCarteRouge) ? 'style="animation:pulse-rouge 1.6s ease infinite"' : '';
 
-  const todayStr2 = new Date().toISOString().slice(0,10);
-  const nbRVprog  = [...rendezvous, ...ctEvents]
-    .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= todayStr2).length;
+  const nbInfos = getInfosActives().length;
 
   document.getElementById('summary-grid').innerHTML = `
     <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
@@ -2899,8 +2897,17 @@ function renderAccueil() {
     <div class="summary-card vert" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir les véhicules OK">
       <div class="num">${nbOK}</div><div class="lbl">Véhicules OK</div>
     </div>
-    <div class="summary-card bleu" onclick="document.getElementById('bloc-prochains-rv')?.scrollIntoView({behavior:'smooth'})" title="Voir les RV programmés" style="cursor:pointer">
-      <div class="num" style="color:var(--bleu)">${nbRVprog}</div><div class="lbl">RV programmés</div>
+    <div class="summary-card bleu" onclick="document.getElementById('bloc-prochains-rv')?.scrollIntoView({behavior:'smooth'})" title="Voir les RV programmés">
+      <div class="num">${nbRVprog}</div><div class="lbl">RV programmés</div>
+    </div>
+    <div class="summary-card" onclick="document.getElementById('bloc-infos-veh')?.scrollIntoView({behavior:'smooth'})"
+      title="Voir les infos spéciales"
+      style="background:${nbInfos > 0 ? 'var(--bleu-clair)' : 'var(--gris-clair)'};cursor:pointer;
+             ${nbInfos > 0 ? 'border:2px solid var(--bleu);animation:pulse-rouge 2s ease infinite' : 'border:2px solid var(--gris-bord)'}">
+      <div class="num" style="color:${nbInfos > 0 ? 'var(--bleu)' : 'var(--gris)'}">
+        ${nbInfos > 0 ? nbInfos : 'ℹ️'}
+      </div>
+      <div class="lbl" style="color:${nbInfos > 0 ? 'var(--bleu)' : 'var(--texte-sec)'}">Infos spéciales</div>
     </div>
   `;
 
@@ -3002,7 +3009,7 @@ function renderAccueil() {
       </div>`;
     }).join('');
     document.getElementById('alertes-dashboard').innerHTML +=
-      `<div style="margin-top:14px">
+      `<div id="bloc-infos-veh" style="margin-top:14px">
         <h3 style="margin-bottom:8px">ℹ️ Infos véhicules</h3>
         <div class="form-card" style="padding:0;overflow:hidden">${infosHtml}</div>
       </div>`;
