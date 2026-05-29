@@ -2807,23 +2807,51 @@ function entretienStatus(veh) {
   return { cls:'ok', txt:`${reste.toLocaleString('fr-BE')} km restants` };
 }
 
+/* Calcule le nombre de jours calendaires correspondant à N jours ouvrables
+   à partir d'une date de référence, en reculant dans le passé.
+   Les jours fériés belges fixes sont exclus. */
+function joursOuvrablesToCalendaires(dateRef, nbOuvrables) {
+  // Jours fériés belges fixes (MM-DD)
+  const feriesBelges = ['01-01','05-01','07-21','08-15','11-01','11-11','12-25'];
+  const estFerie = d => {
+    const mmdd = String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return feriesBelges.includes(mmdd);
+  };
+  let count = 0, d = new Date(dateRef);
+  while (count < nbOuvrables) {
+    d.setDate(d.getDate() - 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !estFerie(d)) count++;
+  }
+  // Retourner le nombre de jours calendaires sautés
+  return Math.round((dateRef - d) / 86400000);
+}
+
 /* Vérifie si l'entretien doit déclencher une alerte par date (indépendamment du km) */
 function entretienDateAlert(veh) {
   if (!veh.dernier_entretien_date) return null;
   const isCamion = veh.type === 'Camionnette';
-  // VSL : alerte si dernier entretien + 1 an - 15 jours est dépassé ou proche
-  // Camionnette : alerte si dernier entretien + 2 ans - 7 jours est dépassé ou proche
+  // VSL : alerte 8 jours ouvrables avant dernier entretien + 1 an
+  // Camionnette : alerte 8 jours ouvrables avant dernier entretien + 2 ans
   const anneesLimit = isCamion ? 2 : 1;
-  const joursAvance = isCamion ? 7 : 15;
   const d = parseDate(veh.dernier_entretien_date);
   if (!d) return null;
-  const limit = new Date(d);
-  limit.setFullYear(limit.getFullYear() + anneesLimit);
-  limit.setDate(limit.getDate() - joursAvance);
-  const j = Math.round((limit - TODAY) / 86400000);
-  if (j <= 0) return { level:'urgent', txt:`Délai annuel${isCamion?' (2 ans)':''} dépassé depuis ${Math.abs(j)}j`, dateLimit: limit };
-  if (j <= 30) return { level:'urgent', txt:`Délai ${isCamion?'2 ans':'1 an'} dans ${j}j`, dateLimit: limit };
-  if (j <= 90) return { level:'warn', txt:`Délai ${isCamion?'2 ans':'1 an'} dans ${j}j`, dateLimit: limit };
+
+  // Date limite = dernier entretien + N années
+  const dateEcheance = new Date(d);
+  dateEcheance.setFullYear(dateEcheance.getFullYear() + anneesLimit);
+
+  // Alerte = 8 jours ouvrables avant l'échéance
+  const calJours = joursOuvrablesToCalendaires(dateEcheance, 8);
+  const dateAlerte = new Date(dateEcheance);
+  dateAlerte.setDate(dateAlerte.getDate() - calJours);
+
+  const j = Math.round((dateAlerte - TODAY) / 86400000);
+  const jEcheance = Math.round((dateEcheance - TODAY) / 86400000);
+
+  if (jEcheance <= 0) return { level:'urgent', txt:`Délai ${isCamion?'2 ans':'1 an'} dépassé depuis ${Math.abs(jEcheance)}j`, dateLimit: dateEcheance };
+  if (j <= 0)         return { level:'urgent', txt:`Entretien dans ${jEcheance}j (délai ${isCamion?'2 ans':'1 an'})`, dateLimit: dateEcheance };
+  if (j <= 30)        return { level:'warn',   txt:`Entretien dans ${jEcheance}j (délai ${isCamion?'2 ans':'1 an'})`, dateLimit: dateEcheance };
   return null;
 }
 
@@ -5696,9 +5724,31 @@ function importCSV(event) {
 // ============================================================
 // RAPPORTS IMPRESSION
 // ============================================================
-// ============================================================
-// RAPPORTS — impression
-// ============================================================
+/* Ouvre une fenêtre d'impression — compatible mobile via iframe si popup bloqué */
+function ouvrirImpression(htmlContent) {
+  // Essayer window.open (PC) — si bloqué, fallback iframe (mobile)
+  const w = window.open('', '_blank');
+  if (w && !w.closed) {
+    w.document.write(htmlContent);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  } else {
+    // Fallback : iframe caché dans la page courante
+    let iframe = document.getElementById('print-iframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'print-iframe';
+      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none';
+      document.body.appendChild(iframe);
+    }
+    iframe.srcdoc = htmlContent;
+    iframe.onload = () => {
+      try { iframe.contentWindow.print(); }
+      catch(e) { toast('Ouvrez les popups pour imprimer ⚠️'); }
+    };
+  }
+}
 
 /* Peupler le select véhicules de l'onglet rapports */
 function initRapports() {
@@ -5874,10 +5924,8 @@ function printRapportMaint() {
     MCR Opont © ${new Date().getFullYear()}
   </div>`;
 
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport Maintenances MCR</title>${cssRapport()}</head><body>${body}</body></html>`);
-  w.document.close();
-  w.print();
+  const htmlFinal = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport Maintenances MCR</title>${cssRapport()}</head><body>${body}</body></html>`;
+  ouvrirImpression(htmlFinal);
 }
 
 function printReport(type) {
@@ -5907,10 +5955,8 @@ function printReport(type) {
     body += '</table>';
   }
 
-  const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport MCR</title>${cssRapport()}</head><body>${body}</body></html>`);
-  w.document.close();
-  w.print();
+  const htmlFinal = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport MCR</title>${cssRapport()}</head><body>${body}</body></html>`;
+  ouvrirImpression(htmlFinal);
 }
 
 // ============================================================
