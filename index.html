@@ -3437,8 +3437,9 @@ function sauvegarderInfoVeh(vehId, texte) {
   localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
   const n = getInfosActives().length;
   updateCardInfosSpec(n);
-  if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
-  if (document.getElementById('page-vehicules').classList.contains('active')) renderVehicules();
+  // Rafraîchir les pages concernées quelle que soit la page active
+  renderAccueil();
+  renderVehicules();
   toast(texte && texte.trim() ? 'Info enregistrée ✅' : 'Info supprimée');
 }
 
@@ -3447,8 +3448,8 @@ function supprimerInfoVeh(vehId) {
   localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
   const n = getInfosActives().length;
   updateCardInfosSpec(n);
-  if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
-  if (document.getElementById('page-vehicules').classList.contains('active')) renderVehicules();
+  renderAccueil();
+  renderVehicules();
   toast('Info supprimée');
 }
 
@@ -3858,7 +3859,7 @@ function renderVehicules() {
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
         ${isAdmin ? `<button class="btn btn-sm primary" onclick="quickEdit('${v.id}')">✏️ Modifier</button>` : ''}
-        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu-clair)" onclick="ouvrirInfoVeh('${v.id}')">ℹ️ Info</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu-clair);font-weight:600" onclick="ouvrirInfoVeh('${v.id}')" title="Ajouter/modifier une info pour ce véhicule">ℹ️ Info</button>` : ''}
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule('${v.id}')">🗑</button>` : ''}
       </div>
     </div>`;
@@ -5541,18 +5542,24 @@ let _editCallback = null;
 function openEditModal(titre, fields, callback) {
   _editCallback = callback;
   document.getElementById('edit-hist-title').textContent = titre;
-  document.getElementById('edit-hist-fields').innerHTML = fields.map(f => `
-    <div class="form-group">
-      <label>${f.label}</label>
-      <input type="${f.type}" data-key="${f.key}" value="${f.val !== null && f.val !== undefined ? f.val : ''}"
-        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px;width:100%"
-        ${f.type === 'number' ? 'step="any"' : ''} />
-    </div>`).join('');
+  document.getElementById('edit-hist-fields').innerHTML = fields.map(f => {
+    // Échapper les guillemets pour ne pas casser l'attribut value
+    const valSafe = String(f.val !== null && f.val !== undefined ? f.val : '')
+      .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    const input = f.type === 'text' && f.label && f.label.toLowerCase().includes('remarque') || f.type === 'text' && f.label && f.label.toLowerCase().includes('info')
+      ? `<textarea data-key="${f.key}" rows="3"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px;width:100%;resize:vertical"
+          >${valSafe}</textarea>`
+      : `<input type="${f.type}" data-key="${f.key}" value="${valSafe}"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px;width:100%"
+          ${f.type === 'number' ? 'step="any"' : ''} />`;
+    return `<div class="form-group"><label>${f.label}</label>${input}</div>`;
+  }).join('');
   document.getElementById('modal-edit-hist').classList.add('open');
 }
 
 function saveEditHist() {
-  const fields = document.querySelectorAll('#edit-hist-fields input');
+  const fields = document.querySelectorAll('#edit-hist-fields input, #edit-hist-fields textarea');
   const changes = {};
   fields.forEach(f => {
     const val = f.value.trim();
