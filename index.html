@@ -1064,35 +1064,6 @@ td.ok { color: var(--vert); font-weight: 600; }
           <input type="text" id="maint-pneus-custom" placeholder="préciser" style="display:none;flex:1" />
         </div>
       </div>
-      <div class="form-group">
-        <label>🚿 Car Wash</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <select id="maint-cw" style="flex:1;min-width:80px" onchange="toggleCWFields()">
-            <option value="">—</option>
-            <option value="oui">Oui</option>
-            <option value="non">Non</option>
-          </select>
-          <select id="maint-cw-lieu" style="flex:1;min-width:100px;display:none">
-            <option value="Noirefontaine">Noirefontaine</option>
-            <option value="Bièvre">Bièvre</option>
-          </select>
-          <input type="number" id="maint-cw-montant" step="0.01" min="0" placeholder="Montant €" style="display:none;width:90px" />
-        </div>
-      </div>
-      <div class="form-group">
-        <label>💧 AD Blue</label>
-        <div style="display:flex;gap:6px">
-          <select id="maint-adblue" style="flex:1" onchange="handleSelectOther(this,'maint-adblue-custom')">
-            <option value="">—</option>
-            <option value="5">5 L</option>
-            <option value="10">10 L</option>
-            <option value="15">15 L</option>
-            <option value="20">20 L</option>
-            <option value="__other__">Autre…</option>
-          </select>
-          <input type="number" id="maint-adblue-custom" step="0.01" min="0" placeholder="L" style="display:none;width:80px" />
-        </div>
-      </div>
     </div>
 
     <!-- Extérieur -->
@@ -1141,12 +1112,32 @@ td.ok { color: var(--vert); font-weight: 600; }
   <!-- Historique maintenances saisies -->
   <div class="form-card">
     <h3>Maintenances enregistrées</h3>
+    <!-- Filtres -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+      <select id="maint-filter-veh" onchange="renderMaintTable()"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:140px">
+        <option value="">Tous les véhicules</option>
+      </select>
+      <input type="date" id="maint-filter-debut" onchange="renderMaintTable()"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:120px" />
+      <input type="date" id="maint-filter-fin" onchange="renderMaintTable()"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:120px" />
+      <button class="btn btn-sm" onclick="resetFiltresMaint()">✕</button>
+    </div>
     <div class="table-wrap">
       <table id="maint-table">
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Km</th><th>CW</th><th>Ext.</th><th>Remarques</th><th>Action</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Date</th><th>Véhicule</th><th>Km</th>
+            <th>LG</th><th>HM</th><th>HF</th><th>LR</th><th>Écl.</th><th>Pneus</th><th>Ext.</th>
+            <th>Remarques</th><th>Photos</th>
+            <th style="min-width:60px">Action</th>
+          </tr>
+        </thead>
         <tbody id="maint-tbody"></tbody>
       </table>
     </div>
+    <div id="maint-table-total" style="text-align:right;font-size:12px;color:var(--texte-sec);margin-top:6px"></div>
   </div>
 </div>
 
@@ -4371,10 +4362,9 @@ const BROUILLON_KEY = 'mcr_maint_brouillon';
 const CHAMPS_MAINT = [
   'maint-veh','maint-date','maint-km',
   'maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus',
-  'maint-cw','maint-cw-lieu','maint-cw-montant',
-  'maint-adblue','maint-ext','maint-rem',
+  'maint-ext','maint-rem',
   'maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom',
-  'maint-ecl-custom','maint-pneus-custom','maint-adblue-custom','maint-ext-custom',
+  'maint-ecl-custom','maint-pneus-custom','maint-ext-custom',
 ];
 
 /* Sauvegarde tous les champs du formulaire en localStorage */
@@ -4384,12 +4374,7 @@ function sauvegarderBrouillon() {
     const el = document.getElementById(id);
     if (el) data[id] = el.value;
   });
-  // Champs display (visibilité CW, custom)
-  const cwLieu    = document.getElementById('maint-cw-lieu');
-  const cwMontant = document.getElementById('maint-cw-montant');
-  data['_cw_visible']     = cwLieu    ? cwLieu.style.display    !== 'none' : false;
-  data['_cwm_visible']    = cwMontant ? cwMontant.style.display !== 'none' : false;
-  data['_photos']         = _photosEnCours.map(p => ({ name: p.name, data: p.data }));
+  data['_photos'] = _photosEnCours.map(p => ({ name: p.name, data: p.data }));
   data['_ts'] = Date.now();
   localStorage.setItem(BROUILLON_KEY, JSON.stringify(data));
   updateIndicateurBrouillon(true);
@@ -4411,14 +4396,6 @@ function restaurerBrouillon() {
     // Si c'est un champ custom visible → l'afficher
     if (id.endsWith('-custom') && data[id]) el.style.display = '';
   });
-
-  // Restaurer visibilité CW
-  if (data['_cw_visible']) {
-    const cwLieu    = document.getElementById('maint-cw-lieu');
-    const cwMontant = document.getElementById('maint-cw-montant');
-    if (cwLieu)    cwLieu.style.display    = '';
-    if (cwMontant) cwMontant.style.display = '';
-  }
 
   // Restaurer les photos
   if (data['_photos'] && data['_photos'].length) {
@@ -4484,8 +4461,6 @@ function populateMaintSelect() {
       const el = document.getElementById(id);
       if (el) el.value = 'OK';
     });
-    const cw = document.getElementById('maint-cw'); if (cw) cw.value = '';
-    const ab = document.getElementById('maint-adblue'); if (ab) ab.value = '';
   }
 
   renderMaintTable();
@@ -4522,7 +4497,7 @@ function injecterCustomOpts(selId) {
 
 /* Appelé au chargement de l'onglet Maintenance */
 function injecterToutesCustomOpts() {
-  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-adblue','maint-ext'].forEach(injecterCustomOpts);
+  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(injecterCustomOpts);
 }
 
 /* Gère "Autre…" : affiche le champ texte et, à la validation (blur/Enter), enregistre l'option */
@@ -4681,11 +4656,7 @@ function getSelectVal(selId, customId) {
 
 /* Affiche/masque les champs Car Wash lieu et montant */
 function toggleCWFields() {
-  const cw   = document.getElementById('maint-cw').value;
-  const show = cw === 'oui';
-  document.getElementById('maint-cw-lieu').style.display    = show ? '' : 'none';
-  document.getElementById('maint-cw-montant').style.display = show ? '' : 'none';
-  sauvegarderBrouillon();
+  // CW supprimé du formulaire maintenance — fonction conservée pour compatibilité
 }
 
 // ── Photos maintenance ────────────────────────────────────────
@@ -4828,13 +4799,6 @@ async function saveMaintenance() {
   const km    = parseInt(document.getElementById('maint-km').value);
   if (!date || !vehId || !km) { toast('Veuillez remplir au moins la date, le véhicule et le kilométrage.'); return; }
 
-  // Valeurs des listes dynamiques
-  const cwVal     = document.getElementById('maint-cw').value;
-  const cwLieu    = cwVal === 'oui' ? document.getElementById('maint-cw-lieu').value : '';
-  const cwMontant = cwVal === 'oui' ? parseFloat(document.getElementById('maint-cw-montant').value) || null : null;
-  const abVal     = getSelectVal('maint-adblue', 'maint-adblue-custom');
-  const abLitre   = abVal ? parseFloat(String(abVal).replace(',','.').replace(/[^0-9.]/g,'')) || null : null;
-
   // Photos encodées en base64
   const photos = await encodePhotos();
 
@@ -4848,8 +4812,6 @@ async function saveMaintenance() {
     ecl:    getSelectVal('maint-ecl',   'maint-ecl-custom'),
     pneus:  getSelectVal('maint-pneus', 'maint-pneus-custom'),
     ext:    getSelectVal('maint-ext',   'maint-ext-custom'),
-    cw: cwVal, cwLieu, cwMontant,
-    adblue: abVal,
     photos,
     rem: document.getElementById('maint-rem').value
   };
@@ -4859,22 +4821,6 @@ async function saveMaintenance() {
   // Mettre à jour km du véhicule
   const veh = vehicules.find(v => v.id === vehId);
   if (veh && km > veh.km) veh.km = km;
-
-  // Car Wash → créer entrée dans carwashes si oui
-  if (cwVal === 'oui') {
-    const dejaExiste = carwashes.some(c => c.vehId === vehId && c.date === date);
-    if (!dejaExiste) {
-      carwashes.unshift({ id: Date.now() + 2, vehId, date, lieu: cwLieu, montant: cwMontant });
-    }
-  }
-
-  // AdBlue → créer entrée dans adblues
-  if (abLitre && abLitre > 0) {
-    const dejaExiste = adblues.some(a => a.vehId === vehId && a.date === date && a.litre === abLitre);
-    if (!dejaExiste) {
-      adblues.unshift({ id: Date.now() + 1, vehId, date, litre: abLitre, km, source: 'maintenance' });
-    }
-  }
 
   // Photos : stocker UNIQUEMENT en localStorage (base64 trop volumineux pour Firebase)
   // On retire les photos de rec avant Firebase, on les sauvegarde à part
@@ -4898,29 +4844,79 @@ async function saveMaintenance() {
   toast('Maintenance enregistrée ✅');
 }
 
+function resetFiltresMaint() {
+  const fv = document.getElementById('maint-filter-veh');   if(fv) fv.value='';
+  const fd = document.getElementById('maint-filter-debut'); if(fd) fd.value='';
+  const ff = document.getElementById('maint-filter-fin');   if(ff) ff.value='';
+  renderMaintTable();
+}
+
 function renderMaintTable() {
   const tbody = document.getElementById('maint-tbody');
   if (!tbody) return;
-  tbody.innerHTML = maintenances.map(m => {
-    const v = vehicules.find(x => x.id === m.vehId);
-    // Charger les photos depuis localStorage (stockées séparément)
-    const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
-    const photos   = photosLS[m.id] || m.photos || [];
-    const photosHtml = photos.length
-      ? photos.map((p, pi) => `<img src="${p.data}" title="${p.name}"
-          style="width:36px;height:28px;object-fit:cover;border-radius:4px;cursor:pointer;margin-right:2px"
-          onclick="window.open('${p.data}','_blank')" />`).join('')
-      : '';
-    return `<tr>
-      <td>${formatDate(m.date)}</td>
-      <td>${v ? v.marque + ' ' + v.immat : m.vehId}</td>
-      <td>${m.km.toLocaleString('fr-BE')} km</td>
-      <td>${m.cw === 'oui' ? `✅ ${m.cwLieu||''}${m.cwMontant ? ' ' + Number(m.cwMontant).toFixed(2) + '€' : ''}` : (m.cw === 'non' ? '—' : '')}</td>
-      <td style="font-size:12px">${m.ext || '—'}${photosHtml ? '<br>' + photosHtml : ''}</td>
-      <td style="max-width:180px;font-size:12px">${m.rem || '—'}</td>
-      <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteMaint(${m.id})">✕</button></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="7" style="color:var(--texte-sec);text-align:center;padding:20px">Aucune maintenance enregistrée</td></tr>';
+
+  // Peupler le filtre véhicule une seule fois
+  const selFilt = document.getElementById('maint-filter-veh');
+  if (selFilt && selFilt.options.length <= 1) {
+    ORDRE_VEHICULES.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      selFilt.appendChild(opt);
+    });
+  }
+
+  const filtVeh  = selFilt?.value || '';
+  const filtDeb  = document.getElementById('maint-filter-debut')?.value || '';
+  const filtFin  = document.getElementById('maint-filter-fin')?.value || '';
+
+  // Filtrer
+  let list = [...maintenances];
+  if (filtVeh) list = list.filter(m => m.vehId === filtVeh);
+  if (filtDeb) list = list.filter(m => m.date >= filtDeb);
+  if (filtFin) list = list.filter(m => m.date <= filtFin);
+
+  // Ordre INVERSÉ : plus récent en tête
+  list.sort((a,b) => b.date.localeCompare(a.date));
+
+  const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+
+  const LABELS = { OK: '<span style="color:var(--vert);font-weight:600">OK</span>' };
+  const fmt = val => val ? (val === 'OK' ? LABELS.OK : `<span style="color:var(--orange)">${val}</span>`) : '<span style="color:#ccc">—</span>';
+
+  tbody.innerHTML = list.length
+    ? list.map(m => {
+        const v = vehicules.find(x => x.id === m.vehId);
+        const vNom = v ? `${v.marque}<br><span style="font-family:monospace;font-size:10px;background:#333;color:#fff;padding:0 4px;border-radius:2px">${v.immat}</span>` : m.vehId;
+        const photos = photosLS[m.id] || m.photos || [];
+        const photosHtml = photos.length
+          ? photos.map(p => `<img src="${p.data}" title="${p.name}"
+              style="width:34px;height:26px;object-fit:cover;border-radius:3px;cursor:pointer;margin:1px"
+              onclick="window.open('${p.data}','_blank')" />`).join('')
+          : '—';
+        const editBtn = isAdmin ? `<button class="btn btn-sm" onclick="editHistItem('maintenance',${m.id})" title="Modifier">✏️</button>` : '';
+        const delBtn  = isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteMaint(${m.id})" title="Supprimer">✕</button>` : '';
+        return `<tr>
+          <td style="white-space:nowrap;font-weight:600">${formatDate(m.date)}</td>
+          <td style="font-size:12px">${vNom}</td>
+          <td style="white-space:nowrap">${m.km ? parseInt(m.km).toLocaleString('fr-BE')+' km' : '—'}</td>
+          <td style="font-size:11px;text-align:center">${fmt(m.lg)}</td>
+          <td style="font-size:11px;text-align:center">${fmt(m.hm)}</td>
+          <td style="font-size:11px;text-align:center">${fmt(m.hf)}</td>
+          <td style="font-size:11px;text-align:center">${fmt(m.lr)}</td>
+          <td style="font-size:11px;text-align:center">${fmt(m.ecl)}</td>
+          <td style="font-size:11px;text-align:center">${fmt(m.pneus)}</td>
+          <td style="font-size:11px;text-align:center">${fmt(m.ext)}</td>
+          <td style="font-size:11px;max-width:150px">${m.rem || '—'}</td>
+          <td>${photosHtml}</td>
+          <td style="white-space:nowrap">${editBtn}${delBtn}</td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="13" style="color:var(--texte-sec);text-align:center;padding:20px">Aucune maintenance pour ces critères</td></tr>`;
+
+  const totalEl = document.getElementById('maint-table-total');
+  if (totalEl) totalEl.textContent = list.length > 0 ? `${list.length} maintenance(s) affichée(s)` : '';
 }
 
 function deleteMaint(id) {
@@ -4930,28 +4926,18 @@ function deleteMaint(id) {
 }
 
 function clearMaintForm() {
-  // Effacer le brouillon
   effacerBrouillon();
-  // Réinitialiser les selects
-  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-adblue','maint-ext'].forEach(id => {
+  ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
   });
-  // Masquer les champs custom
-  ['maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom','maint-ecl-custom','maint-pneus-custom','maint-adblue-custom','maint-ext-custom'].forEach(id => {
+  ['maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom','maint-ecl-custom','maint-pneus-custom','maint-ext-custom'].forEach(id => {
     const el = document.getElementById(id); if(el) { el.value = ''; el.style.display = 'none'; }
   });
-  // Car Wash
-  document.getElementById('maint-cw').value = '';
-  document.getElementById('maint-cw-lieu').style.display = 'none';
-  document.getElementById('maint-cw-montant').style.display = 'none';
-  document.getElementById('maint-cw-montant').value = '';
-  // Km et remarques
   const kmEl = document.getElementById('maint-km'); if(kmEl) kmEl.value = '';
   const remEl = document.getElementById('maint-rem'); if(remEl) remEl.value = '';
-  // Photos
   _photosEnCours = [];
-  const photosEl = document.getElementById('maint-photos'); if (photosEl) photosEl.value = '';
-  const previewEl = document.getElementById('maint-photos-preview'); if (previewEl) previewEl.innerHTML = '';
+  const photosEl = document.getElementById('maint-photos'); if(photosEl) photosEl.value = '';
+  const previewEl = document.getElementById('maint-photos-preview'); if(previewEl) previewEl.innerHTML = '';
 }
 
 // ============================================================
