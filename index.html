@@ -6054,11 +6054,11 @@ function headerRapport(titre, filtres) {
 
 /* Rapport maintenances détaillé avec tous les champs */
 function printRapportMaint() {
-  const filtVeh  = document.getElementById('rpt-maint-veh')?.value || '';
-  const filtDeb  = document.getElementById('rpt-maint-debut')?.value || '';
-  const filtFin  = document.getElementById('rpt-maint-fin')?.value || '';
+  const filtVeh = document.getElementById('rpt-maint-veh')?.value || '';
+  const filtDeb = document.getElementById('rpt-maint-debut')?.value || '';
+  const filtFin = document.getElementById('rpt-maint-fin')?.value || '';
 
-  // Filtrer et trier
+  // Filtrer et trier par date croissante
   let mList = [...maintenances];
   if (filtVeh) mList = mList.filter(m => m.vehId === filtVeh);
   if (filtDeb) mList = mList.filter(m => m.date >= filtDeb);
@@ -6067,106 +6067,167 @@ function printRapportMaint() {
 
   if (!mList.length) { toast('Aucune maintenance pour ces critères.'); return; }
 
-  // Grouper par véhicule
-  const parVeh = {};
-  mList.forEach(m => {
-    if (!parVeh[m.vehId]) parVeh[m.vehId] = [];
-    parVeh[m.vehId].push(m);
-  });
-
   const filtreStr = [
     filtVeh ? vehicules.find(v=>v.id===filtVeh)?.immat : 'Tous véhicules',
     filtDeb ? 'du ' + formatDate(filtDeb) : '',
     filtFin ? 'au ' + formatDate(filtFin) : '',
   ].filter(Boolean).join(' ');
 
-  // Champs à afficher
+  // Dates uniques triées (colonnes du tableau)
+  const datesUniques = [...new Set(mList.map(m => m.date))].sort();
+
+  // Véhicules concernés dans l'ordre habituel
+  const vehIds = ORDRE_VEHICULES.filter(id =>
+    mList.some(m => m.vehId === id)
+  );
+
+  // Champs à afficher dans chaque cellule
   const CHAMPS = [
-    { key:'lg',    label:'Lave-glace',        valOk:'OK' },
-    { key:'hm',    label:'Huile moteur',       valOk:'OK' },
-    { key:'hf',    label:'Huile de frein',     valOk:'OK' },
-    { key:'lr',    label:'Refroidissement',    valOk:'OK' },
-    { key:'ecl',   label:'Éclairage',          valOk:'OK' },
-    { key:'pneus', label:'Pneus',              valOk:'OK' },
-    { key:'ext',   label:'Extérieur',          valOk:'OK' },
+    { key:'lg',    emoji:'💧', label:'LG'   },
+    { key:'hm',    emoji:'🛢',  label:'HM'  },
+    { key:'hf',    emoji:'🔴', label:'HF'   },
+    { key:'lr',    emoji:'🌡', label:'LR'   },
+    { key:'ecl',   emoji:'💡', label:'Écl' },
+    { key:'pneus', emoji:'🛞', label:'Pneus'},
+    { key:'ext',   emoji:'🚗', label:'Ext' },
   ];
 
-  let body = headerRapport('Rapport Maintenances', filtreStr);
+  // CSS spécifique tableau récap
+  const cssExtra = `
+    <style>
+      * { box-sizing:border-box; }
+      body { font-family:'Segoe UI',Arial,sans-serif; font-size:10px; color:#222;
+             margin:0; padding:16px; }
+      h1 { font-size:15px; color:#c0392b; margin-bottom:2px; }
+      .meta { font-size:10px; color:#666; margin-bottom:12px; }
+      .header-bar { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+      table { border-collapse:collapse; width:100%; table-layout:fixed; }
+      th, td { border:1px solid #ccc; padding:3px 4px; vertical-align:top;
+               font-size:9.5px; word-break:break-word; }
+      th { background:#2c3e50; color:#fff; text-align:center; font-size:9px;
+           white-space:nowrap; }
+      th.veh-col { background:#c0392b; width:90px; }
+      th.date-col { width:auto; }
+      td.veh-cell { background:#ecf0f1; font-weight:700; font-size:9px;
+                    vertical-align:middle; text-align:center; }
+      td.maint-cell { background:#fff; }
+      td.empty-cell { background:#f9f9f9; }
+      .val { display:flex; gap:2px; align-items:baseline; padding:1px 0; }
+      .val-label { color:#888; font-size:8px; min-width:22px; }
+      .val-ok   { color:#27ae60; font-weight:600; }
+      .val-warn { color:#e67e22; font-weight:600; }
+      .km-badge { background:#2c3e50; color:#fff; border-radius:3px;
+                  padding:1px 4px; font-size:8px; display:inline-block;
+                  margin-bottom:3px; white-space:nowrap; }
+      .rem { background:#fef9e7; border-left:2px solid #f39c12;
+             padding:2px 4px; margin-top:3px; font-size:8.5px;
+             border-radius:2px; font-style:italic; }
+      @media print {
+        body { padding:6px; }
+        @page { size:A4 landscape; margin:10mm; }
+      }
+    </style>`;
 
-  // Pour chaque véhicule, afficher ses maintenances
-  ORDRE_VEHICULES.forEach(vehId => {
-    if (!parVeh[vehId]) return;
+  // En-tête logo + titre
+  const dateGen = new Date().toLocaleDateString('fr-BE',
+    { day:'2-digit', month:'long', year:'numeric' });
+  let body = `
+    <div class="header-bar">
+      <svg width="24" height="24" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc241f" stroke-width="2"/>
+        <rect x="13" y="7" width="6" height="18" rx="1" fill="#dc241f"/>
+        <rect x="7" y="13" width="18" height="6" rx="1" fill="#dc241f"/>
+      </svg>
+      <div>
+        <h1>Maison Croix-Rouge — Opont &nbsp;|&nbsp; Rapport Maintenances</h1>
+        <div class="meta">${filtreStr} — Généré le ${dateGen}</div>
+      </div>
+    </div>`;
+
+  // Construction du tableau
+  body += `<table>`;
+
+  // Ligne d'en-tête : Véhicule | Date1 | Date2 | ...
+  body += `<tr>
+    <th class="veh-col">Véhicule</th>`;
+  datesUniques.forEach(d => {
+    const dateObj = new Date(d);
+    const label = dateObj.toLocaleDateString('fr-BE',
+      { day:'2-digit', month:'short', year:'numeric' });
+    body += `<th class="date-col">${label}</th>`;
+  });
+  body += `</tr>`;
+
+  // Une ligne par véhicule
+  vehIds.forEach(vehId => {
     const v = vehicules.find(x => x.id === vehId);
-    const vNom = v ? `${v.marque} — ${v.immat} (${v.type})` : vehId;
+    const vNom = v
+      ? `${v.marque}<br><span style="font-size:8px;font-family:monospace;
+          background:#333;color:#fff;padding:0 3px;border-radius:2px">${v.immat}</span>`
+      : vehId;
 
-    body += `<div class="veh-header">🚑 ${vNom}</div>`;
-    body += `<div class="maint-card">`;
+    body += `<tr><td class="veh-cell">${vNom}</td>`;
 
-    parVeh[vehId].forEach((m, idx) => {
-      const kmStr = m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '—';
-      body += `<div class="maint-date">
-        <span>📅 ${formatDate(m.date)}</span>
-        <span>🔢 ${kmStr}</span>
-      </div>`;
-      body += `<div class="maint-body">`;
+    datesUniques.forEach(d => {
+      // Peut y avoir plusieurs maintenances pour ce véhicule à cette date
+      const ms = mList.filter(m => m.vehId === vehId && m.date === d);
+      if (!ms.length) {
+        body += `<td class="empty-cell">—</td>`;
+        return;
+      }
 
-      // Champs liquides / état
-      let hasChamps = false;
+      // Afficher la première (normalement une seule par mois)
+      const m = ms[0];
+      const kmStr = m.km
+        ? parseInt(m.km).toLocaleString('fr-BE') + ' km'
+        : '';
+
+      let cellContent = kmStr
+        ? `<div class="km-badge">${kmStr}</div>` : '';
+
       CHAMPS.forEach(c => {
-        if (!m[c.key]) return;
-        hasChamps = true;
-        const isOk = m[c.key] === c.valOk || m[c.key] === 'OK';
-        body += `<div class="champ-row">
-          <span class="champ-label">${c.label}</span>
-          <span class="champ-val ${isOk ? 'ok' : 'warn'}">${m[c.key]}</span>
+        const val = m[c.key];
+        if (!val) return;
+        const isOk = val === 'OK';
+        cellContent += `<div class="val">
+          <span class="val-label">${c.emoji}</span>
+          <span class="${isOk ? 'val-ok' : 'val-warn'}">${isOk ? '✓' : val}</span>
         </div>`;
       });
 
-      // Car Wash
-      if (m.cw === 'oui') {
-        body += `<div class="champ-row">
-          <span class="champ-label">🚿 Car Wash</span>
-          <span class="champ-val">${m.cwLieu || ''}${m.cwMontant ? ' — ' + Number(m.cwMontant).toFixed(2) + ' €' : ''}</span>
-        </div>`;
-        hasChamps = true;
-      }
-
-      // AdBlue
-      if (m.adblue) {
-        body += `<div class="champ-row">
-          <span class="champ-label">💧 AdBlue</span>
-          <span class="champ-val" style="color:#2980b9">${m.adblue} L</span>
-        </div>`;
-        hasChamps = true;
-      }
-
-      if (!hasChamps) {
-        body += `<div class="champ-row"><span class="champ-label" style="color:#aaa">Aucun champ renseigné</span></div>`;
-      }
-
-      // Remarques
       if (m.rem) {
-        body += `<div class="rem-box">📝 ${m.rem}</div>`;
+        cellContent += `<div class="rem">${m.rem}</div>`;
       }
 
-      body += `</div>`; // fin maint-body
-      // Séparateur entre maintenances sauf la dernière
-      if (idx < parVeh[vehId].length - 1) {
-        body += `<div style="border-top:1px solid #eee"></div>`;
-      }
+      body += `<td class="maint-cell">${cellContent}</td>`;
     });
 
-    body += `</div>`; // fin maint-card
+    body += `</tr>`;
   });
 
-  // Résumé en bas
-  body += `<div style="margin-top:20px;border-top:2px solid #c0392b;padding-top:10px;font-size:11px;color:#666">
-    Total : <strong>${mList.length} maintenance(s)</strong> — 
-    ${Object.keys(parVeh).length} véhicule(s) — 
-    MCR Opont © ${new Date().getFullYear()}
-  </div>`;
+  body += `</table>`;
 
-  const htmlFinal = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport Maintenances MCR</title>${cssRapport()}</head><body>${body}</body></html>`;
+  // Légende
+  body += `
+    <div style="margin-top:10px;font-size:9px;color:#666;display:flex;gap:16px;flex-wrap:wrap">
+      <span>💧 LG = Lave-glace</span>
+      <span>🛢 HM = Huile moteur</span>
+      <span>🔴 HF = Huile frein</span>
+      <span>🌡 LR = Liquide refroidissement</span>
+      <span>💡 Écl = Éclairage</span>
+      <span>🛞 Pneus</span>
+      <span>🚗 Ext = Extérieur</span>
+      <span style="color:#27ae60;font-weight:600">✓ = OK</span>
+      <span style="color:#e67e22;font-weight:600">Texte = anomalie</span>
+    </div>
+    <div style="margin-top:6px;font-size:9px;color:#888">
+      ${mList.length} maintenance(s) — ${vehIds.length} véhicule(s) —
+      MCR Opont © ${new Date().getFullYear()}
+    </div>`;
+
+  const htmlFinal = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Rapport Maintenances MCR</title>${cssExtra}</head>
+    <body>${body}</body></html>`;
   ouvrirImpression(htmlFinal);
 }
 
