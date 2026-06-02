@@ -4863,6 +4863,72 @@ async function saveMaintenance() {
   if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
   if (document.getElementById('page-kilometrage').classList.contains('active')) renderKilometrage();
   toast('Maintenance enregistrée ✅');
+
+  // Vérifier si tous les véhicules ont été maintenus ce mois-ci
+  verifierCompletudeMensuelle(date);
+}
+
+function verifierCompletudeMensuelle(dateSaisie) {
+  // Extraire le mois et l'année de la date saisie
+  const [annee, mois] = dateSaisie.split('-');
+  const moisAnnee = `${annee}-${mois}`;
+
+  // Véhicules qui participent aux maintenances mensuelles (tous sauf exclusions éventuelles)
+  const vehConcernes = ORDRE_VEHICULES.filter(id => vehicules.find(v => v.id === id));
+
+  // Véhicules ayant une maintenance ce mois-ci
+  const vehFaits = new Set(
+    maintenances
+      .filter(m => m.date.startsWith(moisAnnee))
+      .map(m => m.vehId)
+  );
+
+  const vehManquants = vehConcernes.filter(id => !vehFaits.has(id));
+
+  if (vehManquants.length === 0) {
+    // TOUS les véhicules ont été maintenus ce mois-ci → rappel de sauvegarde
+    const moisNom = new Date(`${annee}-${mois}-01`).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric' });
+    afficherRappelSauvegarde(moisNom, vehConcernes.length);
+  }
+}
+
+function afficherRappelSauvegarde(moisNom, nbVehicules) {
+  // Créer le modal de rappel s'il n'existe pas
+  let modal = document.getElementById('modal-rappel-backup');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-rappel-backup';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:400px;text-align:center">
+        <div style="font-size:48px;margin-bottom:12px">💾</div>
+        <h2 style="color:var(--vert);margin-bottom:8px">Maintenance complète !</h2>
+        <p id="rappel-backup-msg" style="font-size:14px;margin-bottom:16px"></p>
+        <div style="background:var(--orange-clair);border-radius:8px;padding:12px;margin-bottom:20px;border-left:4px solid var(--orange)">
+          <p style="font-size:13px;font-weight:600;color:var(--orange);margin:0">
+            ⚠️ Pensez à exporter une sauvegarde !
+          </p>
+          <p style="font-size:12px;color:var(--texte-sec);margin:4px 0 0">
+            Onglet Rapports → 💾 Exporter toutes les données
+          </p>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn primary" onclick="
+            closeModal('modal-rappel-backup');
+            showPage('rapports', document.querySelectorAll('.tab-btn')[document.querySelectorAll('.tab-btn').length-1]);
+          ">💾 Exporter maintenant</button>
+          <button class="btn" onclick="closeModal('modal-rappel-backup')">Plus tard</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+
+  // Mettre à jour le message
+  document.getElementById('rappel-backup-msg').innerHTML =
+    `Tous les <strong>${nbVehicules} véhicules</strong> ont été enregistrés pour <strong>${moisNom}</strong>.`;
+
+  // Afficher avec un court délai (laisser le toast de confirmation disparaître d'abord)
+  setTimeout(() => modal.classList.add('open'), 1200);
 }
 
 function resetFiltresMaint() {
