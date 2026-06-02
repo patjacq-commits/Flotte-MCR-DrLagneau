@@ -1605,6 +1605,27 @@ td.ok { color: var(--vert); font-weight: 600; }
 <div id="page-rapports" class="page">
   <h2 style="margin-bottom:14px">📄 Rapports</h2>
 
+  <!-- Sauvegarde / Restauration -->
+  <div class="form-card" style="border:2px solid var(--bleu);background:var(--bleu-clair)">
+    <h3 style="color:var(--bleu)">💾 Sauvegarde & Restauration</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
+      Exportez toutes les données en un fichier JSON. Recommandé après chaque maintenance mensuelle.
+      Le fichier contient toutes les collections : véhicules, maintenances, CT, RV, AdBlue, Car Wash, pneus, recharges clé.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn primary" onclick="exportBackupJSON()"
+        style="background:var(--bleu);border-color:var(--bleu)">
+        💾 Exporter toutes les données
+      </button>
+      <label class="btn" style="cursor:pointer;margin:0">
+        📥 Restaurer depuis un backup
+        <input type="file" id="backup-import-file" accept=".json" onchange="importBackupJSON(event)"
+          style="display:none" />
+      </label>
+    </div>
+    <div id="backup-last-export" style="font-size:11px;color:var(--texte-sec);margin-top:8px"></div>
+  </div>
+
   <!-- Rapport maintenances -->
   <div class="form-card">
     <h3>🔧 Rapport maintenances</h3>
@@ -5675,6 +5696,138 @@ function exportCSV() {
   downloadCSV(rows, 'MCR_historique.csv');
 }
 
+// ============================================================
+// SAUVEGARDE / RESTAURATION JSON
+// ============================================================
+
+function exportBackupJSON() {
+  const now     = new Date();
+  const dateStr = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}`;
+  const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+
+  const backup = {
+    _meta: {
+      version:    APP_VERSION,
+      exportDate: now.toISOString(),
+      exportBy:   isAdmin ? 'admin' : 'chauffeur',
+      app:        'MCR Opont Flotte',
+    },
+    vehicules,
+    maintenances,
+    ctEvents,
+    rendezvous,
+    adblues,
+    carwashes,
+    rechargesCle,
+    permutations,
+    messagesChauf,
+    photos: photosLS,
+  };
+
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `mcr-backup-${dateStr}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  // Mémoriser la date du dernier export
+  localStorage.setItem('mcr_last_backup', now.toISOString());
+  updateBackupInfo();
+  toast(`Backup exporté : mcr-backup-${dateStr}.json ✅`);
+}
+
+function importBackupJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!confirm(
+    '⚠️ ATTENTION\n\n' +
+    'Restaurer un backup va REMPLACER toutes les données actuelles.\n\n' +
+    'Cette action est irréversible.\n\n' +
+    'Confirmez-vous la restauration ?'
+  )) {
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const backup = JSON.parse(e.target.result);
+
+      // Vérifier que c'est bien un backup MCR
+      if (!backup._meta || backup._meta.app !== 'MCR Opont Flotte') {
+        toast('❌ Fichier non reconnu — ce n\'est pas un backup MCR Opont.');
+        event.target.value = '';
+        return;
+      }
+
+      const dateExport = new Date(backup._meta.exportDate).toLocaleDateString('fr-BE', {
+        day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+      });
+
+      if (!confirm(
+        `Backup du ${dateExport}\n` +
+        `${backup.maintenances?.length || 0} maintenances\n` +
+        `${backup.vehicules?.length || 0} véhicules\n` +
+        `${backup.ctEvents?.length || 0} CT\n` +
+        `${backup.rendezvous?.length || 0} RV\n\n` +
+        `Confirmer la restauration ?`
+      )) {
+        event.target.value = '';
+        return;
+      }
+
+      // Restaurer toutes les collections
+      if (backup.vehicules?.length)     vehicules     = backup.vehicules;
+      if (backup.maintenances?.length)  maintenances  = backup.maintenances;
+      if (backup.ctEvents?.length)      ctEvents      = backup.ctEvents;
+      if (backup.rendezvous?.length)    rendezvous    = backup.rendezvous;
+      if (backup.adblues?.length)       adblues       = backup.adblues;
+      if (backup.carwashes?.length)     carwashes     = backup.carwashes;
+      if (backup.rechargesCle?.length)  rechargesCle  = backup.rechargesCle;
+      if (backup.permutations?.length)  permutations  = backup.permutations;
+      if (backup.messagesChauf?.length) messagesChauf = backup.messagesChauf;
+
+      // Restaurer les photos en localStorage
+      if (backup.photos && Object.keys(backup.photos).length) {
+        localStorage.setItem('mcr_photos', JSON.stringify(backup.photos));
+      }
+
+      // Sauvegarder dans Firebase
+      await saveAll();
+
+      event.target.value = '';
+      toast(`✅ Restauration réussie — backup du ${dateExport}`);
+      renderAccueil();
+
+    } catch(err) {
+      toast('❌ Erreur lors de la lecture du fichier JSON.');
+      console.error('Import backup error:', err);
+      event.target.value = '';
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function updateBackupInfo() {
+  const el = document.getElementById('backup-last-export');
+  if (!el) return;
+  const last = localStorage.getItem('mcr_last_backup');
+  if (last) {
+    const d = new Date(last).toLocaleDateString('fr-BE', {
+      weekday:'long', day:'2-digit', month:'long', year:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+    el.textContent = `Dernier export : ${d}`;
+  } else {
+    el.textContent = 'Aucun export effectué depuis cet appareil.';
+  }
+}
+
 function exportAllCSV() {
   const rows = [['Immat','Marque','Type','Km_actuel','CT_valide_jusquau','Prochain_entretien_km','Dernier_entretien_le','Garage','Remarques']];
   vehicules.forEach(v => {
@@ -5784,6 +5937,7 @@ function initRapports() {
     opt.textContent = v.marque + ' — ' + v.immat;
     sel.appendChild(opt);
   });
+  updateBackupInfo();
 }
 
 /* CSS commun pour les rapports imprimés */
