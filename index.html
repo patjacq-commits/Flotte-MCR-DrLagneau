@@ -6086,33 +6086,50 @@ function printRapportMaint() {
     { key:'ext',   label:'Extérieur'        },
   ];
 
+  // 9 colonnes : Véhicule + Km + 7 champs
+  // Véhicule = 14%, Km = 10%, chaque champ = (76/7)% ≈ 10.86%
+  const pctVeh   = 14;
+  const pctKm    = 10;
+  const pctChamp = ((100 - pctVeh - pctKm) / CHAMPS.length).toFixed(2);
+
   const cssExtra = `<style>
-    *{box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;font-size:9px;color:#222;margin:0;padding:12px}
-    h1{font-size:14px;color:#c0392b;margin-bottom:2px}
-    .meta{font-size:9px;color:#666;margin-bottom:10px}
-    .header-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-    h2{font-size:11px;color:#2c3e50;margin:14px 0 4px;background:#ecf0f1;
-       padding:3px 7px;border-left:3px solid #c0392b;border-radius:2px}
-    table{border-collapse:collapse;width:100%;margin-bottom:6px}
-    th,td{border:1px solid #bbb;padding:2px 4px;text-align:center;font-size:8.5px}
-    th{background:#2c3e50;color:#fff;white-space:nowrap;font-size:8px}
-    th.h-veh{background:#c0392b;text-align:left;width:88px}
-    th.h-km{background:#34495e;width:54px}
-    th.h-champ{width:54px}
-    td.veh-cell{background:#f0f0f0;font-weight:700;text-align:left;font-size:8px;
-                vertical-align:middle}
-    td.km-cell{background:#ecf0f1;font-weight:600;white-space:nowrap}
-    td.ok{color:#27ae60;font-weight:700}
-    td.warn{color:#e67e22;font-weight:600}
-    td.absent{background:#f9f9f9;color:#ccc}
-    .rem-table{width:100%;border-collapse:collapse;margin-bottom:12px;page-break-inside:avoid}
-    .rem-table th{background:#f39c12;color:#fff;text-align:left;font-size:8px;padding:2px 6px}
-    .rem-table td{border:1px solid #e0c080;padding:2px 6px;font-size:8px;background:#fef9e7}
-    .rem-table .rem-veh{font-weight:700;width:88px;white-space:nowrap}
-    .leg{font-size:8px;color:#666;margin-top:8px;display:flex;flex-wrap:wrap;gap:10px}
-    .foot{font-size:8px;color:#999;margin-top:6px;border-top:1px solid #ddd;padding-top:4px}
-    @media print{body{padding:6px} @page{size:A4 landscape;margin:8mm}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:8.5px;color:#222;padding:8px}
+    h1{font-size:13px;color:#c0392b;margin-bottom:1px}
+    .meta{font-size:8px;color:#666;margin-bottom:8px}
+    .header-bar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    h2{font-size:10px;color:#fff;background:#2c3e50;margin:10px 0 0;
+       padding:3px 8px;border-left:4px solid #c0392b}
+    table{border-collapse:collapse;width:100%;table-layout:fixed;
+          border:1px solid #999;margin-bottom:2px}
+    th,td{border:1px solid #aaa;padding:3px 4px;text-align:center;
+          overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    th{background:#34495e;color:#fff;font-size:7.5px;font-weight:700}
+    th.h-veh{background:#c0392b;text-align:left;width:${pctVeh}%}
+    th.h-km{background:#2980b9;width:${pctKm}%}
+    th.h-champ{width:${pctChamp}%}
+    td.veh-cell{background:#f5f5f5;font-weight:700;text-align:left;
+                font-size:8px;white-space:normal;word-break:break-word}
+    td.km-cell{background:#ebf5fb;font-weight:600;font-size:8px;color:#1a5276}
+    td.ok{color:#27ae60;font-weight:800;font-size:10px}
+    td.warn{color:#e67e22;font-weight:700;font-size:7.5px;white-space:normal;
+            word-break:break-word}
+    td.absent{background:#fafafa;color:#ccc;font-size:10px}
+    .rem-table{width:100%;border-collapse:collapse;margin:8px 0 4px}
+    .rem-table th{background:#e67e22;color:#fff;text-align:left;
+                  font-size:8px;padding:2px 6px}
+    .rem-table td{border:1px solid #f0c080;padding:2px 6px;
+                  font-size:8px;background:#fef9e7;vertical-align:top}
+    .rem-veh{font-weight:700;width:14%;white-space:nowrap}
+    .rem-date{width:10%;white-space:nowrap}
+    .leg{font-size:7.5px;color:#666;margin-top:6px;
+         display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #ddd;padding-top:4px}
+    .foot{font-size:7.5px;color:#999;margin-top:4px;text-align:right}
+    @media print{
+      body{padding:4px}
+      @page{size:A4 landscape;margin:6mm}
+      h2{page-break-before:auto}
+    }
   </style>`;
 
   const dateGen = new Date().toLocaleDateString('fr-BE',
