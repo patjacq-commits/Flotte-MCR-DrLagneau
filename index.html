@@ -2455,6 +2455,11 @@ function saveCarWash() {
   const montant = document.getElementById('cw-montant').value;
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
   carwashes.unshift({ id: Date.now(), date, vehId, lieu, montant: montant ? parseFloat(montant) : null });
+  const _cwNew = carwashes[0];
+  if (_cwNew) {
+    const _vCW = vehicules.find(v => v.id === _cwNew.vehId);
+    logCreation('carwashes', `Car Wash : ${_vCW ? _vCW.immat : _cwNew.vehId} — ${_cwNew.lieu} — ${formatDate(_cwNew.date)}`, { vehId:_cwNew.vehId, date:_cwNew.date, lieu:_cwNew.lieu });
+  }
   saveAll(); clearCWForm(); renderCWTable(); toast('Lavage enregistré ✅');
 }
 
@@ -2465,8 +2470,12 @@ function clearCWForm() {
 
 function deleteCW(id) {
   if (!confirm('Supprimer ce lavage ?')) return;
+  const cwDel = carwashes.find(c => c.id === id);
+  const vCW2  = cwDel ? vehicules.find(v => v.id === cwDel.vehId) : null;
   carwashes = carwashes.filter(c => c.id !== id);
-  saveAll(); renderCWTable(); toast('Entrée supprimée');
+  saveAll();
+  logSuppression('carwashes', `Suppression CW ${vCW2 ? vCW2.immat : cwDel?.vehId||'?'} — ${cwDel ? formatDate(cwDel.date) : ''}`, cwDel);
+  renderCWTable(); toast('Entrée supprimée');
 }
 
 function renderCWTable() {
@@ -2610,6 +2619,11 @@ function savePermutation() {
     }
   }
 
+  const _pmN = permutations[0];
+  if (_pmN) {
+    const _vPMn = vehicules.find(v => v.id === _pmN.vehId);
+    logCreation('permutations', `Permutation pneus : ${_vPMn ? _vPMn.immat : _pmN.vehId} — ${_pmN.type} — ${formatDate(_pmN.date)}`, { vehId:_pmN.vehId, date:_pmN.date, type:_pmN.type });
+  }
   saveAll(); clearPneuForm(); renderPneuRecap(); renderPneuHistorique();
   toast('Permutation enregistrée ✅');
 }
@@ -2824,6 +2838,7 @@ function saveAdBlueOnglet() {
   const km    = document.getElementById('ab-ong-km').value ? parseInt(document.getElementById('ab-ong-km').value) : null;
   if (!date || !vehId || isNaN(litre) || litre <= 0) { toast('Veuillez remplir la date, le véhicule et le volume.'); return; }
   adblues.unshift({ id: Date.now(), vehId, date, litre, km });
+  logCreation('adblues', `AdBlue : ${vehicules.find(v=>v.id===vehId)?.immat||vehId} — ${litre.toFixed(2)} L — ${formatDate(date)}`, { vehId, date, litre });
   saveAll();
   clearABForm();
   renderAdBlueTable();
@@ -2839,7 +2854,10 @@ function clearABForm() {
 
 function deleteAdBlueOnglet(id) {
   if (!confirm('Supprimer cette entrée ?')) return;
+  const abD = adblues.find(a => a.id === id);
+  const vABd = abD ? vehicules.find(v => v.id === abD.vehId) : null;
   adblues = adblues.filter(a => a.id !== id);
+  logSuppression('adblues', `Suppression AdBlue ${vABd ? vABd.immat : abD?.vehId||'?'} — ${abD ? formatDate(abD.date) : ''}`, abD);
   saveAll(); renderAdBlueTable(); toast('Entrée supprimée');
 }
 
@@ -2961,7 +2979,10 @@ function showPage(id, btn) {
   if (id === 'carwash') initCarWash();
   if (id === 'pneus')   initPneus();
   if (id === 'rapports') initRapports();
-  if (id === 'comptes' && userIsSuperAdmin()) renderGestionComptes();
+  if (id === 'comptes' && userIsSuperAdmin()) {
+    renderGestionComptes();
+    renderHistoriqueLog();
+  }
   if (id === 'adblue')  initAdBlueOnglet();
   if (id === 'chauf') {
     initChauf();
@@ -3112,6 +3133,7 @@ async function creerCompteChaufeur(nom, email, pwd) {
     const cred = await auth.createUserWithEmailAndPassword(email, pwd);
     await db.collection('roles').doc(cred.user.uid).set({ role:'chauffeur', nom, email });
     // Se reconnecter avec le compte de Patrick (le superadmin)
+    logCreation('roles', `Compte chauffeur créé : ${nom} (${email})`, { nom, email, role:'chauffeur' });
     toast(`Compte créé pour ${nom} ✅`);
     return true;
   } catch(e) {
@@ -3125,7 +3147,9 @@ async function creerCompteChaufeur(nom, email, pwd) {
 
 async function supprimerCompteChaufeur(uid) {
   try {
+    const roleDoc = await db.collection('roles').doc(uid).get().catch(()=>null);
     await db.collection('roles').doc(uid).delete();
+    if (roleDoc?.exists) logSuppression('roles', `Compte supprimé : ${roleDoc.data().nom} (${roleDoc.data().email})`, roleDoc.data());
     toast('Compte supprimé de la liste ✅');
     renderGestionComptes();
   } catch(e) {
@@ -3161,6 +3185,68 @@ async function renderGestionComptes() {
       : '<p style="color:var(--texte-sec)">Aucun compte trouvé.</p>';
   } catch(e) {
     container.innerHTML = '<p style="color:var(--rouge)">Erreur de chargement.</p>';
+  }
+}
+
+async function renderHistoriqueLog() {
+  const container = document.getElementById('hist-log-container');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--texte-sec)">Chargement…</p>';
+
+  const filtAction = document.getElementById('hist-log-action')?.value || '';
+  const filtCol    = document.getElementById('hist-log-col')?.value || '';
+
+  try {
+    let query = db.collection('historique').orderBy('date', 'desc').limit(200);
+    const snap = await query.get();
+    let logs = snap.docs.map(d => d.data());
+
+    if (filtAction) logs = logs.filter(l => l.action === filtAction);
+    if (filtCol)    logs = logs.filter(l => l.collection === filtCol);
+
+    if (!logs.length) {
+      container.innerHTML = '<p style="color:var(--texte-sec);text-align:center;padding:20px">Aucune entrée trouvée.</p>';
+      return;
+    }
+
+    const ACTION_ICONS = {
+      'création':     '➕',
+      'modification': '✏️',
+      'suppression':  '🗑',
+      'export':       '💾',
+      'restauration': '📥',
+    };
+    const ACTION_COLORS = {
+      'création':     'var(--vert)',
+      'modification': 'var(--bleu)',
+      'suppression':  'var(--rouge)',
+      'export':       'var(--orange)',
+      'restauration': 'var(--orange)',
+    };
+    const ROLE_LABELS = { superadmin:'Patrick', admin:'Angélique', chauffeur:'Chauffeur' };
+
+    container.innerHTML = logs.map(l => {
+      const dateStr = new Date(l.date).toLocaleDateString('fr-BE', {
+        day:'2-digit', month:'2-digit', year:'numeric',
+        hour:'2-digit', minute:'2-digit'
+      });
+      const icon  = ACTION_ICONS[l.action]  || '•';
+      const color = ACTION_COLORS[l.action] || 'var(--texte-sec)';
+      return `<div style="display:flex;gap:10px;padding:8px 4px;border-bottom:0.5px solid var(--gris-bord);align-items:flex-start">
+        <div style="font-size:16px;flex-shrink:0;margin-top:1px">${icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px">${l.description}</div>
+          <div style="font-size:11px;color:var(--texte-sec);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap">
+            <span style="color:${color};font-weight:600">${l.action}</span>
+            <span>${dateStr}</span>
+            <span>👤 ${ROLE_LABELS[l.role] || l.nom || l.uid}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    container.innerHTML = `<p style="color:var(--rouge)">Erreur de chargement : ${e.message}</p>`;
   }
 }
 
@@ -3742,17 +3828,25 @@ function sauvegarderInfoVeh(vehId, texte) {
   updateCardInfosSpec(n);
   renderAccueil();
   renderVehicules();
+  const _vInfo = vehicules.find(v => v.id === vehId);
+  if (texte && texte.trim()) {
+    logCreation('infoSpec', `Info véhicule : ${_vInfo ? _vInfo.immat : vehId} — "${texte.trim()}"`, { vehId, texte:texte.trim() });
+  } else {
+    logSuppression('infoSpec', `Suppression info véhicule : ${_vInfo ? _vInfo.immat : vehId}`, { vehId });
+  }
   toast(texte && texte.trim() ? 'Info enregistrée ✅' : 'Info supprimée');
 }
 
 function supprimerInfoVeh(vehId) {
   const veh = vehicules.find(x => x.id === vehId);
   if (veh) { veh.infoSpec = null; veh.infoSpecDate = null; }
+  const _vInfoDel = vehicules.find(v => v.id === vehId);
   saveAll();
   const n = getInfosActives().length;
   updateCardInfosSpec(n);
   renderAccueil();
   renderVehicules();
+  logSuppression('infoSpec', `Suppression info véhicule : ${_vInfoDel ? _vInfoDel.immat : vehId}`, { vehId });
   toast('Info supprimée');
 }
 
@@ -4540,6 +4634,7 @@ function renderRVHistorique(vehId) {
 }
 
 function saveRV() {
+  const _rvAvant = null; // nouvelle création
   const date = document.getElementById('rv-date').value;
   const type = document.getElementById('rv-type').value;
   if (!date) { toast('Veuillez indiquer une date de rendez-vous.'); return; }
@@ -4579,6 +4674,11 @@ function saveRV() {
   document.getElementById('rv-notes').value = '';
   document.getElementById('rv-statut').value = 'planifie';
 
+  const _rvNew = rendezvous[0];
+  if (_rvNew) {
+    const _vRV = vehicules.find(v => v.id === _rvNew.vehId);
+    logCreation('rendezvous', `RV créé : ${_vRV ? _vRV.immat : _rvNew.vehId} — ${_rvNew.type} — ${formatDate(_rvNew.date)}`, { vehId:_rvNew.vehId, type:_rvNew.type, date:_rvNew.date });
+  }
   toast('Rendez-vous enregistré ✅');
   // Rafraîchir alertes si on est sur ces pages
   renderAccueil();
@@ -4587,7 +4687,10 @@ function saveRV() {
 
 function deleteRV(id) {
   if (!confirm('Supprimer ce rendez-vous ?')) return;
+  const rDel = rendezvous.find(r => r.id === id);
+  const vRVd = rDel ? vehicules.find(v => v.id === rDel.vehId) : null;
   rendezvous = rendezvous.filter(r => r.id !== id);
+  logSuppression('rendezvous', `Suppression RV ${vRVd ? vRVd.immat : rDel?.vehId||'?'} — ${rDel ? formatDate(rDel.date) : ''}`, rDel ? { vehId:rDel.vehId, type:rDel.type, date:rDel.date } : null);
   saveAll();
   renderRVHistorique(_rvVehId);
   toast('Rendez-vous supprimé');
@@ -5081,6 +5184,13 @@ async function saveMaintenance() {
   effacerBrouillon();
   clearMaintForm();
   renderMaintTable();
+
+  // Traçabilité
+  const vNom = vehicules.find(v => v.id === vehId);
+  logCreation('maintenances',
+    `Maintenance ${vNom ? vNom.immat : vehId} — ${formatDate(date)} — ${km ? parseInt(km).toLocaleString('fr-BE') + ' km' : '—'}`,
+    { vehId, date, km, id: rec.id });
+
   if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
   if (document.getElementById('page-kilometrage').classList.contains('active')) renderKilometrage();
   toast('Maintenance enregistrée ✅');
@@ -5229,8 +5339,14 @@ function renderMaintTable() {
 
 function deleteMaint(id) {
   if (!confirm('Supprimer cette entrée ?')) return;
+  const mDel = maintenances.find(m => m.id === id);
+  const vDel = mDel ? vehicules.find(v => v.id === mDel.vehId) : null;
   maintenances = maintenances.filter(m => m.id !== id);
-  saveAll(); renderMaintTable(); toast('Entrée supprimée');
+  saveAll();
+  logSuppression('maintenances',
+    `Suppression maintenance ${vDel ? vDel.immat : mDel?.vehId||'?'} — ${mDel ? formatDate(mDel.date) : ''}`,
+    mDel ? { vehId:mDel.vehId, date:mDel.date, km:mDel.km } : null);
+  renderMaintTable(); toast('Entrée supprimée');
 }
 
 function clearMaintForm() {
@@ -5552,6 +5668,11 @@ function saveCT() {
     const veh = vehicules.find(v => v.id === vehId);
     programmerRappel({ id: rec.id, date: rec.date, heure: rec.heure, type: rec.type, garage: rec.result, notes: rec.rem, vehId, statut:'planifie' }, veh);
   }
+  const _ctN = ctEvents[0];
+  if (_ctN) {
+    const _vCTn = vehicules.find(v => v.id === _ctN.vehId);
+    logCreation('ctEvents', `CT créé : ${_vCTn ? _vCTn.immat : _ctN.vehId} — ${_ctN.type} — ${formatDate(_ctN.date)}`, { vehId:_ctN.vehId, type:_ctN.type, date:_ctN.date });
+  }
   toast('RV enregistré ✅');
 }
 
@@ -5568,6 +5689,9 @@ function clearCTForm() {
 function deleteCT(id) {
   if (!confirm('Supprimer ce RV ?')) return;
   ctEvents = ctEvents.filter(c => c.id !== id);
+  const ctDel = ctEvents.find(c => c.id === id);
+  const vCTd  = ctDel ? vehicules.find(v => v.id === ctDel.vehId) : null;
+  logSuppression('ctEvents', `Suppression CT ${vCTd ? vCTd.immat : ctDel?.vehId||'?'} — ${ctDel ? formatDate(ctDel.date) : ''}`, ctDel);
   saveAll(); renderCTTable(); toast('RV supprimé');
 }
 
@@ -5984,8 +6108,44 @@ function exportCSV() {
 }
 
 // ============================================================
-// SAUVEGARDE / RESTAURATION JSON
+// HISTORIQUE DES MODIFICATIONS — traçabilité complète
 // ============================================================
+
+/**
+ * Enregistre une action dans Firebase collection 'historique'
+ * @param {string} action    - 'creation' | 'modification' | 'suppression' | 'export' | 'restauration'
+ * @param {string} collection - nom de la collection concernée
+ * @param {string} description - texte lisible décrivant l'action
+ * @param {object} [avant]   - état avant (optionnel)
+ * @param {object} [apres]   - état après (optionnel)
+ */
+async function logAction(action, collection, description, avant = null, apres = null) {
+  if (!currentUser) return; // pas connecté → pas de log
+  try {
+    const entry = {
+      id:          Date.now(),
+      date:        new Date().toISOString(),
+      uid:         currentUser.uid,
+      nom:         currentUser.nom,
+      role:        currentUser.role,
+      action,
+      collection,
+      description,
+    };
+    if (avant  !== null) entry.avant  = avant;
+    if (apres  !== null) entry.apres  = apres;
+    await db.collection('historique').doc(String(entry.id)).set(entry);
+  } catch(e) {
+    console.warn('logAction error:', e);
+  }
+}
+
+/** Raccourcis */
+const logCreation     = (col, desc, apres)       => logAction('création',      col, desc, null, apres);
+const logModification = (col, desc, avant, apres) => logAction('modification',  col, desc, avant, apres);
+const logSuppression  = (col, desc, avant)        => logAction('suppression',   col, desc, avant);
+const logExport       = (desc)                    => logAction('export',        'backup', desc);
+const logRestauration = (desc)                    => logAction('restauration',  'backup', desc);
 
 function exportBackupJSON() {
   const now     = new Date();
@@ -6023,6 +6183,7 @@ function exportBackupJSON() {
   // Mémoriser la date du dernier export
   localStorage.setItem('mcr_last_backup', now.toISOString());
   updateBackupInfo();
+  logExport(`Export backup : mcr-backup-${dateStr}.json (${maintenances.length} maint., ${vehicules.length} véh.)`);
   toast(`Backup exporté : mcr-backup-${dateStr}.json ✅`);
 }
 
@@ -6086,7 +6247,7 @@ function importBackupJSON(event) {
 
       // Sauvegarder dans Firebase
       await saveAll();
-
+      logRestauration(`Restauration backup du ${dateExport} (${backup.maintenances?.length||0} maint., ${backup.vehicules?.length||0} véh.)`);
       event.target.value = '';
       toast(`✅ Restauration réussie — backup du ${dateExport}`);
       renderAccueil();
@@ -6708,6 +6869,41 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="form-card">
     <h3>Comptes existants</h3>
     <div id="comptes-liste"><p style="color:var(--texte-sec)">Chargement…</p></div>
+  </div>
+
+  <!-- Historique des modifications -->
+  <div class="form-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <h3>📋 Historique des modifications</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="hist-log-action" onchange="renderHistoriqueLog()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
+          <option value="">Toutes les actions</option>
+          <option value="création">Création</option>
+          <option value="modification">Modification</option>
+          <option value="suppression">Suppression</option>
+          <option value="export">Export backup</option>
+          <option value="restauration">Restauration</option>
+        </select>
+        <select id="hist-log-col" onchange="renderHistoriqueLog()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
+          <option value="">Toutes les collections</option>
+          <option value="maintenances">Maintenances</option>
+          <option value="rendezvous">RV</option>
+          <option value="ctEvents">CT</option>
+          <option value="carwashes">Car Wash</option>
+          <option value="adblues">AdBlue</option>
+          <option value="permutations">Pneus</option>
+          <option value="infoSpec">Infos véhicule</option>
+          <option value="roles">Comptes</option>
+          <option value="backup">Backup</option>
+        </select>
+        <button class="btn btn-sm" onclick="renderHistoriqueLog()">🔄</button>
+      </div>
+    </div>
+    <div id="hist-log-container">
+      <p style="color:var(--texte-sec)">Chargement…</p>
+    </div>
   </div>
 </div>
 
