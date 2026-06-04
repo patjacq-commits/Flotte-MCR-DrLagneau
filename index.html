@@ -4653,28 +4653,46 @@ function renderKilometrage() {
 
   // ── Tableau km entre maintenances ──────────────────────────
   const vehOrdre  = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
+  const vslSeuls  = vehOrdre.filter(v => v.id !== '1RER037');
   const BARS_MAX  = 4000;
   let totalFlotte = 0;
 
-  // Mois du dernier relevé (la date de maintenance la plus récente parmi tous les VSL)
-  // → tous les VSL doivent avoir une maintenance à cette date pour que les km soient affichés
-  const maintVSL = maintenances.filter(m => {
-    const v = vehicules.find(x => x.id === m.vehId);
-    return v && v.id !== '1RER037' && m.km;
+  // Trouver la date de référence = date de dernière maintenance
+  // la plus fréquente parmi les VSL (= le mois du relevé en cours)
+  const dernieresMaint = {};
+  vslSeuls.forEach(v => {
+    const mList = maintenances.filter(m => m.vehId === v.id && m.km)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    if (mList[0]) dernieresMaint[v.id] = mList[0].date;
   });
-  // Trouver le mois du dernier relevé global
-  const derniereDate = maintVSL.length
-    ? maintVSL.map(m => m.date).sort().reverse()[0]
-    : null;
-  const moisDernierReleve = derniereDate ? derniereDate.slice(0, 7) : null;
 
-  // Vérifier quels VSL ont une maintenance pour ce mois
-  const vslAvecMaintDuMois = new Set(
-    maintVSL.filter(m => moisDernierReleve && m.date.startsWith(moisDernierReleve)).map(m => m.vehId)
+  // La date de référence = la date la plus récente ayant le plus de véhicules
+  const datesCounts = {};
+  Object.values(dernieresMaint).forEach(d => {
+    datesCounts[d] = (datesCounts[d] || 0) + 1;
+  });
+  // Prendre la date la plus récente parmi celles qui ont le max de véhicules
+  const maxCount   = Math.max(0, ...Object.values(datesCounts));
+  const dateRef    = maxCount > 0
+    ? Object.entries(datesCounts)
+        .filter(([,c]) => c === maxCount)
+        .map(([d]) => d)
+        .sort().reverse()[0]
+    : null;
+
+  // Véhicules enregistrés à la date de référence
+  const vslEnregistres = new Set(
+    Object.entries(dernieresMaint)
+      .filter(([,d]) => d === dateRef)
+      .map(([id]) => id)
   );
-  const vslConcernes = vehOrdre.filter(v => v.id !== '1RER037');
-  // Le relevé est "complet" si tous les VSL ont leur maintenance du mois
-  const releveComplet = vslConcernes.every(v => vslAvecMaintDuMois.has(v.id));
+  const nbManquants    = vslSeuls.filter(v => !vslEnregistres.has(v.id)).length;
+  const releveComplet  = nbManquants === 0 && dateRef !== null;
+
+  const dateRefLabel   = dateRef
+    ? new Date(dateRef + 'T12:00:00').toLocaleDateString('fr-BE',
+        { day:'2-digit', month:'long', year:'numeric' })
+    : '—';
 
   const lignesMaint = vehOrdre.map(v => {
     const mList = maintenances.filter(m => m.vehId === v.id && m.km)
@@ -4683,27 +4701,29 @@ function renderKilometrage() {
     const prevM = mList[1] || null;
     const isRer = v.id === '1RER037';
 
-    // N'afficher les km que si le véhicule a une maintenance du dernier mois relevé
-    const aMaintDuMois = moisDernierReleve && lastM && lastM.date.startsWith(moisDernierReleve);
+    // Afficher les km seulement si ce véhicule est à la date de référence
+    const aDateRef = !isRer && lastM && lastM.date === dateRef;
 
     let kmParcourus = null;
-    if (aMaintDuMois && prevM && lastM.km && prevM.km) {
+    if (aDateRef && prevM && lastM.km && prevM.km) {
       kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
-      // Ajouter au total seulement si relevé complet et pas RER037
-      if (!isRer && kmParcourus > 0 && releveComplet) totalFlotte += kmParcourus;
+      if (!isRer && kmParcourus > 0) totalFlotte += kmParcourus;
+    }
+    // 1RER037 : afficher les km pour info mais hors total
+    if (isRer && prevM && lastM?.km && prevM.km) {
+      kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
     }
 
     const lastDate = lastM ? formatDate(lastM.date) : '—';
     const lastKm   = lastM?.km ? parseInt(lastM.km).toLocaleString('fr-BE') + ' km' : '—';
-    const periode  = (aMaintDuMois && prevM)
+    const periode  = (aDateRef && prevM)
       ? `${formatDate(prevM.date).slice(0,5)} → ${formatDate(lastM.date).slice(0,5)}` : '';
 
     const barPct   = kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX * 100)) : 0;
     const barColor = kmParcourus > 3000 ? 'var(--rouge)' : kmParcourus > 2000 ? 'var(--orange)' : 'var(--vert)';
 
-    // Statut du véhicule pour ce mois
     const statut = isRer ? ''
-      : aMaintDuMois
+      : aDateRef
         ? `<span style="font-size:9px;background:var(--vert);color:#fff;
              border-radius:4px;padding:1px 5px;margin-left:4px">✓ enregistré</span>`
         : `<span style="font-size:9px;background:#eee;color:#999;
@@ -4729,44 +4749,26 @@ function renderKilometrage() {
     </tr>`;
   }).join('');
 
-  const nbManquants = vslConcernes.filter(v => !vslAvecMaintDuMois.has(v.id)).length;
-  const moisLabel   = moisDernierReleve
-    ? new Date(moisDernierReleve + '-01').toLocaleDateString('fr-BE', { month:'long', year:'numeric' })
-    : '—';
+  const moisLabel = dateRefLabel;
 
-  const ardoise = releveComplet
-    ? `<div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:10px;
-        padding:12px 18px;color:#fff;display:flex;align-items:center;gap:14px;
-        margin-bottom:12px;box-shadow:0 3px 10px rgba(41,128,185,0.3)">
-        <div style="font-size:28px">🚑</div>
-        <div>
-          <div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">
-            Km parcourus — flotte VSL — ${moisLabel}
-          </div>
-          <div style="font-size:24px;font-weight:800;letter-spacing:1px">
-            ${totalFlotte.toLocaleString('fr-BE')} km
-          </div>
-          <div style="font-size:10px;opacity:0.7">
-            ${vslConcernes.length} VSL • hors 1RER037
-          </div>
+  const nbEnregistres = vslSeuls.filter(v => vslEnregistres.has(v.id)).length;
+  const ardoise = `
+    <div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:10px;
+      padding:12px 18px;color:#fff;display:flex;align-items:center;gap:14px;
+      margin-bottom:12px;box-shadow:0 3px 10px rgba(41,128,185,0.3)">
+      <div style="font-size:28px">🚑</div>
+      <div>
+        <div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">
+          Km parcourus — flotte VSL — ${moisLabel}
         </div>
-      </div>`
-    : `<div style="background:linear-gradient(135deg,#7f8c8d,#636e72);border-radius:10px;
-        padding:12px 18px;color:#fff;display:flex;align-items:center;gap:14px;
-        margin-bottom:12px">
-        <div style="font-size:28px">⏳</div>
-        <div>
-          <div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">
-            Km parcourus — relevé incomplet
-          </div>
-          <div style="font-size:16px;font-weight:700;margin-top:2px">
-            ${nbManquants} véhicule(s) en attente d'enregistrement
-          </div>
-          <div style="font-size:10px;opacity:0.7">
-            Le total sera calculé quand tous les VSL seront enregistrés
-          </div>
+        <div style="font-size:24px;font-weight:800;letter-spacing:1px">
+          ${totalFlotte.toLocaleString('fr-BE')} km
         </div>
-      </div>`;
+        <div style="font-size:10px;opacity:0.7">
+          ${nbEnregistres}/${vslSeuls.length} VSL enregistrés${releveComplet ? '' : ' — total partiel'} • hors 1RER037
+        </div>
+      </div>
+    </div>`;
 
   document.getElementById('km-maint-section').innerHTML = `
     <div class="form-card" style="padding:12px 16px;margin-bottom:14px">
