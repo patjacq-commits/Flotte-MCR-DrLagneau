@@ -162,8 +162,16 @@
         // Vérifier dans Firestore si c'est un chauffeur autorisé
         try {
           const doc = await db.collection('roles').doc(firebaseUser.uid).get();
-          if (doc.exists) role = doc.data().role || 'chauffeur';
-          else {
+          if (doc.exists) {
+            const data = doc.data();
+            // Compte en attente de validation
+            if (data.statut === 'en_attente') {
+              await auth.signOut();
+              afficherMessageAttente(data.nom || email);
+              return;
+            }
+            role = data.role || 'chauffeur';
+          } else {
             // Email non reconnu → déconnecter
             await auth.signOut();
             return;
@@ -181,6 +189,14 @@
       } catch(e) {}
 
       currentUser = { uid: firebaseUser.uid, email, role, nom };
+
+      // Logger la dernière connexion dans Firestore
+      try {
+        await db.collection('roles').doc(firebaseUser.uid).set(
+          { derniere_connexion: new Date().toISOString() },
+          { merge: true }
+        );
+      } catch(e) { console.warn('Erreur log connexion:', e); }
 
       // Charger les données Firebase si pas encore fait
       await chargerDonneesFirebase();
@@ -3448,7 +3464,7 @@ function afficherEcranConnexion() {
   const div = document.createElement('div');
   div.id = 'ecran-connexion';
   div.innerHTML = `
-    <div class="login-card">
+    <div class="login-card" id="login-card-connexion">
       <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:12px">
         <circle cx="16" cy="16" r="15" fill="#fff" stroke="#c0392b" stroke-width="2"/>
         <rect x="13" y="7" width="6" height="18" rx="1" fill="#c0392b"/>
@@ -3464,17 +3480,155 @@ function afficherEcranConnexion() {
         onkeydown="if(event.key==='Enter')seConnecter()" />
       <button class="btn-login" onclick="seConnecter()">Se connecter</button>
       <div class="login-error" id="auth-error"></div>
-      <div style="margin-top:14px;text-align:center">
+      <div style="margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:8px">
         <button onclick="motDePasseOublie()"
           style="background:none;border:none;color:rgba(255,255,255,0.75);
                  font-size:13px;cursor:pointer;text-decoration:underline;
                  text-underline-offset:3px">
           🔑 Mot de passe oublié ?
         </button>
+        <div style="width:100%;border-top:1px solid rgba(255,255,255,0.2);margin:4px 0"></div>
+        <button onclick="afficherFormulaireInscription()"
+          style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);
+                 color:#fff;font-size:14px;font-weight:600;cursor:pointer;
+                 padding:10px 20px;border-radius:8px;width:100%">
+          👤 Créer un compte chauffeur
+        </button>
+      </div>
+    </div>
+
+    <!-- Formulaire d'inscription (caché par défaut) -->
+    <div class="login-card" id="login-card-inscription" style="display:none">
+      <h2 style="margin-bottom:4px">👤 Créer un compte</h2>
+      <p class="sub" style="margin-bottom:16px">Votre accès sera activé par Patrick.</p>
+      <input type="text" id="insc-nom" placeholder="Votre nom et prénom"
+        style="width:100%;border:1.5px solid #dce1e3;border-radius:8px;
+               padding:11px 14px;font-size:15px;margin-bottom:10px"
+        onkeydown="if(event.key==='Enter')document.getElementById('insc-email').focus()" />
+      <input type="email" id="insc-email" placeholder="Adresse email"
+        autocomplete="email" inputmode="email"
+        style="width:100%;border:1.5px solid #dce1e3;border-radius:8px;
+               padding:11px 14px;font-size:15px;margin-bottom:10px"
+        onkeydown="if(event.key==='Enter')document.getElementById('insc-pwd').focus()" />
+      <input type="password" id="insc-pwd" placeholder="Mot de passe (min. 6 caractères)"
+        autocomplete="new-password"
+        style="width:100%;border:1.5px solid #dce1e3;border-radius:8px;
+               padding:11px 14px;font-size:15px;margin-bottom:10px"
+        onkeydown="if(event.key==='Enter')document.getElementById('insc-pwd2').focus()" />
+      <input type="password" id="insc-pwd2" placeholder="Confirmer le mot de passe"
+        autocomplete="new-password"
+        style="width:100%;border:1.5px solid #dce1e3;border-radius:8px;
+               padding:11px 14px;font-size:15px;margin-bottom:12px"
+        onkeydown="if(event.key==='Enter')sInscrire()" />
+      <button class="btn-login" onclick="sInscrire()">✅ Créer mon compte</button>
+      <div class="login-error" id="insc-error"></div>
+      <div style="margin-top:12px;text-align:center">
+        <button onclick="afficherFormulaireConnexion()"
+          style="background:none;border:none;color:rgba(255,255,255,0.75);
+                 font-size:13px;cursor:pointer;text-decoration:underline;
+                 text-underline-offset:3px">
+          ← Retour à la connexion
+        </button>
       </div>
     </div>`;
   document.body.appendChild(div);
   setTimeout(() => document.getElementById('auth-email')?.focus(), 100);
+}
+
+function afficherMessageAttente(nom) {
+  // Remplacer ou créer l'écran de connexion avec message d'attente
+  const existing = document.getElementById('ecran-connexion');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'ecran-connexion';
+  div.innerHTML = `
+    <div class="login-card" style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">⏳</div>
+      <h2 style="color:#e67e22">Compte en attente</h2>
+      <p style="color:#666;font-size:14px;margin:12px 0 20px">
+        Bonjour <strong>${nom}</strong>,<br><br>
+        Votre compte a bien été créé.<br>
+        Patrick doit encore activer votre accès.<br>
+        Revenez dans quelques instants.
+      </p>
+      <button class="btn-login" style="background:#e67e22"
+        onclick="document.getElementById('ecran-connexion').remove();afficherEcranConnexion()">
+        ← Retour à la connexion
+      </button>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+function afficherFormulaireInscription() {
+  document.getElementById('login-card-connexion').style.display = 'none';
+  document.getElementById('login-card-inscription').style.display = '';
+  setTimeout(() => document.getElementById('insc-nom')?.focus(), 100);
+}
+
+function afficherFormulaireConnexion() {
+  document.getElementById('login-card-inscription').style.display = 'none';
+  document.getElementById('login-card-connexion').style.display = '';
+  setTimeout(() => document.getElementById('auth-email')?.focus(), 100);
+}
+
+async function sInscrire() {
+  const nom    = document.getElementById('insc-nom')?.value.trim()   || '';
+  const email  = document.getElementById('insc-email')?.value.trim() || '';
+  const pwd    = document.getElementById('insc-pwd')?.value           || '';
+  const pwd2   = document.getElementById('insc-pwd2')?.value          || '';
+  const errEl  = document.getElementById('insc-error');
+
+  const affErr = msg => {
+    errEl.textContent   = msg;
+    errEl.style.color   = '#c0392b';
+    errEl.style.display = 'block';
+  };
+
+  if (!nom)              { affErr('❌ Veuillez saisir votre nom et prénom.');  return; }
+  if (!email)            { affErr('❌ Veuillez saisir votre adresse email.');   return; }
+  if (pwd.length < 6)    { affErr('❌ Le mot de passe doit comporter au moins 6 caractères.'); return; }
+  if (pwd !== pwd2)      { affErr('❌ Les deux mots de passe ne correspondent pas.'); return; }
+
+  errEl.style.display = 'none';
+
+  try {
+    // Créer le compte Firebase Auth
+    const cred = await auth.createUserWithEmailAndPassword(email, pwd);
+    const uid  = cred.user.uid;
+
+    // Enregistrer dans Firestore avec statut en_attente
+    await db.collection('roles').doc(uid).set({
+      role:     'chauffeur',
+      nom,
+      email,
+      statut:   'en_attente',
+      date_inscription: new Date().toISOString()
+    });
+
+    // Se déconnecter immédiatement — attendre la validation de Patrick
+    await auth.signOut();
+
+    // Afficher message de succès
+    errEl.style.color   = '#27ae60';
+    errEl.style.background = '#d5f5e3';
+    errEl.style.padding    = '10px 12px';
+    errEl.style.borderRadius = '8px';
+    errEl.textContent   = `✅ Compte créé ! Votre accès sera activé prochainement par Patrick. Vous recevrez une confirmation.`;
+    errEl.style.display = 'block';
+
+    // Vider le formulaire
+    ['insc-nom','insc-email','insc-pwd','insc-pwd2'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+
+  } catch(e) {
+    let msg = 'Erreur lors de la création du compte.';
+    if (e.code === 'auth/email-already-in-use') msg = '❌ Cette adresse email est déjà utilisée.';
+    if (e.code === 'auth/invalid-email')         msg = '❌ Adresse email invalide.';
+    if (e.code === 'auth/weak-password')          msg = '❌ Mot de passe trop faible (min. 6 caractères).';
+    affErr(msg);
+  }
 }
 
 async function motDePasseOublie() {
@@ -3662,6 +3816,7 @@ function appliquerDroits() {
 
   updateTabChauf();
   updateNavbarMaint();
+  if (userIsSuperAdmin()) updateBadgeComptes();
 
   // Programmer le résumé quotidien à 7h00
   setTimeout(() => programmerResumeQuotidien(), 1000);
@@ -3707,19 +3862,67 @@ async function renderGestionComptes() {
   const container = document.getElementById('comptes-liste');
   if (!container) return;
   container.innerHTML = '<p style="color:var(--texte-sec)">Chargement…</p>';
+
   try {
-    const snap = await db.collection('roles').get();
+    const snap    = await db.collection('roles').get();
     const comptes = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+
+    const enAttente = comptes.filter(c => c.statut === 'en_attente');
+    const actifs    = comptes.filter(c => c.statut !== 'en_attente');
+
     const ROLES_LABELS = { superadmin:'⚙ Super Admin', admin:'👔 Admin', chauffeur:'🚗 Chauffeur' };
 
-    container.innerHTML = comptes.length
-      ? comptes.map(c => `
-          <div class="form-card" style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    let html = '';
+
+    // ── Section "En attente de validation" ───────────────────
+    if (enAttente.length) {
+      html += `<div style="background:var(--orange-clair);border:1.5px solid var(--orange);
+               border-radius:8px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-weight:700;color:var(--orange);margin-bottom:8px">
+          🕐 En attente de validation (${enAttente.length})
+        </div>`;
+      html += enAttente.map(c => {
+        const dateInsc = c.date_inscription
+          ? new Date(c.date_inscription).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+          : '—';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;
+                  flex-wrap:wrap;gap:8px;padding:8px 0;border-top:0.5px solid rgba(230,126,34,0.3)">
+          <div>
+            <div style="font-weight:700">${c.nom || '—'}</div>
+            <div style="font-size:12px;color:var(--texte-sec)">${c.email}</div>
+            <div style="font-size:11px;color:var(--texte-sec)">Inscrit le ${dateInsc}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
+              onclick="approuverChaufeur('${c.uid}','${c.nom}')">✅ Approuver</button>
+            <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+              onclick="refuserChaufeur('${c.uid}','${c.nom}')">❌ Refuser</button>
+          </div>
+        </div>`;
+      }).join('');
+      html += '</div>';
+    }
+
+    // ── Section comptes actifs ────────────────────────────────
+    html += `<div style="font-weight:700;font-size:13px;color:var(--texte-sec);
+              margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">
+              Comptes actifs (${actifs.length})</div>`;
+
+    html += actifs.length
+      ? actifs.map(c => {
+          const dernConn = c.derniere_connexion
+            ? new Date(c.derniere_connexion).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+            : 'Jamais connecté';
+          return `<div class="form-card" style="padding:10px 14px;display:flex;
+                    align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
             <div>
               <div style="font-weight:700;font-size:14px">${c.nom || '—'}</div>
               <div style="font-size:12px;color:var(--texte-sec)">${c.email}</div>
-              <span class="badge ${c.role==='superadmin'?'urgent':c.role==='admin'?'info':'ok'}"
-                style="font-size:10px;margin-top:4px">${ROLES_LABELS[c.role]||c.role}</span>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap">
+                <span class="badge ${c.role==='superadmin'?'urgent':c.role==='admin'?'info':'ok'}"
+                  style="font-size:10px">${ROLES_LABELS[c.role]||c.role}</span>
+                <span style="font-size:11px;color:var(--texte-sec)">🕐 ${dernConn}</span>
+              </div>
             </div>
             ${c.role === 'chauffeur' ? `
               <button class="btn btn-sm superadmin-only"
@@ -3727,10 +3930,45 @@ async function renderGestionComptes() {
                 onclick="if(confirm('Supprimer le compte de ${c.nom} ?')) supprimerCompteChaufeur('${c.uid}')">
                 🗑 Supprimer
               </button>` : ''}
-          </div>`).join('')
-      : '<p style="color:var(--texte-sec)">Aucun compte trouvé.</p>';
+          </div>`;
+        }).join('')
+      : '<p style="color:var(--texte-sec)">Aucun compte actif.</p>';
+
+    container.innerHTML = html;
+
+    // Remettre à jour les boutons superadmin-only
+    document.querySelectorAll('.superadmin-only').forEach(el =>
+      el.style.display = userIsSuperAdmin() ? '' : 'none'
+    );
+
   } catch(e) {
-    container.innerHTML = '<p style="color:var(--rouge)">Erreur de chargement.</p>';
+    container.innerHTML = `<p style="color:var(--rouge)">Erreur : ${e.message}</p>`;
+  }
+}
+
+async function approuverChaufeur(uid, nom) {
+  if (!confirm(`Approuver le compte de ${nom} ?`)) return;
+  try {
+    await db.collection('roles').doc(uid).set({ statut: 'actif' }, { merge: true });
+    logCreation('roles', `Compte chauffeur approuvé : ${nom}`, { uid, nom });
+    toast(`✅ Compte de ${nom} activé`);
+    renderGestionComptes();
+    updateBadgeComptes();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+async function refuserChaufeur(uid, nom) {
+  if (!confirm(`Refuser et supprimer le compte de ${nom} ?`)) return;
+  try {
+    await db.collection('roles').doc(uid).delete();
+    logSuppression('roles', `Compte chauffeur refusé : ${nom}`, { uid, nom });
+    toast(`🗑 Compte de ${nom} supprimé`);
+    renderGestionComptes();
+    updateBadgeComptes();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
   }
 }
 
@@ -3794,6 +4032,31 @@ async function renderHistoriqueLog() {
   } catch(e) {
     container.innerHTML = `<p style="color:var(--rouge)">Erreur de chargement : ${e.message}</p>`;
   }
+}
+
+async function updateBadgeComptes() {
+  try {
+    const snap = await db.collection('roles')
+      .where('statut','==','en_attente').get();
+    const nb = snap.size;
+    const tab = document.querySelector('.tab-btn[onclick*="comptes"]');
+    if (!tab) return;
+    const existing = tab.querySelector('.badge-comptes');
+    if (nb > 0) {
+      if (existing) { existing.textContent = nb; }
+      else {
+        const b = document.createElement('span');
+        b.className = 'badge-comptes';
+        b.textContent = nb;
+        b.style.cssText = 'background:var(--orange);color:#fff;border-radius:50%;' +
+          'font-size:10px;font-weight:700;padding:1px 5px;margin-left:4px;' +
+          'display:inline-block;min-width:16px;text-align:center';
+        tab.appendChild(b);
+      }
+    } else if (existing) {
+      existing.remove();
+    }
+  } catch(e) {}
 }
 
 async function ouvrirModalNouveauChaufeur() {
