@@ -136,7 +136,38 @@
       rendezvous:    d => { if(d&&d.length){ window.rendezvous      = d; } window._refreshUI?.(); },
       adblues:       d => { if(d&&d.length){ window.adblues         = d; } window._refreshUI?.(); },
       carwashes:     d => { if(d&&d.length){ window.carwashes       = d; } window._refreshUI?.(); },
-      messagesChauf: d => { if(d&&d.length){ window.messagesChauf   = d; } window._refreshUI?.(); window.updateTabChauf?.(); }
+      messagesChauf: d => {
+        const ancien = window.messagesChauf || [];
+        if (d && d.length) { window.messagesChauf = d; }
+        window._refreshUI?.();
+        window.updateTabChauf?.();
+
+        // Notification push immédiate si nouveau message non lu
+        // (uniquement pour les admins, uniquement si l'app est en arrière-plan)
+        if (userIsAdmin() && Notification.permission === 'granted') {
+          const ancienIds = new Set(ancien.map(m => m.id));
+          const nouveaux  = (d || []).filter(m => !ancienIds.has(m.id) && m.statut === 'nonlu');
+          nouveaux.forEach(m => {
+            const v = (window.vehicules||[]).find(x => x.id === m.vehId);
+            const vNom = v ? v.immat : m.vehId;
+            const prioriteLabel = m.priorite === 'urgent' ? '🚨 URGENT — ' : '';
+            navigator.serviceWorker?.ready.then(reg => {
+              reg.showNotification(`${prioriteLabel}Message chauffeur — ${vNom}`, {
+                body:               `${m.auteur} : ${m.msg.slice(0, 100)}${m.msg.length > 100 ? '…' : ''}`,
+                icon:               './icon-192.png',
+                badge:              './icon-192.png',
+                tag:                `msg-chauf-${m.id}`,
+                requireInteraction: m.priorite === 'urgent',
+                data:               { type: 'message', url: './' },
+                actions:            [
+                  { action: 'voir',   title: '👁 Voir le message' },
+                  { action: 'fermer', title: 'Fermer' }
+                ]
+              });
+            }).catch(() => {});
+          });
+        }
+      }
     };
     Object.entries(COLS).forEach(([col, cb]) => fbListen(col, cb));
     db.collection('config').doc('infosVehicules').onSnapshot(snap => {
@@ -989,7 +1020,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.6.1</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.6.2</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -4843,15 +4874,26 @@ function updateTabChauf() {
   const tab = document.getElementById('tab-chauf');
   if (!tab) return;
   const nonLus = messagesChauf.filter(m => m.statut === 'nonlu').length;
-  // Badge numérique
+
+  // Badge sur l'onglet
   let badge = tab.querySelector('.tab-badge');
   if (nonLus > 0) {
     if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge'; tab.appendChild(badge); }
     badge.textContent = nonLus;
   } else if (badge) badge.remove();
+
   // Clignotement côté admin seulement si messages non lus
   const shouldPulse = isAdmin && nonLus > 0 && !tab.classList.contains('active');
   tab.classList.toggle('tab-msg-urgent', shouldPulse);
+
+  // ── Badge sur l'icône de la PWA (Android / Chrome) ───────
+  if ('setAppBadge' in navigator) {
+    if (nonLus > 0) {
+      navigator.setAppBadge(nonLus).catch(() => {});
+    } else {
+      navigator.clearAppBadge().catch(() => {});
+    }
+  }
 }
 
 /* Navigation rapide vers l'onglet Alertes avec filtre de niveau */
@@ -7763,7 +7805,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 
 let _swRegistration = null;
 
@@ -7891,13 +7933,18 @@ function envoyerResumeImmediat() {
   toast('📲 Résumé envoyé en test');
 }
 
-/* Écouter la demande du SW de recalculer le résumé */
+/* Écouter les messages du SW */
 navigator.serviceWorker?.addEventListener('message', event => {
   if (event.data?.type === 'RECALCULER_RESUME') {
     programmerResumeQuotidien();
   }
   if (event.data?.type === 'NOTIF_RESUME') {
     showPage('accueil', document.querySelectorAll('.tab-btn')[0]);
+  }
+  if (event.data?.type === 'NOTIF_MESSAGE') {
+    // Naviguer vers l'onglet Messages
+    const tabChauf = document.getElementById('tab-chauf');
+    if (tabChauf) showPage('chauf', tabChauf);
   }
 });
 

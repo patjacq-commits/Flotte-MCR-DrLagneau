@@ -4,7 +4,7 @@
 // v1.6.1 : Notification push quotidienne à 7h00
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v1.6.1';
+const CACHE_NAME = 'mcr-flotte-v1.6.2';
 const CACHE_URLS = ['./', './index.html', './icon-192.png', './manifest.json'];
 
 // Rappels RV en mémoire { id, titre, corps, tag, fireAt }
@@ -161,12 +161,17 @@ self.addEventListener('notificationclick', event => {
 
   if (event.action === 'fermer') return;
 
+  const notifType = event.notification.data?.type;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
         if (client.url.includes('Flotte-MCR') && 'focus' in client) {
           client.focus();
-          client.postMessage({ type: event.notification.data?.type === 'resume' ? 'NOTIF_RESUME' : 'NOTIF_CLICK' });
+          // Envoyer le type de notification pour naviguer au bon onglet
+          client.postMessage({
+            type: notifType === 'message' ? 'NOTIF_MESSAGE' : 'NOTIF_RESUME'
+          });
           return;
         }
       }
