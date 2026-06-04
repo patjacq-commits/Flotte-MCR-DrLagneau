@@ -1068,7 +1068,35 @@ td.ok { color: var(--vert); font-weight: 600; }
 <div id="page-chauf" class="page">
   <h2 style="margin-bottom:4px">🚨 Messages & Alertes</h2>
 
-  <!-- Saisie AdBlue chauffeur (véhicules VEHICULES_ADBLUE uniquement) -->
+  <!-- Changer mon mot de passe (visible par tous) -->
+  <div class="form-card" id="chauf-pwd-card">
+    <h3>🔑 Changer mon mot de passe</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Mot de passe actuel</label>
+        <input type="password" id="chauf-pwd-actuel" placeholder="••••••••"
+          autocomplete="current-password" />
+      </div>
+      <div class="form-group">
+        <label>Nouveau mot de passe</label>
+        <input type="password" id="chauf-pwd-nouveau" placeholder="Minimum 6 caractères"
+          autocomplete="new-password" />
+      </div>
+      <div class="form-group">
+        <label>Confirmer le nouveau mot de passe</label>
+        <input type="password" id="chauf-pwd-confirm" placeholder="Répéter le nouveau mot de passe"
+          autocomplete="new-password" />
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn primary" onclick="changerMotDePasse()">🔑 Mettre à jour</button>
+      <button class="btn" onclick="
+        document.getElementById('chauf-pwd-actuel').value='';
+        document.getElementById('chauf-pwd-nouveau').value='';
+        document.getElementById('chauf-pwd-confirm').value=''">✕ Annuler</button>
+    </div>
+    <div id="chauf-pwd-msg" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px"></div>
+  </div> (véhicules VEHICULES_ADBLUE uniquement) -->
   <div class="form-card" id="chauf-adblue-card">
     <h3>💧 Signaler un ajout AdBlue</h3>
     <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Pour les véhicules : 294, 633, 789, 941, 527, 910</p>
@@ -3433,9 +3461,49 @@ function afficherEcranConnexion() {
         onkeydown="if(event.key==='Enter')seConnecter()" />
       <button class="btn-login" onclick="seConnecter()">Se connecter</button>
       <div class="login-error" id="auth-error"></div>
+      <div style="margin-top:14px;text-align:center">
+        <button onclick="motDePasseOublie()"
+          style="background:none;border:none;color:rgba(255,255,255,0.75);
+                 font-size:13px;cursor:pointer;text-decoration:underline;
+                 text-underline-offset:3px">
+          🔑 Mot de passe oublié ?
+        </button>
+      </div>
     </div>`;
   document.body.appendChild(div);
   setTimeout(() => document.getElementById('auth-email')?.focus(), 100);
+}
+
+async function motDePasseOublie() {
+  const errEl  = document.getElementById('auth-error');
+  const email  = document.getElementById('auth-email')?.value?.trim() || '';
+  if (!email) {
+    if (errEl) {
+      errEl.textContent = 'Saisissez votre adresse email ci-dessus, puis cliquez "Mot de passe oublié ?"';
+      errEl.style.display = 'block';
+    }
+    document.getElementById('auth-email')?.focus();
+    return;
+  }
+  try {
+    await auth.sendPasswordResetEmail(email);
+    if (errEl) {
+      errEl.style.color = '#27ae60';
+      errEl.textContent = `✅ Email de réinitialisation envoyé à ${email}. Vérifiez votre boîte mail (et les spams).`;
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    let msg = 'Impossible d\'envoyer l\'email.';
+    if (e.code === 'auth/user-not-found')
+      msg = '❌ Aucun compte trouvé pour cette adresse email.';
+    if (e.code === 'auth/invalid-email')
+      msg = '❌ Adresse email invalide.';
+    if (errEl) {
+      errEl.style.color = '#c0392b';
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+  }
 }
 
 async function seConnecter() {
@@ -3466,7 +3534,60 @@ async function seConnecter() {
 async function seDeconnecter() {
   await auth.signOut();
   currentUser = null;
-  // onAuthStateChanged affichera l'écran de connexion
+}
+
+async function changerMotDePasse() {
+  const actuel  = document.getElementById('chauf-pwd-actuel')?.value || '';
+  const nouveau = document.getElementById('chauf-pwd-nouveau')?.value || '';
+  const confirm = document.getElementById('chauf-pwd-confirm')?.value || '';
+  const msgEl   = document.getElementById('chauf-pwd-msg');
+
+  const afficherMsg = (texte, ok) => {
+    if (!msgEl) return;
+    msgEl.textContent   = texte;
+    msgEl.style.display = 'block';
+    msgEl.style.background = ok ? 'var(--vert-clair)' : 'var(--rouge-clair)';
+    msgEl.style.color      = ok ? 'var(--vert)'       : 'var(--rouge)';
+  };
+
+  if (!actuel || !nouveau || !confirm) {
+    afficherMsg('❌ Veuillez remplir tous les champs.', false); return;
+  }
+  if (nouveau.length < 6) {
+    afficherMsg('❌ Le nouveau mot de passe doit comporter au moins 6 caractères.', false); return;
+  }
+  if (nouveau !== confirm) {
+    afficherMsg('❌ Les deux nouveaux mots de passe ne correspondent pas.', false); return;
+  }
+
+  try {
+    const user = auth.currentUser;
+    if (!user) { afficherMsg('❌ Vous n\'êtes plus connecté.', false); return; }
+
+    // Ré-authentifier avec le mot de passe actuel (requis par Firebase)
+    const cred = firebase.auth.EmailAuthProvider.credential(user.email, actuel);
+    await user.reauthenticateWithCredential(cred);
+
+    // Changer le mot de passe
+    await user.updatePassword(nouveau);
+
+    // Vider les champs
+    document.getElementById('chauf-pwd-actuel').value  = '';
+    document.getElementById('chauf-pwd-nouveau').value = '';
+    document.getElementById('chauf-pwd-confirm').value = '';
+
+    afficherMsg('✅ Mot de passe modifié avec succès !', true);
+    logAction('modification', 'roles', `Changement de mot de passe : ${currentUser?.email}`);
+    toast('✅ Mot de passe mis à jour');
+
+  } catch(e) {
+    let msg = 'Erreur lors de la modification.';
+    if (e.code === 'auth/wrong-password')         msg = '❌ Mot de passe actuel incorrect.';
+    if (e.code === 'auth/weak-password')           msg = '❌ Nouveau mot de passe trop faible (min 6 caractères).';
+    if (e.code === 'auth/requires-recent-login')   msg = '❌ Reconnectez-vous puis réessayez.';
+    if (e.code === 'auth/too-many-requests')       msg = '❌ Trop de tentatives, réessayez plus tard.';
+    afficherMsg(msg, false);
+  }
 }
 
 // ── Application des droits selon le rôle ───────────────────
