@@ -1250,13 +1250,25 @@ td.ok { color: var(--vert); font-weight: 600; }
       <textarea id="chauf-msg" placeholder="Décrivez précisément le problème ou l'information…" style="min-height:80px" onchange="sauvegarderBrouillon()"></textarea>
     </div>
     <div class="form-group" style="margin-top:10px">
-      <label>📷 Photos <span style="font-size:11px;color:var(--texte-sec)">(optionnel — plusieurs possibles)</span></label>
-      <input type="file" id="chauf-msg-photos" accept="image/*" multiple
-        onchange="previewChaufPhotos()"
-        style="border:1.5px dashed var(--gris-bord);border-radius:8px;padding:8px;
-               width:100%;font-size:13px;cursor:pointer" />
+      <label>📷 Photos <span style="font-size:11px;color:var(--texte-sec)">(optionnel — max 5)</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button type="button" class="btn" onclick="ouvrirCamera()"
+          style="display:flex;align-items:center;gap:6px;padding:8px 14px">
+          📷 Prendre une photo
+        </button>
+        <button type="button" class="btn" onclick="ouvrirGalerie()"
+          style="display:flex;align-items:center;gap:6px;padding:8px 14px">
+          🖼 Choisir depuis la galerie
+        </button>
+      </div>
+      <!-- Input caméra (capture directe) -->
+      <input type="file" id="chauf-camera" accept="image/*" capture="environment"
+        onchange="ajouterPhotoChauf(this)" style="display:none" />
+      <!-- Input galerie -->
+      <input type="file" id="chauf-galerie" accept="image/*" multiple
+        onchange="ajouterPhotoChauf(this)" style="display:none" />
       <div id="chauf-msg-photos-preview"
-        style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+        style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge)" onclick="sendMessageChauf()">📤 Envoyer</button>
@@ -3159,38 +3171,59 @@ function initChauf() {
 // Photos message chauffeur
 let _chaufPhotos = [];
 
-function previewChaufPhotos() {
-  const input   = document.getElementById('chauf-msg-photos');
+function ouvrirCamera() {
+  if (_chaufPhotos.filter(Boolean).length >= 5) { toast('Maximum 5 photos.'); return; }
+  document.getElementById('chauf-camera').click();
+}
+
+function ouvrirGalerie() {
+  if (_chaufPhotos.filter(Boolean).length >= 5) { toast('Maximum 5 photos.'); return; }
+  document.getElementById('chauf-galerie').click();
+}
+
+function ajouterPhotoChauf(input) {
   const preview = document.getElementById('chauf-msg-photos-preview');
-  if (!input || !preview) return;
+  if (!preview) return;
   const files = Array.from(input.files);
-  if (!files.length) return;
-  if (files.length > 5) { toast('Maximum 5 photos par message.'); return; }
-  preview.innerHTML = ''; _chaufPhotos = [];
-  files.forEach((file, i) => {
-    if (file.size > 2 * 1024 * 1024) { toast(`"${file.name}" trop lourde (max 2 Mo).`); return; }
+  const deja  = _chaufPhotos.filter(Boolean).length;
+  const reste = 5 - deja;
+  files.slice(0, reste).forEach(file => {
+    if (file.size > 3 * 1024 * 1024) { toast('"' + file.name + '" trop lourde (max 3 Mo).'); return; }
     const reader = new FileReader();
     reader.onload = e => {
-      _chaufPhotos[i] = { name: file.name, data: e.target.result };
+      const idx = _chaufPhotos.length;
+      _chaufPhotos.push({ name: file.name, data: e.target.result });
       const wrap = document.createElement('div');
+      wrap.id = 'chauf-photo-' + idx;
       wrap.style.cssText = 'position:relative;display:inline-block';
-      wrap.innerHTML = `<img src="${e.target.result}"
-        style="width:72px;height:56px;object-fit:cover;border-radius:6px;
-               border:1.5px solid var(--gris-bord);cursor:pointer"
-        onclick="window.open('${e.target.result}','_blank')" />
-        <button onclick="this.closest('div').remove();_chaufPhotos.splice(${i},1)"
-          style="position:absolute;top:-5px;right:-5px;background:var(--rouge);color:#fff;
-                 border:none;border-radius:50%;width:18px;height:18px;font-size:11px;
-                 cursor:pointer;line-height:18px;text-align:center;padding:0">✕</button>`;
+      wrap.innerHTML =
+        '<img src="' + e.target.result + '" alt="' + file.name + '"' +
+        ' style="width:80px;height:64px;object-fit:cover;border-radius:8px;' +
+        'border:1.5px solid var(--gris-bord);cursor:pointer;display:block"' +
+        ' onclick="window.open(this.src,\'_blank\')" />' +
+        '<button onclick="retirerChaufPhoto(' + idx + ')"' +
+        ' style="position:absolute;top:-6px;right:-6px;background:var(--rouge);color:#fff;' +
+        'border:none;border-radius:50%;width:20px;height:20px;font-size:12px;' +
+        'cursor:pointer;line-height:20px;text-align:center;padding:0;font-weight:700">✕</button>';
       preview.appendChild(wrap);
     };
     reader.readAsDataURL(file);
   });
+  if (files.length > reste && reste < files.length)
+    toast('Seules ' + reste + ' photo(s) ajoutée(s) (max 5).');
+  input.value = '';
+}
+
+function retirerChaufPhoto(idx) {
+  _chaufPhotos[idx] = null;
+  const el = document.getElementById('chauf-photo-' + idx);
+  if (el) el.remove();
 }
 
 function clearChaufForm() {
   const msg = document.getElementById('chauf-msg'); if (msg) msg.value = '';
-  const inp = document.getElementById('chauf-msg-photos'); if (inp) inp.value = '';
+  const cam = document.getElementById('chauf-camera'); if (cam) cam.value = '';
+  const gal = document.getElementById('chauf-galerie'); if (gal) gal.value = '';
   const pre = document.getElementById('chauf-msg-photos-preview'); if (pre) pre.innerHTML = '';
   _chaufPhotos = [];
 }
@@ -4628,36 +4661,41 @@ function renderKilometrage() {
     const prevM = mList[1] || null;
     const isRer = v.id === '1RER037';
 
-    // Si pas de maintenance ce mois-ci → cellule vide (en attente)
-    const aMaintCeMois = lastM && lastM.date.startsWith(moisCourant);
-
+    // Km parcourus entre les 2 dernières maintenances (quel que soit le mois)
     let kmParcourus = null;
-    if (aMaintCeMois && prevM && lastM.km && prevM.km) {
+    if (lastM && prevM && lastM.km && prevM.km) {
       kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
       if (!isRer && kmParcourus > 0) totalFlotte += kmParcourus;
     }
 
+    // Le véhicule a-t-il une maintenance ce mois-ci ?
+    const aMaintCeMois = lastM && lastM.date.startsWith(moisCourant);
+
     const lastDate = lastM ? formatDate(lastM.date) : '—';
     const lastKm   = lastM?.km ? parseInt(lastM.km).toLocaleString('fr-BE') + ' km' : '—';
-    const periode  = (aMaintCeMois && prevM)
+    const periode  = (lastM && prevM)
       ? `${formatDate(prevM.date).slice(0,5)} → ${formatDate(lastM.date).slice(0,5)}` : '';
 
     const barPct   = kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX * 100)) : 0;
     const barColor = kmParcourus > 3000 ? 'var(--rouge)' : kmParcourus > 2000 ? 'var(--orange)' : 'var(--vert)';
 
-    // Cellule km : vide si pas de maintenance ce mois, valeur sinon
-    const kmCell = kmParcourus !== null
+    // Badge "mois courant" si la dernière maintenance est de ce mois
+    const badgeMois = aMaintCeMois
+      ? `<span style="font-size:9px;background:var(--vert);color:#fff;
+           border-radius:4px;padding:1px 5px;margin-left:4px">✓ ${moisCourant.slice(5)}/2026</span>`
+      : `<span style="font-size:9px;background:#eee;color:#aaa;
+           border-radius:4px;padding:1px 5px;margin-left:4px;font-style:italic">en attente</span>`;
+
+    const kmCell = kmParcourus !== null && kmParcourus > 0
       ? `<span style="font-weight:700;color:${barColor}">${kmParcourus.toLocaleString('fr-BE')} km</span>
          <div style="margin-top:3px;height:6px;border-radius:3px;background:#f0f0f0;width:100%">
            <div style="width:${barPct}%;height:6px;border-radius:3px;background:${barColor}"></div>
          </div>`
-      : (!aMaintCeMois && lastM)
-        ? '<span style="font-size:11px;color:#bbb;font-style:italic">en attente</span>'
-        : '';
+      : '<span style="color:#ccc">—</span>';
 
     return `<tr>
       <td style="padding:7px 10px;font-size:13px;white-space:nowrap">
-        <strong>${v.marque}</strong><br>
+        <strong>${v.marque}</strong>${badgeMois}<br>
         <span style="font-size:10px;font-family:monospace;background:#444;color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span>
         ${isRer ? '<span style="font-size:10px;color:var(--texte-sec);margin-left:4px">(info)</span>' : ''}
       </td>
