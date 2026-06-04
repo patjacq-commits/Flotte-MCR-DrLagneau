@@ -190,12 +190,39 @@
 
       currentUser = { uid: firebaseUser.uid, email, role, nom };
 
-      // Logger la dernière connexion dans Firestore
+      // Logger la dernière connexion + marquer comme en ligne
       try {
+        const now = new Date().toISOString();
         await db.collection('roles').doc(firebaseUser.uid).set(
-          { derniere_connexion: new Date().toISOString() },
+          { derniere_connexion: now },
           { merge: true }
         );
+        // Marquer la session active
+        await db.collection('sessions').doc(firebaseUser.uid).set({
+          uid:               firebaseUser.uid,
+          nom:               nom,
+          email:             email,
+          role:              role,
+          online:            true,
+          connexion_debut:   now,
+          derniere_activite: now
+        });
+        // Marquer hors ligne à la fermeture
+        window.addEventListener('beforeunload', () => {
+          navigator.sendBeacon(
+            `https://firestore.googleapis.com/v1/projects/mcr-opont/databases/(default)/documents/sessions/${firebaseUser.uid}`,
+            JSON.stringify({ fields: { online: { booleanValue: false } } })
+          );
+        });
+        // Maintenir le heartbeat toutes les 2 minutes
+        window._heartbeatInterval = setInterval(async () => {
+          try {
+            await db.collection('sessions').doc(firebaseUser.uid).set(
+              { derniere_activite: new Date().toISOString(), online: true },
+              { merge: true }
+            );
+          } catch(e) {}
+        }, 2 * 60 * 1000);
       } catch(e) { console.warn('Erreur log connexion:', e); }
 
       // Charger les données Firebase si pas encore fait
@@ -3437,7 +3464,15 @@ function showPage(id, btn) {
   if (id === 'carwash') initCarWash();
   if (id === 'pneus')   initPneus();
   if (id === 'rapports') initRapports();
-  if (id === 'comptes' && userIsSuperAdmin()) { renderGestionComptes(); renderHistoriqueLog(); }
+  if (id === 'comptes' && userIsSuperAdmin()) {
+    renderGestionComptes();
+    renderSessionsActives();
+    renderHistoriqueLog();
+  } else if (_sessionsListener) {
+    // Arrêter le listener temps réel quand on quitte l'onglet Comptes
+    _sessionsListener();
+    _sessionsListener = null;
+  }
   if (id === 'calendrier') renderCalendrier();
   if (id === 'statistiques') renderStatistiques();
   if (id === 'adblue')  initAdBlueOnglet();
@@ -3689,6 +3724,20 @@ async function seConnecter() {
 }
 
 async function seDeconnecter() {
+  // Marquer hors ligne
+  try {
+    if (currentUser?.uid) {
+      await db.collection('sessions').doc(currentUser.uid).set(
+        { online: false, deconnexion: new Date().toISOString() },
+        { merge: true }
+      );
+    }
+  } catch(e) {}
+  // Arrêter le heartbeat
+  if (window._heartbeatInterval) {
+    clearInterval(window._heartbeatInterval);
+    window._heartbeatInterval = null;
+  }
   await auth.signOut();
   currentUser = null;
 }
@@ -3970,6 +4019,81 @@ async function refuserChaufeur(uid, nom) {
   } catch(e) {
     toast('❌ Erreur : ' + e.message);
   }
+}
+
+let _sessionsListener = null;
+
+function renderSessionsActives() {
+  const container = document.getElementById('sessions-liste');
+  if (!container) return;
+  if (_sessionsListener) { _sessionsListener(); _sessionsListener = null; }
+
+  const SEUIL_MS  = 5 * 60 * 1000;
+  const ROLE_LABELS = { superadmin:'⚙ Patrick', admin:'⚙ Angélique', chauffeur:'🚗 Chauffeur' };
+  const ROLE_COLORS = { superadmin:'var(--orange)', admin:'var(--bleu)', chauffeur:'var(--vert)' };
+  const fmtDate = iso => iso
+    ? new Date(iso).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    : '—';
+
+  _sessionsListener = db.collection('sessions').onSnapshot(snap => {
+    const sessions = snap.docs.map(d => d.data());
+    const now = Date.now();
+
+    const enligne   = sessions.filter(s => s.online && s.derniere_activite &&
+      (now - new Date(s.derniere_activite).getTime()) < SEUIL_MS);
+    const horsLigne = sessions.filter(s => !enligne.includes(s))
+      .sort((a,b) => new Date(b.derniere_activite||0) - new Date(a.derniere_activite||0))
+      .slice(0, 10);
+
+    let html = '';
+
+    // Connectés maintenant
+    if (enligne.length) {
+      html += enligne.map(s => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+          background:var(--vert-clair);border-radius:8px;margin-bottom:8px;flex-wrap:wrap">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--vert);
+            flex-shrink:0;animation:pulse-info 1.5s ease infinite"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px">${s.nom||s.email}</div>
+            <div style="font-size:12px;color:${ROLE_COLORS[s.role]||'var(--texte)'};font-weight:600">
+              ${ROLE_LABELS[s.role]||s.role}</div>
+            <div style="font-size:11px;color:var(--texte-sec)">Depuis le ${fmtDate(s.connexion_debut)}</div>
+          </div>
+          <span style="background:var(--vert);color:#fff;border-radius:12px;
+            padding:2px 10px;font-size:11px;font-weight:600">🟢 En ligne</span>
+        </div>`).join('');
+    } else {
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:10px;
+        color:var(--texte-sec);font-size:13px">
+        <span style="font-size:18px">😴</span> Personne n'est connecté en ce moment.
+      </div>`;
+    }
+
+    // Connexions récentes
+    if (horsLigne.length) {
+      html += `<div style="font-size:11px;font-weight:700;color:var(--texte-sec);
+        text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 6px">
+        Connexions récentes</div>`;
+      html += horsLigne.map(s => `
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;
+          border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
+          <div style="width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <span style="font-weight:600;font-size:13px">${s.nom||s.email}</span>
+            <span style="font-size:11px;color:var(--texte-sec);margin-left:8px">
+              ${ROLE_LABELS[s.role]||s.role}</span>
+          </div>
+          <span style="font-size:11px;color:var(--texte-sec);white-space:nowrap">
+            🕐 ${fmtDate(s.derniere_activite)}</span>
+        </div>`).join('');
+    }
+
+    container.innerHTML = html;
+  }, e => {
+    if (container) container.innerHTML =
+      `<p style="color:var(--rouge)">Erreur : ${e.message}</p>`;
+  });
 }
 
 async function renderHistoriqueLog() {
@@ -7995,6 +8119,15 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="form-card">
     <h3>Comptes existants</h3>
     <div id="comptes-liste"><p style="color:var(--texte-sec)">Chargement…</p></div>
+  </div>
+
+  <!-- Qui est connecté en ce moment -->
+  <div class="form-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3>🟢 Connectés en ce moment</h3>
+      <span style="font-size:11px;color:var(--texte-sec)">Mis à jour en temps réel</span>
+    </div>
+    <div id="sessions-liste"><p style="color:var(--texte-sec)">Chargement…</p></div>
   </div>
 
   <!-- Historique des modifications -->
