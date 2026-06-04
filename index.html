@@ -623,6 +623,47 @@ td.ok { color: var(--vert); font-weight: 600; }
   background: var(--orange-clair) !important;
 }
 
+/* ===== CALENDRIER ===== */
+.cal-day {
+  min-height: 70px; padding: 4px; border: 1px solid var(--gris-bord);
+  border-radius: 4px; background: var(--blanc); cursor: pointer;
+  font-size: 11px; position: relative; transition: background 0.15s;
+}
+.cal-day:hover { background: var(--bleu-clair); }
+.cal-day.today { border: 2px solid var(--bleu); background: #eaf4fb; }
+.cal-day.autre-mois { background: var(--fond); opacity: 0.5; cursor: default; }
+.cal-day.has-events { background: #fffbf0; }
+.cal-jour-num { font-weight: 700; font-size: 13px; color: var(--texte); }
+.cal-jour-num.today-num { color: var(--bleu); }
+.cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 1px; }
+.cal-event-mini { font-size: 9px; border-radius: 3px; padding: 1px 3px; margin: 1px 0;
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+.cal-header-day { text-align: center; font-size: 11px; font-weight: 700;
+                  color: var(--texte-sec); padding: 4px; }
+
+/* ===== MESSAGES BIDIRECTIONNELS ===== */
+.msg-card { border: 1px solid var(--gris-bord); border-radius: 8px; margin-bottom: 10px;
+            overflow: hidden; }
+.msg-card.non-lu { border-color: var(--rouge-clair); background: #fff8f8; }
+.msg-card.lu { background: var(--blanc); }
+.msg-card.urgent-msg { border-color: var(--rouge); border-width: 2px; }
+.msg-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+              background: var(--gris-clair); flex-wrap: wrap; }
+.msg-veh { font-weight: 600; font-size: 12px; flex: 1; }
+.msg-date { font-size: 11px; color: var(--texte-sec); white-space: nowrap; }
+.msg-body { padding: 10px 12px; font-size: 13px; }
+.msg-auteur { font-size: 11px; color: var(--texte-sec); margin-top: 4px; font-style: italic; }
+.msg-actions { padding: 6px 12px; display: flex; gap: 6px; flex-wrap: wrap;
+               background: var(--gris-clair); }
+.msg-reponse { background: #e8f4fd; border-top: 1px solid var(--gris-bord);
+               padding: 8px 12px; font-size: 12px; }
+.msg-reponse-input { width: 100%; border: 1.5px solid var(--gris-bord); border-radius: 6px;
+                     padding: 6px 10px; font-size: 13px; resize: vertical; min-height: 50px;
+                     font-family: inherit; }
+
+/* ===== STATISTIQUES ===== */
+.stat-total { font-weight: 800; color: var(--rouge); }
+
 /* ===== NAVBAR MAINT FLASH ===== */
 @keyframes flash-maint {
   0%,100% { background:rgba(255,255,255,0.18); transform:scale(1); }
@@ -924,7 +965,9 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn" onclick="showPage('vehicules',this)">🚐 Véhicules</button>
   <button class="tab-btn" onclick="showPage('alertes',this)">🔔 Alertes</button>
   <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
-  <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Alerte chauffeur</button>
+  <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
+  <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Messages</button>
+  <button class="tab-btn admin-only" onclick="showPage('statistiques',this)" style="display:none">💰 Coûts</button>
   <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
   <button class="tab-btn admin-only" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
@@ -992,42 +1035,114 @@ td.ok { color: var(--vert); font-weight: 600; }
 </div>
 
 <!-- PAGE ALERTE CHAUFFEUR -->
-<div id="page-chauf" class="page">
-  <h2 style="margin-bottom:4px">🚨 Alerte chauffeur</h2>
-  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Signalez un problème urgent sur un véhicule. Les administrateurs seront notifiés.</p>
+<!-- PAGE CALENDRIER -->
+<div id="page-calendrier" class="page">
+  <h2 style="margin-bottom:14px">📅 Calendrier des échéances</h2>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <button class="btn" onclick="calendrierMoisPrecedent()">◀</button>
+    <div id="cal-titre" style="font-size:16px;font-weight:700;flex:1;text-align:center"></div>
+    <button class="btn" onclick="calendrierMoisSuivant()">▶</button>
+    <button class="btn btn-sm" onclick="calendrierAujourdhui()">Aujourd'hui</button>
+  </div>
+  <!-- Légende -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:12px">
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e74c3c;margin-right:4px"></span>CT</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e67e22;margin-right:4px"></span>Entretien</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2980b9;margin-right:4px"></span>RV planifié</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#27ae60;margin-right:4px"></span>Maintenance</span>
+  </div>
+  <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+  <!-- Détail du jour sélectionné -->
+  <div id="cal-detail" style="margin-top:14px;display:none">
+    <div class="form-card" style="padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 id="cal-detail-titre" style="font-size:14px"></h3>
+        <button class="btn btn-sm" onclick="document.getElementById('cal-detail').style.display='none'">✕</button>
+      </div>
+      <div id="cal-detail-content"></div>
+    </div>
+  </div>
+</div>
 
-  <!-- Formulaire visible par tous (chauffeurs et admins) -->
+<!-- PAGE MESSAGES / ALERTES CHAUFFEUR -->
+<div id="page-chauf" class="page">
+  <h2 style="margin-bottom:4px">🚨 Messages & Alertes</h2>
+
+  <!-- Saisie AdBlue chauffeur (véhicules VEHICULES_ADBLUE uniquement) -->
+  <div class="form-card" id="chauf-adblue-card">
+    <h3>💧 Signaler un ajout AdBlue</h3>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Pour les véhicules : 294, 633, 789, 941, 527, 910</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="chauf-ab-date" />
+      </div>
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="chauf-ab-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="chauf-ab-type" onchange="toggleChauffeurAdBlue()">
+          <option value="bidon">Bidon (10 L = 20 €)</option>
+          <option value="pompe">Pompe (quantité libre)</option>
+        </select>
+      </div>
+      <div class="form-group" id="chauf-ab-litre-group">
+        <label>Volume (L)</label>
+        <input type="number" id="chauf-ab-litre" value="10" step="0.1" min="0.1" />
+      </div>
+      <div class="form-group" id="chauf-ab-prix-group" style="display:none">
+        <label>Prix (€)</label>
+        <input type="number" id="chauf-ab-prix" step="0.01" min="0" placeholder="ex: 8.50" />
+      </div>
+      <div class="form-group">
+        <label>Kilométrage</label>
+        <input type="number" id="chauf-ab-km" placeholder="Optionnel" />
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" style="background:var(--bleu);border-color:var(--bleu)" onclick="saveChauffeurAdBlue()">💧 Enregistrer AdBlue</button>
+      <button class="btn" onclick="clearChauffeurAdBlue()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <!-- Formulaire signalement -->
   <div class="form-card" id="chauf-form-card">
-    <h3>📣 Envoyer un signalement</h3>
+    <h3>📣 Envoyer un message / signalement</h3>
     <div class="form-grid">
       <div class="form-group">
         <label>Véhicule concerné</label>
         <select id="chauf-veh"></select>
       </div>
       <div class="form-group">
-        <label>Votre prénom</label>
-        <input type="text" id="chauf-auteur" placeholder="ex: Jean" maxlength="30" />
+        <label>Priorité</label>
+        <select id="chauf-priorite">
+          <option value="info">ℹ️ Information</option>
+          <option value="urgent">🚨 Urgent</option>
+        </select>
       </div>
     </div>
     <div class="form-group" style="margin-top:12px">
-      <label>Description du problème</label>
-      <textarea id="chauf-msg" placeholder="Décrivez précisément le problème constaté (bruit, voyant, comportement anormal…)" style="min-height:90px"></textarea>
+      <label>Message</label>
+      <textarea id="chauf-msg" placeholder="Décrivez précisément le problème ou l'information…" style="min-height:80px" onchange="sauvegarderBrouillon()"></textarea>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge)" onclick="sendMessageChauf()">🚨 Envoyer l'alerte</button>
-      <span style="font-size:12px;color:var(--texte-sec)">Le message sera visible de tous les utilisateurs de l'application.</span>
+      <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge)" onclick="sendMessageChauf()">📤 Envoyer</button>
     </div>
   </div>
 
-  <!-- Liste des messages -->
+  <!-- Fil de messages -->
   <div style="margin-top:6px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <h3 id="chauf-nb-titre">Signalements</h3>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="chauf-filter" onchange="renderMessagesChauf()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+      <h3 id="chauf-nb-titre">Messages</h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="chauf-filter" onchange="renderMessagesChauf()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
           <option value="">Tous les véhicules</option>
         </select>
-        <select id="chauf-filter-statut" onchange="renderMessagesChauf()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <select id="chauf-filter-statut" onchange="renderMessagesChauf()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
           <option value="">Tous</option>
           <option value="nonlu">Non traités</option>
           <option value="lu">Traités</option>
@@ -1035,6 +1150,44 @@ td.ok { color: var(--vert); font-weight: 600; }
       </div>
     </div>
     <div id="chauf-msg-list" class="msg-list"></div>
+  </div>
+</div>
+
+<!-- PAGE STATISTIQUES / COÛTS -->
+<div id="page-statistiques" class="page">
+  <h2 style="margin-bottom:14px">💰 Coûts par véhicule</h2>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <select id="stat-annee"
+      style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 12px;font-size:14px">
+    </select>
+    <button class="btn btn-sm" onclick="renderStatistiques()">🔄 Actualiser</button>
+    <button class="btn btn-sm" onclick="exportStatCSV()">⬇ CSV</button>
+  </div>
+  <!-- Tableau des coûts -->
+  <div class="form-card" style="padding:0;overflow:hidden">
+    <div class="table-wrap">
+      <table id="stat-table">
+        <thead>
+          <tr>
+            <th style="text-align:left">Véhicule</th>
+            <th>Maintenances</th>
+            <th>Car Wash (nb)</th>
+            <th>Car Wash (€)</th>
+            <th>AdBlue (L)</th>
+            <th>AdBlue (€)</th>
+            <th>Recharges clé (€)</th>
+            <th style="background:#c0392b">Total €</th>
+          </tr>
+        </thead>
+        <tbody id="stat-tbody"></tbody>
+        <tfoot id="stat-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+  <!-- Graphique -->
+  <div class="form-card" style="margin-top:14px;padding:16px">
+    <h3 style="margin-bottom:12px">Répartition des coûts</h3>
+    <div id="stat-graphique" style="overflow-x:auto"></div>
   </div>
 </div>
 
@@ -2695,8 +2848,124 @@ function renderPneuHistorique() {
 // ALERTE CHAUFFEUR — fonctions
 // ============================================================
 
+// ============================================================
+// CALENDRIER DES ÉCHÉANCES
+// ============================================================
+let _calDate = new Date();
+
+function calendrierAujourdhui() { _calDate = new Date(); renderCalendrier(); }
+function calendrierMoisPrecedent() { _calDate.setMonth(_calDate.getMonth()-1); renderCalendrier(); }
+function calendrierMoisSuivant()   { _calDate.setMonth(_calDate.getMonth()+1); renderCalendrier(); }
+
+function getEvenementsJour(dateStr) {
+  const evts = [];
+  // Maintenances
+  maintenances.filter(m => m.date === dateStr).forEach(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    evts.push({ type:'maintenance', couleur:'#27ae60', label:`🔧 ${v?.immat||m.vehId}`, detail:`Maintenance ${v?.marque||''} ${v?.immat||m.vehId} — ${m.km ? parseInt(m.km).toLocaleString('fr-BE')+' km' : '—'}` });
+  });
+  // RV planifiés
+  rendezvous.filter(r => r.date === dateStr && r.statut !== 'annule').forEach(r => {
+    const v = vehicules.find(x => x.id === r.vehId);
+    const typeLabel = r.type === 'ct' ? 'CT' : r.type === 'garage' ? 'Entretien' : r.type;
+    evts.push({ type:'rv', couleur:'#2980b9', label:`📅 ${v?.immat||r.vehId} ${typeLabel}`, detail:`RV ${typeLabel} — ${v?.marque||''} ${v?.immat||r.vehId}${r.heure?' à '+r.heure:''}${r.garage?' — '+r.garage:''}` });
+  });
+  // CT events
+  ctEvents.filter(c => c.date === dateStr).forEach(c => {
+    const v = vehicules.find(x => x.id === c.vehId);
+    evts.push({ type:'ct', couleur:'#e74c3c', label:`🏥 ${v?.immat||c.vehId}`, detail:`CT/Entretien ${v?.marque||''} ${v?.immat||c.vehId}${c.result?' — '+c.result:''}` });
+  });
+  // Alertes CT proches (dans les 7 jours)
+  vehicules.forEach(v => {
+    if (!v.ct_valid) return;
+    const j = daysUntil(v.ct_valid);
+    if (v.ct_valid === dateStr && j !== null && j >= 0 && j <= 30) {
+      evts.push({ type:'alerte', couleur:'#e67e22', label:`⚠️ CT ${v.immat}`, detail:`CT de ${v.immat} expire le ${formatDate(v.ct_valid)}` });
+    }
+  });
+  return evts;
+}
+
+function renderCalendrier() {
+  const grid   = document.getElementById('cal-grid');
+  const titre  = document.getElementById('cal-titre');
+  if (!grid) return;
+
+  const annee  = _calDate.getFullYear();
+  const mois   = _calDate.getMonth();
+  const today  = new Date().toISOString().slice(0,10);
+
+  titre.textContent = new Date(annee, mois, 1).toLocaleDateString('fr-BE', { month:'long', year:'numeric' });
+
+  // En-têtes jours
+  const JOURS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  grid.innerHTML = JOURS.map(j => `<div class="cal-header-day">${j}</div>`).join('');
+
+  // Premier jour du mois (lundi = 0)
+  const premierJour = new Date(annee, mois, 1);
+  const jourSemaine = (premierJour.getDay() + 6) % 7; // 0=lundi
+
+  // Jours du mois précédent
+  for (let i = jourSemaine - 1; i >= 0; i--) {
+    const d = new Date(annee, mois, -i);
+    grid.innerHTML += `<div class="cal-day autre-mois"><div class="cal-jour-num" style="color:#ccc">${d.getDate()}</div></div>`;
+  }
+
+  // Jours du mois
+  const nbJours = new Date(annee, mois + 1, 0).getDate();
+  for (let j = 1; j <= nbJours; j++) {
+    const dateStr = `${annee}-${String(mois+1).padStart(2,'0')}-${String(j).padStart(2,'0')}`;
+    const isToday = dateStr === today;
+    const evts    = getEvenementsJour(dateStr);
+    const hasEvts = evts.length > 0;
+
+    const dotsHtml = evts.slice(0,4).map(e =>
+      `<span class="cal-event-mini" style="background:${e.couleur}">${e.label}</span>`).join('');
+
+    const classes = ['cal-day', isToday ? 'today' : '', hasEvts ? 'has-events' : ''].filter(Boolean).join(' ');
+    grid.innerHTML += `<div class="${classes}" onclick="afficherDetailJour('${dateStr}')">
+      <div class="cal-jour-num ${isToday?'today-num':''}">${j}</div>
+      ${dotsHtml}
+    </div>`;
+  }
+
+  // Jours du mois suivant pour compléter la grille
+  const totalCells = jourSemaine + nbJours;
+  const reste = (7 - (totalCells % 7)) % 7;
+  for (let i = 1; i <= reste; i++) {
+    grid.innerHTML += `<div class="cal-day autre-mois"><div class="cal-jour-num" style="color:#ccc">${i}</div></div>`;
+  }
+}
+
+function afficherDetailJour(dateStr) {
+  const evts = getEvenementsJour(dateStr);
+  const detail = document.getElementById('cal-detail');
+  const titre  = document.getElementById('cal-detail-titre');
+  const content= document.getElementById('cal-detail-content');
+  if (!detail) return;
+
+  titre.textContent = new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+
+  if (!evts.length) {
+    content.innerHTML = '<p style="color:var(--texte-sec)">Aucun événement ce jour.</p>';
+  } else {
+    content.innerHTML = evts.map(e => `
+      <div style="display:flex;gap:10px;padding:6px 0;border-bottom:0.5px solid var(--gris-bord)">
+        <span style="width:10px;height:10px;border-radius:50%;background:${e.couleur};flex-shrink:0;margin-top:4px"></span>
+        <span style="font-size:13px">${e.detail}</span>
+      </div>`).join('');
+  }
+  detail.style.display = '';
+}
+
+// ============================================================
+// MESSAGES CHAUFFEUR — bidirectionnels + AdBlue chauffeur
+// ============================================================
+
+const VEHICULES_ADBLUE_CHAUF = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
+
 function initChauf() {
-  // Peupler les selects
+  // Peupler select véhicule message
   ['chauf-veh', 'chauf-filter'].forEach(selId => {
     const sel = document.getElementById(selId);
     if (!sel) return;
@@ -2713,30 +2982,136 @@ function initChauf() {
       }
     }
   });
+
+  // Peupler select véhicule AdBlue chauffeur
+  const selAb = document.getElementById('chauf-ab-veh');
+  if (selAb && selAb.options.length === 0) {
+    selAb.innerHTML = VEHICULES_ADBLUE_CHAUF.map(id => {
+      const v = vehicules.find(x => x.id === id);
+      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+    }).join('');
+  }
+
+  // Date par défaut
+  const today = new Date().toISOString().slice(0,10);
+  const abDate = document.getElementById('chauf-ab-date');
+  if (abDate && !abDate.value) abDate.value = today;
+
+  // Masquer AdBlue pour les admins (ils ont leur onglet dédié)
+  const abCard = document.getElementById('chauf-adblue-card');
+  if (abCard) abCard.style.display = userIsAdmin() ? 'none' : '';
+
   renderMessagesChauf();
 }
 
+function toggleChauffeurAdBlue() {
+  const type = document.getElementById('chauf-ab-type')?.value;
+  const litre = document.getElementById('chauf-ab-litre-group');
+  const prix  = document.getElementById('chauf-ab-prix-group');
+  if (!litre || !prix) return;
+  if (type === 'bidon') {
+    litre.style.display = 'none';
+    prix.style.display  = 'none';
+    document.getElementById('chauf-ab-litre').value = '10';
+  } else {
+    litre.style.display = '';
+    prix.style.display  = '';
+    document.getElementById('chauf-ab-litre').value = '';
+  }
+}
+
+function clearChauffeurAdBlue() {
+  document.getElementById('chauf-ab-type').value = 'bidon';
+  document.getElementById('chauf-ab-litre').value = '10';
+  document.getElementById('chauf-ab-prix').value = '';
+  document.getElementById('chauf-ab-km').value = '';
+  toggleChauffeurAdBlue();
+}
+
+function saveChauffeurAdBlue() {
+  const vehId  = document.getElementById('chauf-ab-veh')?.value;
+  const date   = document.getElementById('chauf-ab-date')?.value;
+  const type   = document.getElementById('chauf-ab-type')?.value;
+  const km     = parseInt(document.getElementById('chauf-ab-km')?.value) || null;
+
+  let litre, prixUnit, prixTotal;
+  if (type === 'bidon') {
+    litre = 10; prixUnit = 2.0; prixTotal = 20;
+  } else {
+    litre = parseFloat(document.getElementById('chauf-ab-litre')?.value);
+    prixTotal = parseFloat(document.getElementById('chauf-ab-prix')?.value) || null;
+    prixUnit  = prixTotal && litre ? prixTotal / litre : null;
+  }
+
+  if (!vehId || !date || isNaN(litre) || litre <= 0) {
+    toast('Veuillez remplir la date, le véhicule et le volume.'); return;
+  }
+
+  const v = vehicules.find(x => x.id === vehId);
+  const vNom = v ? `${v.marque} — ${v.immat}` : vehId;
+
+  // Message de confirmation avant enregistrement
+  const confirmMsg = `Confirmer l'enregistrement AdBlue ?\n\n` +
+    `Véhicule : ${vNom}\n` +
+    `Date : ${formatDate(date)}\n` +
+    `Volume : ${litre} L\n` +
+    (prixTotal ? `Prix : ${prixTotal.toFixed(2)} €\n` : '') +
+    (km ? `Km : ${km.toLocaleString('fr-BE')}\n` : '');
+
+  if (!confirm(confirmMsg)) return;
+
+  adblues.unshift({ id: Date.now(), vehId, date, litre, prixTotal, prixUnit, km, source: 'chauffeur' });
+  logCreation('adblues', `AdBlue chauffeur : ${vNom} — ${litre} L${prixTotal ? ' — '+prixTotal.toFixed(2)+'€' : ''} — ${formatDate(date)}`, { vehId, date, litre, prixTotal });
+  saveAll();
+  clearChauffeurAdBlue();
+  toast(`✅ AdBlue enregistré — ${litre} L${prixTotal ? ' ('+prixTotal.toFixed(2)+' €)' : ''}`);
+}
+
 function sendMessageChauf() {
-  const vehId  = document.getElementById('chauf-veh').value;
-  const auteur = document.getElementById('chauf-auteur').value.trim();
-  const msg    = document.getElementById('chauf-msg').value.trim();
-  if (!vehId || !msg) { toast('Veuillez sélectionner un véhicule et décrire le problème.'); return; }
-  if (!auteur) { toast('Veuillez indiquer votre prénom.'); return; }
+  const vehId    = document.getElementById('chauf-veh').value;
+  const msg      = document.getElementById('chauf-msg').value.trim();
+  const priorite = document.getElementById('chauf-priorite')?.value || 'info';
+  if (!vehId || !msg) { toast('Veuillez sélectionner un véhicule et écrire un message.'); return; }
+
+  const v    = vehicules.find(x => x.id === vehId);
+  const vNom = v ? `${v.marque} — ${v.immat}` : vehId;
+  const nom  = currentUser?.nom || 'Chauffeur';
+
+  // Confirmation avant envoi
+  if (!confirm(`Envoyer ce message ?\n\nVéhicule : ${vNom}\nDe : ${nom}\n\n"${msg}"`)) return;
 
   messagesChauf.unshift({
-    id: Date.now(), vehId, auteur, msg,
+    id: Date.now(), vehId, auteur: nom, msg,
     date: new Date().toISOString(),
-    statut: 'nonlu'
+    priorite, statut: 'nonlu', reponses: []
   });
   saveAll();
+  logCreation('messagesChauf', `Message ${priorite} : ${nom} → ${vNom} — "${msg.slice(0,50)}"`, { vehId, auteur:nom, priorite });
 
-  // Réinitialiser le formulaire
   document.getElementById('chauf-msg').value = '';
-  document.getElementById('chauf-auteur').value = '';
-
   renderMessagesChauf();
   updateTabChauf();
-  toast('🚨 Signalement envoyé aux administrateurs !');
+  toast(priorite === 'urgent' ? '🚨 Alerte envoyée aux administrateurs !' : '✅ Message envoyé !');
+}
+
+function repondreMessage(id) {
+  if (!userIsAdmin()) return;
+  const texte = document.getElementById(`reponse-input-${id}`)?.value?.trim();
+  if (!texte) { toast('Réponse vide.'); return; }
+
+  const m = messagesChauf.find(x => x.id === id);
+  if (!m) return;
+  if (!m.reponses) m.reponses = [];
+  m.reponses.push({
+    auteur: currentUser?.nom || 'Admin',
+    texte,
+    date: new Date().toISOString()
+  });
+  m.statut = 'lu';
+  saveAll();
+  logCreation('messagesChauf', `Réponse admin : "${texte.slice(0,50)}"`, { messageId: id });
+  renderMessagesChauf();
+  toast('✅ Réponse envoyée');
 }
 
 function markChaufLu(id) {
@@ -2750,13 +3125,13 @@ function markChaufNonLu(id) {
 }
 
 function deleteChauf(id) {
-  if (!confirm('Supprimer ce signalement ?')) return;
+  if (!confirm('Supprimer ce message ?')) return;
   messagesChauf = messagesChauf.filter(m => m.id !== id);
   saveAll(); renderMessagesChauf(); updateTabChauf();
 }
 
 function renderMessagesChauf() {
-  const filterVeh    = document.getElementById('chauf-filter')?.value || '';
+  const filterVeh    = document.getElementById('chauf-filter')?.value    || '';
   const filterStatut = document.getElementById('chauf-filter-statut')?.value || '';
   const list = document.getElementById('chauf-msg-list');
   if (!list) return;
@@ -2767,10 +3142,10 @@ function renderMessagesChauf() {
 
   const nonLus = messagesChauf.filter(m => m.statut === 'nonlu').length;
   const titreEl = document.getElementById('chauf-nb-titre');
-  if (titreEl) titreEl.textContent = `Signalements${nonLus > 0 ? ` — ${nonLus} non traité${nonLus>1?'s':''}` : ''}`;
+  if (titreEl) titreEl.textContent = `Messages${nonLus > 0 ? ` — ${nonLus} non traité${nonLus>1?'s':''}` : ''}`;
 
   if (!msgs.length) {
-    list.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucun signalement.</p>';
+    list.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucun message.</p>';
     return;
   }
 
@@ -2778,26 +3153,49 @@ function renderMessagesChauf() {
     const v = vehicules.find(x => x.id === m.vehId);
     const vNom = v ? `${v.marque} — ${v.immat}` : m.vehId;
     const dateStr = new Date(m.date).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    const isNonLu = m.statut === 'nonlu';
+    const isNonLu  = m.statut === 'nonlu';
+    const isUrgent = m.priorite === 'urgent';
+
+    // Réponses existantes
+    const repHtml = (m.reponses||[]).map(r => {
+      const rDate = new Date(r.date).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<div class="msg-reponse">
+        <div style="font-weight:600;font-size:11px;color:var(--bleu)">↩ ${r.auteur} — ${rDate}</div>
+        <div style="font-size:13px;margin-top:2px">${r.texte}</div>
+      </div>`;
+    }).join('');
+
+    // Zone de réponse (admin uniquement)
+    const repInput = userIsAdmin() ? `
+      <div style="padding:8px 12px;background:#f0f7ff;border-top:1px solid var(--gris-bord)">
+        <textarea id="reponse-input-${m.id}" class="msg-reponse-input"
+          placeholder="Écrire une réponse…"></textarea>
+        <button class="btn btn-sm primary" style="margin-top:6px"
+          onclick="repondreMessage(${m.id})">↩ Répondre</button>
+      </div>` : '';
 
     // Boutons admin
-    const adminBtns = isAdmin ? `
+    const adminBtns = userIsAdmin() ? `
       ${isNonLu
         ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="markChaufLu(${m.id})">✅ Marquer traité</button>`
         : `<button class="btn btn-sm" style="color:var(--gris)" onclick="markChaufNonLu(${m.id})">↩ Rouvrir</button>`}
-      <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteChauf(${m.id})">🗑 Supprimer</button>
+      <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteChauf(${m.id})">🗑</button>
     ` : '';
 
-    return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'}">
+    return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
       <div class="msg-header">
-        <span class="badge ${isNonLu ? 'urgent' : 'ok'}" style="font-size:11px">${isNonLu ? '⚠ Non traité' : '✅ Traité'}</span>
+        <span class="badge ${isUrgent ? 'urgent' : isNonLu ? 'warn' : 'ok'}" style="font-size:10px">
+          ${isUrgent ? '🚨 Urgent' : isNonLu ? '⚠ Non traité' : '✅ Traité'}
+        </span>
         <span class="msg-veh">🚑 ${vNom}</span>
         <span class="msg-date">${dateStr}</span>
       </div>
       <div class="msg-body">
-        <div>${m.msg}</div>
+        <div style="font-size:13px">${m.msg}</div>
         <div class="msg-auteur">— ${m.auteur}</div>
       </div>
+      ${repHtml}
+      ${repInput}
       ${adminBtns ? `<div class="msg-actions">${adminBtns}</div>` : ''}
     </div>`;
   }).join('');
@@ -2837,7 +3235,7 @@ function saveAdBlueOnglet() {
   const litre = parseFloat(String(document.getElementById('ab-ong-litre').value).replace(',','.'));
   const km    = document.getElementById('ab-ong-km').value ? parseInt(document.getElementById('ab-ong-km').value) : null;
   if (!date || !vehId || isNaN(litre) || litre <= 0) { toast('Veuillez remplir la date, le véhicule et le volume.'); return; }
-  adblues.unshift({ id: Date.now(), vehId, date, litre, km });
+  adblues.unshift({ id: Date.now(), vehId, date, litre, prixTotal: litre * 2.0, prixUnit: 2.0, km, source: 'admin' });
   logCreation('adblues', `AdBlue : ${vehicules.find(v=>v.id===vehId)?.immat||vehId} — ${litre.toFixed(2)} L — ${formatDate(date)}`, { vehId, date, litre });
   saveAll();
   clearABForm();
@@ -2979,10 +3377,9 @@ function showPage(id, btn) {
   if (id === 'carwash') initCarWash();
   if (id === 'pneus')   initPneus();
   if (id === 'rapports') initRapports();
-  if (id === 'comptes' && userIsSuperAdmin()) {
-    renderGestionComptes();
-    renderHistoriqueLog();
-  }
+  if (id === 'comptes' && userIsSuperAdmin()) { renderGestionComptes(); renderHistoriqueLog(); }
+  if (id === 'calendrier') renderCalendrier();
+  if (id === 'statistiques') renderStatistiques();
   if (id === 'adblue')  initAdBlueOnglet();
   if (id === 'chauf') {
     initChauf();
@@ -3094,7 +3491,10 @@ function appliquerDroits() {
   const tabAdblue   = document.querySelector('.tab-btn[onclick*="adblue"]');
   const tabHist     = document.querySelector('.tab-btn[onclick*="historique"]');
   const tabRapports = document.querySelector('.tab-btn[onclick*="rapports"]');
-  const tabComptes  = document.querySelector('.tab-btn[onclick*="comptes"]');
+  const tabCalendrier  = document.querySelector('.tab-btn[onclick*="calendrier"]');
+  const tabStats       = document.querySelector('.tab-btn[onclick*="statistiques"]');
+  show(tabCalendrier, true); // visible pour tous
+  show(tabStats,      isAdm);
 
   const show = (el, v) => { if(el) el.style.display = v ? '' : 'none'; };
   show(tabMaint,    isSA || isAdm); // maintenance visible pour admin ET superadmin
@@ -6108,8 +6508,138 @@ function exportCSV() {
 }
 
 // ============================================================
-// HISTORIQUE DES MODIFICATIONS — traçabilité complète
+// STATISTIQUES / COÛTS PAR VÉHICULE
 // ============================================================
+
+const PRIX_ADBLUE_BIDON = 2.0; // €/L (bidon 10L = 20€)
+
+function initStatAnnees() {
+  const sel = document.getElementById('stat-annee');
+  if (!sel || sel.options.length > 0) return;
+  const annees = [...new Set([
+    ...maintenances.map(m => m.date?.slice(0,4)),
+    ...carwashes.map(c => c.date?.slice(0,4)),
+    ...adblues.map(a => a.date?.slice(0,4)),
+    ...rechargesCle.map(r => r.date?.slice(0,4)),
+  ].filter(Boolean))].sort().reverse();
+  if (!annees.length) annees.push(new Date().getFullYear().toString());
+  annees.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    sel.appendChild(opt);
+  });
+}
+
+function renderStatistiques() {
+  initStatAnnees();
+  const annee = document.getElementById('stat-annee')?.value || new Date().getFullYear().toString();
+  const tbody  = document.getElementById('stat-tbody');
+  const tfoot  = document.getElementById('stat-tfoot');
+  const graph  = document.getElementById('stat-graphique');
+  if (!tbody) return;
+
+  const totaux = { maint:0, cwNb:0, cwEur:0, abL:0, abEur:0, rkEur:0, total:0 };
+  const lignes = [];
+
+  ORDRE_VEHICULES.forEach(vehId => {
+    const v = vehicules.find(x => x.id === vehId);
+    if (!v) return;
+
+    const maint = maintenances.filter(m => m.vehId === vehId && m.date?.startsWith(annee)).length;
+    const cwLst = carwashes.filter(c => c.vehId === vehId && c.date?.startsWith(annee));
+    const cwNb  = cwLst.length;
+    const cwEur = cwLst.reduce((s,c) => s + (parseFloat(c.montant)||0), 0);
+    const abLst = adblues.filter(a => a.vehId === vehId && a.date?.startsWith(annee));
+    const abL   = abLst.reduce((s,a) => s + (parseFloat(a.litre)||0), 0);
+    const abEur = abLst.reduce((s,a) => s + (parseFloat(a.prixTotal) || (a.litre * PRIX_ADBLUE_BIDON)), 0);
+    const rkEur = rechargesCle.filter(r => r.date?.startsWith(annee))
+                   .reduce((s,r) => s + (parseFloat(r.montantPaye)||0) + (parseFloat(r.montantGratuit)||0), 0);
+    const total = cwEur + abEur;
+
+    totaux.maint  += maint;
+    totaux.cwNb   += cwNb;
+    totaux.cwEur  += cwEur;
+    totaux.abL    += abL;
+    totaux.abEur  += abEur;
+    totaux.rkEur  += rkEur;
+    totaux.total  += total;
+
+    lignes.push({ v, maint, cwNb, cwEur, abL, abEur, rkEur, total });
+  });
+
+  // Tableau
+  const eur = n => n > 0 ? n.toFixed(2) + ' €' : '—';
+  const fmt = n => n > 0 ? n.toLocaleString('fr-BE', { minimumFractionDigits:1 }) + ' L' : '—';
+
+  tbody.innerHTML = lignes.map(l => `<tr>
+    <td style="text-align:left;font-weight:600">${l.v.marque}<br>
+      <span style="font-size:10px;font-family:monospace;background:#555;color:#fff;padding:0 3px;border-radius:2px">${l.v.immat}</span>
+    </td>
+    <td>${l.maint || '—'}</td>
+    <td>${l.cwNb || '—'}</td>
+    <td>${eur(l.cwEur)}</td>
+    <td>${fmt(l.abL)}</td>
+    <td>${eur(l.abEur)}</td>
+    <td>${eur(l.rkEur)}</td>
+    <td class="stat-total">${eur(l.total)}</td>
+  </tr>`).join('');
+
+  tfoot.innerHTML = `<tr style="background:#ecf0f1;font-weight:700">
+    <td style="text-align:left">TOTAL ${annee}</td>
+    <td>${totaux.maint}</td>
+    <td>${totaux.cwNb}</td>
+    <td>${eur(totaux.cwEur)}</td>
+    <td>${fmt(totaux.abL)}</td>
+    <td>${eur(totaux.abEur)}</td>
+    <td>${eur(totaux.rkEur)}</td>
+    <td class="stat-total">${eur(totaux.total)}</td>
+  </tr>`;
+
+  // Graphique SVG barres empilées
+  const maxTotal = Math.max(...lignes.map(l => l.total), 1);
+  const W = 40; // largeur barre par véhicule
+  const H = 150; // hauteur max
+  const GAP = 8;
+  const totalW = lignes.length * (W + GAP) + 20;
+
+  const bars = lignes.map((l, i) => {
+    const x = 10 + i * (W + GAP);
+    const hCW = l.total > 0 ? Math.round((l.cwEur / maxTotal) * H) : 0;
+    const hAB = l.total > 0 ? Math.round((l.abEur / maxTotal) * H) : 0;
+    const hTotal = hCW + hAB;
+    return `
+      <rect x="${x}" y="${H - hCW}" width="${W}" height="${hCW}" fill="#2980b9" rx="2" title="CW: ${l.cwEur.toFixed(2)}€"/>
+      <rect x="${x}" y="${H - hTotal}" width="${W}" height="${hAB}" fill="#27ae60" rx="2" title="AB: ${l.abEur.toFixed(2)}€"/>
+      <text x="${x+W/2}" y="${H+12}" text-anchor="middle" font-size="8" fill="#666">${l.v.immat.slice(-6)}</text>
+      <text x="${x+W/2}" y="${H-hTotal-4}" text-anchor="middle" font-size="8" fill="#333">
+        ${l.total > 0 ? l.total.toFixed(0)+'€' : ''}
+      </text>`;
+  }).join('');
+
+  graph.innerHTML = `
+    <div style="font-size:11px;color:#666;margin-bottom:6px;display:flex;gap:12px">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#2980b9;margin-right:4px"></span>Car Wash</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#27ae60;margin-right:4px"></span>AdBlue</span>
+    </div>
+    <svg width="${totalW}" height="${H+20}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
+}
+
+function exportStatCSV() {
+  const annee = document.getElementById('stat-annee')?.value || '';
+  const rows = [['Véhicule','Immat','Maintenances','CW nb','CW €','AdBlue L','AdBlue €','Recharges €','Total €']];
+  ORDRE_VEHICULES.forEach(vehId => {
+    const v = vehicules.find(x => x.id === vehId); if (!v) return;
+    const maint = maintenances.filter(m => m.vehId===vehId && m.date?.startsWith(annee)).length;
+    const cwLst = carwashes.filter(c => c.vehId===vehId && c.date?.startsWith(annee));
+    const cwEur = cwLst.reduce((s,c) => s+(parseFloat(c.montant)||0), 0);
+    const abLst = adblues.filter(a => a.vehId===vehId && a.date?.startsWith(annee));
+    const abL   = abLst.reduce((s,a) => s+(parseFloat(a.litre)||0), 0);
+    const abEur = abLst.reduce((s,a) => s+(parseFloat(a.prixTotal)||(a.litre*PRIX_ADBLUE_BIDON)), 0);
+    const rkEur = rechargesCle.filter(r => r.date?.startsWith(annee)).reduce((s,r) => s+(parseFloat(r.montantPaye)||0)+(parseFloat(r.montantGratuit)||0), 0);
+    rows.push([v.marque, v.immat, maint, cwLst.length, cwEur.toFixed(2), abL.toFixed(2), abEur.toFixed(2), rkEur.toFixed(2), (cwEur+abEur).toFixed(2)]);
+  });
+  downloadCSV(rows, `MCR_couts_${annee}.csv`);
+}
 
 /**
  * Enregistre une action dans Firebase collection 'historique'
