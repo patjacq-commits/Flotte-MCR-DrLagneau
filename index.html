@@ -3926,11 +3926,11 @@ function appliquerDroits() {
 
   // Visibilité des onglets selon le rôle
   show(tabCalendrier, true);   // tout le monde
-  show(tabMaint,      isAdm);
+  show(tabMaint,      true);   // chauffeurs : historique lecture seule (formulaire masqué)
   show(tabGarages,    isAdm);
-  show(tabCW,         true);   // chauffeurs aussi (compléter CW)
+  show(tabCW,         true);   // chauffeurs : ajout car wash
   show(tabPneus,      isAdm);
-  show(tabAdblue,     true);   // chauffeurs aussi (compléter AdBlue)
+  show(tabAdblue,     true);   // chauffeurs : ajout adblue
   show(tabHist,       isAdm);
   show(tabRapports,   isAdm);
   show(tabStats,      isAdm);
@@ -4549,6 +4549,9 @@ function renderKilometrage() {
   const BARS_MAX  = 4000;
   let totalFlotte = 0;
 
+  // Mois en cours (format YYYY-MM)
+  const moisCourant = new Date().toISOString().slice(0, 7);
+
   const lignesMaint = vehOrdre.map(v => {
     const mList = maintenances.filter(m => m.vehId === v.id && m.km)
       .sort((a,b) => b.date.localeCompare(a.date));
@@ -4556,26 +4559,32 @@ function renderKilometrage() {
     const prevM = mList[1] || null;
     const isRer = v.id === '1RER037';
 
+    // Si pas de maintenance ce mois-ci → cellule vide (en attente)
+    const aMaintCeMois = lastM && lastM.date.startsWith(moisCourant);
+
     let kmParcourus = null;
-    if (lastM && prevM && lastM.km && prevM.km) {
+    if (aMaintCeMois && prevM && lastM.km && prevM.km) {
       kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
       if (!isRer && kmParcourus > 0) totalFlotte += kmParcourus;
     }
 
     const lastDate = lastM ? formatDate(lastM.date) : '—';
     const lastKm   = lastM?.km ? parseInt(lastM.km).toLocaleString('fr-BE') + ' km' : '—';
-    const periode  = (lastM && prevM)
-      ? `${formatDate(prevM.date).slice(0,5)} → ${formatDate(lastM.date).slice(0,5)}` : '—';
+    const periode  = (aMaintCeMois && prevM)
+      ? `${formatDate(prevM.date).slice(0,5)} → ${formatDate(lastM.date).slice(0,5)}` : '';
 
     const barPct   = kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX * 100)) : 0;
     const barColor = kmParcourus > 3000 ? 'var(--rouge)' : kmParcourus > 2000 ? 'var(--orange)' : 'var(--vert)';
 
+    // Cellule km : vide si pas de maintenance ce mois, valeur sinon
     const kmCell = kmParcourus !== null
       ? `<span style="font-weight:700;color:${barColor}">${kmParcourus.toLocaleString('fr-BE')} km</span>
          <div style="margin-top:3px;height:6px;border-radius:3px;background:#f0f0f0;width:100%">
            <div style="width:${barPct}%;height:6px;border-radius:3px;background:${barColor}"></div>
          </div>`
-      : '<span style="color:#ccc">—</span>';
+      : (!aMaintCeMois && lastM)
+        ? '<span style="font-size:11px;color:#bbb;font-style:italic">en attente</span>'
+        : '';
 
     return `<tr>
       <td style="padding:7px 10px;font-size:13px;white-space:nowrap">
