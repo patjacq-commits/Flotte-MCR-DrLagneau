@@ -2423,6 +2423,7 @@ window._refreshUI = function() {
     if (activePage === 'kilometrage') renderKilometrage();
     updateTabAlertes();
     updateTabChauf();
+    updateNavbarMaint();
     showSyncIndicator();
   }, 400);
 };
@@ -2495,26 +2496,28 @@ function daysUntil(s) {
 
 /* Met à jour la date de prochaine maintenance dans la navbar */
 function updateNavbarMaint() {
-  const el   = document.getElementById('navbar-maint-date');
-  const elJ  = document.getElementById('navbar-maint-jours');
-  const wrap = document.getElementById('navbar-maint');
-  if (!el) return;
-  const sam = prochainSamediFinDeMois();
-  const j   = Math.round((sam - TODAY) / 86400000);
-  el.textContent  = sam.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit' });
-  elJ.textContent = j === 0 ? "AUJOURD'HUI !" : j === 1 ? 'DEMAIN' : `J - ${j}`;
-  if (wrap) {
-    // Animation flash si ≤ 7 jours, sinon sobre
-    if (j <= 3) {
-      wrap.style.background = '';
-      wrap.classList.add('navbar-maint-urgent');
-    } else {
-      wrap.classList.remove('navbar-maint-urgent');
-      wrap.style.background = j <= 7
-        ? 'rgba(230,126,34,0.45)'
-        : 'rgba(255,255,255,0.15)';
+  // Utiliser requestAnimationFrame pour garantir que le DOM est visible
+  requestAnimationFrame(() => {
+    const el   = document.getElementById('navbar-maint-date');
+    const elJ  = document.getElementById('navbar-maint-jours');
+    const wrap = document.getElementById('navbar-maint');
+    if (!el) return;
+    const sam = prochainSamediFinDeMois();
+    const j   = Math.round((sam - TODAY) / 86400000);
+    el.textContent  = sam.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit' });
+    elJ.textContent = j === 0 ? "AUJOURD'HUI !" : j === 1 ? 'DEMAIN' : `J - ${j}`;
+    if (wrap) {
+      if (j <= 3) {
+        wrap.style.background = '';
+        wrap.classList.add('navbar-maint-urgent');
+      } else {
+        wrap.classList.remove('navbar-maint-urgent');
+        wrap.style.background = j <= 7
+          ? 'rgba(230,126,34,0.45)'
+          : 'rgba(255,255,255,0.15)';
+      }
     }
-  }
+  });
 }
 
 /* Retourne la date du samedi le plus proche du dernier jour du mois M/Y.
@@ -3658,6 +3661,7 @@ function appliquerDroits() {
   if (abCard) abCard.style.display = isAdm ? 'none' : '';
 
   updateTabChauf();
+  updateNavbarMaint();
 
   // Programmer le résumé quotidien à 7h00
   setTimeout(() => programmerResumeQuotidien(), 1000);
