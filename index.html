@@ -4277,25 +4277,71 @@ function renderAccueil() {
       <div class="num" id="card-comptes-num" style="color:var(--orange)">0</div>
       <div class="lbl">Compte(s) en attente</div>
     </div>
+    <div class="summary-card" id="card-comptes" style="display:none"
+      onclick="showPage('comptes', document.querySelector('.tab-btn[onclick*=comptes]'))"
+      title="Gestion des comptes">
+      <div class="num" id="card-comptes-online">
+        <span style="font-size:22px">👥</span>
+      </div>
+      <div class="lbl">Comptes</div>
+      <div id="card-comptes-presence" style="font-size:10px;margin-top:3px;height:14px"></div>
+    </div>
   `;
 
-  // Carte comptes en attente — visible uniquement pour Patrick
+  // Carte comptes — visible uniquement pour Patrick
   if (userIsSuperAdmin()) {
+    const card = document.getElementById('card-comptes');
+    if (card) card.style.display = '';
+
+    // Comptes en attente
     db.collection('roles').where('statut','==','en_attente').get()
       .then(snap => {
-        const nb = snap.size;
+        const nb   = snap.size;
         const card = document.getElementById('card-comptes-attente');
         const num  = document.getElementById('card-comptes-num');
         if (!card) return;
         if (nb > 0) {
-          card.style.display = '';
-          card.style.animation = 'pulse-info 2s ease infinite';
+          card.style.display     = '';
+          card.style.animation   = 'pulse-info 2s ease infinite';
           card.style.borderColor = 'var(--orange)';
           if (num) num.textContent = nb;
         } else {
           card.style.display = 'none';
         }
       }).catch(() => {});
+
+    // Présence en temps réel sur la carte Comptes
+    const SEUIL_MS = 5 * 60 * 1000;
+    db.collection('sessions').onSnapshot(snap => {
+      const now      = Date.now();
+      const enligne  = snap.docs.map(d => d.data()).filter(s =>
+        s.online && s.derniere_activite &&
+        (now - new Date(s.derniere_activite).getTime()) < SEUIL_MS &&
+        s.uid !== currentUser?.uid  // ne pas se compter soi-même
+      );
+
+      const presEl = document.getElementById('card-comptes-presence');
+      const numEl  = document.getElementById('card-comptes-online');
+      if (!presEl || !numEl) return;
+
+      if (enligne.length > 0) {
+        // Afficher les noms des connectés
+        const noms = enligne.map(s => s.nom || s.email?.split('@')[0] || '?');
+        numEl.innerHTML = `
+          <span style="position:relative;display:inline-block">
+            <span style="font-size:22px">👥</span>
+            <span style="position:absolute;top:-4px;right:-6px;background:var(--vert);
+              color:#fff;border-radius:50%;font-size:9px;font-weight:800;
+              width:16px;height:16px;display:flex;align-items:center;justify-content:center;
+              animation:pulse-info 1.5s ease infinite">${enligne.length}</span>
+          </span>`;
+        presEl.innerHTML = `<span style="color:var(--vert);font-weight:700">
+          🟢 ${noms.join(', ')}</span>`;
+      } else {
+        numEl.innerHTML  = `<span style="font-size:22px">👥</span>`;
+        presEl.innerHTML = `<span style="color:#bbb">— hors ligne</span>`;
+      }
+    }, () => {});
   }
 
   // Mettre à jour la pastille infos via une fonction dédiée (évite les bugs mobile avec style inline complexe)
