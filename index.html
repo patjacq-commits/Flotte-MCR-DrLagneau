@@ -4707,16 +4707,17 @@ function renderKilometrage() {
     let kmParcourus = null;
     if (aDateRef && prevM && lastM.km && prevM.km) {
       kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
-      if (!isRer && kmParcourus > 0) totalFlotte += kmParcourus;
+      if (kmParcourus > 0) totalFlotte += kmParcourus; // additionner tous les VSL enregistrés
     }
-    // 1RER037 : afficher les km pour info mais hors total
+    // 1RER037 : afficher les km pour info mais hors total (utiliser les 2 dernières maintenances)
     if (isRer && prevM && lastM?.km && prevM.km) {
       kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
     }
 
     const lastDate = lastM ? formatDate(lastM.date) : '—';
     const lastKm   = lastM?.km ? parseInt(lastM.km).toLocaleString('fr-BE') + ' km' : '—';
-    const periode  = (aDateRef && prevM)
+    // Période : afficher pour tous les véhicules ayant 2 maintenances
+    const periode  = (prevM && lastM)
       ? `${formatDate(prevM.date).slice(0,5)} → ${formatDate(lastM.date).slice(0,5)}` : '';
 
     const barPct   = kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX * 100)) : 0;
