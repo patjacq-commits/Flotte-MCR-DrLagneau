@@ -221,6 +221,17 @@
 
       currentUser = { uid: firebaseUser.uid, email, role, nom };
 
+      // Créer/mettre à jour le doc roles pour Patrick et Angélique
+      // (les chauffeurs ont leur doc créé via sInscrire ou creerCompteChaufeur)
+      if (role === 'superadmin' || role === 'admin') {
+        try {
+          await db.collection('roles').doc(firebaseUser.uid).set(
+            { role, nom, email, statut: 'actif' },
+            { merge: true }
+          );
+        } catch(e) { console.warn('Erreur création doc roles:', e); }
+      }
+
       // Logger la dernière connexion + marquer comme en ligne
       try {
         const now = new Date().toISOString();
@@ -1187,20 +1198,26 @@ td.ok { color: var(--vert); font-weight: 600; }
         <label>Type</label>
         <select id="chauf-ab-type" onchange="toggleChauffeurAdBlue()">
           <option value="bidon">Bidon (10 L = 20 €)</option>
-          <option value="pompe">Pompe (quantité libre)</option>
+          <option value="pompe">Pompe</option>
         </select>
       </div>
-      <div class="form-group" id="chauf-ab-litre-group">
+      <div class="form-group" id="chauf-ab-litre-group" style="display:none">
         <label>Volume (L)</label>
-        <input type="number" id="chauf-ab-litre" value="10" step="0.1" min="0.1" />
+        <input type="number" id="chauf-ab-litre" step="0.1" min="0.1" placeholder="ex: 8.5"
+          oninput="calcPrixLitre()" />
       </div>
-      <div class="form-group" id="chauf-ab-prix-group" style="display:none">
-        <label>Prix (€)</label>
-        <input type="number" id="chauf-ab-prix" step="0.01" min="0" placeholder="ex: 8.50" />
+      <div class="form-group" id="chauf-ab-montant-group" style="display:none">
+        <label>Montant total (€)</label>
+        <input type="number" id="chauf-ab-prix" step="0.01" min="0" placeholder="ex: 12.40"
+          oninput="calcPrixLitre()" />
+      </div>
+      <div class="form-group" id="chauf-ab-prixl-group" style="display:none">
+        <label>Prix/L calculé</label>
+        <div id="chauf-ab-prixl" style="padding:8px 0;font-weight:700;color:var(--bleu);font-size:14px">—</div>
       </div>
       <div class="form-group">
-        <label>Kilométrage</label>
-        <input type="number" id="chauf-ab-km" placeholder="Optionnel" />
+        <label>Kilométrage <span style="font-size:11px;color:var(--texte-sec)">(optionnel)</span></label>
+        <input type="number" id="chauf-ab-km" placeholder="ex: 72345" />
       </div>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
@@ -2994,7 +3011,16 @@ function getEvenementsJour(dateStr) {
     const v = vehicules.find(x => x.id === c.vehId);
     evts.push({ type:'ct', couleur:'#e74c3c', label:`🏥 ${v?.immat||c.vehId}`, detail:`CT/Entretien ${v?.marque||''} ${v?.immat||c.vehId}${c.result?' — '+c.result:''}` });
   });
-  // Alertes CT proches (dans les 7 jours)
+  // CT events enregistrés
+  ctEvents.filter(c => c.date === dateStr).forEach(c => {
+    const v = vehicules.find(x => x.id === c.vehId);
+    const typeLabel = c.type === 'ct' ? 'Contrôle Technique'
+                    : c.type === 'garage' ? 'Entretien Garage'
+                    : c.type || 'CT';
+    evts.push({ type:'ct', couleur:'#e74c3c',
+      label:`🏥 ${v?.immat||c.vehId}`,
+      detail:`${typeLabel} — ${v?.marque||''} ${v?.immat||c.vehId}${c.result?' — résultat: '+c.result:''}${c.km?' — '+parseInt(c.km).toLocaleString('fr-BE')+' km':''}` });
+  });
   vehicules.forEach(v => {
     if (!v.ct_valid) return;
     const j = daysUntil(v.ct_valid);
@@ -3124,63 +3150,88 @@ function initChauf() {
 }
 
 function toggleChauffeurAdBlue() {
-  const type = document.getElementById('chauf-ab-type')?.value;
-  const litre = document.getElementById('chauf-ab-litre-group');
-  const prix  = document.getElementById('chauf-ab-prix-group');
-  if (!litre || !prix) return;
+  const type   = document.getElementById('chauf-ab-type')?.value;
+  const grpL   = document.getElementById('chauf-ab-litre-group');
+  const grpM   = document.getElementById('chauf-ab-montant-group');
+  const grpPL  = document.getElementById('chauf-ab-prixl-group');
+  if (!grpL) return;
+
   if (type === 'bidon') {
-    litre.style.display = 'none';
-    prix.style.display  = 'none';
+    grpL.style.display  = 'none';
+    grpM.style.display  = 'none';
+    grpPL.style.display = 'none';
     document.getElementById('chauf-ab-litre').value = '10';
+    document.getElementById('chauf-ab-prix').value  = '';
   } else {
-    litre.style.display = '';
-    prix.style.display  = '';
+    // Pompe : montant + litres, prix/L calculé auto
+    grpL.style.display  = '';
+    grpM.style.display  = '';
+    grpPL.style.display = '';
     document.getElementById('chauf-ab-litre').value = '';
+  }
+  calcPrixLitre();
+}
+
+function calcPrixLitre() {
+  const litre = parseFloat(document.getElementById('chauf-ab-litre')?.value);
+  const mont  = parseFloat(document.getElementById('chauf-ab-prix')?.value);
+  const el    = document.getElementById('chauf-ab-prixl');
+  if (!el) return;
+  if (litre > 0 && mont > 0) {
+    el.textContent = (mont / litre).toFixed(3) + ' €/L';
+  } else {
+    el.textContent = '—';
   }
 }
 
 function clearChauffeurAdBlue() {
-  document.getElementById('chauf-ab-type').value = 'bidon';
+  const type = document.getElementById('chauf-ab-type');
+  if (type) type.value = 'bidon';
   document.getElementById('chauf-ab-litre').value = '10';
-  document.getElementById('chauf-ab-prix').value = '';
-  document.getElementById('chauf-ab-km').value = '';
+  document.getElementById('chauf-ab-prix').value  = '';
+  document.getElementById('chauf-ab-km').value    = '';
   toggleChauffeurAdBlue();
 }
 
 function saveChauffeurAdBlue() {
-  const vehId  = document.getElementById('chauf-ab-veh')?.value;
-  const date   = document.getElementById('chauf-ab-date')?.value;
-  const type   = document.getElementById('chauf-ab-type')?.value;
-  const km     = parseInt(document.getElementById('chauf-ab-km')?.value) || null;
+  const vehId = document.getElementById('chauf-ab-veh')?.value;
+  const date  = document.getElementById('chauf-ab-date')?.value;
+  const type  = document.getElementById('chauf-ab-type')?.value;
+  const km    = parseInt(document.getElementById('chauf-ab-km')?.value) || null;
 
-  let litre, prixUnit, prixTotal;
+  let litre, prixTotal, prixUnit;
+
   if (type === 'bidon') {
-    litre = 10; prixUnit = 2.0; prixTotal = 20;
+    litre = 10; prixTotal = 20; prixUnit = 2.0;
   } else {
-    litre = parseFloat(document.getElementById('chauf-ab-litre')?.value);
+    litre    = parseFloat(document.getElementById('chauf-ab-litre')?.value);
     prixTotal = parseFloat(document.getElementById('chauf-ab-prix')?.value) || null;
-    prixUnit  = prixTotal && litre ? prixTotal / litre : null;
+    prixUnit  = (prixTotal && litre) ? parseFloat((prixTotal / litre).toFixed(4)) : null;
   }
 
   if (!vehId || !date || isNaN(litre) || litre <= 0) {
     toast('Veuillez remplir la date, le véhicule et le volume.'); return;
   }
 
-  const v = vehicules.find(x => x.id === vehId);
+  const v    = vehicules.find(x => x.id === vehId);
   const vNom = v ? `${v.marque} — ${v.immat}` : vehId;
 
-  // Message de confirmation avant enregistrement
-  const confirmMsg = `Confirmer l'enregistrement AdBlue ?\n\n` +
-    `Véhicule : ${vNom}\n` +
-    `Date : ${formatDate(date)}\n` +
-    `Volume : ${litre} L\n` +
-    (prixTotal ? `Prix : ${prixTotal.toFixed(2)} €\n` : '') +
-    (km ? `Km : ${km.toLocaleString('fr-BE')}\n` : '');
+  // Résumé confirmation
+  const lignes = [
+    `Véhicule : ${vNom}`,
+    `Date : ${formatDate(date)}`,
+    `Volume : ${litre} L`,
+  ];
+  if (prixTotal) lignes.push(`Montant : ${prixTotal.toFixed(2)} €`);
+  if (prixUnit)  lignes.push(`Prix/L : ${prixUnit.toFixed(3)} €/L`);
+  if (km)        lignes.push(`Km : ${km.toLocaleString('fr-BE')}`);
 
-  if (!confirm(confirmMsg)) return;
+  if (!confirm(`Confirmer l'enregistrement AdBlue ?\n\n${lignes.join('\n')}`)) return;
 
   adblues.unshift({ id: Date.now(), vehId, date, litre, prixTotal, prixUnit, km, source: 'chauffeur' });
-  logCreation('adblues', `AdBlue chauffeur : ${vNom} — ${litre} L${prixTotal ? ' — '+prixTotal.toFixed(2)+'€' : ''} — ${formatDate(date)}`, { vehId, date, litre, prixTotal });
+  logCreation('adblues',
+    `AdBlue chauffeur : ${vNom} — ${litre} L${prixTotal ? ' — '+prixTotal.toFixed(2)+'€' : ''} — ${formatDate(date)}`,
+    { vehId, date, litre, prixTotal });
   saveAll();
   clearChauffeurAdBlue();
   toast(`✅ AdBlue enregistré — ${litre} L${prixTotal ? ' ('+prixTotal.toFixed(2)+' €)' : ''}`);
@@ -7198,10 +7249,18 @@ function renderStatistiques() {
     const cwEur = cwLst.reduce((s,c) => s + (parseFloat(c.montant)||0), 0);
     const abLst = adblues.filter(a => a.vehId === vehId && a.date?.startsWith(annee));
     const abL   = abLst.reduce((s,a) => s + (parseFloat(a.litre)||0), 0);
-    const abEur = abLst.reduce((s,a) => s + (parseFloat(a.prixTotal) || (a.litre * PRIX_ADBLUE_BIDON)), 0);
-    const rkEur = rechargesCle.filter(r => r.date?.startsWith(annee))
-                   .reduce((s,r) => s + (parseFloat(r.montantPaye)||0) + (parseFloat(r.montantGratuit)||0), 0);
-    const total = cwEur + abEur;
+    // Utiliser le prixTotal réel si disponible, sinon prix bidon fixe
+    const abEur = abLst.reduce((s,a) => {
+      const pt = parseFloat(a.prixTotal);
+      if (!isNaN(pt) && pt > 0) return s + pt;
+      // Bidon : 10L = 20€
+      const l = parseFloat(a.litre) || 0;
+      return s + l * PRIX_ADBLUE_BIDON;
+    }, 0);
+    // Recharges clé filtrées PAR VÉHICULE (correction : était global)
+    const rkLst = rechargesCle.filter(r => r.date?.startsWith(annee));
+    const rkEur = rkLst.reduce((s,r) => s + (parseFloat(r.montantPaye)||0) + (parseFloat(r.montantGratuit)||0), 0);
+    const total = cwEur + abEur + rkEur;
 
     totaux.maint  += maint;
     totaux.cwNb   += cwNb;
