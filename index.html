@@ -4047,9 +4047,9 @@ function appliquerDroits() {
   const formSaisie = document.getElementById('maint-form-saisie');
   if (formSaisie) formSaisie.style.display = isSA ? '' : 'none';
 
-  // Bouton imprimer maintenance
+  // Bouton imprimer maintenance visible pour tous (admin et chauffeurs)
   const btnPrintMaint = document.getElementById('btn-print-maint');
-  if (btnPrintMaint) btnPrintMaint.style.display = isAdm ? '' : 'none';
+  if (btnPrintMaint) btnPrintMaint.style.display = '';
 
   // Éléments admin-only et superadmin-only dans les pages
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdm ? '' : 'none');
@@ -6422,7 +6422,7 @@ async function saveMaintenance() {
   const km    = parseInt(document.getElementById('maint-km').value);
   if (!date || !vehId || !km) { toast('Veuillez remplir au moins la date, le véhicule et le kilométrage.'); return; }
 
-  // Photos encodées en base64
+  // Stocker photos dans localStorage ET dans le document Firestore
   const photos = await encodePhotos();
 
   const rec = {
@@ -6435,9 +6435,17 @@ async function saveMaintenance() {
     ecl:    getSelectVal('maint-ecl',   'maint-ecl-custom'),
     pneus:  getSelectVal('maint-pneus', 'maint-pneus-custom'),
     ext:    getSelectVal('maint-ext',   'maint-ext-custom'),
-    photos,
+    // Stocker les photos directement dans le document (visibles par tous)
+    photosData: photos,
     rem: document.getElementById('maint-rem').value
   };
+
+  // Aussi dans localStorage pour compatibilité hors-ligne
+  if (photos.length) {
+    const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+    photosLS[rec.id] = photos;
+    localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
+  }
 
   maintenances.unshift(rec);
 
@@ -6551,68 +6559,87 @@ function renderMaintTable() {
   const tbody = document.getElementById('maint-tbody');
   if (!tbody) return;
 
-  // Peupler le filtre véhicule une seule fois
+  // Peupler le filtre véhicule une seule fois (tri alphabétique)
   const selFilt = document.getElementById('maint-filter-veh');
   if (selFilt && selFilt.options.length <= 1) {
-    ORDRE_VEHICULES.forEach(id => {
-      const v = vehicules.find(x => x.id === id);
-      if (!v) return;
-      const opt = document.createElement('option');
-      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
-      selFilt.appendChild(opt);
-    });
+    [...vehicules].sort((a,b) => a.marque.localeCompare(b.marque,'fr'))
+      .forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+        selFilt.appendChild(opt);
+      });
   }
 
-  const filtVeh  = selFilt?.value || '';
-  const filtDeb  = document.getElementById('maint-filter-debut')?.value || '';
-  const filtFin  = document.getElementById('maint-filter-fin')?.value || '';
+  const filtVeh = selFilt?.value || '';
+  const filtDeb = document.getElementById('maint-filter-debut')?.value || '';
+  const filtFin = document.getElementById('maint-filter-fin')?.value || '';
 
-  // Filtrer
   let list = [...maintenances];
   if (filtVeh) list = list.filter(m => m.vehId === filtVeh);
   if (filtDeb) list = list.filter(m => m.date >= filtDeb);
   if (filtFin) list = list.filter(m => m.date <= filtFin);
-
-  // Ordre INVERSÉ : plus récent en tête
   list.sort((a,b) => b.date.localeCompare(a.date));
 
+  // Lire les photos depuis Firebase (collection photos_maint) ET localStorage
   const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
 
-  const LABELS = { OK: '<span style="color:var(--vert);font-weight:600">OK</span>' };
-  const fmt = val => val ? (val === 'OK' ? LABELS.OK : `<span style="color:var(--orange)">${val}</span>`) : '<span style="color:#ccc">—</span>';
+  const fmt = val => val
+    ? (val === 'OK'
+        ? '<span style="color:var(--vert);font-weight:700">✓</span>'
+        : `<span style="color:var(--orange);font-weight:600">${val}</span>`)
+    : '<span style="color:#ddd">—</span>';
 
   tbody.innerHTML = list.length
     ? list.map(m => {
         const v = vehicules.find(x => x.id === m.vehId);
-        const vNom = v ? `${v.marque}<br><span style="font-family:monospace;font-size:10px;background:#333;color:#fff;padding:0 4px;border-radius:2px">${v.immat}</span>` : m.vehId;
-        const photos = photosLS[m.id] || m.photos || [];
+        const vNom = v
+          ? `${v.marque}<br><span style="font-family:monospace;font-size:10px;
+              background:#333;color:#fff;padding:0 4px;border-radius:2px">${v.immat}</span>`
+          : m.vehId;
+
+        // Photos : d'abord Firestore (dans m.photosData), sinon localStorage
+        const photos = m.photosData || photosLS[m.id] || m.photos || [];
         const photosHtml = photos.length
-          ? photos.map(p => `<img src="${p.data}" title="${p.name}"
-              style="width:34px;height:26px;object-fit:cover;border-radius:3px;cursor:pointer;margin:1px"
-              onclick="window.open('${p.data}','_blank')" />`).join('')
-          : '—';
-        const editBtn = isAdmin ? `<button class="btn btn-sm" onclick="editHistItem('maintenance',${m.id})" title="Modifier">✏️</button>` : '';
-        const delBtn  = isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteMaint(${m.id})" title="Supprimer">✕</button>` : '';
+          ? `<div style="display:flex;flex-wrap:wrap;gap:2px">` +
+            photos.map(p => `<img src="${p.data}" title="${p.name}"
+              style="width:44px;height:34px;object-fit:cover;border-radius:4px;
+                     cursor:pointer;border:1px solid var(--gris-bord)"
+              onclick="window.open('${p.data}','_blank')" />`).join('') +
+            `</div>`
+          : '<span style="color:#ccc">—</span>';
+
+        // Boutons modifier/supprimer : admin uniquement
+        const editBtn = userIsAdmin()
+          ? `<button class="btn btn-sm admin-only"
+               onclick="editHistItem('maintenance',${m.id})" title="Modifier">✏️</button>` : '';
+        const delBtn = userIsAdmin()
+          ? `<button class="btn btn-sm admin-only"
+               style="color:var(--rouge);border-color:var(--rouge-clair)"
+               onclick="deleteMaint(${m.id})" title="Supprimer">✕</button>` : '';
+
         return `<tr>
           <td style="white-space:nowrap;font-weight:600">${formatDate(m.date)}</td>
           <td style="font-size:12px">${vNom}</td>
           <td style="white-space:nowrap">${m.km ? parseInt(m.km).toLocaleString('fr-BE')+' km' : '—'}</td>
-          <td style="font-size:11px;text-align:center">${fmt(m.lg)}</td>
-          <td style="font-size:11px;text-align:center">${fmt(m.hm)}</td>
-          <td style="font-size:11px;text-align:center">${fmt(m.hf)}</td>
-          <td style="font-size:11px;text-align:center">${fmt(m.lr)}</td>
-          <td style="font-size:11px;text-align:center">${fmt(m.ecl)}</td>
-          <td style="font-size:11px;text-align:center">${fmt(m.pneus)}</td>
-          <td style="font-size:11px;text-align:center">${fmt(m.ext)}</td>
+          <td style="text-align:center">${fmt(m.lg)}</td>
+          <td style="text-align:center">${fmt(m.hm)}</td>
+          <td style="text-align:center">${fmt(m.hf)}</td>
+          <td style="text-align:center">${fmt(m.lr)}</td>
+          <td style="text-align:center">${fmt(m.ecl)}</td>
+          <td style="text-align:center">${fmt(m.pneus)}</td>
+          <td style="text-align:center">${fmt(m.ext)}</td>
           <td style="font-size:11px;max-width:150px">${m.rem || '—'}</td>
           <td>${photosHtml}</td>
-          <td style="white-space:nowrap">${editBtn}${delBtn}</td>
+          ${userIsAdmin() ? `<td style="white-space:nowrap">${editBtn}${delBtn}</td>` : ''}
         </tr>`;
       }).join('')
-    : `<tr><td colspan="13" style="color:var(--texte-sec);text-align:center;padding:20px">Aucune maintenance pour ces critères</td></tr>`;
+    : `<tr><td colspan="${userIsAdmin()?13:12}"
+         style="color:var(--texte-sec);text-align:center;padding:20px">
+         Aucune maintenance pour ces critères</td></tr>`;
 
   const totalEl = document.getElementById('maint-table-total');
-  if (totalEl) totalEl.textContent = list.length > 0 ? `${list.length} maintenance(s) affichée(s)` : '';
+  if (totalEl) totalEl.textContent = list.length > 0
+    ? `${list.length} maintenance(s) affichée(s)` : '';
 }
 
 function deleteMaint(id) {
