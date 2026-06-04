@@ -3820,7 +3820,12 @@ async function sInscrire() {
     const uid  = cred.user.uid;
 
     // Envoyer un email de vérification
-    try { await cred.user.sendEmailVerification(); } catch(e) {}
+    try {
+      await cred.user.sendEmailVerification();
+      console.log('Email de vérification envoyé à', email);
+    } catch(e) {
+      console.warn('Email vérification non envoyé:', e.code, e.message);
+    }
 
     // Enregistrer dans Firestore avec statut en_attente
     await db.collection('roles').doc(uid).set({
@@ -4646,13 +4651,30 @@ function renderKilometrage() {
   const annee   = parseInt(document.getElementById('km-annee')?.value || '2026');
   const filtVeh = document.getElementById('km-filtre-veh')?.value || '';
 
-  // ── Tableau km entre maintenances (toujours visible, tous véhicules) ──
+  // ── Tableau km entre maintenances ──────────────────────────
   const vehOrdre  = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
   const BARS_MAX  = 4000;
   let totalFlotte = 0;
 
-  // Mois en cours (format YYYY-MM)
-  const moisCourant = new Date().toISOString().slice(0, 7);
+  // Mois du dernier relevé (la date de maintenance la plus récente parmi tous les VSL)
+  // → tous les VSL doivent avoir une maintenance à cette date pour que les km soient affichés
+  const maintVSL = maintenances.filter(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    return v && v.id !== '1RER037' && m.km;
+  });
+  // Trouver le mois du dernier relevé global
+  const derniereDate = maintVSL.length
+    ? maintVSL.map(m => m.date).sort().reverse()[0]
+    : null;
+  const moisDernierReleve = derniereDate ? derniereDate.slice(0, 7) : null;
+
+  // Vérifier quels VSL ont une maintenance pour ce mois
+  const vslAvecMaintDuMois = new Set(
+    maintVSL.filter(m => moisDernierReleve && m.date.startsWith(moisDernierReleve)).map(m => m.vehId)
+  );
+  const vslConcernes = vehOrdre.filter(v => v.id !== '1RER037');
+  // Le relevé est "complet" si tous les VSL ont leur maintenance du mois
+  const releveComplet = vslConcernes.every(v => vslAvecMaintDuMois.has(v.id));
 
   const lignesMaint = vehOrdre.map(v => {
     const mList = maintenances.filter(m => m.vehId === v.id && m.km)
@@ -4661,41 +4683,42 @@ function renderKilometrage() {
     const prevM = mList[1] || null;
     const isRer = v.id === '1RER037';
 
-    // Km parcourus entre les 2 dernières maintenances (quel que soit le mois)
-    let kmParcourus = null;
-    if (lastM && prevM && lastM.km && prevM.km) {
-      kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
-      if (!isRer && kmParcourus > 0) totalFlotte += kmParcourus;
-    }
+    // N'afficher les km que si le véhicule a une maintenance du dernier mois relevé
+    const aMaintDuMois = moisDernierReleve && lastM && lastM.date.startsWith(moisDernierReleve);
 
-    // Le véhicule a-t-il une maintenance ce mois-ci ?
-    const aMaintCeMois = lastM && lastM.date.startsWith(moisCourant);
+    let kmParcourus = null;
+    if (aMaintDuMois && prevM && lastM.km && prevM.km) {
+      kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
+      // Ajouter au total seulement si relevé complet et pas RER037
+      if (!isRer && kmParcourus > 0 && releveComplet) totalFlotte += kmParcourus;
+    }
 
     const lastDate = lastM ? formatDate(lastM.date) : '—';
     const lastKm   = lastM?.km ? parseInt(lastM.km).toLocaleString('fr-BE') + ' km' : '—';
-    const periode  = (lastM && prevM)
+    const periode  = (aMaintDuMois && prevM)
       ? `${formatDate(prevM.date).slice(0,5)} → ${formatDate(lastM.date).slice(0,5)}` : '';
 
     const barPct   = kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX * 100)) : 0;
     const barColor = kmParcourus > 3000 ? 'var(--rouge)' : kmParcourus > 2000 ? 'var(--orange)' : 'var(--vert)';
 
-    // Badge "mois courant" si la dernière maintenance est de ce mois
-    const badgeMois = aMaintCeMois
-      ? `<span style="font-size:9px;background:var(--vert);color:#fff;
-           border-radius:4px;padding:1px 5px;margin-left:4px">✓ ${moisCourant.slice(5)}/2026</span>`
-      : `<span style="font-size:9px;background:#eee;color:#aaa;
-           border-radius:4px;padding:1px 5px;margin-left:4px;font-style:italic">en attente</span>`;
+    // Statut du véhicule pour ce mois
+    const statut = isRer ? ''
+      : aMaintDuMois
+        ? `<span style="font-size:9px;background:var(--vert);color:#fff;
+             border-radius:4px;padding:1px 5px;margin-left:4px">✓ enregistré</span>`
+        : `<span style="font-size:9px;background:#eee;color:#999;
+             border-radius:4px;padding:1px 5px;margin-left:4px;font-style:italic">en attente</span>`;
 
     const kmCell = kmParcourus !== null && kmParcourus > 0
       ? `<span style="font-weight:700;color:${barColor}">${kmParcourus.toLocaleString('fr-BE')} km</span>
          <div style="margin-top:3px;height:6px;border-radius:3px;background:#f0f0f0;width:100%">
            <div style="width:${barPct}%;height:6px;border-radius:3px;background:${barColor}"></div>
          </div>`
-      : '<span style="color:#ccc">—</span>';
+      : '';
 
     return `<tr>
       <td style="padding:7px 10px;font-size:13px;white-space:nowrap">
-        <strong>${v.marque}</strong>${badgeMois}<br>
+        <strong>${v.marque}</strong>${statut}<br>
         <span style="font-size:10px;font-family:monospace;background:#444;color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span>
         ${isRer ? '<span style="font-size:10px;color:var(--texte-sec);margin-left:4px">(info)</span>' : ''}
       </td>
@@ -4706,23 +4729,44 @@ function renderKilometrage() {
     </tr>`;
   }).join('');
 
-  const ardoise = `
-    <div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:10px;
-      padding:12px 18px;color:#fff;display:flex;align-items:center;gap:14px;
-      margin-bottom:12px;box-shadow:0 3px 10px rgba(41,128,185,0.3)">
-      <div style="font-size:28px">🚑</div>
-      <div>
-        <div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">
-          Km parcourus — flotte VSL (hors 1RER037)
+  const nbManquants = vslConcernes.filter(v => !vslAvecMaintDuMois.has(v.id)).length;
+  const moisLabel   = moisDernierReleve
+    ? new Date(moisDernierReleve + '-01').toLocaleDateString('fr-BE', { month:'long', year:'numeric' })
+    : '—';
+
+  const ardoise = releveComplet
+    ? `<div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:10px;
+        padding:12px 18px;color:#fff;display:flex;align-items:center;gap:14px;
+        margin-bottom:12px;box-shadow:0 3px 10px rgba(41,128,185,0.3)">
+        <div style="font-size:28px">🚑</div>
+        <div>
+          <div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">
+            Km parcourus — flotte VSL — ${moisLabel}
+          </div>
+          <div style="font-size:24px;font-weight:800;letter-spacing:1px">
+            ${totalFlotte.toLocaleString('fr-BE')} km
+          </div>
+          <div style="font-size:10px;opacity:0.7">
+            ${vslConcernes.length} VSL • hors 1RER037
+          </div>
         </div>
-        <div style="font-size:24px;font-weight:800;letter-spacing:1px">
-          ${totalFlotte.toLocaleString('fr-BE')} km
+      </div>`
+    : `<div style="background:linear-gradient(135deg,#7f8c8d,#636e72);border-radius:10px;
+        padding:12px 18px;color:#fff;display:flex;align-items:center;gap:14px;
+        margin-bottom:12px">
+        <div style="font-size:28px">⏳</div>
+        <div>
+          <div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">
+            Km parcourus — relevé incomplet
+          </div>
+          <div style="font-size:16px;font-weight:700;margin-top:2px">
+            ${nbManquants} véhicule(s) en attente d'enregistrement
+          </div>
+          <div style="font-size:10px;opacity:0.7">
+            Le total sera calculé quand tous les VSL seront enregistrés
+          </div>
         </div>
-        <div style="font-size:10px;opacity:0.7">
-          ${vehOrdre.filter(v => v.id !== '1RER037').length} VSL • entre les 2 dernières maintenances
-        </div>
-      </div>
-    </div>`;
+      </div>`;
 
   document.getElementById('km-maint-section').innerHTML = `
     <div class="form-card" style="padding:12px 16px;margin-bottom:14px">
