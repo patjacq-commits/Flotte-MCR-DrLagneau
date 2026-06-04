@@ -4115,7 +4115,32 @@ function renderAccueil() {
       <div class="num" id="card-infos-num">ℹ️</div>
       <div class="lbl">Infos spéciales</div>
     </div>
+    <div class="summary-card" id="card-comptes-attente" style="display:none"
+      onclick="showPage('comptes', document.querySelector('.tab-btn[onclick*=comptes]'))"
+      title="Comptes en attente de validation">
+      <div class="num" id="card-comptes-num" style="color:var(--orange)">0</div>
+      <div class="lbl">Compte(s) en attente</div>
+    </div>
   `;
+
+  // Carte comptes en attente — visible uniquement pour Patrick
+  if (userIsSuperAdmin()) {
+    db.collection('roles').where('statut','==','en_attente').get()
+      .then(snap => {
+        const nb = snap.size;
+        const card = document.getElementById('card-comptes-attente');
+        const num  = document.getElementById('card-comptes-num');
+        if (!card) return;
+        if (nb > 0) {
+          card.style.display = '';
+          card.style.animation = 'pulse-info 2s ease infinite';
+          card.style.borderColor = 'var(--orange)';
+          if (num) num.textContent = nb;
+        } else {
+          card.style.display = 'none';
+        }
+      }).catch(() => {});
+  }
 
   // Mettre à jour la pastille infos via une fonction dédiée (évite les bugs mobile avec style inline complexe)
   updateCardInfosSpec(nbInfos);
