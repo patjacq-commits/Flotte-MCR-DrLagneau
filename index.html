@@ -1085,8 +1085,11 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE KILOMÉTRAGE -->
 <div id="page-kilometrage" class="page">
-  <h2 style="margin-bottom:4px">📈 Kilométrage mensuel</h2>
-  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Km effectués par véhicule depuis janvier 2026 — calculés à partir des relevés de maintenance.</p>
+  <h2 style="margin-bottom:4px">📈 Kilométrage</h2>
+  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Km effectués par véhicule, calculés à partir des relevés de maintenance.</p>
+
+  <!-- Section km entre maintenances (injectée par renderKilometrage) -->
+  <div id="km-maint-section"></div>
 
   <!-- Sélecteur d'année -->
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
@@ -3714,6 +3717,9 @@ async function sInscrire() {
     const cred = await auth.createUserWithEmailAndPassword(email, pwd);
     const uid  = cred.user.uid;
 
+    // Envoyer un email de vérification
+    try { await cred.user.sendEmailVerification(); } catch(e) {}
+
     // Enregistrer dans Firestore avec statut en_attente
     await db.collection('roles').doc(uid).set({
       role:     'chauffeur',
@@ -3920,11 +3926,11 @@ function appliquerDroits() {
 
   // Visibilité des onglets selon le rôle
   show(tabCalendrier, true);   // tout le monde
-  show(tabMaint,      isAdm);  // admin + superadmin (saisie restreinte au SA dans le formulaire)
+  show(tabMaint,      isAdm);
   show(tabGarages,    isAdm);
-  show(tabCW,         isAdm);
+  show(tabCW,         true);   // chauffeurs aussi (compléter CW)
   show(tabPneus,      isAdm);
-  show(tabAdblue,     isAdm);
+  show(tabAdblue,     true);   // chauffeurs aussi (compléter AdBlue)
   show(tabHist,       isAdm);
   show(tabRapports,   isAdm);
   show(tabStats,      isAdm);
@@ -4508,79 +4514,6 @@ function renderAccueil() {
       `<div style="margin-top:14px"><h3 style="margin-bottom:10px">⚠️ À surveiller</h3>${htmlSurveiller}</div>`;
   }
 
-  // ── Tableau km parcourus entre 2 maintenances ─────────────
-  const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
-  let totalKmFlotte = 0;
-  const BARS_MAX_KM = 4000;
-
-  const lignesVeh = vehOrdre.map(v => {
-    const mList = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date));
-    const lastM = mList[0] || null;
-    const prevM = mList[1] || null;
-    const lastDateStr = lastM ? formatDate(lastM.date) : '—';
-    const lastKmStr   = lastM && lastM.km ? lastM.km.toLocaleString('fr-BE') + ' km' : '—';
-    const lastRem     = lastM && lastM.rem ? lastM.rem.substring(0,50) + (lastM.rem.length > 50 ? '…' : '') : '';
-    let kmParcourus = null, kmDetail = '';
-    if (lastM && prevM && lastM.km && prevM.km) {
-      kmParcourus = lastM.km - prevM.km;
-      kmDetail = `${kmParcourus >= 0 ? '+' : ''}${kmParcourus.toLocaleString('fr-BE')} km (${formatDate(prevM.date)} → ${formatDate(lastM.date)})`;
-      if (v.id !== '1RER037' && kmParcourus > 0) totalKmFlotte += kmParcourus;
-    }
-    const barPct   = kmParcourus && kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX_KM * 100)) : 0;
-    const barColor = kmParcourus > 3000 ? '#e74c3c' : kmParcourus > 2000 ? '#e67e22' : '#27ae60';
-    const barSvg   = kmParcourus !== null ? `
-      <div style="margin-top:3px;display:flex;align-items:center;gap:6px">
-        <svg width="80" height="10" style="flex-shrink:0;border-radius:5px;overflow:hidden;background:#f0f0f0">
-          <rect x="0" y="0" width="${barPct}%" height="10" fill="${barColor}" rx="5"/>
-        </svg>
-        <span style="font-size:10px;color:${barColor};font-weight:700">${kmParcourus.toLocaleString('fr-BE')} km</span>
-      </div>` : '';
-    return `<tr>
-      <td style="padding:7px 10px;font-size:13px;font-weight:500">${v.marque}<br>
-        <span style="font-size:11px;font-family:monospace;background:var(--texte);color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span>
-      </td>
-      <td style="padding:7px 10px;font-size:13px">${lastDateStr}</td>
-      <td style="padding:7px 10px;font-size:13px">${lastKmStr}</td>
-      <td style="padding:7px 10px;font-size:13px">
-        ${kmDetail ? `<span style="font-size:12px;color:var(--texte-sec)">${kmDetail}</span>${barSvg}` : '—'}
-      </td>
-      <td style="padding:7px 10px;font-size:12px;max-width:150px;color:var(--texte-sec)">${lastRem || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const ardoise = `
-    <div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:12px;padding:14px 20px;
-      color:#fff;display:flex;align-items:center;gap:16px;margin-bottom:12px;box-shadow:0 3px 12px rgba(41,128,185,0.35)">
-      <div style="font-size:32px">🚑</div>
-      <div>
-        <div style="font-size:11px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">Km totaux flotte VSL (entre 2 maintenances)</div>
-        <div style="font-size:26px;font-weight:800;letter-spacing:1px">${totalKmFlotte.toLocaleString('fr-BE')} km</div>
-        <div style="font-size:11px;opacity:0.7">${vehOrdre.filter(v => v.id !== '1RER037').length} VSL • hors Expert 1RER037</div>
-      </div>
-    </div>`;
-
-  document.getElementById('alertes-dashboard').innerHTML += `
-    <div style="margin-top:20px">
-      <h3 style="margin-bottom:10px">🔧 Km entre maintenances</h3>
-      <div class="form-card" style="padding:12px 16px;margin-bottom:0">
-        ${ardoise}
-        <div class="table-wrap">
-          <table style="width:100%;border-collapse:collapse;background:var(--blanc);font-size:13px">
-            <thead style="background:var(--gris-clair)">
-              <tr>
-                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Véhicule</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Dernière maint.</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Km relevé</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Km parcourus</th>
-                <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Remarque</th>
-              </tr>
-            </thead>
-            <tbody>${lignesVeh}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
-
   updateTabAlertes();
 }
 
@@ -4610,6 +4543,90 @@ function initKilometrage() {
 function renderKilometrage() {
   const annee   = parseInt(document.getElementById('km-annee')?.value || '2026');
   const filtVeh = document.getElementById('km-filtre-veh')?.value || '';
+
+  // ── Tableau km entre maintenances (toujours visible, tous véhicules) ──
+  const vehOrdre  = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
+  const BARS_MAX  = 4000;
+  let totalFlotte = 0;
+
+  const lignesMaint = vehOrdre.map(v => {
+    const mList = maintenances.filter(m => m.vehId === v.id && m.km)
+      .sort((a,b) => b.date.localeCompare(a.date));
+    const lastM = mList[0] || null;
+    const prevM = mList[1] || null;
+    const isRer = v.id === '1RER037';
+
+    let kmParcourus = null;
+    if (lastM && prevM && lastM.km && prevM.km) {
+      kmParcourus = parseInt(lastM.km) - parseInt(prevM.km);
+      if (!isRer && kmParcourus > 0) totalFlotte += kmParcourus;
+    }
+
+    const lastDate = lastM ? formatDate(lastM.date) : '—';
+    const lastKm   = lastM?.km ? parseInt(lastM.km).toLocaleString('fr-BE') + ' km' : '—';
+    const periode  = (lastM && prevM)
+      ? `${formatDate(prevM.date).slice(0,5)} → ${formatDate(lastM.date).slice(0,5)}` : '—';
+
+    const barPct   = kmParcourus > 0 ? Math.min(100, Math.round(kmParcourus / BARS_MAX * 100)) : 0;
+    const barColor = kmParcourus > 3000 ? 'var(--rouge)' : kmParcourus > 2000 ? 'var(--orange)' : 'var(--vert)';
+
+    const kmCell = kmParcourus !== null
+      ? `<span style="font-weight:700;color:${barColor}">${kmParcourus.toLocaleString('fr-BE')} km</span>
+         <div style="margin-top:3px;height:6px;border-radius:3px;background:#f0f0f0;width:100%">
+           <div style="width:${barPct}%;height:6px;border-radius:3px;background:${barColor}"></div>
+         </div>`
+      : '<span style="color:#ccc">—</span>';
+
+    return `<tr>
+      <td style="padding:7px 10px;font-size:13px;white-space:nowrap">
+        <strong>${v.marque}</strong><br>
+        <span style="font-size:10px;font-family:monospace;background:#444;color:#fff;padding:1px 5px;border-radius:3px">${v.immat}</span>
+        ${isRer ? '<span style="font-size:10px;color:var(--texte-sec);margin-left:4px">(info)</span>' : ''}
+      </td>
+      <td style="padding:7px 10px;font-size:12px;white-space:nowrap">${lastDate}</td>
+      <td style="padding:7px 10px;font-size:12px;white-space:nowrap">${lastKm}</td>
+      <td style="padding:7px 10px;font-size:12px;white-space:nowrap;color:var(--texte-sec)">${periode}</td>
+      <td style="padding:7px 10px;min-width:130px">${kmCell}</td>
+    </tr>`;
+  }).join('');
+
+  const ardoise = `
+    <div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:10px;
+      padding:12px 18px;color:#fff;display:flex;align-items:center;gap:14px;
+      margin-bottom:12px;box-shadow:0 3px 10px rgba(41,128,185,0.3)">
+      <div style="font-size:28px">🚑</div>
+      <div>
+        <div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px">
+          Km parcourus — flotte VSL (hors 1RER037)
+        </div>
+        <div style="font-size:24px;font-weight:800;letter-spacing:1px">
+          ${totalFlotte.toLocaleString('fr-BE')} km
+        </div>
+        <div style="font-size:10px;opacity:0.7">
+          ${vehOrdre.filter(v => v.id !== '1RER037').length} VSL • entre les 2 dernières maintenances
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('km-maint-section').innerHTML = `
+    <div class="form-card" style="padding:12px 16px;margin-bottom:14px">
+      <h3 style="margin-bottom:10px">🔧 Km entre maintenances</h3>
+      ${ardoise}
+      <div class="table-wrap">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead style="background:var(--gris-clair)">
+            <tr>
+              <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Véhicule</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Dernière maint.</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Km relevé</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Période</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord)">Km parcourus</th>
+            </tr>
+          </thead>
+          <tbody>${lignesMaint}</tbody>
+        </table>
+      </div>
+    </div>`;
 
   const vehList = ORDRE_VEHICULES
     .map(id => vehicules.find(v => v.id === id))
