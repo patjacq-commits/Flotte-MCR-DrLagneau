@@ -1249,8 +1249,18 @@ td.ok { color: var(--vert); font-weight: 600; }
       <label>Message</label>
       <textarea id="chauf-msg" placeholder="Décrivez précisément le problème ou l'information…" style="min-height:80px" onchange="sauvegarderBrouillon()"></textarea>
     </div>
+    <div class="form-group" style="margin-top:10px">
+      <label>📷 Photos <span style="font-size:11px;color:var(--texte-sec)">(optionnel — plusieurs possibles)</span></label>
+      <input type="file" id="chauf-msg-photos" accept="image/*" multiple
+        onchange="previewChaufPhotos()"
+        style="border:1.5px dashed var(--gris-bord);border-radius:8px;padding:8px;
+               width:100%;font-size:13px;cursor:pointer" />
+      <div id="chauf-msg-photos-preview"
+        style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+    </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge)" onclick="sendMessageChauf()">📤 Envoyer</button>
+      <button class="btn" onclick="clearChaufForm()">✕ Effacer</button>
     </div>
   </div>
 
@@ -3113,43 +3123,76 @@ function afficherDetailJour(dateStr) {
 const VEHICULES_ADBLUE_CHAUF = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
 
 function initChauf() {
-  // Peupler select véhicule message
-  ['chauf-veh', 'chauf-filter'].forEach(selId => {
-    const sel = document.getElementById(selId);
-    if (!sel) return;
-    const isFilter = selId === 'chauf-filter';
-    if (sel.options.length <= (isFilter ? 1 : 0)) {
-      if (isFilter) {
-        vehicules.forEach(v => {
-          const opt = document.createElement('option');
-          opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
-          sel.appendChild(opt);
-        });
-      } else {
-        sel.innerHTML = vehicules.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
-      }
-    }
-  });
+  // Tri alphabétique des véhicules par marque
+  const vehTries = [...vehicules].sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
 
-  // Peupler select véhicule AdBlue chauffeur
+  const selMsg = document.getElementById('chauf-veh');
+  if (selMsg && selMsg.options.length === 0)
+    selMsg.innerHTML = vehTries.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+
+  const selFilt = document.getElementById('chauf-filter');
+  if (selFilt && selFilt.options.length <= 1)
+    vehTries.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      selFilt.appendChild(opt);
+    });
+
   const selAb = document.getElementById('chauf-ab-veh');
   if (selAb && selAb.options.length === 0) {
-    selAb.innerHTML = VEHICULES_ADBLUE_CHAUF.map(id => {
-      const v = vehicules.find(x => x.id === id);
-      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
-    }).join('');
+    const vehAbTries = VEHICULES_ADBLUE_CHAUF
+      .map(id => vehicules.find(x => x.id === id)).filter(Boolean)
+      .sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
+    selAb.innerHTML = vehAbTries.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
   }
 
-  // Date par défaut
   const today = new Date().toISOString().slice(0,10);
   const abDate = document.getElementById('chauf-ab-date');
   if (abDate && !abDate.value) abDate.value = today;
 
-  // Masquer AdBlue pour les admins (ils ont leur onglet dédié)
   const abCard = document.getElementById('chauf-adblue-card');
   if (abCard) abCard.style.display = userIsAdmin() ? 'none' : '';
 
   renderMessagesChauf();
+}
+
+// Photos message chauffeur
+let _chaufPhotos = [];
+
+function previewChaufPhotos() {
+  const input   = document.getElementById('chauf-msg-photos');
+  const preview = document.getElementById('chauf-msg-photos-preview');
+  if (!input || !preview) return;
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  if (files.length > 5) { toast('Maximum 5 photos par message.'); return; }
+  preview.innerHTML = ''; _chaufPhotos = [];
+  files.forEach((file, i) => {
+    if (file.size > 2 * 1024 * 1024) { toast(`"${file.name}" trop lourde (max 2 Mo).`); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      _chaufPhotos[i] = { name: file.name, data: e.target.result };
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block';
+      wrap.innerHTML = `<img src="${e.target.result}"
+        style="width:72px;height:56px;object-fit:cover;border-radius:6px;
+               border:1.5px solid var(--gris-bord);cursor:pointer"
+        onclick="window.open('${e.target.result}','_blank')" />
+        <button onclick="this.closest('div').remove();_chaufPhotos.splice(${i},1)"
+          style="position:absolute;top:-5px;right:-5px;background:var(--rouge);color:#fff;
+                 border:none;border-radius:50%;width:18px;height:18px;font-size:11px;
+                 cursor:pointer;line-height:18px;text-align:center;padding:0">✕</button>`;
+      preview.appendChild(wrap);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function clearChaufForm() {
+  const msg = document.getElementById('chauf-msg'); if (msg) msg.value = '';
+  const inp = document.getElementById('chauf-msg-photos'); if (inp) inp.value = '';
+  const pre = document.getElementById('chauf-msg-photos-preview'); if (pre) pre.innerHTML = '';
+  _chaufPhotos = [];
 }
 
 function toggleChauffeurAdBlue() {
@@ -3246,22 +3289,36 @@ function sendMessageChauf() {
   const priorite = document.getElementById('chauf-priorite')?.value || 'info';
   if (!vehId || !msg) { toast('Veuillez sélectionner un véhicule et écrire un message.'); return; }
 
-  const v    = vehicules.find(x => x.id === vehId);
-  const vNom = v ? `${v.marque} — ${v.immat}` : vehId;
-  const nom  = currentUser?.nom || 'Chauffeur';
+  const v       = vehicules.find(x => x.id === vehId);
+  const vNom    = v ? `${v.marque} — ${v.immat}` : vehId;
+  const nom     = currentUser?.nom || 'Chauffeur';
+  const photos  = _chaufPhotos.filter(Boolean);
+  const nbPhotos = photos.length;
 
-  // Confirmation avant envoi
-  if (!confirm(`Envoyer ce message ?\n\nVéhicule : ${vNom}\nDe : ${nom}\n\n"${msg}"`)) return;
+  const confirmTxt = `Envoyer ce message ?\n\nVéhicule : ${vNom}\nDe : ${nom}\n\n"${msg}"` +
+    (nbPhotos ? `\n\n📷 ${nbPhotos} photo(s) jointe(s)` : '');
+  if (!confirm(confirmTxt)) return;
+
+  const msgId = Date.now();
+
+  // Stocker les photos dans localStorage séparé
+  if (nbPhotos) {
+    const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+    photosLS[msgId] = photos;
+    localStorage.setItem('mcr_photos_msg', JSON.stringify(photosLS));
+  }
 
   messagesChauf.unshift({
-    id: Date.now(), vehId, auteur: nom, msg,
+    id: msgId, vehId, auteur: nom, msg,
     date: new Date().toISOString(),
-    priorite, statut: 'nonlu', reponses: []
+    priorite, statut: 'nonlu', reponses: [], nbPhotos
   });
   saveAll();
-  logCreation('messagesChauf', `Message ${priorite} : ${nom} → ${vNom} — "${msg.slice(0,50)}"`, { vehId, auteur:nom, priorite });
+  logCreation('messagesChauf',
+    `Message ${priorite} : ${nom} → ${vNom} — "${msg.slice(0,50)}"${nbPhotos?' — '+nbPhotos+' photo(s)':''}`,
+    { vehId, auteur: nom, priorite, nbPhotos });
 
-  document.getElementById('chauf-msg').value = '';
+  clearChaufForm();
   renderMessagesChauf();
   updateTabChauf();
   toast(priorite === 'urgent' ? '🚨 Alerte envoyée aux administrateurs !' : '✅ Message envoyé !');
@@ -3366,6 +3423,18 @@ function renderMessagesChauf() {
       <div class="msg-body">
         <div style="font-size:13px">${m.msg}</div>
         <div class="msg-auteur">— ${m.auteur}</div>
+        ${(() => {
+          const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+          const photos   = photosLS[m.id] || [];
+          return photos.length
+            ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">' +
+              photos.map(p => `<img src="${p.data}" alt="${p.name}"
+                style="width:80px;height:60px;object-fit:cover;border-radius:6px;
+                       border:1.5px solid var(--gris-bord);cursor:pointer"
+                onclick="window.open('${p.data}','_blank')" />`).join('') +
+              '</div>'
+            : '';
+        })()}
       </div>
       ${repHtml}
       ${repInput}
