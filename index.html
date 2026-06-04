@@ -946,7 +946,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.6.0</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.6.1</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -1903,6 +1903,19 @@ td.ok { color: var(--vert); font-weight: 600; }
       <button class="btn primary" onclick="printReport('ct')">🖨 Rapport CT (tous)</button>
       <button class="btn" onclick="printReport('entretien')">🖨 Rapport entretiens</button>
       <button class="btn" onclick="exportAllCSV()">📊 Export complet CSV</button>
+    </div>
+  </div>
+
+  <!-- Notifications push -->
+  <div class="form-card">
+    <h3>🔔 Notifications push</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
+      Recevez un résumé quotidien à <strong>7h00</strong> avec les alertes urgentes, RV du jour et infos véhicules — même si l'app est fermée.
+    </p>
+    <div id="notif-statut" style="font-size:13px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" onclick="activerNotifications()">🔔 Activer les notifications</button>
+      <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
     </div>
   </div>
 
@@ -3524,6 +3537,9 @@ function appliquerDroits() {
   if (abCard) abCard.style.display = isAdm ? 'none' : '';
 
   updateTabChauf();
+
+  // Programmer le résumé quotidien à 7h00
+  setTimeout(() => programmerResumeQuotidien(), 1000);
 }
 
 // ── Compatibilité toggleRole (plus utilisé mais peut être appelé) ──
@@ -6921,6 +6937,7 @@ function initRapports() {
     sel.appendChild(opt);
   });
   updateBackupInfo();
+  updateStatutNotif();
 }
 
 /* CSS commun pour les rapports imprimés */
@@ -7208,7 +7225,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 
 let _swRegistration = null;
 
@@ -7222,12 +7239,173 @@ function applyUpdate() {
 // ── Notifications push ───────────────────────────────────────
 
 /* Demande la permission de notifier (appelée à la connexion admin) */
+// ============================================================
+// RÉSUMÉ QUOTIDIEN — notification push à 7h00
+// ============================================================
+
+/* Calcule le délai en ms jusqu'à la prochaine 7h00 */
+function delaiJusquaSeptHeures() {
+  const maintenant = new Date();
+  const cible = new Date();
+  cible.setHours(7, 0, 0, 0);
+  if (cible <= maintenant) {
+    cible.setDate(cible.getDate() + 1); // demain à 7h00
+  }
+  return cible.getTime() - maintenant.getTime();
+}
+
+/* Construit le contenu du résumé quotidien */
+function construireResumeQuotidien() {
+  const alertes   = buildAlertes();
+  const urgentes  = alertes.filter(a => a.level === 'urgent');
+  const warns     = alertes.filter(a => a.level === 'warn');
+  const today     = new Date().toISOString().slice(0,10);
+  const demain    = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+
+  // RV du jour et de demain
+  const rvProches = [...rendezvous, ...ctEvents]
+    .filter(r => r.statut !== 'annule' && r.statut !== 'fait'
+                 && (r.date === today || r.date === demain))
+    .slice(0, 3);
+
+  // Infos véhicules actives
+  const infosActives = getInfosActives();
+
+  // Construire le corps
+  const lignes = [];
+
+  if (urgentes.length) {
+    lignes.push(`🚨 ${urgentes.length} alerte${urgentes.length > 1 ? 's' : ''} urgente${urgentes.length > 1 ? 's' : ''}`);
+    urgentes.slice(0, 2).forEach(a => lignes.push(`   • ${a.titre}`));
+  }
+
+  if (rvProches.length) {
+    lignes.push(`📅 ${rvProches.length} RV proche${rvProches.length > 1 ? 's' : ''}`);
+    rvProches.forEach(r => {
+      const v = vehicules.find(x => x.id === r.vehId);
+      const estDemain = r.date === demain;
+      lignes.push(`   • ${v?.immat||r.vehId} ${r.type} — ${estDemain ? 'demain' : 'auj.'}${r.heure ? ' ' + r.heure : ''}`);
+    });
+  }
+
+  if (infosActives.length) {
+    infosActives.slice(0, 2).forEach(info => {
+      const v = vehicules.find(x => x.id === info.vehId);
+      lignes.push(`ℹ️ ${v?.immat||info.vehId} : ${info.texte.slice(0, 50)}`);
+    });
+  }
+
+  if (!urgentes.length && !rvProches.length && !infosActives.length) {
+    lignes.push('✅ Aucune alerte — tout est en ordre');
+    if (warns.length) lignes.push(`⚠️ ${warns.length} point${warns.length > 1 ? 's' : ''} à surveiller`);
+  }
+
+  const nbTotal = urgentes.length + rvProches.length + infosActives.length;
+  const titre   = nbTotal > 0
+    ? `🚗 MCR Opont — ${nbTotal} info${nbTotal > 1 ? 's' : ''} du jour`
+    : '🚗 MCR Opont — Résumé du jour';
+
+  return {
+    titre,
+    corps:     lignes.join('\n') || '✅ Flotte en ordre',
+    nbAlertes: urgentes.length
+  };
+}
+
+/* Programme la notification quotidienne à 7h00 via le SW */
+function programmerResumeQuotidien() {
+  if (!('serviceWorker' in navigator)) return;
+  if (Notification.permission !== 'granted') return;
+
+  const delaiMs = delaiJusquaSeptHeures();
+  const contenu = construireResumeQuotidien();
+  const heureCible = new Date(Date.now() + delaiMs);
+  const heureStr   = heureCible.toLocaleTimeString('fr-BE', { hour:'2-digit', minute:'2-digit' });
+  const dateStr    = heureCible.toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long' });
+
+  navigator.serviceWorker.ready.then(reg => {
+    if (reg.active) {
+      reg.active.postMessage({
+        type: 'PROGRAMMER_RESUME_QUOTIDIEN',
+        payload: { contenu, delaiMs }
+      });
+      console.log(`📅 Résumé quotidien programmé pour ${dateStr} à ${heureStr}`);
+    }
+  });
+}
+
+/* Déclencher immédiatement un résumé (test) */
+function envoyerResumeImmediat() {
+  if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') {
+    toast('❌ Notifications non autorisées.'); return;
+  }
+  const contenu = construireResumeQuotidien();
+  navigator.serviceWorker.ready.then(reg => {
+    reg.showNotification(contenu.titre, {
+      body:               contenu.corps,
+      icon:               './icon-192.png',
+      badge:              './icon-192.png',
+      tag:                'resume-test',
+      requireInteraction: false,
+      data:               { url: './', type: 'resume' }
+    });
+  });
+  toast('📲 Résumé envoyé en test');
+}
+
+/* Écouter la demande du SW de recalculer le résumé */
+navigator.serviceWorker?.addEventListener('message', event => {
+  if (event.data?.type === 'RECALCULER_RESUME') {
+    programmerResumeQuotidien();
+  }
+  if (event.data?.type === 'NOTIF_RESUME') {
+    showPage('accueil', document.querySelectorAll('.tab-btn')[0]);
+  }
+});
+
 async function demanderPermissionNotif() {
   if (!('Notification' in window)) return;
-  if (Notification.permission === 'granted') return;
+  if (Notification.permission === 'granted') { programmerResumeQuotidien(); return; }
   if (Notification.permission === 'denied') return;
   const perm = await Notification.requestPermission();
-  if (perm === 'granted') toast('🔔 Notifications activées');
+  if (perm === 'granted') {
+    toast('🔔 Notifications activées — résumé à 7h00');
+    programmerResumeQuotidien();
+  }
+}
+
+async function activerNotifications() {
+  if (!('Notification' in window)) { toast('❌ Navigateur non compatible.'); return; }
+  if (Notification.permission === 'denied') {
+    toast('❌ Notifications bloquées — autorisez-les dans les paramètres.'); return;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    programmerResumeQuotidien();
+    const cible   = new Date(Date.now() + delaiJusquaSeptHeures());
+    const heureStr = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit' });
+    toast(`✅ Prochain résumé : ${heureStr}`);
+  } else {
+    toast('❌ Permission refusée.');
+  }
+  updateStatutNotif();
+}
+
+function updateStatutNotif() {
+  const el = document.getElementById('notif-statut');
+  if (!el) return;
+  if (!('Notification' in window)) {
+    el.innerHTML = '<span style="color:var(--rouge)">❌ Non supporté par ce navigateur.</span>'; return;
+  }
+  if (Notification.permission === 'granted') {
+    const cible  = new Date(Date.now() + delaiJusquaSeptHeures());
+    const heure  = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit' });
+    el.innerHTML = `<span style="color:var(--vert)">✅ Actif — prochain résumé le <strong>${heure}</strong></span>`;
+  } else if (Notification.permission === 'denied') {
+    el.innerHTML = '<span style="color:var(--rouge)">❌ Bloqué dans les paramètres du navigateur.</span>';
+  } else {
+    el.innerHTML = '<span style="color:var(--orange)">⚠️ Non encore autorisé.</span>';
+  }
 }
 
 /* Envoie une notification immédiate via le SW */

@@ -1,14 +1,17 @@
 // ============================================================
-// SERVICE WORKER — MCR Opont Gestion de Flotte v1.6.0
+// SERVICE WORKER — MCR Opont Gestion de Flotte v1.6.1
 // STRATÉGIE : Network First (toujours le réseau, cache en fallback)
-// Chaque mise à jour du code → incrémenter la version ici
+// v1.6.1 : Notification push quotidienne à 7h00
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v1.6.0';
+const CACHE_NAME = 'mcr-flotte-v1.6.1';
 const CACHE_URLS = ['./', './index.html', './icon-192.png', './manifest.json'];
 
-// Rappels en mémoire { id, titre, corps, tag, fireAt }
+// Rappels RV en mémoire { id, titre, corps, tag, fireAt }
 let rappelsProgrammes = [];
+
+// Timer du résumé quotidien
+let timerResumeQuotidien = null;
 
 // ── Installation ──────────────────────────────────────────────
 self.addEventListener('install', event => {
@@ -17,11 +20,10 @@ self.addEventListener('install', event => {
       .then(cache => cache.addAll(CACHE_URLS))
       .catch(e => console.warn('SW cache partiel:', e))
   );
-  // Prendre le contrôle immédiatement sans attendre
   self.skipWaiting();
 });
 
-// ── Activation : supprimer les anciens caches ─────────────────
+// ── Activation ───────────────────────────────────────────────
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
@@ -35,38 +37,27 @@ self.addEventListener('activate', event => {
   );
 });
 
-// ── Fetch : NETWORK FIRST avec fallback cache ────────────────
-// → Toujours essayer le réseau en premier
-// → Si pas de réseau (offline), utiliser le cache
-// → Firebase et Google passent toujours sans cache
+// ── Fetch : Network First ────────────────────────────────────
 self.addEventListener('fetch', event => {
   const url = event.request.url;
-
-  // Firebase / Google : jamais mis en cache
   if (url.includes('firestore') || url.includes('firebase') ||
       url.includes('googleapis') || url.includes('gstatic') ||
-      url.includes('google.com')) {
-    return;
-  }
-
-  // Requêtes non-GET : pas de cache
+      url.includes('google.com')) return;
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Succès réseau → mettre à jour le cache et retourner
         if (response && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
         }
         return response;
       })
-      .catch(() => {
-        // Pas de réseau → fallback cache
-        return caches.match(event.request)
-          .then(cached => cached || caches.match('./index.html'));
-      })
+      .catch(() =>
+        caches.match(event.request)
+          .then(cached => cached || caches.match('./index.html'))
+      )
   );
 });
 
@@ -75,16 +66,11 @@ self.addEventListener('message', event => {
   const data = event.data;
   if (!data) return;
 
-  if (data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-    return;
-  }
-
+  // Rappel RV (existant)
   if (data.type === 'PROGRAMMER_RAPPEL') {
     const { id, titre, corps, delai, tag } = data.payload;
-    const fireAt = Date.now() + delai;
     rappelsProgrammes = rappelsProgrammes.filter(r => r.id !== id);
-    rappelsProgrammes.push({ id, titre, corps, tag, fireAt });
+    rappelsProgrammes.push({ id, titre, corps, tag, fireAt: Date.now() + delai });
     setTimeout(() => envoyerRappel(id), delai);
     console.log('SW: rappel dans', Math.round(delai / 3600000), 'h — RV', id);
     return;
@@ -92,10 +78,34 @@ self.addEventListener('message', event => {
 
   if (data.type === 'ANNULER_RAPPEL') {
     rappelsProgrammes = rappelsProgrammes.filter(r => r.id !== data.id);
+    return;
+  }
+
+  // Résumé quotidien à 7h00
+  if (data.type === 'PROGRAMMER_RESUME_QUOTIDIEN') {
+    const { contenu, delaiMs } = data.payload;
+
+    // Annuler le timer précédent si existant
+    if (timerResumeQuotidien) {
+      clearTimeout(timerResumeQuotidien);
+      timerResumeQuotidien = null;
+    }
+
+    console.log('SW: résumé quotidien dans', Math.round(delaiMs / 3600000 * 10) / 10, 'h');
+
+    timerResumeQuotidien = setTimeout(() => {
+      envoyerResumeQuotidien(contenu);
+    }, delaiMs);
+    return;
+  }
+
+  if (data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
   }
 });
 
-// ── Envoi du rappel ───────────────────────────────────────────
+// ── Envoi rappel RV ──────────────────────────────────────────
 function envoyerRappel(id) {
   const r = rappelsProgrammes.find(x => x.id === id);
   if (!r) return;
@@ -110,15 +120,53 @@ function envoyerRappel(id) {
   rappelsProgrammes = rappelsProgrammes.filter(x => x.id !== id);
 }
 
-// ── Clic sur une notification ─────────────────────────────────
+// ── Envoi résumé quotidien ───────────────────────────────────
+function envoyerResumeQuotidien(contenu) {
+  const { titre, corps, nbAlertes } = contenu;
+
+  self.registration.showNotification(titre, {
+    body:               corps,
+    icon:               './icon-192.png',
+    badge:              './icon-192.png',
+    tag:                'resume-quotidien',
+    requireInteraction: false,
+    silent:             false,
+    data:               { url: './', type: 'resume' },
+    actions: [
+      { action: 'ouvrir', title: '📊 Ouvrir l\'app' },
+      { action: 'fermer', title: 'Fermer' }
+    ]
+  });
+
+  // Reprogrammer pour le lendemain à 7h00 (24h)
+  timerResumeQuotidien = setTimeout(() => {
+    // Demander à l'app de recalculer le résumé
+    self.clients.matchAll({ includeUncontrolled: true }).then(clients => {
+      clients.forEach(c => c.postMessage({ type: 'RECALCULER_RESUME' }));
+      // Si aucun client actif, envoyer une notif générique
+      if (!clients.length) {
+        envoyerResumeQuotidien({
+          titre: '🚗 MCR Opont — Résumé',
+          corps: 'Ouvrez l\'app pour voir les alertes du jour.',
+          nbAlertes: 0
+        });
+      }
+    });
+  }, 24 * 60 * 60 * 1000); // exactement 24h après
+}
+
+// ── Clic sur une notification ────────────────────────────────
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+
+  if (event.action === 'fermer') return;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
         if (client.url.includes('Flotte-MCR') && 'focus' in client) {
           client.focus();
-          client.postMessage({ type: 'NOTIF_CLICK' });
+          client.postMessage({ type: event.notification.data?.type === 'resume' ? 'NOTIF_RESUME' : 'NOTIF_CLICK' });
           return;
         }
       }
