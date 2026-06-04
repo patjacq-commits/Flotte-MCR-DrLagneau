@@ -3460,63 +3460,68 @@ async function seDeconnecter() {
 function appliquerDroits() {
   if (!currentUser) return;
   const role = currentUser.role;
-  const isSA = role === 'superadmin';
+  const isSA  = role === 'superadmin';
   const isAdm = isSA || role === 'admin';
 
-  // Mettre à jour le badge et le bouton navbar
-  const badge = document.getElementById('role-badge');
+  // Badge et bouton déconnexion
+  const badge   = document.getElementById('role-badge');
   const btnRole = document.getElementById('btn-role');
   if (badge) {
-    const labels = { superadmin: '⚙ Patrick', admin: '⚙ Angélique', chauffeur: currentUser.nom };
-    badge.textContent = labels[role] || currentUser.nom;
-    badge.style.background = isSA ? 'rgba(255,200,0,0.35)'
-                            : isAdm ? 'rgba(100,200,255,0.25)'
-                            : 'rgba(255,255,255,0.2)';
+    const labels = { superadmin:'⚙ Patrick', admin:'⚙ Angélique', chauffeur: currentUser.nom };
+    badge.textContent  = labels[role] || currentUser.nom;
+    badge.style.background = isSA  ? 'rgba(255,200,0,0.35)'
+                           : isAdm ? 'rgba(100,200,255,0.25)'
+                           : 'rgba(255,255,255,0.2)';
   }
   if (btnRole) {
     btnRole.textContent = '🚪';
     btnRole.title = 'Se déconnecter';
-    btnRole.onclick = () => {
-      if (confirm(`Se déconnecter (${currentUser.nom}) ?`)) seDeconnecter();
-    };
+    btnRole.onclick = () => { if (confirm(`Se déconnecter (${currentUser.nom}) ?`)) seDeconnecter(); };
     btnRole.style.display = 'block';
   }
 
-  // Onglets visibles
-  // Maintenance : superadmin uniquement pour SAISIE, admin peut voir historique
-  const tabMaint    = document.querySelector('.tab-btn[onclick*="maintenance"]');
-  const tabGarages  = document.querySelector('.tab-btn[onclick*="garages"]');
-  const tabCW       = document.querySelector('.tab-btn[onclick*="carwash"]');
-  const tabPneus    = document.querySelector('.tab-btn[onclick*="pneus"]');
-  const tabAdblue   = document.querySelector('.tab-btn[onclick*="adblue"]');
-  const tabHist     = document.querySelector('.tab-btn[onclick*="historique"]');
-  const tabRapports = document.querySelector('.tab-btn[onclick*="rapports"]');
-  const tabCalendrier  = document.querySelector('.tab-btn[onclick*="calendrier"]');
-  const tabStats       = document.querySelector('.tab-btn[onclick*="statistiques"]');
-  show(tabCalendrier, true); // visible pour tous
+  // Helper show — déclaré EN PREMIER
+  const show = (el, v) => { if (el) el.style.display = v ? '' : 'none'; };
+
+  // Récupérer tous les onglets
+  const tabMaint      = document.querySelector('.tab-btn[onclick*="maintenance"]');
+  const tabGarages    = document.querySelector('.tab-btn[onclick*="garages"]');
+  const tabCW         = document.querySelector('.tab-btn[onclick*="carwash"]');
+  const tabPneus      = document.querySelector('.tab-btn[onclick*="pneus"]');
+  const tabAdblue     = document.querySelector('.tab-btn[onclick*="adblue"]');
+  const tabHist       = document.querySelector('.tab-btn[onclick*="historique"]');
+  const tabRapports   = document.querySelector('.tab-btn[onclick*="rapports"]');
+  const tabCalendrier = document.querySelector('.tab-btn[onclick*="calendrier"]');
+  const tabStats      = document.querySelector('.tab-btn[onclick*="statistiques"]');
+  const tabComptes    = document.querySelector('.tab-btn[onclick*="comptes"]');
+
+  // Visibilité des onglets selon le rôle
+  show(tabCalendrier, true);   // tout le monde
+  show(tabMaint,      isAdm);  // admin + superadmin (saisie restreinte au SA dans le formulaire)
+  show(tabGarages,    isAdm);
+  show(tabCW,         isAdm);
+  show(tabPneus,      isAdm);
+  show(tabAdblue,     isAdm);
+  show(tabHist,       isAdm);
+  show(tabRapports,   isAdm);
   show(tabStats,      isAdm);
+  show(tabComptes,    isSA);
 
-  const show = (el, v) => { if(el) el.style.display = v ? '' : 'none'; };
-  show(tabMaint,    isSA || isAdm); // maintenance visible pour admin ET superadmin
-  show(tabGarages,  isAdm);
-  show(tabCW,       isAdm);
-  show(tabPneus,    isAdm);
-  show(tabAdblue,   isAdm);
-  show(tabHist,     isAdm);
-  show(tabRapports, isAdm);
-  show(tabComptes,  isSA);
-
-  // Masquer le formulaire de saisie maintenance pour admin (lecture seule)
+  // Formulaire saisie maintenance : superadmin uniquement
   const formSaisie = document.getElementById('maint-form-saisie');
   if (formSaisie) formSaisie.style.display = isSA ? '' : 'none';
 
-  // Bouton imprimer maintenance visible pour admin et superadmin
+  // Bouton imprimer maintenance
   const btnPrintMaint = document.getElementById('btn-print-maint');
   if (btnPrintMaint) btnPrintMaint.style.display = isAdm ? '' : 'none';
 
-  // Les éléments admin-only (boutons modifier/supprimer dans les tableaux)
+  // Éléments admin-only et superadmin-only dans les pages
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdm ? '' : 'none');
   document.querySelectorAll('.superadmin-only').forEach(el => el.style.display = isSA ? '' : 'none');
+
+  // AdBlue chauffeur : visible uniquement pour les chauffeurs
+  const abCard = document.getElementById('chauf-adblue-card');
+  if (abCard) abCard.style.display = isAdm ? 'none' : '';
 
   updateTabChauf();
 }
