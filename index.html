@@ -1469,11 +1469,15 @@ td.ok { color: var(--vert); font-weight: 600; }
       <label>📷 Photos (extérieur / anomalies)</label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label class="btn" style="cursor:pointer;margin:0">
-          📷 Ajouter photo(s)
-          <input type="file" id="maint-photos" accept="image/*" multiple capture="environment"
-            style="display:none" onchange="ajouterPhotos()" />
+          📷 Prendre une photo
+          <input type="file" id="maint-photos" accept="image/*" capture="environment"
+            style="display:none" onchange="ajouterPhotos(this)" />
         </label>
-        <span style="font-size:12px;color:var(--texte-sec)">Les photos sont stockées localement</span>
+        <label class="btn" style="cursor:pointer;margin:0">
+          🖼 Choisir dans la galerie
+          <input type="file" id="maint-photos-galerie" accept="image/*" multiple
+            style="display:none" onchange="ajouterPhotos(this)" />
+        </label>
       </div>
       <div id="maint-photos-preview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
     </div>
@@ -6287,11 +6291,10 @@ function toggleCWFields() {
 let _photosEnCours = []; // [{ name, data }]
 
 /* Ajoute les nouvelles photos sélectionnées à _photosEnCours */
-function ajouterPhotos() {
-  const input = document.getElementById('maint-photos');
-  if (!input.files.length) return;
+function ajouterPhotos(input) {
+  if (!input) input = document.getElementById('maint-photos');
+  if (!input || !input.files.length) return;
   const promises = Array.from(input.files).map(file => new Promise(res => {
-    // Compression : redimensionner à max 800px et qualité 0.7
     const reader = new FileReader();
     reader.onload = e => {
       const img = new Image();
@@ -6666,6 +6669,7 @@ function clearMaintForm() {
   const remEl = document.getElementById('maint-rem'); if(remEl) remEl.value = '';
   _photosEnCours = [];
   const photosEl = document.getElementById('maint-photos'); if(photosEl) photosEl.value = '';
+  const galerieEl = document.getElementById('maint-photos-galerie'); if(galerieEl) galerieEl.value = '';
   const previewEl = document.getElementById('maint-photos-preview'); if(previewEl) previewEl.innerHTML = '';
 }
 
