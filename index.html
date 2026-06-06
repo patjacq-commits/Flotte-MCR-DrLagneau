@@ -4558,9 +4558,22 @@ function renderAccueil() {
   }
 
   // ── 3 prochains CT & entretiens garage ────────────────────
-  const today = new Date().toISOString().slice(0,10);
-  const prochainsCT = ctEvents
-    .filter(c => c.date >= today && c.statut !== 'annule' && c.statut !== 'fait')
+  // Types CT et entretien garage dans les RV planifiés
+  const typesCT = ['ct', 'garage', 'reparation', 'vitre', 'entretien-lift',
+                   'reparation-lift', 'enrouleur', 'treuil', 'rappel-garage'];
+  const prochainsCT = [
+    // RV planifiés futurs (collection rendezvous)
+    ...rendezvous.filter(r =>
+      r.date >= todayStr2 &&
+      r.statut !== 'annule' && r.statut !== 'fait' &&
+      typesCT.includes(r.type)
+    ),
+    // CT enregistrés avec date future (collection ctEvents)
+    ...ctEvents.filter(c =>
+      c.date >= todayStr2 &&
+      c.statut !== 'annule' && c.statut !== 'fait'
+    )
+  ]
     .sort((a,b) => a.date.localeCompare(b.date))
     .slice(0, 3);
 
@@ -4569,8 +4582,8 @@ function renderAccueil() {
       const v = vehicules.find(x => x.id === c.vehId);
       const vNom = v ? `${v.marque} <b>${v.immat}</b>` : c.vehId;
       const typeLabel = CT_TYPE_LABELS?.[c.type] || (c.type === 'ct' ? '🏥 CT' : '🔧 Entretien');
-      const garageStr = c.result ? ` — ${c.result}` : '';
-      const j = Math.round((new Date(c.date) - new Date(today)) / 86400000);
+      const garageStr = (c.result || c.garage) ? ` — ${c.result || c.garage}` : '';
+      const j = Math.round((new Date(c.date) - new Date(todayStr2)) / 86400000);
       const jStr = j === 0
         ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui !</span>'
         : j === 1
