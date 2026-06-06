@@ -4558,6 +4558,7 @@ function renderAccueil() {
   }
 
   // ── 3 prochains CT & entretiens garage ────────────────────
+  const today = new Date().toISOString().slice(0,10);
   const prochainsCT = ctEvents
     .filter(c => c.date >= today && c.statut !== 'annule' && c.statut !== 'fait')
     .sort((a,b) => a.date.localeCompare(b.date))
@@ -4598,8 +4599,7 @@ function renderAccueil() {
       </div>`;
   }
 
-  // ── 5 prochains RV — entre urgentes et à surveiller ──────
-  const today = new Date().toISOString().slice(0,10);
+  // ── 5 prochains RV ────────────────────────────────────────
   const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
     .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
     .sort((a,b) => (a.date + (a.heure||'00:00')).localeCompare(b.date + (b.heure||'00:00')))
