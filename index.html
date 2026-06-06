@@ -4557,61 +4557,6 @@ function renderAccueil() {
       `<div id="bloc-infos-veh"></div>`;
   }
 
-  // ── 3 prochains CT & entretiens garage ────────────────────
-  // Types CT et entretien garage dans les RV planifiés
-  const typesCT = ['ct', 'garage', 'reparation', 'vitre', 'entretien-lift',
-                   'reparation-lift', 'enrouleur', 'treuil', 'rappel-garage'];
-  const prochainsCT = [
-    // RV planifiés futurs (collection rendezvous)
-    ...rendezvous.filter(r =>
-      r.date >= todayStr2 &&
-      r.statut !== 'annule' && r.statut !== 'fait' &&
-      typesCT.includes(r.type)
-    ),
-    // CT enregistrés avec date future (collection ctEvents)
-    ...ctEvents.filter(c =>
-      c.date >= todayStr2 &&
-      c.statut !== 'annule' && c.statut !== 'fait'
-    )
-  ]
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .slice(0, 3);
-
-  if (prochainsCT.length) {
-    const ctHtml = prochainsCT.map(c => {
-      const v = vehicules.find(x => x.id === c.vehId);
-      const vNom = v ? `${v.marque} <b>${v.immat}</b>` : c.vehId;
-      const typeLabel = CT_TYPE_LABELS?.[c.type] || (c.type === 'ct' ? '🏥 CT' : '🔧 Entretien');
-      const garageStr = (c.result || c.garage) ? ` — ${c.result || c.garage}` : '';
-      const j = Math.round((new Date(c.date) - new Date(todayStr2)) / 86400000);
-      const jStr = j === 0
-        ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui !</span>'
-        : j === 1
-          ? '<span style="color:var(--orange);font-weight:700">Demain</span>'
-          : j <= 7
-            ? `<span style="color:var(--orange);font-weight:600">dans ${j}j</span>`
-            : `<span style="color:var(--texte-sec)">dans ${j}j</span>`;
-      const bgStyle = j <= 7 ? 'background:var(--rouge-clair);' : j <= 30 ? 'background:var(--orange-clair);' : '';
-      return `<div style="${bgStyle}display:flex;align-items:center;gap:10px;
-                padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
-        <div style="min-width:70px;text-align:center">
-          <div style="font-size:12px;font-weight:700;color:var(--rouge)">${formatDate(c.date)}</div>
-          <div style="font-size:11px">${jStr}</div>
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px">${vNom}</div>
-          <div style="font-size:12px;color:var(--texte-sec)">${typeLabel}${garageStr}</div>
-        </div>
-        ${userIsAdmin() ? `<button class="btn btn-sm" onclick="showPage('garages',document.querySelector('.tab-btn[onclick*=garages]'))">✏️</button>` : ''}
-      </div>`;
-    }).join('');
-    document.getElementById('alertes-dashboard').innerHTML += `
-      <div style="margin-top:14px">
-        <h3 style="margin-bottom:8px">🏥 Prochains CT & entretiens</h3>
-        <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">${ctHtml}</div>
-      </div>`;
-  }
-
   // ── 5 prochains RV ────────────────────────────────────────
   const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
     .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
@@ -5600,7 +5545,6 @@ function renderVehicules() {
         ${cwRow}
         ${(() => {
           if (!v.infoSpec || !v.infoSpec.trim()) return '';
-          // Vérification expiration (même logique que getInfosActives)
           const dateMatch = v.infoSpec.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
           if (dateMatch) {
             const dateExp = new Date(`${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`);
@@ -5608,6 +5552,28 @@ function renderVehicules() {
           }
           return `<div class="veh-row info-veh-row" style="background:var(--bleu-clair);border-radius:6px;padding:6px 10px;margin-top:5px;border-left:3px solid var(--bleu);animation:pulse-info 2s ease infinite">
             <span style="font-size:13px;color:var(--bleu);font-weight:700">ℹ️ ${v.infoSpec}</span>
+          </div>`;
+        })()}
+        ${(() => {
+          // Prochains CT planifiés pour ce véhicule (ordre chronologique)
+          const cts = ctEvents
+            .filter(c => c.vehId === v.id && c.date >= todayStr && c.statut !== 'annule' && c.statut !== 'fait')
+            .sort((a,b) => a.date.localeCompare(b.date))
+            .slice(0, 3);
+          if (!cts.length) return '';
+          return `<div style="margin-top:8px;border-top:0.5px solid var(--gris-bord);padding-top:7px">
+            <div style="font-size:11px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;
+              letter-spacing:0.5px;margin-bottom:5px">🏥 CT planifiés</div>
+            ${cts.map(c => {
+              const j = Math.round((new Date(c.date) - new Date(todayStr)) / 86400000);
+              const couleur = j <= 7 ? 'var(--rouge)' : j <= 30 ? 'var(--orange)' : 'var(--texte-sec)';
+              const garage  = c.result ? ` — ${c.result}` : '';
+              return `<div style="display:flex;justify-content:space-between;align-items:center;
+                font-size:12px;padding:2px 0;color:${couleur}">
+                <span>${formatDate(c.date)}${garage}</span>
+                <span style="font-weight:600">${j === 0 ? 'Auj.' : j === 1 ? 'Demain' : 'J-'+j}</span>
+              </div>`;
+            }).join('')}
           </div>`;
         })()}
       </div>
