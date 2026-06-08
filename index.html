@@ -1061,6 +1061,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn admin-only" onclick="showPage('historique',this)" style="display:none">📋 Historique</button>
   <button class="tab-btn admin-only" onclick="showPage('rapports',this)" style="display:none">📄 Rapports</button>
   <button class="tab-btn superadmin-only" onclick="showPage('comptes',this)" style="display:none">👥 Comptes</button>
+  <button class="tab-btn" onclick="showPage('profil',this)">⚙️ Profil</button>
 </div>
 
 <!-- CONTENU PRINCIPAL -->
@@ -1778,8 +1779,12 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div id="ab-total" style="text-align:right;font-weight:700;font-size:14px;margin-top:10px;color:var(--bleu)"></div>
   </div>
 
-  <!-- Changer mon mot de passe (tous les rôles) -->
-  <div class="form-card" id="chauf-pwd-card">
+</div>
+
+<!-- PAGE PROFIL -->
+<div id="page-profil" class="page">
+  <h2 style="margin-bottom:14px">⚙️ Mon profil</h2>
+  <div class="form-card" id="chauf-pwd-card" style="max-width:480px">
     <h3>🔑 Changer mon mot de passe</h3>
     <div class="form-grid">
       <div class="form-group">
