@@ -5606,180 +5606,146 @@ function sauvegarderTelGarage() {
 function openVehDetail(id) {
   const v = vehicules.find(x => x.id === id);
   if (!v) return;
-  document.getElementById('modal-veh-title').textContent = `${v.marque} — ${v.immat}`;
+  document.getElementById('modal-veh-title').textContent = v.marque + ' — ' + v.immat;
 
-  // Fonction locale pour afficher une ligne avec alerte optionnelle
-  function detailRow(label, value, alertCls, alertTxt) {
-    const alertBadge = alertCls ? `<span class="badge ${alertCls}" style="margin-left:6px;font-size:10px">${alertTxt}</span>` : '';
-    return `<tr>
-      <td style="padding:7px 0;color:var(--texte-sec);width:48%;font-size:13px">${label}</td>
-      <td style="font-weight:500;font-size:13px">${value || '—'}${alertBadge}</td>
-    </tr>`;
+  function dr(label, value, alertCls, alertTxt) {
+    const badge = alertCls ? '<span class="badge ' + alertCls + '" style="margin-left:6px;font-size:10px">' + alertTxt + '</span>' : '';
+    return '<tr><td style="padding:6px 0;color:var(--texte-sec);width:48%;font-size:13px">' + label + '</td>'
+         + '<td style="font-weight:500;font-size:13px">' + (value || '—') + badge + '</td></tr>';
   }
-
-  // Alertes sur dates de validité (1 mois = 30 jours)
-  function validiteAlert(dateStr) {
+  function va(dateStr) {
     const j = daysUntil(dateStr);
     if (j === null) return null;
-    if (j < 0) return { cls:'urgent', txt:'EXPIRÉ' };
-    if (j <= 30) return { cls:'urgent', txt:`Expire dans ${j}j` };
-    if (j <= 90) return { cls:'warn', txt:`Expire dans ${j}j` };
+    if (j < 0)   return { cls:'urgent', txt:'EXPIRÉ' };
+    if (j <= 30) return { cls:'urgent', txt:'Expire dans ' + j + 'j' };
+    if (j <= 90) return { cls:'warn',   txt:'Expire dans ' + j + 'j' };
     return null;
   }
 
-  // Carte Total
-  const ctAlert = validiteAlert(v.carte_total_valid);
-  // SPW
-  const spwAlert = validiteAlert(v.spw_valid);
-  // Extincteur
-  const extAlert = validiteAlert(v.extincteur_valid);
+  const ctA   = va(v.ct_valid);
+  const cartA = va(v.carte_total_valid);
+  const spwA  = va(v.spw_valid);
+  const extA  = va(v.extincteur_valid);
+  const assA  = va(v.assurance_valid);
 
-  const estEditable = isAdmin;
-  const editBtn = estEditable ? `<button class="btn btn-sm primary" style="margin-top:14px" onclick="closeModal('modal-veh');quickEdit('${v.id}')">✏️ Modifier le véhicule</button>` : '';
+  const editBtn = isAdmin
+    ? '<button class="btn btn-sm primary" style="margin-top:14px" onclick="closeModal(\'modal-veh\');openVehEdit(\'' + v.id + '\')">✏️ Modifier le véhicule</button>'
+    : '';
 
-  const adminEdit = estEditable ? `
-    <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">⚙️ Données éditables</td></tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Kilométrage actuel</td>
-      <td><input type="number" id="modal-edit-km" value="${v.km||''}" onchange="updateVehField('${v.id}','km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">CT valable jusqu'au</td>
-      <td><input type="date" id="modal-edit-ct-valid" value="${v.ct_valid||''}" onchange="updateVehField('${v.id}','ct_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">🔴 Carte rouge CT jusqu'au</td>
-      <td><input type="date" id="modal-edit-ct-rouge" value="${v.ct_carte_rouge||''}" onchange="updateVehField('${v.id}','ct_carte_rouge',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%" placeholder="Vide si pas de carte rouge"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Prochain entretien à (km)</td>
-      <td><input type="number" id="modal-edit-next-km" value="${v.prochain_entretien_km||''}" onchange="updateVehField('${v.id}','prochain_entretien_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dernier entretien le</td>
-      <td><input type="date" id="modal-edit-last-ent-date" value="${v.dernier_entretien_date||''}" onchange="updateVehField('${v.id}','dernier_entretien_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dernier entretien à (km)</td>
-      <td><input type="number" id="modal-edit-last-ent-km" value="${v.dernier_entretien_km||''}" onchange="updateVehField('${v.id}','dernier_entretien_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">🛡 Assurance valable jusqu'au</td>
-      <td><input type="date" value="${v.assurance_valid||''}" onchange="updateVehField('${v.id}','assurance_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Pression AV (bar)</td>
-      <td><input type="text" value="${v.pression_av||''}" onchange="updateVehField('${v.id}','pression_av',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%" placeholder="ex: 3.0"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Pression AR (bar)</td>
-      <td><input type="text" value="${v.pression_ar||''}" onchange="updateVehField('${v.id}','pression_ar',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%" placeholder="ex: 3.0"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Code carte Total</td>
-      <td><input type="text" value="${v.carte_total_code||''}" onchange="updateVehField('${v.id}','carte_total_code',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Validité carte Total</td>
-      <td><input type="date" value="${v.carte_total_valid||''}" onchange="updateVehField('${v.id}','carte_total_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Vignette SPW valable jusqu'au</td>
-      <td><input type="date" value="${v.spw_valid||''}" onchange="updateVehField('${v.id}','spw_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Extincteur valable jusqu'au</td>
-      <td><input type="date" value="${v.extincteur_valid||''}" onchange="updateVehField('${v.id}','extincteur_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    ${v.equipement ? `<tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dernière visite Recht (date)</td>
-      <td><input type="date" value="${v.recht_date||''}" onchange="updateVehField('${v.id}','recht_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Motif visite Recht</td>
-      <td><input type="text" value="${v.recht_motif||''}" onchange="updateVehField('${v.id}','recht_motif',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation H→É (date)</td>
-      <td><input type="date" value="${v.permut_hiver_ete_date||''}" onchange="updateVehField('${v.id}','permut_hiver_ete_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation H→É (km)</td>
-      <td><input type="number" value="${v.permut_hiver_ete_km||''}" onchange="updateVehField('${v.id}','permut_hiver_ete_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation É→H (date)</td>
-      <td><input type="date" value="${v.permut_ete_hiver_date||''}" onchange="updateVehField('${v.id}','permut_ete_hiver_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Permutation É→H (km)</td>
-      <td><input type="number" value="${v.permut_ete_hiver_km||''}" onchange="updateVehField('${v.id}','permut_ete_hiver_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>` : ''}
-    <tr><td colspan="2" style="padding:8px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🏔 Dimensions et marques pneus</td></tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dimensions été 🔴</td>
-      <td><input type="text" value="${v.dim_ete||''}" onchange="updateVehField('${v.id}','dim_ete',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Marque pneus été</td>
-      <td><input type="text" value="${v.pneus_ete||''}" onchange="updateVehField('${v.id}','pneus_ete',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dimensions hiver 🟤</td>
-      <td><input type="text" value="${v.dim_hiver||''}" onchange="updateVehField('${v.id}','dim_hiver',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Marque pneus hiver</td>
-      <td><input type="text" value="${v.pneus_hiver||''}" onchange="updateVehField('${v.id}','pneus_hiver',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
-    </tr>
-  ` : '';
+  const carteRougeRow = v.ct_carte_rouge
+    ? dr('🔴 Carte rouge jusqu\'au', formatDate(v.ct_carte_rouge), 'urgent', 'CARTE ROUGE')
+    : '';
+  const rechtRows = v.equipement
+    ? '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔧 ' + v.equipement + ' — Recht</td></tr>'
+      + dr('Date de visite', formatDate(v.recht_date))
+      + dr('Motif', v.recht_motif || '—')
+    : '';
 
-  document.getElementById('modal-veh-body').innerHTML = `
-    <table style="width:100%;border-collapse:collapse;">
+  document.getElementById('modal-veh-body').innerHTML =
+    '<table style="width:100%;border-collapse:collapse">'
+    + '<tr><td colspan="2" style="padding:6px 0 4px;font-weight:700;font-size:13px">📊 Données principales</td></tr>'
+    + dr('Kilométrage', v.km ? parseInt(v.km).toLocaleString('fr-BE') + ' km' : '—')
+    + dr('CT valable jusqu\'au', formatDate(v.ct_valid), ctA?.cls, ctA?.txt)
+    + carteRougeRow
+    + dr('Prochain entretien à', v.prochain_entretien_km ? parseInt(v.prochain_entretien_km).toLocaleString('fr-BE') + ' km' : '—')
+    + dr('Dernier entretien le', formatDate(v.dernier_entretien_date))
+    + dr('Dernier entretien à', v.dernier_entretien_km ? parseInt(v.dernier_entretien_km).toLocaleString('fr-BE') + ' km' : '—')
+    + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🛡 Assurance</td></tr>'
+    + dr('Valable jusqu\'au', v.assurance_valid ? formatDate(v.assurance_valid) : '—', assA?.cls, assA?.txt)
+    + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔴 Pression pneus</td></tr>'
+    + dr('Avant (bar)', v.pression_av ? v.pression_av + ' bar' : '—')
+    + dr('Arrière (bar)', v.pression_ar ? v.pression_ar + ' bar' : '—')
+    + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">💳 Carte Total</td></tr>'
+    + dr('Code carte', v.carte_total_code || '—', cartA?.cls, cartA?.txt)
+    + dr('Valable jusqu\'au', formatDate(v.carte_total_valid), cartA?.cls, cartA?.txt)
+    + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🪧 Vignette SPW</td></tr>'
+    + dr('Valable jusqu\'au', v.spw_valid ? formatDate(v.spw_valid) : '—', spwA?.cls, spwA?.txt)
+    + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🧯 Extincteur</td></tr>'
+    + dr('Valable jusqu\'au', v.extincteur_valid ? formatDate(v.extincteur_valid) : '—', extA?.cls, extA?.txt)
+    + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🏔 Pneumatiques</td></tr>'
+    + dr('Dimensions été 🔴', v.dim_ete || '—')
+    + dr('Marque pneus été', v.pneus_ete || '—')
+    + dr('Dimensions hiver 🟤', v.dim_hiver || '—')
+    + dr('Marque pneus hiver', v.pneus_hiver || '—')
+    + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔄 Permutations pneus</td></tr>'
+    + dr('Hiver → Été (date)', formatDate(v.permut_hiver_ete_date))
+    + dr('Hiver → Été (km)', v.permut_hiver_ete_km ? parseInt(v.permut_hiver_ete_km).toLocaleString('fr-BE') + ' km' : '—')
+    + dr('Été → Hiver (date)', formatDate(v.permut_ete_hiver_date))
+    + dr('Été → Hiver (km)', v.permut_ete_hiver_km ? parseInt(v.permut_ete_hiver_km).toLocaleString('fr-BE') + ' km' : '—')
+    + rechtRows
+    + '</table>'
+    + editBtn;
 
-      <tr><td colspan="2" style="padding:10px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🛡 Assurance</td></tr>
-      ${(() => {
-        const aAlert = validiteAlert(v.assurance_valid);
-        return detailRow('Valable jusqu\'au', v.assurance_valid ? formatDate(v.assurance_valid) : '— (à compléter)', aAlert?.cls, aAlert?.txt);
-      })()}
-
-      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔴 Pression pneus recommandée</td></tr>
-      ${detailRow('Avant (bar)', v.pression_av ? v.pression_av + ' bar' : '—')}
-      ${detailRow('Arrière (bar)', v.pression_ar ? v.pression_ar + ' bar' : '—')}
-
-      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">💳 Carte carburant Total</td></tr>
-      ${detailRow('Code carte', v.carte_total_code, ctAlert?.cls, ctAlert?.txt)}
-      ${detailRow('Valable jusqu\'au', formatDate(v.carte_total_valid), ctAlert?.cls, ctAlert?.txt)}
-
-      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🪧 Vignette SPW</td></tr>
-      ${detailRow('Valable jusqu\'au', v.spw_valid ? formatDate(v.spw_valid) : '— (à compléter)', spwAlert?.cls, spwAlert?.txt)}
-
-      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🧯 Extincteur</td></tr>
-      ${detailRow('Valable jusqu\'au', v.extincteur_valid ? formatDate(v.extincteur_valid) : '— (à compléter)', extAlert?.cls, extAlert?.txt)}
-
-      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🏔 Pneumatiques</td></tr>
-      ${detailRow('Dimensions pneus été 🔴', v.dim_ete || v.pneus_ete)}
-      ${detailRow('Marque pneus été', v.pneus_ete)}
-      ${detailRow('Dimensions pneus hiver 🟤', v.dim_hiver)}
-      ${detailRow('Marque pneus hiver', v.pneus_hiver)}
-
-      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔄 Permutations pneus</td></tr>
-      ${detailRow('Hiver → Été (date)', formatDate(v.permut_hiver_ete_date))}
-      ${detailRow('Hiver → Été (km)', v.permut_hiver_ete_km ? v.permut_hiver_ete_km.toLocaleString('fr-BE') + ' km' : '—')}
-      ${detailRow('Été → Hiver (date)', formatDate(v.permut_ete_hiver_date))}
-      ${detailRow('Été → Hiver (km)', v.permut_ete_hiver_km ? v.permut_ete_hiver_km.toLocaleString('fr-BE') + ' km' : '—')}
-
-      ${v.equipement ? `
-      <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔧 ${v.equipement} — Dernière visite Recht</td></tr>
-      ${detailRow('Date de visite', formatDate(v.recht_date))}
-      ${detailRow('Motif', v.recht_motif)}
-      ` : ''}
-
-      ${adminEdit}
-    </table>
-    ${editBtn}
-  `;
   document.getElementById('modal-veh').classList.add('open');
+}
+
+/* Modal Modifier véhicule — saisie uniquement, toutes données modifiables */
+function openVehEdit(id) {
+  const v = vehicules.find(x => x.id === id);
+  if (!v || !isAdmin) return;
+
+  let modal = document.getElementById('modal-veh-edit');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-veh-edit';
+    modal.className = 'modal-overlay';
+    modal.innerHTML =
+      '<div class="modal" style="max-height:90vh;overflow-y:auto">'
+      + '<button class="modal-close" onclick="closeModal(\'modal-veh-edit\')">✕</button>'
+      + '<h2 id="modal-veh-edit-title"></h2>'
+      + '<div id="modal-veh-edit-body"></div>'
+      + '</div>';
+    document.body.appendChild(modal);
+  }
+
+  document.getElementById('modal-veh-edit-title').textContent = '✏️ Modifier — ' + v.marque + ' ' + v.immat;
+
+  function field(label, type, key, val, placeholder) {
+    placeholder = placeholder || '';
+    const onch = (type === 'number')
+      ? 'updateVehField(\'' + id + '\',\'' + key + '\',parseInt(this.value)||null)'
+      : 'updateVehField(\'' + id + '\',\'' + key + '\',this.value)';
+    return '<div class="form-group"><label style="font-size:13px">' + label + '</label>'
+      + '<input type="' + type + '" value="' + (val || '') + '" placeholder="' + placeholder + '" onchange="' + onch + '"'
+      + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" /></div>';
+  }
+
+  let body = '<div class="form-grid">'
+    + field('Kilométrage actuel (km)',       'number','km',                   v.km)
+    + field('CT valable jusqu\'au',           'date',  'ct_valid',            v.ct_valid)
+    + field('🔴 Carte rouge CT jusqu\'au',   'date',  'ct_carte_rouge',       v.ct_carte_rouge,    'Laisser vide si aucune')
+    + field('Prochain entretien à (km)',     'number','prochain_entretien_km',v.prochain_entretien_km)
+    + field('Dernier entretien le',          'date',  'dernier_entretien_date',v.dernier_entretien_date)
+    + field('Dernier entretien à (km)',      'number','dernier_entretien_km', v.dernier_entretien_km)
+    + field('🛡 Assurance jusqu\'au',         'date',  'assurance_valid',      v.assurance_valid)
+    + field('Pression AV (bar)',             'text',  'pression_av',          v.pression_av,        'ex: 3.0')
+    + field('Pression AR (bar)',             'text',  'pression_ar',          v.pression_ar,        'ex: 3.0')
+    + field('Code carte Total',              'text',  'carte_total_code',     v.carte_total_code)
+    + field('Validité carte Total',          'date',  'carte_total_valid',    v.carte_total_valid)
+    + field('Vignette SPW jusqu\'au',         'date',  'spw_valid',            v.spw_valid)
+    + field('Extincteur jusqu\'au',           'date',  'extincteur_valid',     v.extincteur_valid)
+    + field('Dimensions pneus été 🔴',        'text',  'dim_ete',              v.dim_ete)
+    + field('Marque pneus été',              'text',  'pneus_ete',            v.pneus_ete)
+    + field('Dimensions pneus hiver 🟤',      'text',  'dim_hiver',            v.dim_hiver)
+    + field('Marque pneus hiver',            'text',  'pneus_hiver',          v.pneus_hiver)
+    + field('Permutation H→É (date)',        'date',  'permut_hiver_ete_date',v.permut_hiver_ete_date)
+    + field('Permutation H→É (km)',          'number','permut_hiver_ete_km',  v.permut_hiver_ete_km)
+    + field('Permutation É→H (date)',        'date',  'permut_ete_hiver_date',v.permut_ete_hiver_date)
+    + field('Permutation É→H (km)',          'number','permut_ete_hiver_km',  v.permut_ete_hiver_km);
+
+  if (v.equipement) {
+    body += field('Visite Recht (date)', 'date', 'recht_date',  v.recht_date);
+    body += field('Motif Recht',         'text', 'recht_motif', v.recht_motif);
+  }
+
+  body += '</div>'
+    + '<div style="margin-top:16px;display:flex;gap:10px">'
+    + '<button class="btn primary" onclick="closeModal(\'modal-veh-edit\');openVehDetail(\'' + id + '\')">'
+    + '✅ Fermer et voir le détail</button>'
+    + '</div>';
+
+  document.getElementById('modal-veh-edit-body').innerHTML = body;
+  modal.classList.add('open');
 }
 
 /* Met à jour un champ d'un véhicule en mémoire et sauvegarde */
@@ -5788,7 +5754,10 @@ function updateVehField(vehId, field, value) {
   if (!v) return;
   v[field] = value;
   saveAll();
-  toast(`${field.replace(/_/g,' ')} mis à jour ✅`);
+  // Rafraîchir la grille véhicules si l'onglet est actif
+  if (document.getElementById('page-vehicules')?.classList.contains('active'))
+    renderVehicules();
+  toast(field.replace(/_/g,' ') + ' mis à jour ✅');
 }
 
 function closeModal(id) {
@@ -7080,7 +7049,7 @@ function saveVehEdit() {
 }
 
 function quickEdit(id) {
-  openVehDetail(id);
+  openVehEdit(id);
 }
 
 // ============================================================
