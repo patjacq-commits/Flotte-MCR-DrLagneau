@@ -1156,78 +1156,6 @@ td.ok { color: var(--vert); font-weight: 600; }
 <div id="page-chauf" class="page">
   <h2 style="margin-bottom:4px">🚨 Messages & Alertes</h2>
 
-  <!-- Changer mon mot de passe (visible par tous) -->
-  <div class="form-card" id="chauf-pwd-card">
-    <h3>🔑 Changer mon mot de passe</h3>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Mot de passe actuel</label>
-        <input type="password" id="chauf-pwd-actuel" placeholder="••••••••"
-          autocomplete="current-password" />
-      </div>
-      <div class="form-group">
-        <label>Nouveau mot de passe</label>
-        <input type="password" id="chauf-pwd-nouveau" placeholder="Minimum 6 caractères"
-          autocomplete="new-password" />
-      </div>
-      <div class="form-group">
-        <label>Confirmer le nouveau mot de passe</label>
-        <input type="password" id="chauf-pwd-confirm" placeholder="Répéter le nouveau mot de passe"
-          autocomplete="new-password" />
-      </div>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn primary" onclick="changerMotDePasse()">🔑 Mettre à jour</button>
-      <button class="btn" onclick="
-        document.getElementById('chauf-pwd-actuel').value='';
-        document.getElementById('chauf-pwd-nouveau').value='';
-        document.getElementById('chauf-pwd-confirm').value=''">✕ Annuler</button>
-    </div>
-    <div id="chauf-pwd-msg" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px"></div>
-  </div> (véhicules VEHICULES_ADBLUE uniquement) -->
-  <div class="form-card" id="chauf-adblue-card">
-    <h3>💧 Signaler un ajout AdBlue</h3>
-    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Pour les véhicules : 294, 633, 789, 941, 527, 910</p>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Date</label>
-        <input type="date" id="chauf-ab-date" />
-      </div>
-      <div class="form-group">
-        <label>Véhicule</label>
-        <select id="chauf-ab-veh"></select>
-      </div>
-      <div class="form-group">
-        <label>Type</label>
-        <select id="chauf-ab-type" onchange="toggleChauffeurAdBlue()">
-          <option value="bidon">Bidon (10 L = 20 €)</option>
-          <option value="pompe">Pompe</option>
-        </select>
-      </div>
-      <div class="form-group" id="chauf-ab-litre-group" style="display:none">
-        <label>Volume (L)</label>
-        <input type="number" id="chauf-ab-litre" step="0.1" min="0.1" placeholder="ex: 8.5"
-          oninput="calcPrixLitre()" />
-      </div>
-      <div class="form-group" id="chauf-ab-montant-group" style="display:none">
-        <label>Montant total (€)</label>
-        <input type="number" id="chauf-ab-prix" step="0.01" min="0" placeholder="ex: 12.40"
-          oninput="calcPrixLitre()" />
-      </div>
-      <div class="form-group" id="chauf-ab-prixl-group" style="display:none">
-        <label>Prix/L calculé</label>
-        <div id="chauf-ab-prixl" style="padding:8px 0;font-weight:700;color:var(--bleu);font-size:14px">—</div>
-      </div>
-      <div class="form-group">
-        <label>Kilométrage <span style="font-size:11px;color:var(--texte-sec)">(optionnel)</span></label>
-        <input type="number" id="chauf-ab-km" placeholder="ex: 72345" />
-      </div>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn primary" style="background:var(--bleu);border-color:var(--bleu)" onclick="saveChauffeurAdBlue()">💧 Enregistrer AdBlue</button>
-      <button class="btn" onclick="clearChauffeurAdBlue()">✕ Effacer</button>
-    </div>
-  </div>
 
   <!-- Formulaire signalement -->
   <div class="form-card" id="chauf-form-card">
@@ -1759,7 +1687,55 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- PAGE ADBLUE (admin) -->
 <div id="page-adblue" class="page">
   <h2 style="margin-bottom:14px">💧 AdBlue</h2>
-  <div class="form-card">
+
+  <!-- Formulaire AdBlue chauffeur (véhicules éligibles, visible pour chauffeurs) -->
+  <div class="form-card" id="chauf-adblue-card">
+    <h3>💧 Signaler un ajout AdBlue</h3>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Pour les véhicules : 294, 633, 789, 941, 527, 910</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="chauf-ab-date" />
+      </div>
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="chauf-ab-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="chauf-ab-type" onchange="toggleChauffeurAdBlue()">
+          <option value="bidon">Bidon (10 L = 20 €)</option>
+          <option value="pompe">Pompe</option>
+        </select>
+      </div>
+      <div class="form-group" id="chauf-ab-litre-group" style="display:none">
+        <label>Volume (L)</label>
+        <input type="number" id="chauf-ab-litre" step="0.1" min="0.1" placeholder="ex: 8.5"
+          oninput="calcPrixLitre()" />
+      </div>
+      <div class="form-group" id="chauf-ab-montant-group" style="display:none">
+        <label>Montant total (€)</label>
+        <input type="number" id="chauf-ab-prix" step="0.01" min="0" placeholder="ex: 12.40"
+          oninput="calcPrixLitre()" />
+      </div>
+      <div class="form-group" id="chauf-ab-prixl-group" style="display:none">
+        <label>Prix/L calculé</label>
+        <div id="chauf-ab-prixl" style="padding:8px 0;font-weight:700;color:var(--bleu);font-size:14px">—</div>
+      </div>
+      <div class="form-group">
+        <label>Kilométrage <span style="font-size:11px;color:var(--texte-sec)">(optionnel)</span></label>
+        <input type="number" id="chauf-ab-km" placeholder="ex: 72345" />
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" style="background:var(--bleu);border-color:var(--bleu)"
+        onclick="saveChauffeurAdBlue()">💧 Enregistrer AdBlue</button>
+      <button class="btn" onclick="clearChauffeurAdBlue()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <!-- Formulaire AdBlue admin (toutes options) -->
+  <div class="form-card admin-only">
     <h3>Enregistrer un ajout AdBlue</h3>
     <div class="form-grid">
       <div class="form-group">
@@ -1784,6 +1760,8 @@ td.ok { color: var(--vert); font-weight: 600; }
       <button class="btn" onclick="clearABForm()">✕ Effacer</button>
     </div>
   </div>
+
+  <!-- Historique AdBlue -->
   <div class="form-card">
     <h3>Historique AdBlue</h3>
     <div class="export-bar" style="margin-bottom:10px">
@@ -1793,11 +1771,41 @@ td.ok { color: var(--vert); font-weight: 600; }
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Volume</th><th>Km</th><th>Source</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Volume</th><th>Km</th><th>Source</th><th class="admin-only">Action</th></tr></thead>
         <tbody id="ab-tbody"></tbody>
       </table>
     </div>
     <div id="ab-total" style="text-align:right;font-weight:700;font-size:14px;margin-top:10px;color:var(--bleu)"></div>
+  </div>
+
+  <!-- Changer mon mot de passe (tous les rôles) -->
+  <div class="form-card" id="chauf-pwd-card">
+    <h3>🔑 Changer mon mot de passe</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Mot de passe actuel</label>
+        <input type="password" id="chauf-pwd-actuel" placeholder="••••••••"
+          autocomplete="current-password" />
+      </div>
+      <div class="form-group">
+        <label>Nouveau mot de passe</label>
+        <input type="password" id="chauf-pwd-nouveau" placeholder="Minimum 6 caractères"
+          autocomplete="new-password" />
+      </div>
+      <div class="form-group">
+        <label>Confirmer le nouveau mot de passe</label>
+        <input type="password" id="chauf-pwd-confirm" placeholder="Répéter le nouveau mot de passe"
+          autocomplete="new-password" />
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn primary" onclick="changerMotDePasse()">🔑 Mettre à jour</button>
+      <button class="btn" onclick="
+        document.getElementById('chauf-pwd-actuel').value='';
+        document.getElementById('chauf-pwd-nouveau').value='';
+        document.getElementById('chauf-pwd-confirm').value=''">✕ Annuler</button>
+    </div>
+    <div id="chauf-pwd-msg" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px"></div>
   </div>
 </div>
 
@@ -1843,7 +1851,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
 
   <!-- Recharge clé -->
-  <div class="form-card">
+  <div class="form-card admin-only">
     <h3>🔑 Recharge clé Car Wash</h3>
     <div class="form-grid">
       <div class="form-group">
@@ -1894,7 +1902,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
 
   <!-- Historique recharges clé -->
-  <div class="form-card">
+  <div class="form-card admin-only">
     <h3>Historique des recharges clé</h3>
     <div class="table-wrap">
       <table>
@@ -3125,12 +3133,9 @@ function initChauf() {
     selAb.innerHTML = vehAbTries.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
   }
 
-  const today = new Date().toISOString().slice(0,10);
-  const abDate = document.getElementById('chauf-ab-date');
-  if (abDate && !abDate.value) abDate.value = today;
-
+  // Masquer AdBlue pour les admins dans l'onglet messages (désormais uniquement dans page-adblue)
   const abCard = document.getElementById('chauf-adblue-card');
-  if (abCard) abCard.style.display = userIsAdmin() ? 'none' : '';
+  if (abCard) abCard.style.display = 'none'; // toujours caché ici
 
   renderMessagesChauf();
 }
@@ -3280,6 +3285,7 @@ function saveChauffeurAdBlue() {
     { vehId, date, litre, prixTotal });
   saveAll();
   clearChauffeurAdBlue();
+  renderAdBlueTable();
   toast(`✅ AdBlue enregistré — ${litre} L${prixTotal ? ' ('+prixTotal.toFixed(2)+' €)' : ''}`);
 }
 
@@ -3444,9 +3450,25 @@ function renderMessagesChauf() {
 }
 
 function initAdBlueOnglet() {
+  // Bloc AdBlue chauffeur (visible pour tous dans cet onglet)
+  const selChauf = document.getElementById('chauf-ab-veh');
+  if (selChauf && selChauf.options.length === 0) {
+    const vehAbTries = VEHICULES_ADBLUE_CHAUF
+      .map(id => vehicules.find(x => x.id === id)).filter(Boolean)
+      .sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
+    selChauf.innerHTML = vehAbTries.map(v =>
+      `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+  }
+  const abDate = document.getElementById('chauf-ab-date');
+  if (abDate && !abDate.value) abDate.value = new Date().toISOString().slice(0,10);
+
+  // Masquer le bloc AdBlue chauffeur pour les admins (ils utilisent le formulaire admin)
+  const chaufCard = document.getElementById('chauf-adblue-card');
+  if (chaufCard) chaufCard.style.display = userIsAdmin() ? 'none' : '';
+
+  // Formulaire admin
   const selVeh = document.getElementById('ab-ong-veh');
   if (selVeh && selVeh.options.length <= 0) {
-    // Uniquement les véhicules concernés par l'AdBlue
     selVeh.innerHTML = ORDRE_VEHICULES
       .filter(id => VEHICULES_ADBLUE.includes(id))
       .map(id => {
@@ -3462,10 +3484,9 @@ function initAdBlueOnglet() {
       selFilt.appendChild(opt);
     });
   }
-  // Pré-remplir km avec le km actuel du véhicule sélectionné
   const vehId = selVeh ? selVeh.value : null;
-  const veh = vehId ? vehicules.find(x => x.id === vehId) : null;
-  const kmEl = document.getElementById('ab-ong-km');
+  const veh   = vehId ? vehicules.find(x => x.id === vehId) : null;
+  const kmEl  = document.getElementById('ab-ong-km');
   if (kmEl && veh) kmEl.value = veh.km;
   document.getElementById('ab-ong-date').value = new Date().toISOString().slice(0,10);
   renderAdBlueTable();
