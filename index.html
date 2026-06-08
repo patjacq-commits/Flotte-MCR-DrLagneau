@@ -1508,10 +1508,10 @@ td.ok { color: var(--vert); font-weight: 600; }
         style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:140px">
         <option value="">Tous les véhicules</option>
       </select>
-      <input type="date" id="maint-filter-debut" onchange="renderMaintTable()"
-        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:120px" />
-      <input type="date" id="maint-filter-fin" onchange="renderMaintTable()"
-        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:120px" />
+      <select id="maint-filter-date" onchange="renderMaintTable()"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:13px;flex:1;min-width:140px">
+        <option value="">Toutes les dates</option>
+      </select>
       <button class="btn btn-sm" onclick="resetFiltresMaint()">✕</button>
     </div>
     <div class="table-wrap">
@@ -6572,9 +6572,8 @@ function afficherRappelSauvegarde(moisNom, nbVehicules) {
 }
 
 function resetFiltresMaint() {
-  const fv = document.getElementById('maint-filter-veh');   if(fv) fv.value='';
-  const fd = document.getElementById('maint-filter-debut'); if(fd) fd.value='';
-  const ff = document.getElementById('maint-filter-fin');   if(ff) ff.value='';
+  const fv = document.getElementById('maint-filter-veh');  if(fv) fv.value='';
+  const fd = document.getElementById('maint-filter-date'); if(fd) fd.value='';
   renderMaintTable();
 }
 
@@ -6593,14 +6592,31 @@ function renderMaintTable() {
       });
   }
 
-  const filtVeh = selFilt?.value || '';
-  const filtDeb = document.getElementById('maint-filter-debut')?.value || '';
-  const filtFin = document.getElementById('maint-filter-fin')?.value || '';
+  // Peupler le filtre date avec les dates existantes (ordre décroissant)
+  const selDate = document.getElementById('maint-filter-date');
+  if (selDate) {
+    const datesUniques  = [...new Set(maintenances.map(m => m.date))].sort().reverse();
+    const existantes    = Array.from(selDate.options).map(o => o.value).filter(Boolean);
+    // Ajouter les nouvelles dates manquantes
+    datesUniques.filter(d => !existantes.includes(d)).forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = formatDate(d);
+      const avant = Array.from(selDate.options).find(o => o.value && o.value < d);
+      selDate.insertBefore(opt, avant || null);
+    });
+    // Supprimer les dates qui n'existent plus
+    existantes.filter(d => !datesUniques.includes(d)).forEach(d => {
+      const opt = Array.from(selDate.options).find(o => o.value === d);
+      if (opt) selDate.removeChild(opt);
+    });
+  }
+
+  const filtVeh  = selFilt?.value || '';
+  const filtDate = selDate?.value || '';
 
   let list = [...maintenances];
-  if (filtVeh) list = list.filter(m => m.vehId === filtVeh);
-  if (filtDeb) list = list.filter(m => m.date >= filtDeb);
-  if (filtFin) list = list.filter(m => m.date <= filtFin);
+  if (filtVeh)  list = list.filter(m => m.vehId === filtVeh);
+  if (filtDate) list = list.filter(m => m.date === filtDate);
   list.sort((a,b) => b.date.localeCompare(a.date));
 
   // Lire les photos depuis Firebase (collection photos_maint) ET localStorage
