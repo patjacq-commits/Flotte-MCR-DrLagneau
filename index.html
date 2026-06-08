@@ -1668,43 +1668,6 @@ td.ok { color: var(--vert); font-weight: 600; }
       </table>
     </div>
   </div>
-
-  <div class="form-card">
-    <h3>Modifier les données d'un véhicule</h3>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Véhicule</label>
-        <select id="edit-veh" onchange="loadVehData()"></select>
-      </div>
-      <div class="form-group">
-        <label>Kilométrage actuel</label>
-        <input type="number" id="edit-km" />
-      </div>
-      <div class="form-group">
-        <label>CT valable jusqu'au</label>
-        <input type="date" id="edit-ct-valid" />
-      </div>
-      <div class="form-group">
-        <label>🔴 Carte rouge CT — circulation jusqu'au</label>
-        <input type="date" id="edit-ct-carte-rouge" placeholder="Laisser vide si pas de carte rouge" />
-      </div>
-      <div class="form-group">
-        <label>Prochain entretien garage à (km)</label>
-        <input type="number" id="edit-next-entretien-km" />
-      </div>
-      <div class="form-group">
-        <label>Dernier entretien garage le</label>
-        <input type="date" id="edit-last-entretien-date" />
-      </div>
-      <div class="form-group">
-        <label>Dernier entretien garage à (km)</label>
-        <input type="number" id="edit-last-entretien-km" />
-      </div>
-    </div>
-    <div style="margin-top:12px;">
-      <button class="btn primary" onclick="saveVehEdit()">💾 Mettre à jour le véhicule</button>
-    </div>
-  </div>
 </div>
 
 <!-- PAGE PNEUS (admin) -->
@@ -5674,9 +5637,32 @@ function openVehDetail(id) {
   const estEditable = isAdmin;
   const editBtn = estEditable ? `<button class="btn btn-sm primary" style="margin-top:14px" onclick="closeModal('modal-veh');quickEdit('${v.id}')">✏️ Modifier le véhicule</button>` : '';
 
-  // Section éditable admin (carte Total, SPW, extincteur, Recht)
   const adminEdit = estEditable ? `
-    <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">⚙️ Données éditables (admin)</td></tr>
+    <tr><td colspan="2" style="padding:12px 0 6px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">⚙️ Données éditables</td></tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Kilométrage actuel</td>
+      <td><input type="number" id="modal-edit-km" value="${v.km||''}" onchange="updateVehField('${v.id}','km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">CT valable jusqu'au</td>
+      <td><input type="date" id="modal-edit-ct-valid" value="${v.ct_valid||''}" onchange="updateVehField('${v.id}','ct_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">🔴 Carte rouge CT jusqu'au</td>
+      <td><input type="date" id="modal-edit-ct-rouge" value="${v.ct_carte_rouge||''}" onchange="updateVehField('${v.id}','ct_carte_rouge',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%" placeholder="Vide si pas de carte rouge"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Prochain entretien à (km)</td>
+      <td><input type="number" id="modal-edit-next-km" value="${v.prochain_entretien_km||''}" onchange="updateVehField('${v.id}','prochain_entretien_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dernier entretien le</td>
+      <td><input type="date" id="modal-edit-last-ent-date" value="${v.dernier_entretien_date||''}" onchange="updateVehField('${v.id}','dernier_entretien_date',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">Dernier entretien à (km)</td>
+      <td><input type="number" id="modal-edit-last-ent-km" value="${v.dernier_entretien_km||''}" onchange="updateVehField('${v.id}','dernier_entretien_km',parseInt(this.value)||null)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
+    </tr>
     <tr>
       <td style="padding:6px 0;color:var(--texte-sec);font-size:13px">🛡 Assurance valable jusqu'au</td>
       <td><input type="date" value="${v.assurance_valid||''}" onchange="updateVehField('${v.id}','assurance_valid',this.value)" style="border:1.5px solid var(--gris-bord);border-radius:5px;padding:4px 8px;font-size:13px;width:100%"></td>
@@ -7094,11 +7080,7 @@ function saveVehEdit() {
 }
 
 function quickEdit(id) {
-  showPage('garages', document.querySelectorAll('.tab-btn')[4]);
-  setTimeout(() => {
-    const sel = document.getElementById('edit-veh');
-    if (sel) { sel.value = id; loadVehData(); }
-  }, 100);
+  openVehDetail(id);
 }
 
 // ============================================================
