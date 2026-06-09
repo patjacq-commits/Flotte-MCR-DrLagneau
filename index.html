@@ -1937,6 +1937,7 @@ td.ok { color: var(--vert); font-weight: 600; }
       <option value="rv">Rendez-vous planifiés</option>
       <option value="adblue">AdBlue</option>
       <option value="carwash">Car Wash</option>
+      <option value="message">Messages chauffeurs</option>
     </select>
     <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
@@ -3421,10 +3422,21 @@ function renderMessagesChauf() {
   if (!list) return;
 
   let msgs = [...messagesChauf];
+
+  // Les chauffeurs ne voient que leurs propres messages
+  if (!userIsAdmin()) {
+    const moi = currentUser?.nom || '';
+    msgs = msgs.filter(m => m.auteur === moi);
+  }
+
   if (filterVeh)    msgs = msgs.filter(m => m.vehId === filterVeh);
   if (filterStatut) msgs = msgs.filter(m => m.statut === filterStatut);
 
-  const nonLus = messagesChauf.filter(m => m.statut === 'nonlu').length;
+  // Compteur : admins voient tous les non lus, chauffeurs voient les leurs
+  const nonLus = userIsAdmin()
+    ? messagesChauf.filter(m => m.statut === 'nonlu').length
+    : msgs.filter(m => m.statut === 'nonlu').length;
+
   const titreEl = document.getElementById('chauf-nb-titre');
   if (titreEl) titreEl.textContent = `Messages${nonLus > 0 ? ` — ${nonLus} non traité${nonLus>1?'s':''}` : ''}`;
 
@@ -7201,6 +7213,20 @@ function renderHistorique() {
       const v = vehicules.find(x => x.id === m.vehId);
       const detail = [m.rem, m.ext, m.cw === 'oui' ? `CW ${m.cwLieu||''}` : ''].filter(Boolean).join(' — ') || '—';
       rows.push({ date: m.date, veh: v ? v.marque + ' ' + v.immat : m.vehId, type:'Maintenance', km: m.km, detail, srcType:'maintenance', srcId: m.id });
+    });
+  }
+
+  // Messages chauffeurs
+  if (!filterType || filterType === 'message') {
+    messagesChauf.forEach(m => {
+      if (filterVeh && m.vehId !== filterVeh) return;
+      const v    = vehicules.find(x => x.id === m.vehId);
+      const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
+      const prioriteLabel = m.priorite === 'urgent' ? '🚨 Urgent' : 'ℹ️ Info';
+      const statutLabel   = m.statut === 'nonlu' ? '⚠ Non traité' : '✅ Traité';
+      const repNb = (m.reponses||[]).length;
+      const detail = `${prioriteLabel} — ${statutLabel}${repNb ? ' — ' + repNb + ' rép.' : ''} — ${m.auteur} : ${m.msg.slice(0,60)}${m.msg.length>60?'…':''}`;
+      rows.push({ date: m.date, veh: vNom, type:'💬 Message', km: null, detail, srcType:'message', srcId: m.id });
     });
   }
 
