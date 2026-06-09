@@ -38,6 +38,7 @@
   const SUPERADMIN_EMAIL = 'patrick1.jacquemin@volontaires.croix-rouge.be';
   const ADMIN_EMAIL      = 'angelique.valange@croix-rouge.be';
 
+
   // ── État authentification global ────────────────────────────
   let currentUser = null; // { uid, email, role, nom }
 
@@ -1812,6 +1813,7 @@ td.ok { color: var(--vert); font-weight: 600; }
     </div>
     <div id="chauf-pwd-msg" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px"></div>
   </div>
+
 </div>
 
 <!-- PAGE CAR WASH (admin) -->
@@ -3300,19 +3302,21 @@ function sendMessageChauf() {
   const priorite = document.getElementById('chauf-priorite')?.value || 'info';
   if (!vehId || !msg) { toast('Veuillez sélectionner un véhicule et écrire un message.'); return; }
 
-  const v       = vehicules.find(x => x.id === vehId);
-  const vNom    = v ? `${v.marque} — ${v.immat}` : vehId;
-  const nom     = currentUser?.nom || 'Chauffeur';
-  const photos  = _chaufPhotos.filter(Boolean);
+  const v        = vehicules.find(x => x.id === vehId);
+  const vNom     = v ? `${v.marque} — ${v.immat}` : vehId;
+  const nom      = currentUser?.nom || 'Chauffeur';
+  const photos   = _chaufPhotos.filter(Boolean);
   const nbPhotos = photos.length;
 
   const confirmTxt = `Envoyer ce message ?\n\nVéhicule : ${vNom}\nDe : ${nom}\n\n"${msg}"` +
     (nbPhotos ? `\n\n📷 ${nbPhotos} photo(s) jointe(s)` : '');
   if (!confirm(confirmTxt)) return;
 
-  const msgId = Date.now();
+  const msgId   = Date.now();
+  const dateStr = new Date().toLocaleString('fr-BE',
+    { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
 
-  // Stocker les photos dans localStorage séparé
+  // Stocker les photos dans localStorage
   if (nbPhotos) {
     const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
     photosLS[msgId] = photos;
@@ -3329,10 +3333,49 @@ function sendMessageChauf() {
     `Message ${priorite} : ${nom} → ${vNom} — "${msg.slice(0,50)}"${nbPhotos?' — '+nbPhotos+' photo(s)':''}`,
     { vehId, auteur: nom, priorite, nbPhotos });
 
+  // ── Option 1 : Firebase Extension "Trigger Email" ──────────
+  // Crée un document dans la collection 'mail' → email automatique à Patrick
+  try {
+    const sujet = priorite === 'urgent'
+      ? `🚨 [URGENT] Message chauffeur — ${vNom}`
+      : `📋 Message chauffeur — ${vNom}`;
+    db.collection('mail').add({
+      to:      SUPERADMIN_EMAIL,
+      message: {
+        subject: sujet,
+        html: `<p><strong>De :</strong> ${nom}<br>
+               <strong>Véhicule :</strong> ${vNom}<br>
+               <strong>Date :</strong> ${dateStr}<br>
+               <strong>Priorité :</strong> ${priorite === 'urgent' ? '🚨 URGENT' : 'ℹ️ Information'}</p>
+               <hr>
+               <p style="font-size:16px">${msg.replace(/\n/g,'<br>')}</p>
+               ${nbPhotos ? `<p><em>📷 ${nbPhotos} photo(s) jointe(s) — voir l'application</em></p>` : ''}
+               <hr>
+               <p style="color:#999;font-size:12px">MCR Opont Flotte — message automatique</p>`
+      }
+    }).catch(() => {}); // silencieux si Extension pas installée
+  } catch(e) {}
+
   clearChaufForm();
   renderMessagesChauf();
   updateTabChauf();
-  toast(priorite === 'urgent' ? '🚨 Alerte envoyée aux administrateurs !' : '✅ Message envoyé !');
+
+  const msgToast = priorite === 'urgent' ? '🚨 Alerte envoyée !' : '✅ Message envoyé !';
+  toast(msgToast);
+
+  // ── Option B : SMS de secours (tous les messages) ──────────
+  setTimeout(() => {
+    if (confirm('Envoyer aussi un SMS à Patrick ?')) {
+      const smsCorps = encodeURIComponent(
+        (priorite === 'urgent' ? '🚨 URGENT — ' : '') +
+        'MCR Opont — ' + vNom + '\n' +
+        'De : ' + nom + ' (' + dateStr + ')\n\n' +
+        msg +
+        (nbPhotos ? '\n(' + nbPhotos + ' photo(s) dans l\'app)' : '')
+      );
+      window.location.href = 'sms:0496224371?body=' + smsCorps;
+    }
+  }, 400);
 }
 
 function repondreMessage(id) {
@@ -3930,6 +3973,7 @@ async function seDeconnecter() {
   await auth.signOut();
   currentUser = null;
 }
+
 
 async function changerMotDePasse() {
   const actuel  = document.getElementById('chauf-pwd-actuel')?.value || '';
@@ -5737,7 +5781,6 @@ function openVehEdit(id) {
   }
 
   let body = '<div class="form-grid">'
-    + field('Kilométrage actuel (km)',       'number','km',                   v.km)
     + field('CT valable jusqu\'au',           'date',  'ct_valid',            v.ct_valid)
     + field('🔴 Carte rouge CT jusqu\'au',   'date',  'ct_carte_rouge',       v.ct_carte_rouge,    'Laisser vide si aucune')
     + field('Prochain entretien à (km)',     'number','prochain_entretien_km',v.prochain_entretien_km)
