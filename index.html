@@ -3324,10 +3324,12 @@ function sendMessageChauf() {
     localStorage.setItem('mcr_photos_msg', JSON.stringify(photosLS));
   }
 
+  const uid = currentUser?.uid || '';
   messagesChauf.unshift({
-    id: msgId, vehId, auteur: nom, msg,
-    date: new Date().toISOString(),
-    priorite, statut: 'nonlu', reponses: [], nbPhotos
+    id: msgId, vehId, auteur: nom, uid,
+    msg, date: new Date().toISOString(),
+    priorite, statut: 'nonlu', reponses: [], nbPhotos,
+    photosData: photos  // stockage Firestore pour inter-appareils
   });
   saveAll();
   logCreation('messagesChauf',
@@ -3423,10 +3425,13 @@ function renderMessagesChauf() {
 
   let msgs = [...messagesChauf];
 
-  // Les chauffeurs ne voient que leurs propres messages
+  // Les chauffeurs ne voient que leurs propres messages (par uid ou par nom)
   if (!userIsAdmin()) {
-    const moi = currentUser?.nom || '';
-    msgs = msgs.filter(m => m.auteur === moi);
+    const monUid = currentUser?.uid || '';
+    const monNom = currentUser?.nom || '';
+    msgs = msgs.filter(m =>
+      (monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)
+    );
   }
 
   if (filterVeh)    msgs = msgs.filter(m => m.vehId === filterVeh);
@@ -3490,15 +3495,16 @@ function renderMessagesChauf() {
         <div style="font-size:13px">${m.msg}</div>
         <div class="msg-auteur">— ${m.auteur}</div>
         ${(() => {
+          // Photos : Firestore (photosData) en priorité, sinon localStorage
           const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
-          const photos   = photosLS[m.id] || [];
+          const photos   = m.photosData?.length ? m.photosData : (photosLS[m.id] || []);
           return photos.length
             ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">' +
-              photos.map(p => `<img src="${p.data}" alt="${p.name}"
-                style="width:80px;height:60px;object-fit:cover;border-radius:6px;
-                       border:1.5px solid var(--gris-bord);cursor:pointer"
-                onclick="window.open('${p.data}','_blank')" />`).join('') +
-              '</div>'
+              photos.map(p => '<img src="' + p.data + '" alt="' + (p.name||'photo') + '"'
+                + ' style="width:80px;height:60px;object-fit:cover;border-radius:6px;'
+                + 'border:1.5px solid var(--gris-bord);cursor:pointer"'
+                + ' onclick="window.open(this.src,\'_blank\')" />').join('')
+              + '</div>'
             : '';
         })()}
       </div>
