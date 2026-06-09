@@ -4694,71 +4694,71 @@ function renderAccueil() {
       `<div id="bloc-infos-veh"></div>`;
   }
 
-  // ── 5 prochains RV ────────────────────────────────────────
-  const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
-    .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
-    .sort((a,b) => (a.date + (a.heure||'00:00')).localeCompare(b.date + (b.heure||'00:00')))
-    .slice(0, 5);
+  // ── 5 prochains RV — admin uniquement ──────────────────────
+  if (isAdmin) {
+    const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
+      .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
+      .sort((a,b) => (a.date + (a.heure||'00:00')).localeCompare(b.date + (b.heure||'00:00')))
+      .slice(0, 5);
 
-  if (prochainRV.length) {
-    const rvHtml = prochainRV.map(r => {
-      const v = vehicules.find(x => x.id === r.vehId);
-      const vNom = v ? `${v.marque} <b>${v.immat}</b>` : r.vehId;
-      const typeLabel = CT_TYPE_LABELS?.[r.type] || (r.type === 'ct' ? '🏥 CT' : r.type === 'garage' ? '🔧 Entretien' : r.type || '📅 RV');
-      const heureStr  = r.heure ? ` à <b>${r.heure}</b>` : '';
-      const garageStr = (r.result || r.garage) ? ` — ${r.result || r.garage}` : '';
-      const j = Math.round((new Date(r.date) - new Date(today)) / 86400000);
-      const jStr = j === 0 ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui !</span>'
-                 : j === 1 ? '<span style="color:var(--orange);font-weight:700">Demain</span>'
-                 : `<span style="color:var(--texte-sec)">dans ${j}j</span>`;
-      const urgentStyle = j <= 1 ? 'background:var(--orange-clair);' : '';
-      return `<div style="${urgentStyle}display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
-        <div style="min-width:70px;text-align:center">
-          <div style="font-size:12px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
-          <div style="font-size:11px">${jStr}</div>
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px">${vNom}${heureStr}</div>
-          <div style="font-size:12px;color:var(--texte-sec)">${typeLabel}${garageStr}</div>
-        </div>
-        ${isAdmin ? `<button class="btn btn-sm" onclick="openRV('${r.vehId}','${r.type||'ct'}')">✏️</button>` : ''}
-      </div>`;
-    }).join('');
-    document.getElementById('alertes-dashboard').innerHTML += `
-      <div id="bloc-prochains-rv" style="margin-top:14px">
-        <h3 style="margin-bottom:8px">📅 Prochains rendez-vous</h3>
-        <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">${rvHtml}</div>
-      </div>`;
-  }
-
-  // Alertes à surveiller — scindées par catégories (uniquement celles présentes)
-  if (alertesSurveiller.length) {
-    const CATEGORIES = [
-      { key:'ct',         label:'🏥 Contrôle Technique' },
-      { key:'entretien',  label:'🔧 Entretien garage' },
-      { key:'extincteur', label:'🧯 Extincteur' },
-      { key:'assurance',  label:'🛡 Assurance' },
-      { key:'spw',        label:'📋 Vignette SPW' },
-      { key:undefined,    label:'⚠️ Autres' },  // sans catégorie
-    ];
-
-    let htmlSurveiller = '';
-    CATEGORIES.forEach(cat => {
-      const items = cat.key === undefined
-        ? alertesSurveiller.filter(a => !a.category)
-        : alertesSurveiller.filter(a => a.category === cat.key);
-      if (!items.length) return; // catégorie vide → masquée
-      htmlSurveiller += `
-        <div style="margin-bottom:10px">
-          <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;
-            letter-spacing:0.5px;margin-bottom:6px;padding:4px 8px;background:var(--gris-clair);
-            border-radius:4px">${cat.label}</div>
-          <div class="alertes-list">${items.map(a => renderAlerte(a)).join('')}</div>
+    if (prochainRV.length) {
+      const rvHtml = prochainRV.map(r => {
+        const v = vehicules.find(x => x.id === r.vehId);
+        const vNom = v ? `${v.marque} <b>${v.immat}</b>` : r.vehId;
+        const typeLabel = CT_TYPE_LABELS?.[r.type] || (r.type === 'ct' ? '🏥 CT' : r.type === 'garage' ? '🔧 Entretien' : r.type || '📅 RV');
+        const heureStr  = r.heure ? ` à <b>${r.heure}</b>` : '';
+        const garageStr = (r.result || r.garage) ? ` — ${r.result || r.garage}` : '';
+        const j = Math.round((new Date(r.date) - new Date(today)) / 86400000);
+        const jStr = j === 0 ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui !</span>'
+                   : j === 1 ? '<span style="color:var(--orange);font-weight:700">Demain</span>'
+                   : `<span style="color:var(--texte-sec)">dans ${j}j</span>`;
+        const urgentStyle = j <= 1 ? 'background:var(--orange-clair);' : '';
+        return `<div style="${urgentStyle}display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
+          <div style="min-width:70px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
+            <div style="font-size:11px">${jStr}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px">${vNom}${heureStr}</div>
+            <div style="font-size:12px;color:var(--texte-sec)">${typeLabel}${garageStr}</div>
+          </div>
+          <button class="btn btn-sm" onclick="openRV('${r.vehId}','${r.type||'ct'}')">✏️</button>
         </div>`;
-    });
+      }).join('');
+      document.getElementById('alertes-dashboard').innerHTML += `
+        <div id="bloc-prochains-rv" style="margin-top:14px">
+          <h3 style="margin-bottom:8px">📅 Prochains rendez-vous</h3>
+          <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">${rvHtml}</div>
+        </div>`;
+    }
 
-    document.getElementById('alertes-dashboard').innerHTML +=
-      `<div style="margin-top:14px"><h3 style="margin-bottom:10px">⚠️ À surveiller</h3>${htmlSurveiller}</div>`;
+    // Alertes à surveiller — admin uniquement
+    if (alertesSurveiller.length) {
+      const CATEGORIES = [
+        { key:'ct',         label:'🏥 Contrôle Technique' },
+        { key:'entretien',  label:'🔧 Entretien garage' },
+        { key:'extincteur', label:'🧯 Extincteur' },
+        { key:'assurance',  label:'🛡 Assurance' },
+        { key:'spw',        label:'📋 Vignette SPW' },
+        { key:undefined,    label:'⚠️ Autres' },
+      ];
+      let htmlSurveiller = '';
+      CATEGORIES.forEach(cat => {
+        const items = cat.key === undefined
+          ? alertesSurveiller.filter(a => !a.category)
+          : alertesSurveiller.filter(a => a.category === cat.key);
+        if (!items.length) return;
+        htmlSurveiller += `
+          <div style="margin-bottom:10px">
+            <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;
+              letter-spacing:0.5px;margin-bottom:6px;padding:4px 8px;background:var(--gris-clair);
+              border-radius:4px">${cat.label}</div>
+            <div class="alertes-list">${items.map(a => renderAlerte(a)).join('')}</div>
+          </div>`;
+      });
+      document.getElementById('alertes-dashboard').innerHTML +=
+        `<div style="margin-top:14px"><h3 style="margin-bottom:10px">⚠️ À surveiller</h3>${htmlSurveiller}</div>`;
+    }
   }
 
   updateTabAlertes();
