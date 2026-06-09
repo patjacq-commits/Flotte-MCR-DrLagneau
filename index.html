@@ -1211,18 +1211,10 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div style="margin-top:6px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <h3 id="chauf-nb-titre">Messages</h3>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="chauf-filter" onchange="renderMessagesChauf()"
-          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
-          <option value="">Tous les véhicules</option>
-        </select>
-        <select id="chauf-filter-statut" onchange="renderMessagesChauf()"
-          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
-          <option value="">Tous</option>
-          <option value="nonlu">Non traités</option>
-          <option value="lu">Traités</option>
-        </select>
-      </div>
+      <select id="chauf-filter" onchange="renderMessagesChauf()"
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
+        <option value="">Tous les véhicules</option>
+      </select>
     </div>
     <div id="chauf-msg-list" class="msg-list"></div>
   </div>
@@ -3124,6 +3116,116 @@ function afficherDetailJour(dateStr) {
 // ============================================================
 
 const VEHICULES_ADBLUE_CHAUF = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
+
+function renderMessagesChauf() {
+  const filterVeh = document.getElementById('chauf-filter')?.value || '';
+  const list      = document.getElementById('chauf-msg-list');
+  if (!list) return;
+
+  let msgs = [...messagesChauf];
+
+  // Admin : uniquement les non-traités et urgents (traités → historique)
+  // Chauffeur : uniquement ses propres messages non traités
+  if (userIsAdmin()) {
+    msgs = msgs.filter(m => m.statut === 'nonlu' || m.priorite === 'urgent');
+  } else {
+    const monUid = currentUser?.uid || '';
+    const monNom = currentUser?.nom || '';
+    msgs = msgs.filter(m =>
+      ((monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)) &&
+      m.statut === 'nonlu'
+    );
+  }
+
+  if (filterVeh) msgs = msgs.filter(m => m.vehId === filterVeh);
+
+  // Compteur titre
+  const nonLus  = msgs.filter(m => m.statut === 'nonlu').length;
+  const titreEl = document.getElementById('chauf-nb-titre');
+  if (titreEl) titreEl.textContent = `Messages${nonLus > 0 ? ` — ${nonLus} non traité${nonLus>1?'s':''}` : ''}`;
+
+  if (!msgs.length) {
+    list.innerHTML = userIsAdmin()
+      ? '<p style="color:var(--texte-sec);padding:16px">✅ Aucun message en attente.</p>'
+      : '<p style="color:var(--texte-sec);padding:16px">Aucun message non traité.</p>';
+    return;
+  }
+
+  list.innerHTML = msgs.map(m => {
+    const v       = vehicules.find(x => x.id === m.vehId);
+    const vNom    = v ? `${v.marque} — ${v.immat}` : m.vehId;
+    const dateStr = new Date(m.date).toLocaleString('fr-BE',
+      { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    const isNonLu  = m.statut === 'nonlu';
+    const isUrgent = m.priorite === 'urgent';
+
+    // Réponses
+    const repHtml = (m.reponses||[]).map(r => {
+      const rDate = new Date(r.date).toLocaleString('fr-BE',
+        { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<div class="msg-reponse">
+        <span class="msg-rep-auteur">↩ ${r.auteur}</span>
+        <span class="msg-rep-date">${rDate}</span>
+        <div class="msg-rep-texte">${r.texte}</div>
+      </div>`;
+    }).join('');
+
+    // Zone de réponse (admin uniquement)
+    const repInput = userIsAdmin() ? `
+      <div class="msg-reply-zone">
+        <textarea id="reponse-input-${m.id}" placeholder="Votre réponse…"
+          style="width:100%;min-height:50px;border:1.5px solid var(--gris-bord);
+                 border-radius:6px;padding:7px 10px;font-size:13px;resize:vertical"></textarea>
+        <button class="btn btn-sm primary" style="margin-top:6px"
+          onclick="repondreMessage(${m.id})">↩ Répondre</button>
+      </div>` : '';
+
+    // Boutons admin
+    const adminBtns = userIsAdmin() ? `
+      ${isNonLu
+        ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
+             onclick="markChaufLu(${m.id})">✅ Marquer traité</button>`
+        : `<button class="btn btn-sm" style="color:var(--gris)"
+             onclick="markChaufNonLu(${m.id})">↩ Rouvrir</button>`}
+      <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+        onclick="deleteChauf(${m.id})">🗑</button>` : '';
+
+    // Bouton supprimer chauffeur
+    const chaufDeleteBtn = !userIsAdmin()
+      ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+           onclick="deleteChaufMsg(${m.id})">🗑 Supprimer</button>`
+      : '';
+
+    const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+    const photos   = m.photosData?.length ? m.photosData : (photosLS[m.id] || []);
+    const photosHtml = photos.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
+        + photos.map(p => '<img src="' + p.data + '" alt="photo"'
+          + ' style="width:80px;height:60px;object-fit:cover;border-radius:6px;'
+          + 'border:1.5px solid var(--gris-bord);cursor:pointer"'
+          + ' onclick="window.open(this.src,\'_blank\')" />').join('')
+        + '</div>'
+      : '';
+
+    return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
+      <div class="msg-header">
+        <span class="badge ${isUrgent ? 'urgent' : isNonLu ? 'warn' : 'ok'}" style="font-size:10px">
+          ${isUrgent ? '🚨 Urgent' : isNonLu ? '⚠ Non traité' : '✅ Traité'}
+        </span>
+        <span class="msg-veh">🚑 ${vNom}</span>
+        <span class="msg-date">${dateStr}</span>
+      </div>
+      <div class="msg-body">
+        <div style="font-size:13px">${m.msg}</div>
+        <div class="msg-auteur">— ${m.auteur}</div>
+        ${photosHtml}
+      </div>
+      ${repHtml}${repInput}
+      ${adminBtns || chaufDeleteBtn
+        ? `<div class="msg-actions">${adminBtns}${chaufDeleteBtn}</div>` : ''}
+    </div>`;
+  }).join('');
+}
 
 function initChauf() {
   // Tri alphabétique des véhicules par marque
