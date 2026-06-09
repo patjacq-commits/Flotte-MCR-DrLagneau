@@ -1058,14 +1058,14 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn" onclick="showPage('alertes',this)">🔔 Alertes</button>
   <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
-  <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Messages</button>
+  <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Signaler un problème</button>
   <button class="tab-btn admin-only" onclick="showPage('statistiques',this)" style="display:none">💰 Coûts</button>
   <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
   <button class="tab-btn" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
   <button class="tab-btn admin-only" onclick="showPage('pneus',this)" style="display:none">🛞 Pneus</button>
   <button class="tab-btn" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
-  <button class="tab-btn admin-only" onclick="showPage('historique',this)" style="display:none">📋 Historique</button>
+  <button class="tab-btn" onclick="showPage('historique',this)" style="display:none">📋 Historique</button>
   <button class="tab-btn admin-only" onclick="showPage('rapports',this)" style="display:none">📄 Rapports</button>
   <button class="tab-btn superadmin-only" onclick="showPage('comptes',this)" style="display:none">👥 Comptes</button>
   <button class="tab-btn" onclick="showPage('profil',this)">⚙️ Profil</button>
@@ -3195,38 +3195,41 @@ function renderMessagesChauf() {
            onclick="deleteChaufMsg(${m.id})">🗑 Supprimer</button>`
       : '';
 
-    const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
-    const photos   = photosLS[m.id] || [];
-    // Charger depuis Firestore si pas en localStorage (autre appareil)
-    if (!photos.length && m.nbPhotos > 0) {
+    const photosLS  = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+    // Priorité : photosData dans le message (anciens) > localStorage > Firestore async
+    const photosSync = m.photosData?.length ? m.photosData : (photosLS[m.id] || []);
+
+    // Charger depuis Firestore si aucune photo locale et nbPhotos > 0
+    if (!photosSync.length && m.nbPhotos > 0) {
       db.collection('photos_msg').doc(String(m.id)).get()
         .then(doc => {
-          if (doc.exists) {
-            const p = doc.data().photos || [];
-            if (p.length) {
-              const pls = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
-              pls[m.id] = p;
-              localStorage.setItem('mcr_photos_msg', JSON.stringify(pls));
-              // Rafraîchir l'affichage
-              const el = document.getElementById('photos-msg-' + m.id);
-              if (el) el.innerHTML = p.map(ph =>
-                '<img src="' + ph.data + '" style="width:80px;height:60px;object-fit:cover;'
-                + 'border-radius:6px;border:1.5px solid var(--gris-bord);cursor:pointer;margin:2px"'
-                + ' onclick="window.open(this.src,\'_blank\')" />').join('');
-            }
-          }
+          if (!doc.exists) return;
+          const p = doc.data().photos || [];
+          if (!p.length) return;
+          // Mettre en cache localStorage
+          const pls = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+          pls[m.id] = p;
+          localStorage.setItem('mcr_photos_msg', JSON.stringify(pls));
+          // Injecter dans le DOM sans tout redessiner
+          const el = document.getElementById('photos-msg-' + m.id);
+          if (el) el.innerHTML = p.map(ph =>
+            '<img src="' + ph.data + '" style="width:80px;height:60px;object-fit:cover;'
+            + 'border-radius:6px;border:1.5px solid var(--gris-bord);cursor:pointer;margin:2px"'
+            + ' onclick="window.open(this.src,\'_blank\')" />').join('');
         }).catch(() => {});
     }
-    const photosHtml = photos.length
+
+    const photosHtml = photosSync.length
       ? '<div id="photos-msg-' + m.id + '" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
-        + photos.map(p => '<img src="' + p.data + '" alt="photo"'
-          + ' style="width:80px;height:60px;object-fit:cover;border-radius:6px;'
-          + 'border:1.5px solid var(--gris-bord);cursor:pointer"'
-          + ' onclick="window.open(this.src,\'_blank\')" />').join('')
+        + photosSync.map(p =>
+            '<img src="' + p.data + '" alt="photo"'
+            + ' style="width:80px;height:60px;object-fit:cover;border-radius:6px;'
+            + 'border:1.5px solid var(--gris-bord);cursor:pointer"'
+            + ' onclick="window.open(this.src,\'_blank\')" />').join('')
         + '</div>'
       : m.nbPhotos > 0
-        ? '<div id="photos-msg-' + m.id + '" style="color:var(--texte-sec);font-size:12px;margin-top:4px">'
-          + '📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
+        ? '<div id="photos-msg-' + m.id + '" style="color:var(--texte-sec);font-size:12px;'
+          + 'margin-top:4px">📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
         : '';
 
     return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
@@ -3532,11 +3535,12 @@ function repondreMessage(id) {
   saveAll();
   logCreation('messagesChauf', `Réponse admin : "${texte.slice(0,50)}"`, { messageId: id });
   renderMessagesChauf();
-  // Rafraîchir l'historique — le message traité y apparaît maintenant
+  updateTabChauf();
+  // Rafraîchir historique si ouvert
   if (document.getElementById('page-historique')?.classList.contains('active')) {
     renderHistorique();
   }
-  toast('✅ Réponse envoyée');
+  toast('✅ Réponse envoyée — visible dans l\'onglet Historique du chauffeur');
 }
 
 function markChaufLu(id) {
