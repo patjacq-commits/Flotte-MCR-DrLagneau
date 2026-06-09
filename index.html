@@ -3477,7 +3477,6 @@ function ajouterPhotoChauf(input) {
   const deja  = _chaufPhotos.filter(Boolean).length;
   const reste = 5 - deja;
   files.slice(0, reste).forEach(file => {
-    if (file.size > 3 * 1024 * 1024) { toast('"' + file.name + '" trop lourde (max 3 Mo).'); return; }
     const reader = new FileReader();
     reader.onload = e => {
       const idx = _chaufPhotos.length;
