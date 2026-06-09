@@ -1851,6 +1851,28 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- PAGE PROFIL -->
 <div id="page-profil" class="page">
   <h2 style="margin-bottom:14px">⚙️ Mon profil</h2>
+
+  <!-- Numéro de portable -->
+  <div class="form-card" style="max-width:480px;margin-bottom:14px">
+    <h3>📱 Mon numéro de portable</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
+      Patrick pourra vous rappeler directement depuis l'app.
+    </p>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div class="form-group" style="flex:1;margin:0">
+        <label>Numéro (ex: 0477 123 456)</label>
+        <input type="tel" id="profil-telephone" placeholder="0477 123 456"
+          autocomplete="tel" inputmode="tel"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;
+                 padding:10px 12px;font-size:16px" />
+      </div>
+      <button class="btn primary" onclick="sauvegarderTelephone()"
+        style="padding:10px 18px;white-space:nowrap">💾 Enregistrer</button>
+    </div>
+    <div id="profil-tel-msg" style="display:none;margin-top:8px;font-size:13px;
+         padding:6px 10px;border-radius:6px"></div>
+  </div>
+
   <div class="form-card" id="chauf-pwd-card" style="max-width:480px">
     <h3>🔑 Changer mon mot de passe</h3>
     <div class="form-grid">
@@ -3191,9 +3213,9 @@ function renderMessagesChauf() {
 
   let msgs = [...messagesChauf];
 
-  // Admin : uniquement les non-traités (urgents ou non)
+  // Admin : non traités (nonlu + attente) ; traités → historique
   if (userIsAdmin()) {
-    msgs = msgs.filter(m => m.statut === 'nonlu');
+    msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'attente' || !m.statut);
   } else {
     const monUid = currentUser?.uid || '';
     const monNom = currentUser?.nom || '';
@@ -3222,8 +3244,12 @@ function renderMessagesChauf() {
     const vNom    = v ? `${v.marque} — ${v.immat}` : m.vehId;
     const dateStr = new Date(m.date).toLocaleString('fr-BE',
       { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    const isNonLu  = m.statut === 'nonlu';
-    const isUrgent = m.priorite === 'urgent';
+    const isNonLu   = !m.statut || m.statut === 'nonlu';
+    const isAttente = m.statut === 'attente';
+    const isTraite  = m.statut === 'traite' || m.statut === 'lu';
+    const isUrgent  = m.priorite === 'urgent';
+    const badgeCls  = isUrgent ? 'urgent' : isAttente ? 'warn' : isNonLu ? 'warn' : 'ok';
+    const badgeTxt  = isUrgent ? '🚨 Urgent' : isAttente ? '⏳ En attente' : isNonLu ? '⚠ Non traité' : '✅ Traité';
 
     // Réponses
     const repHtml = (m.reponses||[]).map(r => {
@@ -3236,25 +3262,34 @@ function renderMessagesChauf() {
       </div>`;
     }).join('');
 
-    // Zone de réponse (admin uniquement)
-    const repInput = userIsAdmin() ? `
-      <div class="msg-reply-zone">
-        <textarea id="reponse-input-${m.id}" placeholder="Votre réponse…"
-          style="width:100%;min-height:50px;border:1.5px solid var(--gris-bord);
-                 border-radius:6px;padding:7px 10px;font-size:13px;resize:vertical"></textarea>
-        <button class="btn btn-sm primary" style="margin-top:6px"
-          onclick="repondreMessage(${m.id})">↩ Répondre</button>
-      </div>` : '';
-
-    // Boutons admin
-    const adminBtns = userIsAdmin() ? `
-      ${isNonLu
+    // Zone admin : téléphone + boutons statut
+    const adminBtns = userIsAdmin() ? (() => {
+      // Chercher le téléphone du chauffeur dans roles
+      const tel = window._rolesTelephones?.[m.uid] || '';
+      const telHtml = tel
+        ? `<a href="tel:${tel.replace(/\s/g,'')}"
+             style="display:inline-flex;align-items:center;gap:6px;
+                    background:var(--vert);color:#fff;border-radius:8px;
+                    padding:8px 14px;font-size:14px;font-weight:700;
+                    text-decoration:none;margin-bottom:8px">
+             📱 Rappeler ${m.auteur} — ${tel}
+           </a><br>`
+        : `<span style="font-size:12px;color:var(--texte-sec);margin-bottom:8px;display:block">
+             📱 Numéro non renseigné par le chauffeur
+           </span>`;
+      const btnTraite  = m.statut !== 'traite'
         ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
-             onclick="markChaufLu(${m.id})">✅ Marquer traité</button>`
-        : `<button class="btn btn-sm" style="color:var(--gris)"
-             onclick="markChaufNonLu(${m.id})">↩ Rouvrir</button>`}
-      <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-        onclick="deleteChauf(${m.id})">🗑</button>` : '';
+               onclick="markChaufLu(${m.id})">✅ Traité</button>`
+        : `<button class="btn btn-sm" style="color:var(--gris);border-color:var(--gris)"
+               onclick="markChaufNonLu(${m.id})">↩ Rouvrir</button>`;
+      const btnAttente = m.statut !== 'attente' && m.statut !== 'traite'
+        ? `<button class="btn btn-sm" style="color:var(--orange);border-color:var(--orange)"
+               onclick="markChaufAttente(${m.id})">⏳ En attente</button>`
+        : '';
+      const btnDel = `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+               onclick="deleteChauf(${m.id})">🗑</button>`;
+      return telHtml + btnTraite + ' ' + btnAttente + ' ' + btnDel;
+    })() : '';
 
     // Bouton supprimer chauffeur
     const chaufDeleteBtn = !userIsAdmin()
@@ -3299,11 +3334,9 @@ function renderMessagesChauf() {
           + 'margin-top:4px">📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
         : '';
 
-    return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
+    return `<div class="msg-card ${isNonLu||isAttente ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
       <div class="msg-header">
-        <span class="badge ${isUrgent ? 'urgent' : isNonLu ? 'warn' : 'ok'}" style="font-size:10px">
-          ${isUrgent ? '🚨 Urgent' : isNonLu ? '⚠ Non traité' : '✅ Traité'}
-        </span>
+        <span class="badge ${badgeCls}" style="font-size:10px">${badgeTxt}</span>
         <span class="msg-veh">🚑 ${vNom}</span>
         <span class="msg-date">${dateStr}</span>
       </div>
@@ -3312,7 +3345,7 @@ function renderMessagesChauf() {
         <div class="msg-auteur">— ${m.auteur}</div>
         ${photosHtml}
       </div>
-      ${repHtml}${repInput}
+      ${repHtml}
       ${adminBtns || chaufDeleteBtn
         ? `<div class="msg-actions">${adminBtns}${chaufDeleteBtn}</div>` : ''}
     </div>`;
@@ -3328,13 +3361,23 @@ let _chaufPhotos   = [];
 function markChaufLu(id) {
   const m = messagesChauf.find(x => x.id === id);
   if (!m) return;
-  m.statut = 'lu';
+  m.statut = 'traite';
   saveAll();
   renderMessagesChauf();
   updateTabChauf();
   if (document.getElementById('page-historique')?.classList.contains('active'))
     renderHistorique();
-  toast('✅ Message traité — visible dans Historique');
+  toast('✅ Message traité — transféré dans l\'Historique');
+}
+
+function markChaufAttente(id) {
+  const m = messagesChauf.find(x => x.id === id);
+  if (!m) return;
+  m.statut = 'attente';
+  saveAll();
+  renderMessagesChauf();
+  updateTabChauf();
+  toast('⏳ Message mis en attente');
 }
 
 function markChaufNonLu(id) {
@@ -3352,6 +3395,44 @@ function deleteChauf(id) {
   saveAll();
   renderMessagesChauf();
   updateTabChauf();
+}
+
+async function sauvegarderTelephone() {
+  const tel   = document.getElementById('profil-telephone')?.value?.trim() || '';
+  const msgEl = document.getElementById('profil-tel-msg');
+  if (!tel) {
+    if (msgEl) { msgEl.textContent='❌ Veuillez saisir un numéro.'; msgEl.style.cssText='display:block;background:var(--rouge-clair);color:var(--rouge);padding:6px 10px;border-radius:6px;font-size:13px'; }
+    return;
+  }
+  try {
+    await db.collection('roles').doc(currentUser.uid).set({ telephone: tel }, { merge: true });
+    if (msgEl) { msgEl.textContent='✅ Numéro enregistré !'; msgEl.style.cssText='display:block;background:var(--vert-clair);color:var(--vert);padding:6px 10px;border-radius:6px;font-size:13px'; }
+    setTimeout(() => { if (msgEl) msgEl.style.display='none'; }, 3000);
+  } catch(e) {
+    if (msgEl) { msgEl.textContent='❌ Erreur : '+e.message; msgEl.style.display='block'; }
+  }
+}
+
+async function chargerTelephones() {
+  if (!userIsAdmin()) return;
+  try {
+    const snap = await db.collection('roles').get();
+    window._rolesTelephones = {};
+    snap.docs.forEach(d => {
+      const data = d.data();
+      if (data.telephone) window._rolesTelephones[d.id] = data.telephone;
+    });
+  } catch(e) {}
+}
+
+function initProfil() {
+  if (!currentUser?.uid) return;
+  db.collection('roles').doc(currentUser.uid).get().then(doc => {
+    if (doc.exists && doc.data().telephone) {
+      const el = document.getElementById('profil-telephone');
+      if (el) el.value = doc.data().telephone;
+    }
+  }).catch(() => {});
 }
 
 function repondreMessage(id) {
@@ -3805,6 +3886,7 @@ function showPage(id, btn) {
   if (id === 'alertes')     renderAlertesFull();
   if (id === 'kilometrage') initKilometrage();
   if (id === 'historique') renderHistorique();
+  if (id === 'profil')     initProfil();
   if (id === 'garages') populateEditSelects();
   if (id === 'maintenance') populateMaintSelect();
   if (id === 'carwash') initCarWash();
@@ -4229,6 +4311,7 @@ function appliquerDroits() {
   updateTabChauf();
   updateNavbarMaint();
   if (userIsSuperAdmin()) updateBadgeComptes();
+  if (userIsAdmin()) chargerTelephones();
 
   // Programmer le résumé quotidien à 7h00
   setTimeout(() => programmerResumeQuotidien(), 1000);
