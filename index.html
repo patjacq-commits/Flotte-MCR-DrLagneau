@@ -3217,20 +3217,25 @@ function renderMessagesChauf() {
   if (userIsAdmin()) {
     msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'attente' || !m.statut);
   } else {
+    // Chauffeur : uniquement ses messages nonlu (attente et traite sont côté admin)
     const monUid = currentUser?.uid || '';
     const monNom = currentUser?.nom || '';
     msgs = msgs.filter(m =>
       ((monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)) &&
-      m.statut === 'nonlu'
+      (m.statut === 'nonlu' || m.statut === 'attente' || !m.statut)
     );
   }
 
   if (filterVeh) msgs = msgs.filter(m => m.vehId === filterVeh);
 
-  // Compteur titre
-  const nonLus  = msgs.filter(m => m.statut === 'nonlu').length;
+  // Titre : admin = nb total non traités ; chauffeur = ses messages en cours
+  const nbActifs = userIsAdmin()
+    ? messagesChauf.filter(m => m.statut === 'nonlu' || m.statut === 'attente' || !m.statut).length
+    : msgs.length;
   const titreEl = document.getElementById('chauf-nb-titre');
-  if (titreEl) titreEl.textContent = `Messages${nonLus > 0 ? ` — ${nonLus} non traité${nonLus>1?'s':''}` : ''}`;
+  if (titreEl) titreEl.textContent = nbActifs > 0
+    ? `Signalements en cours (${nbActifs})`
+    : 'Signalements en cours';
 
   if (!msgs.length) {
     list.innerHTML = userIsAdmin()
@@ -5399,26 +5404,23 @@ function updateTabAlertes() {
 function updateTabChauf() {
   const tab = document.getElementById('tab-chauf');
   if (!tab) return;
-  const nonLus = messagesChauf.filter(m => m.statut === 'nonlu').length;
+  // Badge = messages non traités (nonlu + attente)
+  const nbActifs = messagesChauf.filter(m =>
+    m.statut === 'nonlu' || m.statut === 'attente' || !m.statut
+  ).length;
 
-  // Badge sur l'onglet
   let badge = tab.querySelector('.tab-badge');
-  if (nonLus > 0) {
+  if (nbActifs > 0) {
     if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge'; tab.appendChild(badge); }
-    badge.textContent = nonLus;
+    badge.textContent = nbActifs;
   } else if (badge) badge.remove();
 
-  // Clignotement côté admin seulement si messages non lus
-  const shouldPulse = isAdmin && nonLus > 0 && !tab.classList.contains('active');
+  const shouldPulse = isAdmin && nbActifs > 0 && !tab.classList.contains('active');
   tab.classList.toggle('tab-msg-urgent', shouldPulse);
 
-  // ── Badge sur l'icône de la PWA (Android / Chrome) ───────
   if ('setAppBadge' in navigator) {
-    if (nonLus > 0) {
-      navigator.setAppBadge(nonLus).catch(() => {});
-    } else {
-      navigator.clearAppBadge().catch(() => {});
-    }
+    if (nbActifs > 0) navigator.setAppBadge(nbActifs).catch(() => {});
+    else              navigator.clearAppBadge().catch(() => {});
   }
 }
 
@@ -7358,7 +7360,8 @@ function renderHistorique() {
     if (tableView)   tableView.style.display   = '';
 
     const mesMsgs = messagesChauf.filter(m =>
-      (monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)
+      ((monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)) &&
+      (m.statut === 'traite' || m.statut === 'lu')
     ).sort((a,b) => b.date.localeCompare(a.date));
 
     if (tbody) {
@@ -7472,9 +7475,11 @@ function renderHistorique() {
     });
   }
 
-  // Messages chauffeurs
+  // Messages chauffeurs — uniquement traités dans l'historique
   if (!filterType || filterType === 'message') {
-    messagesChauf.forEach(m => {
+    messagesChauf
+      .filter(m => m.statut === 'traite' || m.statut === 'lu')
+      .forEach(m => {
       if (filterVeh && m.vehId !== filterVeh) return;
       const v    = vehicules.find(x => x.id === m.vehId);
       const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
