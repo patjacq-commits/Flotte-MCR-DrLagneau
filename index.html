@@ -3191,10 +3191,9 @@ function renderMessagesChauf() {
 
   let msgs = [...messagesChauf];
 
-  // Admin : uniquement les non-traités et urgents (traités → historique)
-  // Chauffeur : uniquement ses propres messages non traités
+  // Admin : uniquement les non-traités (urgents ou non)
   if (userIsAdmin()) {
-    msgs = msgs.filter(m => m.statut === 'nonlu' || m.priorite === 'urgent');
+    msgs = msgs.filter(m => m.statut === 'nonlu');
   } else {
     const monUid = currentUser?.uid || '';
     const monNom = currentUser?.nom || '';
@@ -3325,6 +3324,56 @@ let _chaufVehId    = '';
 let _chaufCat      = '';
 let _chaufUrgence  = 'info';
 let _chaufPhotos   = [];
+
+function markChaufLu(id) {
+  const m = messagesChauf.find(x => x.id === id);
+  if (!m) return;
+  m.statut = 'lu';
+  saveAll();
+  renderMessagesChauf();
+  updateTabChauf();
+  if (document.getElementById('page-historique')?.classList.contains('active'))
+    renderHistorique();
+  toast('✅ Message traité — visible dans Historique');
+}
+
+function markChaufNonLu(id) {
+  const m = messagesChauf.find(x => x.id === id);
+  if (!m) return;
+  m.statut = 'nonlu';
+  saveAll();
+  renderMessagesChauf();
+  updateTabChauf();
+}
+
+function deleteChauf(id) {
+  if (!confirm('Supprimer ce message ?')) return;
+  messagesChauf = messagesChauf.filter(x => x.id !== id);
+  saveAll();
+  renderMessagesChauf();
+  updateTabChauf();
+}
+
+function repondreMessage(id) {
+  if (!userIsAdmin()) return;
+  const texte = document.getElementById('reponse-input-' + id)?.value?.trim();
+  if (!texte) { toast('Réponse vide.'); return; }
+  const m = messagesChauf.find(x => x.id === id);
+  if (!m) return;
+  if (!m.reponses) m.reponses = [];
+  m.reponses.push({
+    auteur: currentUser?.nom || 'Admin',
+    texte,
+    date: new Date().toISOString()
+  });
+  m.statut = 'lu';
+  saveAll();
+  renderMessagesChauf();
+  updateTabChauf();
+  if (document.getElementById('page-historique')?.classList.contains('active'))
+    renderHistorique();
+  toast('✅ Réponse envoyée — visible dans Historique du chauffeur');
+}
 
 function initChauf() {
   // Peupler la grille véhicules (immat bien visible)
