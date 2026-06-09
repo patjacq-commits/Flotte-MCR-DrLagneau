@@ -1053,8 +1053,9 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Messages</button>
+  <button class="tab-btn" onclick="showPage('chauf-hist',this)" id="tab-chauf-hist" style="display:none">📂 Mon historique</button>
   <button class="tab-btn admin-only" onclick="showPage('statistiques',this)" style="display:none">💰 Coûts</button>
-  <button class="tab-btn" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
+  <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
   <button class="tab-btn" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
   <button class="tab-btn admin-only" onclick="showPage('pneus',this)" style="display:none">🛞 Pneus</button>
@@ -1922,7 +1923,19 @@ td.ok { color: var(--vert); font-weight: 600; }
 </div>
 
 <!-- PAGE HISTORIQUE -->
-<div id="page-historique" class="page">
+<!-- PAGE HISTORIQUE CHAUFFEUR -->
+<div id="page-chauf-hist" class="page">
+  <h2 style="margin-bottom:14px">📂 Mon historique</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    <button class="btn btn-sm" onclick="renderChaufHist('messages')" id="chhist-btn-msg">💬 Mes messages</button>
+    <button class="btn btn-sm" onclick="renderChaufHist('maintenance')" id="chhist-btn-maint">🔧 Maintenances</button>
+    <button class="btn btn-sm" onclick="renderChaufHist('adblue')" id="chhist-btn-ab">💧 AdBlue</button>
+    <button class="btn btn-sm" onclick="renderChaufHist('carwash')" id="chhist-btn-cw">🚿 Car Wash</button>
+  </div>
+  <div id="chauf-hist-content"></div>
+</div>
+
+<!-- PAGE HISTORIQUE ADMIN -->
   <h2 style="margin-bottom:14px">📋 Historique complet</h2>
 
   <!-- Filtres globaux -->
@@ -3417,6 +3430,135 @@ function deleteChauf(id) {
   saveAll(); renderMessagesChauf(); updateTabChauf();
 }
 
+// Suppression par le chauffeur (ses propres messages)
+function deleteChaufMsg(id) {
+  if (!confirm('Supprimer ce message de votre historique ?')) return;
+  messagesChauf = messagesChauf.filter(m => m.id !== id);
+  saveAll(); renderMessagesChauf(); updateTabChauf();
+}
+
+// ── Historique chauffeur ─────────────────────────────────────
+function renderChaufHist(type) {
+  const container = document.getElementById('chauf-hist-content');
+  if (!container) return;
+
+  // Surligner le bouton actif
+  ['msg','maint','ab','cw'].forEach(t => {
+    const btn = document.getElementById('chhist-btn-' + t);
+    if (btn) btn.classList.toggle('primary', t === { messages:'msg', maintenance:'maint', adblue:'ab', carwash:'cw' }[type]);
+  });
+
+  const monUid = currentUser?.uid || '';
+  const monNom = currentUser?.nom || '';
+  const fmtDate = iso => iso
+    ? new Date(iso).toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric' })
+    : '—';
+
+  if (type === 'messages') {
+    // Mes messages (tous statuts)
+    const mesMsgs = messagesChauf.filter(m =>
+      (monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)
+    ).sort((a,b) => b.date.localeCompare(a.date));
+
+    if (!mesMsgs.length) {
+      container.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucun message envoyé.</p>';
+      return;
+    }
+    container.innerHTML = mesMsgs.map(m => {
+      const v    = vehicules.find(x => x.id === m.vehId);
+      const vNom = v ? v.marque + ' — ' + v.immat : m.vehId;
+      const dateStr = new Date(m.date).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const statut  = m.statut === 'nonlu' ? '<span class="badge warn">⚠ Non traité</span>' : '<span class="badge ok">✅ Traité</span>';
+      const priorite = m.priorite === 'urgent' ? '<span class="badge urgent" style="font-size:10px">🚨 Urgent</span> ' : '';
+      const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+      const photos   = m.photosData?.length ? m.photosData : (photosLS[m.id] || []);
+      const photosHtml = photos.length
+        ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">'
+          + photos.map(p => '<img src="' + p.data + '" style="width:60px;height:48px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="window.open(this.src,\'_blank\')" />').join('')
+          + '</div>' : '';
+      const repNb = (m.reponses||[]).length;
+      const repHtml = repNb
+        ? '<div style="margin-top:6px;font-size:12px;color:var(--bleu)">💬 '+ repNb +' réponse(s) reçue(s)</div>'
+        : '';
+      return '<div class="form-card" style="padding:10px 14px;margin-bottom:8px">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">'
+        + '<div>'
+        + '<div style="font-size:12px;font-weight:600;margin-bottom:3px">' + priorite + statut + '</div>'
+        + '<div style="font-size:13px;font-weight:700">' + vNom + '</div>'
+        + '<div style="font-size:11px;color:var(--texte-sec)">' + dateStr + '</div>'
+        + '</div>'
+        + '<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteChaufMsg(' + m.id + ')">🗑</button>'
+        + '</div>'
+        + '<div style="font-size:13px;margin-top:6px">' + m.msg + '</div>'
+        + photosHtml + repHtml + '</div>';
+    }).join('');
+
+  } else if (type === 'maintenance') {
+    const rows = maintenances
+      .sort((a,b) => b.date.localeCompare(a.date)).slice(0, 50);
+    if (!rows.length) { container.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucune maintenance enregistrée.</p>'; return; }
+    container.innerHTML = '<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+      + '<thead style="background:var(--gris-clair)"><tr>'
+      + '<th style="padding:7px 10px;text-align:left">Date</th>'
+      + '<th style="padding:7px 10px;text-align:left">Véhicule</th>'
+      + '<th style="padding:7px 10px;text-align:left">Km</th>'
+      + '<th style="padding:7px 10px;text-align:left">Remarque</th>'
+      + '</tr></thead><tbody>'
+      + rows.map(m => {
+          const v = vehicules.find(x => x.id === m.vehId);
+          return '<tr style="border-bottom:0.5px solid var(--gris-bord)">'
+            + '<td style="padding:6px 10px;white-space:nowrap">' + fmtDate(m.date) + '</td>'
+            + '<td style="padding:6px 10px;font-size:12px">' + (v ? v.marque+' '+v.immat : m.vehId) + '</td>'
+            + '<td style="padding:6px 10px">' + (m.km ? parseInt(m.km).toLocaleString('fr-BE')+' km' : '—') + '</td>'
+            + '<td style="padding:6px 10px;font-size:12px;color:var(--texte-sec)">' + (m.rem || '—') + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+
+  } else if (type === 'adblue') {
+    const rows = adblues.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 50);
+    if (!rows.length) { container.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucun AdBlue enregistré.</p>'; return; }
+    container.innerHTML = '<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+      + '<thead style="background:var(--gris-clair)"><tr>'
+      + '<th style="padding:7px 10px;text-align:left">Date</th>'
+      + '<th style="padding:7px 10px;text-align:left">Véhicule</th>'
+      + '<th style="padding:7px 10px;text-align:left">Volume</th>'
+      + '<th style="padding:7px 10px;text-align:left">Montant</th>'
+      + '</tr></thead><tbody>'
+      + rows.map(a => {
+          const v = vehicules.find(x => x.id === a.vehId);
+          return '<tr style="border-bottom:0.5px solid var(--gris-bord)">'
+            + '<td style="padding:6px 10px;white-space:nowrap">' + fmtDate(a.date) + '</td>'
+            + '<td style="padding:6px 10px;font-size:12px">' + (v ? v.marque+' '+v.immat : a.vehId) + '</td>'
+            + '<td style="padding:6px 10px">' + (a.litre ? parseFloat(a.litre).toFixed(1)+' L' : '—') + '</td>'
+            + '<td style="padding:6px 10px">' + (a.prixTotal ? parseFloat(a.prixTotal).toFixed(2)+' €' : '—') + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+
+  } else if (type === 'carwash') {
+    const rows = carwashes.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 50);
+    if (!rows.length) { container.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucun Car Wash enregistré.</p>'; return; }
+    container.innerHTML = '<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+      + '<thead style="background:var(--gris-clair)"><tr>'
+      + '<th style="padding:7px 10px;text-align:left">Date</th>'
+      + '<th style="padding:7px 10px;text-align:left">Véhicule</th>'
+      + '<th style="padding:7px 10px;text-align:left">Lieu</th>'
+      + '<th style="padding:7px 10px;text-align:left">Montant</th>'
+      + '</tr></thead><tbody>'
+      + rows.map(c => {
+          const v = vehicules.find(x => x.id === c.vehId);
+          return '<tr style="border-bottom:0.5px solid var(--gris-bord)">'
+            + '<td style="padding:6px 10px;white-space:nowrap">' + fmtDate(c.date) + '</td>'
+            + '<td style="padding:6px 10px;font-size:12px">' + (v ? v.marque+' '+v.immat : c.vehId) + '</td>'
+            + '<td style="padding:6px 10px">' + (c.lieu || '—') + '</td>'
+            + '<td style="padding:6px 10px">' + (c.montant ? parseFloat(c.montant).toFixed(2)+' €' : '—') + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  }
+}
+
 function renderMessagesChauf() {
   const filterVeh    = document.getElementById('chauf-filter')?.value    || '';
   const filterStatut = document.getElementById('chauf-filter-statut')?.value || '';
@@ -3475,6 +3617,10 @@ function renderMessagesChauf() {
           onclick="repondreMessage(${m.id})">↩ Répondre</button>
       </div>` : '';
 
+    // Côté admin : masquer les messages déjà traités du fil actif
+    // (ils restent accessibles dans l'onglet Historique)
+    if (userIsAdmin() && !isNonLu && !isUrgent) return '';
+
     // Boutons admin
     const adminBtns = userIsAdmin() ? `
       ${isNonLu
@@ -3482,6 +3628,12 @@ function renderMessagesChauf() {
         : `<button class="btn btn-sm" style="color:var(--gris)" onclick="markChaufNonLu(${m.id})">↩ Rouvrir</button>`}
       <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteChauf(${m.id})">🗑</button>
     ` : '';
+
+    // Bouton supprimer pour le chauffeur (ses propres messages)
+    const chaufDeleteBtn = !userIsAdmin()
+      ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+           onclick="deleteChaufMsg(${m.id})">🗑 Supprimer</button>`
+      : '';
 
     return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
       <div class="msg-header">
@@ -3495,7 +3647,6 @@ function renderMessagesChauf() {
         <div style="font-size:13px">${m.msg}</div>
         <div class="msg-auteur">— ${m.auteur}</div>
         ${(() => {
-          // Photos : Firestore (photosData) en priorité, sinon localStorage
           const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
           const photos   = m.photosData?.length ? m.photosData : (photosLS[m.id] || []);
           return photos.length
@@ -3510,7 +3661,7 @@ function renderMessagesChauf() {
       </div>
       ${repHtml}
       ${repInput}
-      ${adminBtns ? `<div class="msg-actions">${adminBtns}</div>` : ''}
+      ${adminBtns || chaufDeleteBtn ? `<div class="msg-actions">${adminBtns}${chaufDeleteBtn}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -3700,6 +3851,7 @@ function showPage(id, btn) {
   if (id === 'vehicules')   renderVehicules();
   if (id === 'alertes')     renderAlertesFull();
   if (id === 'kilometrage') initKilometrage();
+  if (id === 'chauf-hist') renderChaufHist('messages');
   if (id === 'historique') renderHistorique();
   if (id === 'garages') populateEditSelects();
   if (id === 'maintenance') populateMaintSelect();
@@ -4087,16 +4239,20 @@ function appliquerDroits() {
   const tabComptes    = document.querySelector('.tab-btn[onclick*="comptes"]');
 
   // Visibilité des onglets selon le rôle
-  show(tabCalendrier, true);   // tout le monde
-  show(tabMaint,      true);   // chauffeurs : historique lecture seule (formulaire masqué)
+  show(tabCalendrier, true);
+  show(tabMaint,      isAdm);  // admin uniquement
   show(tabGarages,    isAdm);
-  show(tabCW,         true);   // chauffeurs : ajout car wash
+  show(tabCW,         true);
   show(tabPneus,      isAdm);
-  show(tabAdblue,     true);   // chauffeurs : ajout adblue
+  show(tabAdblue,     true);
   show(tabHist,       isAdm);
   show(tabRapports,   isAdm);
   show(tabStats,      isAdm);
   show(tabComptes,    isSA);
+
+  // Onglet "Mon historique" pour les chauffeurs uniquement
+  const tabChaufHist = document.getElementById('tab-chauf-hist');
+  if (tabChaufHist) tabChaufHist.style.display = (!isAdm) ? '' : 'none';
 
   // Formulaire saisie maintenance : superadmin uniquement
   const formSaisie = document.getElementById('maint-form-saisie');
