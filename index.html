@@ -3196,15 +3196,38 @@ function renderMessagesChauf() {
       : '';
 
     const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
-    const photos   = m.photosData?.length ? m.photosData : (photosLS[m.id] || []);
+    const photos   = photosLS[m.id] || [];
+    // Charger depuis Firestore si pas en localStorage (autre appareil)
+    if (!photos.length && m.nbPhotos > 0) {
+      db.collection('photos_msg').doc(String(m.id)).get()
+        .then(doc => {
+          if (doc.exists) {
+            const p = doc.data().photos || [];
+            if (p.length) {
+              const pls = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+              pls[m.id] = p;
+              localStorage.setItem('mcr_photos_msg', JSON.stringify(pls));
+              // Rafraîchir l'affichage
+              const el = document.getElementById('photos-msg-' + m.id);
+              if (el) el.innerHTML = p.map(ph =>
+                '<img src="' + ph.data + '" style="width:80px;height:60px;object-fit:cover;'
+                + 'border-radius:6px;border:1.5px solid var(--gris-bord);cursor:pointer;margin:2px"'
+                + ' onclick="window.open(this.src,\'_blank\')" />').join('');
+            }
+          }
+        }).catch(() => {});
+    }
     const photosHtml = photos.length
-      ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
+      ? '<div id="photos-msg-' + m.id + '" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
         + photos.map(p => '<img src="' + p.data + '" alt="photo"'
           + ' style="width:80px;height:60px;object-fit:cover;border-radius:6px;'
           + 'border:1.5px solid var(--gris-bord);cursor:pointer"'
           + ' onclick="window.open(this.src,\'_blank\')" />').join('')
         + '</div>'
-      : '';
+      : m.nbPhotos > 0
+        ? '<div id="photos-msg-' + m.id + '" style="color:var(--texte-sec);font-size:12px;margin-top:4px">'
+          + '📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
+        : '';
 
     return `<div class="msg-card ${isNonLu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
       <div class="msg-header">
@@ -3426,19 +3449,21 @@ function sendMessageChauf() {
   const dateStr = new Date().toLocaleString('fr-BE',
     { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
 
-  // Stocker les photos dans localStorage
+  // Stocker les photos dans localStorage ET Firestore séparé
   if (nbPhotos) {
     const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
     photosLS[msgId] = photos;
     localStorage.setItem('mcr_photos_msg', JSON.stringify(photosLS));
+    // Firestore collection séparée pour éviter dépassement 1Mo du document message
+    db.collection('photos_msg').doc(String(msgId)).set({ photos }).catch(() => {});
   }
 
   const uid = currentUser?.uid || '';
   messagesChauf.unshift({
     id: msgId, vehId, auteur: nom, uid,
     msg, date: new Date().toISOString(),
-    priorite, statut: 'nonlu', reponses: [], nbPhotos,
-    photosData: photos  // stockage Firestore pour inter-appareils
+    priorite, statut: 'nonlu', reponses: [], nbPhotos
+    // photos stockées séparément dans photos_msg/{msgId}
   });
   saveAll();
   logCreation('messagesChauf',
@@ -3507,12 +3532,25 @@ function repondreMessage(id) {
   saveAll();
   logCreation('messagesChauf', `Réponse admin : "${texte.slice(0,50)}"`, { messageId: id });
   renderMessagesChauf();
+  // Rafraîchir l'historique — le message traité y apparaît maintenant
+  if (document.getElementById('page-historique')?.classList.contains('active')) {
+    renderHistorique();
+  }
   toast('✅ Réponse envoyée');
 }
 
 function markChaufLu(id) {
   const m = messagesChauf.find(x => x.id === id);
-  if (m) { m.statut = 'lu'; saveAll(); renderMessagesChauf(); updateTabChauf(); }
+  if (!m) return;
+  m.statut = 'lu';
+  saveAll();
+  renderMessagesChauf();
+  updateTabChauf();
+  // Rafraîchir l'historique si ouvert, sinon forcer le rechargement au prochain accès
+  if (document.getElementById('page-historique')?.classList.contains('active')) {
+    renderHistorique();
+  }
+  toast('✅ Message marqué traité — visible dans l\'historique');
 }
 
 function markChaufNonLu(id) {
@@ -7269,12 +7307,22 @@ function renderHistorique() {
               : '<span class="badge ok" style="font-size:10px">✅ Traité</span>';
             const priorite = m.priorite === 'urgent'
               ? '<span class="badge urgent" style="font-size:10px">🚨</span> ' : '';
+            const repNb   = (m.reponses || []).length;
+            const repHtml = repNb
+              ? '<div style="margin-top:6px;padding:6px 10px;background:var(--bleu-clair);'
+                + 'border-radius:6px;border-left:3px solid var(--bleu)">'
+                + (m.reponses||[]).map(r =>
+                    '<div style="font-size:12px"><strong>' + r.auteur + '</strong> : '
+                    + r.texte + '</div>'
+                  ).join('')
+                + '</div>'
+              : '';
             return `<tr>
               <td style="padding:7px 10px;white-space:nowrap">${dateStr}</td>
               <td style="font-size:12px">${vNom}</td>
               <td>💬 Message</td>
               <td>—</td>
-              <td style="font-size:12px">${priorite}${statut} — ${m.msg.slice(0,60)}${m.msg.length>60?'…':''}</td>
+              <td style="font-size:12px">${priorite}${statut} — ${m.msg.slice(0,60)}${m.msg.length>60?'…':''}${repHtml}</td>
               <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
                 onclick="deleteChaufMsg(${m.id})">🗑</button></td>
             </tr>`;
