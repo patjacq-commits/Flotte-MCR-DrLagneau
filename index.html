@@ -1059,7 +1059,6 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Messages</button>
-  <button class="tab-btn" onclick="showPage('chauf-hist',this)" id="tab-chauf-hist" style="display:none">📂 Mon historique</button>
   <button class="tab-btn admin-only" onclick="showPage('statistiques',this)" style="display:none">💰 Coûts</button>
   <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
@@ -1920,19 +1919,12 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
 </div>
 
-<!-- PAGE HISTORIQUE -->
-<!-- PAGE HISTORIQUE CHAUFFEUR -->
-<div id="page-chauf-hist" class="page">
-  <h2 style="margin-bottom:4px">📂 Mon historique</h2>
-  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">Vos messages envoyés — tous statuts.</p>
-  <div id="chauf-hist-content"></div>
-</div>
+<!-- PAGE HISTORIQUE (admin : tout / chauffeur : ses messages) -->
+<div id="page-historique" class="page">
+  <h2 style="margin-bottom:14px">📋 Historique</h2>
 
-<!-- PAGE HISTORIQUE ADMIN -->
-  <h2 style="margin-bottom:14px">📋 Historique complet</h2>
-
-  <!-- Filtres globaux -->
-  <div class="export-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+  <!-- Filtres admin uniquement -->
+  <div id="hist-filtres-admin" class="export-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
     <select id="hist-filter-veh" onchange="renderHistorique()">
       <option value="">Tous les véhicules</option>
     </select>
@@ -1943,7 +1935,7 @@ td.ok { color: var(--vert); font-weight: 600; }
       <option value="rv">Rendez-vous planifiés</option>
       <option value="adblue">AdBlue</option>
       <option value="carwash">Car Wash</option>
-      <option value="message">Messages chauffeurs</option>
+      <option value="message">💬 Messages chauffeurs</option>
     </select>
     <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
@@ -3536,11 +3528,11 @@ function deleteChauf(id) {
 
 // Suppression par le chauffeur (ses propres messages)
 function deleteChaufMsg(id) {
-  if (!confirm('Supprimer ce message de votre historique ?')) return;
+  if (!confirm('Supprimer ce message ?')) return;
   messagesChauf = messagesChauf.filter(m => m.id !== id);
   saveAll();
   renderMessagesChauf();
-  renderChaufHist();
+  renderHistorique();
   updateTabChauf();
 }
 
@@ -3791,7 +3783,6 @@ function showPage(id, btn) {
   if (id === 'vehicules')   renderVehicules();
   if (id === 'alertes')     renderAlertesFull();
   if (id === 'kilometrage') initKilometrage();
-  if (id === 'chauf-hist') renderChaufHist();
   if (id === 'historique') renderHistorique();
   if (id === 'garages') populateEditSelects();
   if (id === 'maintenance') populateMaintSelect();
@@ -4180,19 +4171,23 @@ function appliquerDroits() {
 
   // Visibilité des onglets selon le rôle
   show(tabCalendrier, true);
-  show(tabMaint,      isAdm);  // admin uniquement
+  show(tabMaint,      isAdm);
   show(tabGarages,    isAdm);
   show(tabCW,         true);
   show(tabPneus,      isAdm);
   show(tabAdblue,     true);
-  show(tabHist,       isAdm);
+  show(tabHist,       true);   // visible pour tous — filtré selon rôle dans renderHistorique
   show(tabRapports,   isAdm);
   show(tabStats,      isAdm);
   show(tabComptes,    isSA);
 
-  // Onglet "Mon historique" pour les chauffeurs uniquement
+  // Masquer les filtres admin dans l'historique pour les chauffeurs
+  const histFiltresAdmin = document.getElementById('hist-filtres-admin');
+  if (histFiltresAdmin) histFiltresAdmin.style.display = isAdm ? '' : 'none';
+
+  // Supprimer l'onglet Mon historique (plus utilisé)
   const tabChaufHist = document.getElementById('tab-chauf-hist');
-  if (tabChaufHist) tabChaufHist.style.display = (!isAdm) ? '' : 'none';
+  if (tabChaufHist) tabChaufHist.style.display = 'none';
 
   // Formulaire saisie maintenance : superadmin uniquement
   const formSaisie = document.getElementById('maint-form-saisie');
@@ -7245,6 +7240,51 @@ function resetDatesFiltres() {
 }
 
 function renderHistorique() {
+  // Mode chauffeur : uniquement ses messages traités
+  if (!userIsAdmin()) {
+    const monUid = currentUser?.uid || '';
+    const monNom = currentUser?.nom || '';
+    const tbody = document.getElementById('hist-tbody');
+    const histAdmin = document.getElementById('hist-filtres-admin');
+    if (histAdmin) histAdmin.style.display = 'none';
+    // Masquer détail maintenance, montrer tableau
+    const maintDetail = document.getElementById('hist-maint-detail');
+    const tableView   = document.getElementById('hist-table-view');
+    if (maintDetail) maintDetail.style.display = 'none';
+    if (tableView)   tableView.style.display   = '';
+
+    const mesMsgs = messagesChauf.filter(m =>
+      (monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)
+    ).sort((a,b) => b.date.localeCompare(a.date));
+
+    if (tbody) {
+      tbody.innerHTML = mesMsgs.length
+        ? mesMsgs.map(m => {
+            const v    = vehicules.find(x => x.id === m.vehId);
+            const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
+            const dateStr = new Date(m.date).toLocaleDateString('fr-BE',
+              { day:'2-digit', month:'2-digit', year:'numeric' });
+            const statut = m.statut === 'nonlu'
+              ? '<span class="badge warn" style="font-size:10px">⚠ Non traité</span>'
+              : '<span class="badge ok" style="font-size:10px">✅ Traité</span>';
+            const priorite = m.priorite === 'urgent'
+              ? '<span class="badge urgent" style="font-size:10px">🚨</span> ' : '';
+            return `<tr>
+              <td style="padding:7px 10px;white-space:nowrap">${dateStr}</td>
+              <td style="font-size:12px">${vNom}</td>
+              <td>💬 Message</td>
+              <td>—</td>
+              <td style="font-size:12px">${priorite}${statut} — ${m.msg.slice(0,60)}${m.msg.length>60?'…':''}</td>
+              <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+                onclick="deleteChaufMsg(${m.id})">🗑</button></td>
+            </tr>`;
+          }).join('')
+        : `<tr><td colspan="6" style="color:var(--texte-sec);text-align:center;padding:20px">
+             Aucun message dans votre historique.</td></tr>`;
+    }
+    return;
+  }
+
   const filterVeh  = document.getElementById('hist-filter-veh')?.value  || '';
   const filterType = document.getElementById('hist-filter-type')?.value || '';
   const dateDebut  = document.getElementById('hist-date-debut')?.value  || '';
