@@ -447,6 +447,25 @@ button { cursor: pointer; }
 .btn.primary:hover { background: var(--rouge-fonce); border-color: var(--rouge-fonce); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 
+/* ── Formulaire signalement 3 taps ─────────────────────── */
+.chauf-veh-btn {
+  padding: 10px 8px; border: 2px solid var(--gris-bord); border-radius: 8px;
+  background: var(--blanc); font-size: 12px; font-weight: 700;
+  text-align: center; cursor: pointer; line-height: 1.3;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.chauf-veh-btn:hover    { border-color: var(--bleu); }
+.chauf-veh-btn.selected { border-color: var(--bleu); background: var(--bleu); color: #fff; }
+.chauf-cat-btn {
+  padding: 12px 10px; border: 2px solid var(--gris-bord); border-radius: 8px;
+  background: var(--blanc); font-size: 13px; font-weight: 600;
+  text-align: center; cursor: pointer; white-space: normal; line-height: 1.4;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.chauf-cat-btn:hover { border-color: var(--orange); }
+.chauf-cat-btn.selected[data-urgence="urgent"] { border-color:var(--rouge);background:var(--rouge);color:#fff; }
+.chauf-cat-btn.selected[data-urgence="info"]   { border-color:var(--bleu); background:var(--bleu); color:#fff; }
+
 /* ===== ALERTES ===== */
 .alertes-list { display: flex; flex-direction: column; gap: 10px; }
 .alerte-item {
@@ -1162,62 +1181,111 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE MESSAGES / ALERTES CHAUFFEUR -->
 <div id="page-chauf" class="page">
-  <h2 style="margin-bottom:4px">🚨 Messages & Alertes</h2>
+  <h2 style="margin-bottom:4px">🚨 Signaler un problème</h2>
+  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">3 taps suffisent.</p>
 
-
-  <!-- Formulaire signalement -->
+  <!-- Formulaire signalement 3 taps -->
   <div class="form-card" id="chauf-form-card">
-    <h3>📣 Envoyer un message / signalement</h3>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Véhicule concerné</label>
-        <select id="chauf-veh"></select>
+
+    <!-- TAP 1 : Véhicule -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--texte-sec);
+           text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+        1 · Véhicule
       </div>
-      <div class="form-group">
-        <label>Priorité</label>
-        <select id="chauf-priorite">
-          <option value="info">ℹ️ Information</option>
-          <option value="urgent">🚨 Urgent</option>
-        </select>
+      <div id="chauf-veh-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+        <!-- Peuplé par initChauf() -->
       </div>
     </div>
-    <div class="form-group" style="margin-top:12px">
-      <label>Message</label>
-      <textarea id="chauf-msg" placeholder="Décrivez précisément le problème ou l'information…" style="min-height:80px" onchange="sauvegarderBrouillon()"></textarea>
-    </div>
-    <div class="form-group" style="margin-top:10px">
-      <label>📷 Photos <span style="font-size:11px;color:var(--texte-sec)">(optionnel — max 5)</span></label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <button type="button" class="btn" onclick="ouvrirCamera()"
-          style="display:flex;align-items:center;gap:6px;padding:8px 14px">
-          📷 Prendre une photo
+
+    <!-- TAP 2 : Nature du problème -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--texte-sec);
+           text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+        2 · Nature du problème
+      </div>
+      <div id="chauf-cat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+        <button class="btn chauf-cat-btn" data-cat="panne" data-urgence="urgent"
+          onclick="selectionnerCategorie(this)">
+          🔴 Panne / immobilisation
         </button>
-        <button type="button" class="btn" onclick="ouvrirGalerie()"
-          style="display:flex;align-items:center;gap:6px;padding:8px 14px">
-          🖼 Choisir depuis la galerie
+        <button class="btn chauf-cat-btn" data-cat="bruit" data-urgence="urgent"
+          onclick="selectionnerCategorie(this)">
+          ⚠️ Bruit / anomalie mécanique
+        </button>
+        <button class="btn chauf-cat-btn" data-cat="voyant" data-urgence="urgent"
+          onclick="selectionnerCategorie(this)">
+          💡 Voyant allumé
+        </button>
+        <button class="btn chauf-cat-btn" data-cat="carrosserie" data-urgence="info"
+          onclick="selectionnerCategorie(this)">
+          💥 Carrosserie / vitre
+        </button>
+        <button class="btn chauf-cat-btn" data-cat="serrure" data-urgence="info"
+          onclick="selectionnerCategorie(this)">
+          🔑 Serrure / accessoire
+        </button>
+        <button class="btn chauf-cat-btn" data-cat="autre" data-urgence="info"
+          onclick="selectionnerCategorie(this)">
+          📝 Autre
         </button>
       </div>
-      <!-- Input caméra (capture directe) -->
+    </div>
+
+    <!-- Note optionnelle (visible uniquement si catégorie sélectionnée) -->
+    <div id="chauf-note-zone" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--texte-sec);
+           text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
+        Note <span style="font-weight:400;text-transform:none">(optionnel)</span>
+      </div>
+      <textarea id="chauf-msg" placeholder="Précision supplémentaire…"
+        style="width:100%;min-height:60px;border:1.5px solid var(--gris-bord);
+               border-radius:6px;padding:8px 10px;font-size:14px;resize:vertical"></textarea>
+    </div>
+
+    <!-- Photo optionnelle -->
+    <div id="chauf-photo-zone" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--texte-sec);
+           text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
+        Photo <span style="font-weight:400;text-transform:none">(optionnel)</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" onclick="ouvrirCamera()">📷 Prendre</button>
+        <button type="button" class="btn" onclick="ouvrirGalerie()">🖼 Galerie</button>
+      </div>
       <input type="file" id="chauf-camera" accept="image/*" capture="environment"
         onchange="ajouterPhotoChauf(this)" style="display:none" />
-      <!-- Input galerie -->
       <input type="file" id="chauf-galerie" accept="image/*" multiple
         onchange="ajouterPhotoChauf(this)" style="display:none" />
       <div id="chauf-msg-photos-preview"
-        style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
     </div>
-    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge)" onclick="sendMessageChauf()">📤 Envoyer</button>
-      <button class="btn" onclick="clearChaufForm()">✕ Effacer</button>
+
+    <!-- TAP 3 : Envoyer -->
+    <div id="chauf-envoyer-zone" style="display:none">
+      <div id="chauf-recap"
+        style="background:var(--gris-clair);border-radius:8px;padding:10px 14px;
+               font-size:13px;margin-bottom:12px;line-height:1.7"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge);
+          font-size:15px;padding:12px 24px;flex:1;min-width:140px"
+          onclick="sendMessageChauf()">
+          📤 Envoyer le signalement
+        </button>
+        <button class="btn" onclick="clearChaufForm()">✕ Annuler</button>
+      </div>
     </div>
+
   </div>
 
-  <!-- Fil de messages -->
-  <div style="margin-top:6px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <h3 id="chauf-nb-titre">Messages</h3>
+  <!-- Fil des signalements en cours (non traités) -->
+  <div style="margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+         margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h3 id="chauf-nb-titre">Signalements en cours</h3>
       <select id="chauf-filter" onchange="renderMessagesChauf()"
-        style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
+        style="border:1.5px solid var(--gris-bord);border-radius:6px;
+               padding:5px 8px;font-size:12px">
         <option value="">Tous les véhicules</option>
       </select>
     </div>
@@ -3252,39 +3320,96 @@ function renderMessagesChauf() {
   }).join('');
 }
 
+// Variables globales formulaire 3 taps
+let _chaufVehId    = '';
+let _chaufCat      = '';
+let _chaufUrgence  = 'info';
+let _chaufPhotos   = [];
+
 function initChauf() {
-  // Tri alphabétique des véhicules par marque
-  const vehTries = [...vehicules].sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
+  // Peupler la grille véhicules (immat bien visible)
+  const grid = document.getElementById('chauf-veh-grid');
+  if (grid && grid.children.length === 0) {
+    const vehTries = [...vehicules].sort((a,b) => a.immat.localeCompare(b.immat));
+    grid.innerHTML = vehTries.map(v =>
+      '<button class="chauf-veh-btn" data-id="' + v.id + '" onclick="selectionnerVehicule(this)">' +
+      '<div style="font-size:15px;letter-spacing:1px">' + v.immat + '</div>' +
+      '<div style="font-size:10px;font-weight:400;color:inherit;opacity:0.8">' + v.marque + '</div>' +
+      '</button>'
+    ).join('');
+  }
 
-  const selMsg = document.getElementById('chauf-veh');
-  if (selMsg && selMsg.options.length === 0)
-    selMsg.innerHTML = vehTries.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
-
+  // Peupler filtre vehicule fil de messages
   const selFilt = document.getElementById('chauf-filter');
-  if (selFilt && selFilt.options.length <= 1)
-    vehTries.forEach(v => {
+  if (selFilt && selFilt.options.length <= 1) {
+    [...vehicules].sort((a,b) => a.immat.localeCompare(b.immat)).forEach(v => {
       const opt = document.createElement('option');
-      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      opt.value = v.id; opt.textContent = v.immat + ' — ' + v.marque;
       selFilt.appendChild(opt);
     });
+  }
 
+  // Peupler AdBlue (onglet adblue)
   const selAb = document.getElementById('chauf-ab-veh');
   if (selAb && selAb.options.length === 0) {
     const vehAbTries = VEHICULES_ADBLUE_CHAUF
       .map(id => vehicules.find(x => x.id === id)).filter(Boolean)
       .sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
-    selAb.innerHTML = vehAbTries.map(v => `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
+    selAb.innerHTML = vehAbTries.map(v =>
+      '<option value="' + v.id + '">' + v.marque + ' — ' + v.immat + '</option>').join('');
   }
 
-  // Masquer AdBlue pour les admins dans l'onglet messages (désormais uniquement dans page-adblue)
   const abCard = document.getElementById('chauf-adblue-card');
-  if (abCard) abCard.style.display = 'none'; // toujours caché ici
+  if (abCard) abCard.style.display = 'none';
 
   renderMessagesChauf();
 }
 
-// Photos message chauffeur
-let _chaufPhotos = [];
+function selectionnerVehicule(btn) {
+  // Désélectionner l'ancien
+  document.querySelectorAll('.chauf-veh-btn.selected').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _chaufVehId = btn.dataset.id;
+  mettreAJourRecap();
+}
+
+function selectionnerCategorie(btn) {
+  // Désélectionner l'ancienne
+  document.querySelectorAll('.chauf-cat-btn.selected').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _chaufCat     = btn.dataset.cat;
+  _chaufUrgence = btn.dataset.urgence || 'info';
+
+  // Afficher note, photo et bouton envoyer
+  document.getElementById('chauf-note-zone').style.display    = '';
+  document.getElementById('chauf-photo-zone').style.display   = '';
+  document.getElementById('chauf-envoyer-zone').style.display = '';
+  mettreAJourRecap();
+}
+
+const CAT_LABELS = {
+  panne:       '🔴 Panne / immobilisation',
+  bruit:       '⚠️ Bruit / anomalie mécanique',
+  voyant:      '💡 Voyant allumé',
+  carrosserie: '💥 Carrosserie / vitre',
+  serrure:     '🔑 Serrure / accessoire',
+  autre:       '📝 Autre'
+};
+
+function mettreAJourRecap() {
+  const recap = document.getElementById('chauf-recap');
+  if (!recap) return;
+  const v    = vehicules.find(x => x.id === _chaufVehId);
+  const vNom = v ? v.immat + ' — ' + v.marque : '—';
+  const cat  = _chaufCat ? CAT_LABELS[_chaufCat] || _chaufCat : '—';
+  const note = document.getElementById('chauf-msg')?.value?.trim() || '';
+  const nbP  = _chaufPhotos.filter(Boolean).length;
+  recap.innerHTML =
+    '<strong>Véhicule :</strong> ' + vNom + '<br>' +
+    '<strong>Problème :</strong> ' + cat + '<br>' +
+    (note ? '<strong>Note :</strong> ' + note + '<br>' : '') +
+    (nbP  ? '<strong>Photos :</strong> ' + nbP + ' jointe(s)' : '');
+}
 
 function ouvrirCamera() {
   if (_chaufPhotos.filter(Boolean).length >= 5) { toast('Maximum 5 photos.'); return; }
@@ -3312,20 +3437,19 @@ function ajouterPhotoChauf(input) {
       wrap.id = 'chauf-photo-' + idx;
       wrap.style.cssText = 'position:relative;display:inline-block';
       wrap.innerHTML =
-        '<img src="' + e.target.result + '" alt="' + file.name + '"' +
-        ' style="width:80px;height:64px;object-fit:cover;border-radius:8px;' +
-        'border:1.5px solid var(--gris-bord);cursor:pointer;display:block"' +
+        '<img src="' + e.target.result + '" style="width:80px;height:64px;object-fit:cover;' +
+        'border-radius:8px;border:1.5px solid var(--gris-bord);cursor:pointer;display:block"' +
         ' onclick="window.open(this.src,\'_blank\')" />' +
         '<button onclick="retirerChaufPhoto(' + idx + ')"' +
         ' style="position:absolute;top:-6px;right:-6px;background:var(--rouge);color:#fff;' +
         'border:none;border-radius:50%;width:20px;height:20px;font-size:12px;' +
         'cursor:pointer;line-height:20px;text-align:center;padding:0;font-weight:700">✕</button>';
       preview.appendChild(wrap);
+      mettreAJourRecap();
     };
     reader.readAsDataURL(file);
   });
-  if (files.length > reste && reste < files.length)
-    toast('Seules ' + reste + ' photo(s) ajoutée(s) (max 5).');
+  if (files.length > reste) toast('Seules ' + reste + ' photo(s) ajoutée(s) (max 5).');
   input.value = '';
 }
 
@@ -3333,145 +3457,61 @@ function retirerChaufPhoto(idx) {
   _chaufPhotos[idx] = null;
   const el = document.getElementById('chauf-photo-' + idx);
   if (el) el.remove();
+  mettreAJourRecap();
 }
 
 function clearChaufForm() {
+  _chaufVehId   = '';
+  _chaufCat     = '';
+  _chaufUrgence = 'info';
+  _chaufPhotos  = [];
+  document.querySelectorAll('.chauf-veh-btn.selected, .chauf-cat-btn.selected')
+    .forEach(b => b.classList.remove('selected'));
   const msg = document.getElementById('chauf-msg'); if (msg) msg.value = '';
   const cam = document.getElementById('chauf-camera'); if (cam) cam.value = '';
   const gal = document.getElementById('chauf-galerie'); if (gal) gal.value = '';
   const pre = document.getElementById('chauf-msg-photos-preview'); if (pre) pre.innerHTML = '';
-  _chaufPhotos = [];
-}
-
-function toggleChauffeurAdBlue() {
-  const type   = document.getElementById('chauf-ab-type')?.value;
-  const grpL   = document.getElementById('chauf-ab-litre-group');
-  const grpM   = document.getElementById('chauf-ab-montant-group');
-  const grpPL  = document.getElementById('chauf-ab-prixl-group');
-  if (!grpL) return;
-
-  if (type === 'bidon') {
-    grpL.style.display  = 'none';
-    grpM.style.display  = 'none';
-    grpPL.style.display = 'none';
-    document.getElementById('chauf-ab-litre').value = '10';
-    document.getElementById('chauf-ab-prix').value  = '';
-  } else {
-    // Pompe : montant + litres, prix/L calculé auto
-    grpL.style.display  = '';
-    grpM.style.display  = '';
-    grpPL.style.display = '';
-    document.getElementById('chauf-ab-litre').value = '';
-  }
-  calcPrixLitre();
-}
-
-function calcPrixLitre() {
-  const litre = parseFloat(document.getElementById('chauf-ab-litre')?.value);
-  const mont  = parseFloat(document.getElementById('chauf-ab-prix')?.value);
-  const el    = document.getElementById('chauf-ab-prixl');
-  if (!el) return;
-  if (litre > 0 && mont > 0) {
-    el.textContent = (mont / litre).toFixed(3) + ' €/L';
-  } else {
-    el.textContent = '—';
-  }
-}
-
-function clearChauffeurAdBlue() {
-  const type = document.getElementById('chauf-ab-type');
-  if (type) type.value = 'bidon';
-  document.getElementById('chauf-ab-litre').value = '10';
-  document.getElementById('chauf-ab-prix').value  = '';
-  document.getElementById('chauf-ab-km').value    = '';
-  toggleChauffeurAdBlue();
-}
-
-function saveChauffeurAdBlue() {
-  const vehId = document.getElementById('chauf-ab-veh')?.value;
-  const date  = document.getElementById('chauf-ab-date')?.value;
-  const type  = document.getElementById('chauf-ab-type')?.value;
-  const km    = parseInt(document.getElementById('chauf-ab-km')?.value) || null;
-
-  let litre, prixTotal, prixUnit;
-
-  if (type === 'bidon') {
-    litre = 10; prixTotal = 20; prixUnit = 2.0;
-  } else {
-    litre    = parseFloat(document.getElementById('chauf-ab-litre')?.value);
-    prixTotal = parseFloat(document.getElementById('chauf-ab-prix')?.value) || null;
-    prixUnit  = (prixTotal && litre) ? parseFloat((prixTotal / litre).toFixed(4)) : null;
-  }
-
-  if (!vehId || !date || isNaN(litre) || litre <= 0) {
-    toast('Veuillez remplir la date, le véhicule et le volume.'); return;
-  }
-
-  const v    = vehicules.find(x => x.id === vehId);
-  const vNom = v ? `${v.marque} — ${v.immat}` : vehId;
-
-  // Résumé confirmation
-  const lignes = [
-    `Véhicule : ${vNom}`,
-    `Date : ${formatDate(date)}`,
-    `Volume : ${litre} L`,
-  ];
-  if (prixTotal) lignes.push(`Montant : ${prixTotal.toFixed(2)} €`);
-  if (prixUnit)  lignes.push(`Prix/L : ${prixUnit.toFixed(3)} €/L`);
-  if (km)        lignes.push(`Km : ${km.toLocaleString('fr-BE')}`);
-
-  if (!confirm(`Confirmer l'enregistrement AdBlue ?\n\n${lignes.join('\n')}`)) return;
-
-  adblues.unshift({ id: Date.now(), vehId, date, litre, prixTotal, prixUnit, km, source: 'chauffeur' });
-  logCreation('adblues',
-    `AdBlue chauffeur : ${vNom} — ${litre} L${prixTotal ? ' — '+prixTotal.toFixed(2)+'€' : ''} — ${formatDate(date)}`,
-    { vehId, date, litre, prixTotal });
-  saveAll();
-  clearChauffeurAdBlue();
-  renderAdBlueTable();
-  toast(`✅ AdBlue enregistré — ${litre} L${prixTotal ? ' ('+prixTotal.toFixed(2)+' €)' : ''}`);
+  const recap = document.getElementById('chauf-recap'); if (recap) recap.innerHTML = '';
+  ['chauf-note-zone','chauf-photo-zone','chauf-envoyer-zone'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
 }
 
 async function sendMessageChauf() {
-  const vehId    = document.getElementById('chauf-veh').value;
-  const msg      = document.getElementById('chauf-msg').value.trim();
-  const priorite = document.getElementById('chauf-priorite')?.value || 'info';
-  if (!vehId || !msg) { toast('Veuillez sélectionner un véhicule et écrire un message.'); return; }
+  if (!_chaufVehId)  { toast('Sélectionnez un véhicule.');  return; }
+  if (!_chaufCat)    { toast('Sélectionnez la nature du problème.'); return; }
 
-  const v        = vehicules.find(x => x.id === vehId);
-  const vNom     = v ? `${v.marque} — ${v.immat}` : vehId;
+  const v        = vehicules.find(x => x.id === _chaufVehId);
+  const vNom     = v ? v.immat + ' — ' + v.marque : _chaufVehId;
   const nom      = currentUser?.nom || 'Chauffeur';
   const photos   = _chaufPhotos.filter(Boolean);
   const nbPhotos = photos.length;
+  const note     = document.getElementById('chauf-msg')?.value?.trim() || '';
+  const catLabel = CAT_LABELS[_chaufCat] || _chaufCat;
+  // Le message = catégorie + note éventuelle
+  const msgText  = catLabel + (note ? ' — ' + note : '');
 
-  const confirmTxt = `Envoyer ce message ?\n\nVéhicule : ${vNom}\nDe : ${nom}\n\n"${msg}"` +
-    (nbPhotos ? `\n\n📷 ${nbPhotos} photo(s) jointe(s)` : '');
-  if (!confirm(confirmTxt)) return;
+  // Comprimer les photos (max 600px, qualité 55%)
+  const photosCompressees = [];
+  for (const p of photos) {
+    try {
+      const canvas = document.createElement('canvas');
+      const img    = new Image();
+      await new Promise(res => { img.onload = res; img.src = p.data; });
+      const MAX   = 600;
+      const ratio = Math.min(1, MAX / Math.max(img.width, img.height));
+      canvas.width  = Math.round(img.width  * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      photosCompressees.push({ name: p.name, data: canvas.toDataURL('image/jpeg', 0.55) });
+    } catch(e) { photosCompressees.push(p); }
+  }
 
   const msgId   = Date.now();
   const dateStr = new Date().toLocaleString('fr-BE',
     { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
 
-  // Compresser les photos pour rester sous 800 Ko au total (limite Firestore ~1Mo par doc)
-  const photosCompressees = [];
-  for (const p of photos) {
-    try {
-      const canvas  = document.createElement('canvas');
-      const img     = new Image();
-      await new Promise(res => { img.onload = res; img.src = p.data; });
-      const MAX = 600;
-      const ratio = Math.min(1, MAX / Math.max(img.width, img.height));
-      canvas.width  = Math.round(img.width  * ratio);
-      canvas.height = Math.round(img.height * ratio);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      const compressed = canvas.toDataURL('image/jpeg', 0.55);
-      photosCompressees.push({ name: p.name, data: compressed });
-    } catch(e) {
-      photosCompressees.push(p); // fallback : photo originale
-    }
-  }
-
-  // Stocker en localStorage pour accès hors ligne
+  // Backup localStorage
   if (photosCompressees.length) {
     const pls = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
     pls[msgId] = photosCompressees;
@@ -3480,181 +3520,55 @@ async function sendMessageChauf() {
 
   const uid = currentUser?.uid || '';
   messagesChauf.unshift({
-    id: msgId, vehId, auteur: nom, uid,
-    msg, date: new Date().toISOString(),
-    priorite, statut: 'nonlu', reponses: [], nbPhotos,
-    photosData: photosCompressees   // stocké dans Firestore avec le message
+    id: msgId, vehId: _chaufVehId, auteur: nom, uid,
+    msg: msgText, categorie: _chaufCat,
+    date: new Date().toISOString(),
+    priorite: _chaufUrgence, statut: 'nonlu', reponses: [],
+    nbPhotos: photosCompressees.length,
+    photosData: photosCompressees
   });
   saveAll();
   logCreation('messagesChauf',
-    `Message ${priorite} : ${nom} → ${vNom} — "${msg.slice(0,50)}"${nbPhotos?' — '+nbPhotos+' photo(s)':''}`,
-    { vehId, auteur: nom, priorite, nbPhotos });
+    'Signalement ' + _chaufUrgence + ' : ' + nom + ' → ' + vNom + ' — ' + catLabel +
+    (note ? ' — ' + note.slice(0,40) : '') +
+    (photosCompressees.length ? ' — ' + photosCompressees.length + ' photo(s)' : ''),
+    { vehId: _chaufVehId, auteur: nom, categorie: _chaufCat, priorite: _chaufUrgence });
 
-  // ── Option 1 : Firebase Extension "Trigger Email" ──────────
-  // Crée un document dans la collection 'mail' → email automatique à Patrick
+  // Firebase Extension mail (silencieux si non installé)
   try {
-    const sujet = priorite === 'urgent'
-      ? `🚨 [URGENT] Message chauffeur — ${vNom}`
-      : `📋 Message chauffeur — ${vNom}`;
     db.collection('mail').add({
-      to:      SUPERADMIN_EMAIL,
+      to: SUPERADMIN_EMAIL,
       message: {
-        subject: sujet,
-        html: `<p><strong>De :</strong> ${nom}<br>
-               <strong>Véhicule :</strong> ${vNom}<br>
-               <strong>Date :</strong> ${dateStr}<br>
-               <strong>Priorité :</strong> ${priorite === 'urgent' ? '🚨 URGENT' : 'ℹ️ Information'}</p>
-               <hr>
-               <p style="font-size:16px">${msg.replace(/\n/g,'<br>')}</p>
-               ${nbPhotos ? `<p><em>📷 ${nbPhotos} photo(s) jointe(s) — voir l'application</em></p>` : ''}
-               <hr>
-               <p style="color:#999;font-size:12px">MCR Opont Flotte — message automatique</p>`
+        subject: (_chaufUrgence === 'urgent' ? '🚨 [URGENT] ' : '📋 ') + 'Signalement — ' + vNom,
+        html: '<p><strong>De :</strong> ' + nom + '<br>' +
+              '<strong>Véhicule :</strong> ' + vNom + '<br>' +
+              '<strong>Problème :</strong> ' + catLabel + '<br>' +
+              '<strong>Date :</strong> ' + dateStr + '</p>' +
+              (note ? '<p>' + note + '</p>' : '') +
+              (photosCompressees.length ? '<p><em>📷 ' + photosCompressees.length + ' photo(s) — voir l\'app</em></p>' : '') +
+              '<hr><p style="color:#999;font-size:12px">MCR Opont Flotte</p>'
       }
-    }).catch(() => {}); // silencieux si Extension pas installée
+    }).catch(() => {});
   } catch(e) {}
 
   clearChaufForm();
   renderMessagesChauf();
   updateTabChauf();
 
-  const msgToast = priorite === 'urgent' ? '🚨 Alerte envoyée !' : '✅ Message envoyé !';
-  toast(msgToast);
+  toast(_chaufUrgence === 'urgent' ? '🚨 Signalement urgent envoyé !' : '✅ Signalement envoyé !');
 
-  // ── Option B : SMS de secours (tous les messages) ──────────
+  // SMS de secours
   setTimeout(() => {
     if (confirm('Envoyer aussi un SMS à Patrick ?')) {
-      const smsCorps = encodeURIComponent(
-        (priorite === 'urgent' ? '🚨 URGENT — ' : '') +
+      const corps = encodeURIComponent(
+        (_chaufUrgence === 'urgent' ? '🚨 URGENT — ' : '') +
         'MCR Opont — ' + vNom + '\n' +
-        'De : ' + nom + ' (' + dateStr + ')\n\n' +
-        msg +
-        (nbPhotos ? '\n(' + nbPhotos + ' photo(s) dans l\'app)' : '')
+        catLabel + (note ? ' : ' + note : '') + '\n' +
+        'De : ' + nom + ' (' + dateStr + ')'
       );
-      window.location.href = 'sms:0496224371?body=' + smsCorps;
+      window.location.href = 'sms:0496224371?body=' + corps;
     }
   }, 400);
-}
-
-function repondreMessage(id) {
-  if (!userIsAdmin()) return;
-  const texte = document.getElementById(`reponse-input-${id}`)?.value?.trim();
-  if (!texte) { toast('Réponse vide.'); return; }
-
-  const m = messagesChauf.find(x => x.id === id);
-  if (!m) return;
-  if (!m.reponses) m.reponses = [];
-  m.reponses.push({
-    auteur: currentUser?.nom || 'Admin',
-    texte,
-    date: new Date().toISOString()
-  });
-  m.statut = 'lu';
-  saveAll();
-  logCreation('messagesChauf', `Réponse admin : "${texte.slice(0,50)}"`, { messageId: id });
-  renderMessagesChauf();
-  updateTabChauf();
-  // Rafraîchir historique si ouvert
-  if (document.getElementById('page-historique')?.classList.contains('active')) {
-    renderHistorique();
-  }
-  toast('✅ Réponse envoyée — visible dans l\'onglet Historique du chauffeur');
-}
-
-function markChaufLu(id) {
-  const m = messagesChauf.find(x => x.id === id);
-  if (!m) return;
-  m.statut = 'lu';
-  saveAll();
-  renderMessagesChauf();
-  updateTabChauf();
-  // Rafraîchir l'historique si ouvert, sinon forcer le rechargement au prochain accès
-  if (document.getElementById('page-historique')?.classList.contains('active')) {
-    renderHistorique();
-  }
-  toast('✅ Message marqué traité — visible dans l\'historique');
-}
-
-function markChaufNonLu(id) {
-  const m = messagesChauf.find(x => x.id === id);
-  if (m) { m.statut = 'nonlu'; saveAll(); renderMessagesChauf(); updateTabChauf(); }
-}
-
-function deleteChauf(id) {
-  if (!confirm('Supprimer ce message ?')) return;
-  messagesChauf = messagesChauf.filter(m => m.id !== id);
-  saveAll(); renderMessagesChauf(); updateTabChauf();
-}
-
-// Suppression par le chauffeur (ses propres messages)
-function deleteChaufMsg(id) {
-  if (!confirm('Supprimer ce message ?')) return;
-  messagesChauf = messagesChauf.filter(m => m.id !== id);
-  saveAll();
-  renderMessagesChauf();
-  renderHistorique();
-  updateTabChauf();
-}
-
-// ── Historique chauffeur ─────────────────────────────────────
-function renderChaufHist() {
-  const container = document.getElementById('chauf-hist-content');
-  if (!container) return;
-
-  const monUid = currentUser?.uid || '';
-  const monNom = currentUser?.nom || '';
-
-  const mesMsgs = messagesChauf.filter(m =>
-    (monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)
-  ).sort((a,b) => b.date.localeCompare(a.date));
-
-  if (!mesMsgs.length) {
-    container.innerHTML = '<p style="color:var(--texte-sec);padding:16px">Aucun message envoyé.</p>';
-    return;
-  }
-
-  container.innerHTML = mesMsgs.map(m => {
-    const v       = vehicules.find(x => x.id === m.vehId);
-    const vNom    = v ? v.marque + ' — ' + v.immat : m.vehId;
-    const dateStr = new Date(m.date).toLocaleString('fr-BE',
-      { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    const statut   = m.statut === 'nonlu'
-      ? '<span class="badge warn" style="font-size:10px">⚠ Non traité</span>'
-      : '<span class="badge ok" style="font-size:10px">✅ Traité</span>';
-    const priorite = m.priorite === 'urgent'
-      ? '<span class="badge urgent" style="font-size:10px;margin-right:4px">🚨 Urgent</span>'
-      : '';
-
-    const photosLS = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
-    const photos   = m.photosData?.length ? m.photosData : (photosLS[m.id] || []);
-    const photosHtml = photos.length
-      ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">'
-        + photos.map(p =>
-            '<img src="' + p.data + '" style="width:60px;height:48px;object-fit:cover;'
-            + 'border-radius:4px;cursor:pointer" onclick="window.open(this.src,\'_blank\')" />'
-          ).join('') + '</div>'
-      : '';
-
-    const repNb = (m.reponses || []).length;
-    const repHtml = repNb
-      ? '<div style="margin-top:6px;font-size:12px;color:var(--bleu)">💬 '
-        + repNb + ' réponse(s) reçue(s)</div>'
-      : '';
-
-    return '<div class="form-card" style="padding:10px 14px;margin-bottom:8px">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;'
-      + 'flex-wrap:wrap;gap:6px">'
-      + '<div>'
-      + '<div style="font-size:12px;margin-bottom:3px">' + priorite + statut + '</div>'
-      + '<div style="font-size:13px;font-weight:700">' + vNom + '</div>'
-      + '<div style="font-size:11px;color:var(--texte-sec)">' + dateStr + '</div>'
-      + '</div>'
-      + '<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"'
-      + ' onclick="deleteChaufMsg(' + m.id + ')">🗑</button>'
-      + '</div>'
-      + '<div style="font-size:13px;margin-top:6px">' + m.msg + '</div>'
-      + photosHtml + repHtml
-      + '</div>';
-  }).join('');
 }
 
 function initAdBlueOnglet() {
