@@ -3538,7 +3538,10 @@ function deleteChauf(id) {
 function deleteChaufMsg(id) {
   if (!confirm('Supprimer ce message de votre historique ?')) return;
   messagesChauf = messagesChauf.filter(m => m.id !== id);
-  saveAll(); renderMessagesChauf(); updateTabChauf();
+  saveAll();
+  renderMessagesChauf();
+  renderChaufHist();
+  updateTabChauf();
 }
 
 // ── Historique chauffeur ─────────────────────────────────────
@@ -7445,7 +7448,10 @@ function deleteHistItem(srcType, srcId) {
   if (srcType === 'rv')           rendezvous    = rendezvous.filter(x => x.id !== id);
   if (srcType === 'adblue')       adblues       = adblues.filter(x => x.id !== id);
   if (srcType === 'carwash')      carwashes     = carwashes.filter(x => x.id !== id);
-  saveAll(); renderHistorique(); toast('Entrée supprimée');
+  if (srcType === 'message')      messagesChauf = messagesChauf.filter(x => x.id !== id);
+  saveAll(); renderHistorique();
+  if (srcType === 'message') updateTabChauf();
+  toast('Entrée supprimée');
 }
 
 /* Ouvre le modal d'édition selon le type */
