@@ -1030,6 +1030,30 @@ td.ok { color: var(--vert); font-weight: 600; }
 </head>
 <body>
 
+<!-- Bandeau mise à jour disponible -->
+<div id="bandeau-maj" style="display:none;position:fixed;bottom:0;left:0;right:0;
+  background:linear-gradient(135deg,#2980b9,#1a5276);color:#fff;
+  padding:12px 16px;z-index:9999;
+  align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  box-shadow:0 -3px 12px rgba(0,0,0,0.2)">
+  <div style="font-size:14px;font-weight:600">
+    🔄 Nouvelle version disponible
+    <span id="bandeau-maj-version" style="font-size:12px;opacity:0.8;margin-left:6px"></span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button onclick="appliquerMaj()"
+      style="background:#fff;color:#1a5276;border:none;border-radius:6px;
+             padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">
+      ✅ Mettre à jour
+    </button>
+    <button onclick="document.getElementById('bandeau-maj').style.display='none'"
+      style="background:rgba(255,255,255,0.2);color:#fff;border:none;border-radius:6px;
+             padding:8px 12px;font-size:13px;cursor:pointer">
+      Plus tard
+    </button>
+  </div>
+</div>
+
 <!-- NAVBAR -->
 <div class="navbar">
   <div class="navbar-logo">
@@ -1057,7 +1081,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.6.2</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v1.7.0</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -2131,6 +2155,18 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div id="notif-statut" style="font-size:13px;margin-bottom:12px"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn primary" onclick="activerNotifications()">🔔 Activer les notifications</button>
+
+  <!-- Section version (superadmin) -->
+  <div class="form-card superadmin-only" style="margin-top:14px">
+    <h3>🔄 Gestion des versions</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
+      Version actuelle de l'app : <strong>v1.7.0</strong><br>
+      Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
+    </p>
+    <button class="btn primary" onclick="publierVersion()">
+      📢 Notifier les utilisateurs (v1.7.0 disponible)
+    </button>
+  </div>
       <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
     </div>
   </div>
@@ -4317,6 +4353,7 @@ function appliquerDroits() {
   updateNavbarMaint();
   if (userIsSuperAdmin()) updateBadgeComptes();
   if (userIsAdmin()) chargerTelephones();
+  verifierMaj();
 
   // Programmer le résumé quotidien à 7h00
   setTimeout(() => programmerResumeQuotidien(), 1000);
@@ -4648,8 +4685,58 @@ async function ouvrirModalNouveauChaufeur() {
   });
 }
 
-// ============================================================
-// RENDER ACCUEIL
+// ── Détection de nouvelle version ────────────────────────
+async function verifierMaj() {
+  try {
+    // Lire la version publiée dans Firestore config/version
+    const doc = await db.collection('config').doc('version').get();
+    if (!doc.exists) {
+      // Premier lancement : écrire la version actuelle (superadmin seulement)
+      if (userIsSuperAdmin()) {
+        await db.collection('config').doc('version').set({ version: APP_VERSION });
+      }
+      return;
+    }
+    const versionServeur = doc.data().version || APP_VERSION;
+    if (versionServeur !== APP_VERSION) {
+      // Une nouvelle version est disponible
+      const bandeau = document.getElementById('bandeau-maj');
+      const span    = document.getElementById('bandeau-maj-version');
+      if (bandeau) {
+        bandeau.style.display = 'flex';
+        if (span) span.textContent = '(v' + versionServeur + ')';
+      }
+    }
+  } catch(e) {}
+}
+
+function appliquerMaj() {
+  // Vider le cache du Service Worker et recharger
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(reg => reg.unregister());
+    });
+  }
+  // Vider les caches
+  if ('caches' in window) {
+    caches.keys().then(keys => {
+      keys.forEach(k => caches.delete(k));
+    });
+  }
+  // Recharger la page (force le téléchargement de la nouvelle version)
+  window.location.reload(true);
+}
+
+// Mise à jour de la version dans Firestore par le superadmin
+async function publierVersion() {
+  if (!userIsSuperAdmin()) return;
+  try {
+    await db.collection('config').doc('version').set({ version: APP_VERSION });
+    toast('✅ Version ' + APP_VERSION + ' publiée — les utilisateurs seront notifiés');
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
 // ============================================================
 function renderAccueil() {
   const alertes = buildAlertes();
@@ -8467,7 +8554,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.7.0';
 
 let _swRegistration = null;
 
