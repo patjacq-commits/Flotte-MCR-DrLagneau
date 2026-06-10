@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.2113</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.2123</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -2163,11 +2163,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260610.2113</strong><br>
+      Version actuelle de l'app : <strong>v260610.2123</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260610.2113 disponible)
+      📢 Notifier les utilisateurs (v260610.2123 disponible)
     </button>
   </div>
       <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
@@ -3130,37 +3130,43 @@ function calendrierMoisSuivant()   { _calDate.setMonth(_calDate.getMonth()+1); r
 
 function getEvenementsJour(dateStr) {
   const evts = [];
-  // Maintenances
+  // Maintenances (historique)
   maintenances.filter(m => m.date === dateStr).forEach(m => {
     const v = vehicules.find(x => x.id === m.vehId);
-    evts.push({ type:'maintenance', couleur:'#27ae60', label:`🔧 ${v?.immat||m.vehId}`, detail:`Maintenance ${v?.marque||''} ${v?.immat||m.vehId} — ${m.km ? parseInt(m.km).toLocaleString('fr-BE')+' km' : '—'}` });
+    evts.push({ type:'maintenance', couleur:'#27ae60',
+      label: '🔧 ' + (v?.immat||m.vehId),
+      detail: 'Maintenance ' + (v?.marque||'') + ' ' + (v?.immat||m.vehId) + (m.km ? ' — ' + parseInt(m.km).toLocaleString('fr-BE') + ' km' : '') });
   });
-  // RV planifiés
+  // RV planifiés (collection rendezvous)
   rendezvous.filter(r => r.date === dateStr && r.statut !== 'annule').forEach(r => {
     const v = vehicules.find(x => x.id === r.vehId);
-    const typeLabel = r.type === 'ct' ? 'CT' : r.type === 'garage' ? 'Entretien' : r.type;
-    evts.push({ type:'rv', couleur:'#2980b9', label:`📅 ${v?.immat||r.vehId} ${typeLabel}`, detail:`RV ${typeLabel} — ${v?.marque||''} ${v?.immat||r.vehId}${r.heure?' à '+r.heure:''}${r.garage?' — '+r.garage:''}` });
+    const tl = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
+    evts.push({ type:'rv', couleur:'#2980b9',
+      label: '📅 ' + (v?.immat||r.vehId) + ' ' + tl,
+      detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||r.vehId)
+        + (r.heure ? ' à ' + r.heure : '')
+        + ((r.garage||r.result) ? ' — ' + (r.garage||r.result) : '')
+        + (r.notes ? ' — ' + r.notes : '') });
   });
-  // CT events
+  // CT events (historique réalisé — collection ctEvents, une seule fois)
   ctEvents.filter(c => c.date === dateStr).forEach(c => {
-    const v = vehicules.find(x => x.id === c.vehId);
-    evts.push({ type:'ct', couleur:'#e74c3c', label:`🏥 ${v?.immat||c.vehId}`, detail:`CT/Entretien ${v?.marque||''} ${v?.immat||c.vehId}${c.result?' — '+c.result:''}` });
-  });
-  // CT events enregistrés
-  ctEvents.filter(c => c.date === dateStr).forEach(c => {
-    const v = vehicules.find(x => x.id === c.vehId);
-    const typeLabel = c.type === 'ct' ? 'Contrôle Technique'
-                    : c.type === 'garage' ? 'Entretien Garage'
-                    : c.type || 'CT';
+    const v  = vehicules.find(x => x.id === c.vehId);
+    const tl = CT_TYPE_LABELS?.[c.type] || c.type || 'CT';
     evts.push({ type:'ct', couleur:'#e74c3c',
-      label:`🏥 ${v?.immat||c.vehId}`,
-      detail:`${typeLabel} — ${v?.marque||''} ${v?.immat||c.vehId}${c.result?' — résultat: '+c.result:''}${c.km?' — '+parseInt(c.km).toLocaleString('fr-BE')+' km':''}` });
+      label: '🏥 ' + (v?.immat||c.vehId) + ' ' + tl,
+      detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||c.vehId)
+        + (c.result ? ' — ' + c.result : '')
+        + (c.km ? ' — ' + parseInt(c.km).toLocaleString('fr-BE') + ' km' : '')
+        + (c.rem ? ' — ' + c.rem : '') });
   });
+  // Alerte expiration CT
   vehicules.forEach(v => {
     if (!v.ct_valid) return;
     const j = daysUntil(v.ct_valid);
     if (v.ct_valid === dateStr && j !== null && j >= 0 && j <= 30) {
-      evts.push({ type:'alerte', couleur:'#e67e22', label:`⚠️ CT ${v.immat}`, detail:`CT de ${v.immat} expire le ${formatDate(v.ct_valid)}` });
+      evts.push({ type:'alerte', couleur:'#e67e22',
+        label: '⚠️ CT ' + v.immat,
+        detail: 'CT de ' + v.immat + ' expire le ' + formatDate(v.ct_valid) });
     }
   });
   return evts;
@@ -4789,6 +4795,11 @@ async function publierVersion() {
   }
 }
 // ============================================================
+function allerAuxRV() {
+  const btn = document.querySelector('.tab-btn[onclick*="garages"]');
+  showPage('garages', btn);
+}
+
 function renderAccueil() {
   const alertes = buildAlertes();
   const nbUrgent = alertes.filter(a => a.level === 'urgent').length;
@@ -4985,7 +4996,7 @@ function renderAccueil() {
         const rowBg = j < 0 ? 'background:var(--gris-clair);' : j <= 1 ? 'background:var(--orange-clair);' : '';
         return '<div style="'+rowBg+'display:flex;align-items:flex-start;gap:10px;padding:9px 14px;'
           + 'border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap;cursor:pointer"'
-          + ' onclick="showPage(\'garages\',document.querySelector(\'.tab-btn[onclick*=garages]\'))">'
+          + ' onclick="allerAuxRV()">'
           + '<div style="min-width:70px;text-align:center;flex-shrink:0">'
           + '<div style="font-size:12px;font-weight:700;color:var(--bleu)">'+formatDate(r.date)+'</div>'
           + '<div style="font-size:11px">'+jStr+'</div>'
@@ -4999,7 +5010,7 @@ function renderAccueil() {
           + '</div>';
       }).join('');
       document.getElementById('alertes-dashboard').innerHTML += '<div id="bloc-prochains-rv" style="margin-top:14px">'
-        + '<h3 style="margin-bottom:8px;cursor:pointer" onclick="showPage(\'garages\',document.querySelector(\'.tab-btn[onclick*=garages]\'))">'
+        + '<h3 style="margin-bottom:8px;cursor:pointer" onclick="allerAuxRV()">'
         + '📅 RV programmés <span style="font-size:12px;color:var(--bleu);text-decoration:underline">voir tous →</span></h3>'
         + '<div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">'+rvHtml+'</div>'
         + '</div>';
@@ -6374,11 +6385,6 @@ function saveRV() {
 
   rendezvous.unshift(rec);
   saveAll();
-
-  // Mettre à jour ctEvents si effectué
-  if (rec.statut === 'fait') {
-    ctEvents.unshift({ id: Date.now()+1, date: rec.date, vehId: rec.vehId, type: rec.type, km: rec.km, result: rec.garage, rem: rec.notes });
-  }
 
   // Notifications push (uniquement si RV planifié)
   if (rec.statut === 'planifie') {
@@ -8669,7 +8675,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260610.2113';
+const APP_VERSION = '260610.2123';
 
 let _swRegistration = null;
 
