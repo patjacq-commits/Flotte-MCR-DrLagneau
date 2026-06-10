@@ -3251,14 +3251,14 @@ function renderMessagesChauf() {
 
   // Admin : non traités (nonlu + attente) ; traités → historique
   if (userIsAdmin()) {
-    msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'attente' || !m.statut);
+    msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'vu' || !m.statut);
   } else {
     // Chauffeur : uniquement ses messages nonlu (attente et traite sont côté admin)
     const monUid = currentUser?.uid || '';
     const monNom = currentUser?.nom || '';
     msgs = msgs.filter(m =>
       ((monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)) &&
-      (m.statut === 'nonlu' || m.statut === 'attente' || !m.statut)
+      (m.statut === 'nonlu' || m.statut === 'vu' || !m.statut)
     );
   }
 
@@ -3266,7 +3266,7 @@ function renderMessagesChauf() {
 
   // Titre : admin = nb total non traités ; chauffeur = ses messages en cours
   const nbActifs = userIsAdmin()
-    ? messagesChauf.filter(m => m.statut === 'nonlu' || m.statut === 'attente' || !m.statut).length
+    ? messagesChauf.filter(m => m.statut === 'nonlu' || m.statut === 'vu' || !m.statut).length
     : msgs.length;
   const titreEl = document.getElementById('chauf-nb-titre');
   if (titreEl) titreEl.textContent = nbActifs > 0
@@ -3286,11 +3286,11 @@ function renderMessagesChauf() {
     const dateStr = new Date(m.date).toLocaleString('fr-BE',
       { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
     const isNonLu   = !m.statut || m.statut === 'nonlu';
-    const isAttente = m.statut === 'attente';
+    const isVu      = m.statut === 'vu';
     const isTraite  = m.statut === 'traite' || m.statut === 'lu';
     const isUrgent  = m.priorite === 'urgent';
-    const badgeCls  = isUrgent ? 'urgent' : isAttente ? 'warn' : isNonLu ? 'warn' : 'ok';
-    const badgeTxt  = isUrgent ? '🚨 Urgent' : isAttente ? '⏳ En attente' : isNonLu ? '⚠ Non traité' : '✅ Traité';
+    const badgeCls  = isUrgent ? 'urgent' : isVu ? 'info' : isNonLu ? 'warn' : 'ok';
+    const badgeTxt  = isUrgent ? '🚨 Urgent' : isVu ? '👁 Vu' : isNonLu ? '⚠ Non traité' : '✅ Traité';
 
     // Réponses
     const repHtml = (m.reponses||[]).map(r => {
@@ -3318,18 +3318,23 @@ function renderMessagesChauf() {
         : `<span style="font-size:12px;color:var(--texte-sec);margin-bottom:8px;display:block">
              📱 Numéro non renseigné par le chauffeur
            </span>`;
-      const btnTraite  = m.statut !== 'traite'
-        ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
-               onclick="markChaufLu(${m.id})">✅ Traité</button>`
-        : `<button class="btn btn-sm" style="color:var(--gris);border-color:var(--gris)"
-               onclick="markChaufNonLu(${m.id})">↩ Rouvrir</button>`;
-      const btnAttente = m.statut !== 'attente' && m.statut !== 'traite'
-        ? `<button class="btn btn-sm" style="color:var(--orange);border-color:var(--orange)"
-               onclick="markChaufAttente(${m.id})">⏳ En attente</button>`
-        : '';
+
+      // Bouton 👁 Vu — si pas encore vu
+      const btnVu = (m.statut === 'nonlu' || !m.statut)
+        ? `<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu)"
+               onclick="markChaufVu(${m.id})">👁 Vu</button>`
+        : m.statut === 'vu'
+          ? `<span style="font-size:12px;color:var(--bleu);padding:4px 6px">👁 Vu</span>`
+          : '';
+
+      // Bouton ✅ Traité
+      const btnTraite = `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
+               onclick="markChaufLu(${m.id})">✅ Traité</button>`;
+
       const btnDel = `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
                onclick="deleteChauf(${m.id})">🗑</button>`;
-      return telHtml + btnTraite + ' ' + btnAttente + ' ' + btnDel;
+
+      return telHtml + btnVu + ' ' + btnTraite + ' ' + btnDel;
     })() : '';
 
     // Bouton supprimer chauffeur
@@ -3375,7 +3380,7 @@ function renderMessagesChauf() {
           + 'margin-top:4px">📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
         : '';
 
-    return `<div class="msg-card ${isNonLu||isAttente ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
+    return `<div class="msg-card ${isNonLu||isVu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
       <div class="msg-header">
         <span class="badge ${badgeCls}" style="font-size:10px">${badgeTxt}</span>
         <span class="msg-veh">🚑 ${vNom}</span>
@@ -3411,14 +3416,15 @@ function markChaufLu(id) {
   toast('✅ Message traité — transféré dans l\'Historique');
 }
 
-function markChaufAttente(id) {
+function markChaufVu(id) {
   const m = messagesChauf.find(x => x.id === id);
   if (!m) return;
-  m.statut = 'attente';
+  m.statut = 'vu';
+  m.vuLe   = new Date().toISOString();
   saveAll();
   renderMessagesChauf();
   updateTabChauf();
-  toast('⏳ Message mis en attente');
+  toast('👁 Message marqué comme vu — le chauffeur en est informé');
 }
 
 function markChaufNonLu(id) {
@@ -3434,7 +3440,7 @@ function marquerMessagesVus() {
   let modifie = false;
   const now = new Date().toISOString();
   messagesChauf.forEach(m => {
-    if ((m.statut === 'nonlu' || m.statut === 'attente' || !m.statut) && !m.vuLe) {
+    if ((m.statut === 'nonlu' || m.statut === 'vu' || !m.statut) && !m.vuLe) {
       m.vuLe = now;
       modifie = true;
     }
@@ -5507,7 +5513,7 @@ function updateTabChauf() {
   if (!tab) return;
   // Badge = messages non traités (nonlu + attente)
   const nbActifs = messagesChauf.filter(m =>
-    m.statut === 'nonlu' || m.statut === 'attente' || !m.statut
+    m.statut === 'nonlu' || m.statut === 'vu' || !m.statut
   ).length;
 
   let badge = tab.querySelector('.tab-badge');
