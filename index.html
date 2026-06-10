@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.1431</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.2042</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -2163,11 +2163,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260610.1431</strong><br>
+      Version actuelle de l'app : <strong>v260610.2042</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260610.1431 disponible)
+      📢 Notifier les utilisateurs (v260610.2042 disponible)
     </button>
   </div>
       <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
@@ -4805,9 +4805,11 @@ function renderAccueil() {
 
   const nbInfos = getInfosActives().length;
 
-  const todayStr2 = new Date().toISOString().slice(0,10);
+  const hierStr2  = new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const plus7Str  = new Date(Date.now()+7*86400000).toISOString().slice(0,10);
   const nbRVprog  = [...rendezvous, ...ctEvents]
-    .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= todayStr2).length;
+    .filter(r => r.statut !== 'annule' && r.statut !== 'fait'
+              && r.date >= hierStr2 && r.date <= plus7Str).length;
 
   document.getElementById('summary-grid').innerHTML = `
     <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
@@ -4946,40 +4948,58 @@ function renderAccueil() {
       `<div id="bloc-infos-veh"></div>`;
   }
 
-  // ── 5 prochains RV — admin uniquement ──────────────────────
+  // ── RV programmés — admin uniquement, 7j avant, -24h après ──
   if (isAdmin) {
-    const prochainRV = [...rendezvous, ...ctEvents.filter(c => c.date >= today)]
-      .filter(r => r.statut !== 'annule' && r.statut !== 'fait' && r.date >= today)
-      .sort((a,b) => (a.date + (a.heure||'00:00')).localeCompare(b.date + (b.heure||'00:00')))
-      .slice(0, 5);
+    const now7     = new Date();
+    const limite7  = new Date(); limite7.setDate(limite7.getDate() + 7);
+    const hier     = new Date(); hier.setDate(hier.getDate() - 1);
+    const hierStr  = hier.toISOString().slice(0,10);
+    const limite7Str = limite7.toISOString().slice(0,10);
 
-    if (prochainRV.length) {
-      const rvHtml = prochainRV.map(r => {
-        const v = vehicules.find(x => x.id === r.vehId);
-        const vNom = v ? `${v.marque} <b>${v.immat}</b>` : r.vehId;
-        const typeLabel = CT_TYPE_LABELS?.[r.type] || (r.type === 'ct' ? '🏥 CT' : r.type === 'garage' ? '🔧 Entretien' : r.type || '📅 RV');
-        const heureStr  = r.heure ? ` à <b>${r.heure}</b>` : '';
-        const garageStr = (r.result || r.garage) ? ` — ${r.result || r.garage}` : '';
-        const j = Math.round((new Date(r.date) - new Date(today)) / 86400000);
-        const jStr = j === 0 ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui !</span>'
-                   : j === 1 ? '<span style="color:var(--orange);font-weight:700">Demain</span>'
-                   : `<span style="color:var(--texte-sec)">dans ${j}j</span>`;
-        const urgentStyle = j <= 1 ? 'background:var(--orange-clair);' : '';
-        return `<div style="${urgentStyle}display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
-          <div style="min-width:70px;text-align:center">
+    // RV dans les 7 prochains jours ET pas encore passés depuis > 24h
+    const rvProg = [...rendezvous, ...ctEvents]
+      .filter(r => {
+        if (r.statut === 'annule' || r.statut === 'fait') return false;
+        return r.date >= hierStr && r.date <= limite7Str;
+      })
+      .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
+
+    if (rvProg.length) {
+      const rvHtml = rvProg.map(r => {
+        const v         = vehicules.find(x => x.id === r.vehId);
+        const vNom      = v ? `${v.marque} <b>${v.immat}</b>` : r.vehId;
+        const typeLabel = CT_TYPE_LABELS?.[r.type] || r.type || '📅 RV';
+        const heureStr  = r.heure   ? ` à <b>${r.heure}</b>` : '';
+        const garageStr = (r.result||r.garage) ? ` — ${r.result||r.garage}` : '';
+        const remStr    = r.rem     ? `<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">${r.rem}</div>` : '';
+        const j         = Math.round((new Date(r.date) - new Date(today)) / 86400000);
+        const jStr      = j < 0  ? '<span style="color:var(--texte-sec)">Hier</span>'
+                        : j === 0 ? '<span style="color:var(--rouge);font-weight:700">Aujourd\'hui !</span>'
+                        : j === 1 ? '<span style="color:var(--orange);font-weight:700">Demain</span>'
+                        : `<span style="color:var(--texte-sec)">dans ${j}j</span>`;
+        const rowBg     = j < 0  ? 'background:var(--gris-clair);opacity:0.7;'
+                        : j <= 1 ? 'background:var(--orange-clair);'
+                        : j <= 3 ? 'background:var(--jaune-clair,#fffde7);' : '';
+        return `<div style="${rowBg}display:flex;align-items:flex-start;gap:10px;padding:9px 14px;border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap"
+          onclick="showPage('garages',document.querySelector('.tab-btn[onclick*=garages]'))" style="cursor:pointer">
+          <div style="min-width:70px;text-align:center;flex-shrink:0">
             <div style="font-size:12px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
             <div style="font-size:11px">${jStr}</div>
           </div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px">${vNom}${heureStr}</div>
             <div style="font-size:12px;color:var(--texte-sec)">${typeLabel}${garageStr}</div>
+            ${remStr}
           </div>
-          <button class="btn btn-sm" onclick="openRV('${r.vehId}','${r.type||'ct'}')">✏️</button>
+          <button class="btn btn-sm" onclick="event.stopPropagation();openRV('${r.vehId}','${r.type||'ct'}')" title="Modifier">✏️</button>
         </div>`;
       }).join('');
       document.getElementById('alertes-dashboard').innerHTML += `
         <div id="bloc-prochains-rv" style="margin-top:14px">
-          <h3 style="margin-bottom:8px">📅 Prochains rendez-vous</h3>
+          <h3 style="margin-bottom:8px;cursor:pointer"
+            onclick="showPage('garages',document.querySelector('.tab-btn[onclick*=garages]'))">
+            📅 RV programmés <span style="font-size:12px;color:var(--bleu);text-decoration:underline">voir tous →</span>
+          </h3>
           <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">${rvHtml}</div>
         </div>`;
     }
@@ -6096,6 +6116,26 @@ function openVehDetail(id) {
     + dr('Été → Hiver (date)', formatDate(v.permut_ete_hiver_date))
     + dr('Été → Hiver (km)', v.permut_ete_hiver_km ? parseInt(v.permut_ete_hiver_km).toLocaleString('fr-BE') + ' km' : '—')
     + rechtRows
+    + (() => {
+        const hier3    = new Date(Date.now()-86400000).toISOString().slice(0,10);
+        const rvAv     = [...rendezvous, ...ctEvents]
+          .filter(r => r.vehId === v.id && r.statut !== 'annule' && r.statut !== 'fait' && r.date >= hier3)
+          .sort((a,b) => a.date.localeCompare(b.date));
+        if (!rvAv.length) return '';
+        return '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;'
+          + 'border-top:1px solid var(--gris-bord)">📅 Rendez-vous à venir</td></tr>'
+          + rvAv.map(r => {
+              const tl = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
+              const ga = (r.result||r.garage) ? ' — '+(r.result||r.garage) : '';
+              const hr = r.heure ? ' à '+r.heure : '';
+              const j  = Math.round((new Date(r.date)-new Date())/86400000);
+              const jl = j < 0 ? '(hier)' : j === 0 ? '⚡ Aujourd\'hui' : j === 1 ? '⏰ Demain' : 'dans '+j+'j';
+              const cl = j <= 1 ? 'var(--rouge)' : 'var(--bleu)';
+              return '<tr><td style="padding:5px 0;font-size:12px;color:var(--texte-sec)">'
+                + formatDate(r.date)+hr+'<br><span style="font-size:11px;color:'+cl+'">'+jl+'</span></td>'
+                + '<td style="font-size:12px">'+tl+ga+(r.rem?'<br><span style="color:var(--texte-sec)">'+r.rem+'</span>':'')+'</td></tr>';
+            }).join('');
+      })()
     + '</table>'
     + editBtn;
 
@@ -7551,6 +7591,7 @@ function renderHistorique() {
   const filterType = document.getElementById('hist-filter-type')?.value || '';
   const dateDebut  = document.getElementById('hist-date-debut')?.value  || '';
   const dateFin    = document.getElementById('hist-date-fin')?.value    || '';
+  const hierStr    = new Date(Date.now()-86400000).toISOString().slice(0,10);
 
   // Peupler le select véhicules une seule fois
   const sel = document.getElementById('hist-filter-veh');
@@ -7589,11 +7630,24 @@ function renderHistorique() {
   rendezvous.forEach(r => {
     if (filterType && filterType !== 'rv') return;
     if (filterVeh && r.vehId !== filterVeh) return;
+    if (dateDebut && r.date < dateDebut) return;
+    if (dateFin   && r.date > dateFin)   return;
+    // N'afficher que les RV passés dans l'historique (date <= hier)
+    if (r.date > hierStr) return;
     const v = vehicules.find(x => x.id === r.vehId);
-    const typeLabel = r.type === 'ct' ? 'CT' : 'Entretien';
-    const statutLabel = r.statut === 'planifie' ? '📅 Planifié' : r.statut === 'fait' ? '✅ Effectué' : '❌ Annulé';
-    const heureStr = r.heure ? ` ${r.heure}` : '';
-    rows.push({ date: r.date, veh: v ? v.marque + ' ' + v.immat : r.vehId, type: `RV ${typeLabel}`, km: r.km, detail: `${statutLabel}${r.garage ? ' — ' + r.garage : ''}${r.notes ? ' — ' + r.notes : ''}${heureStr}`, srcType:'rv', srcId: r.id });
+    const typeLabel = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
+    const heureStr  = r.heure ? ' '+r.heure : '';
+    const garageStr = (r.result||r.garage) ? ' — '+(r.result||r.garage) : '';
+    const remStr    = (r.notes||r.rem)     ? ' — '+(r.notes||r.rem)     : '';
+    rows.push({
+      date:    r.date+heureStr,
+      veh:     v ? v.marque+' '+v.immat : r.vehId,
+      type:    '📅 '+typeLabel,
+      km:      r.km,
+      detail:  garageStr+remStr,
+      srcType: 'rv',
+      srcId:   r.id
+    });
   });
 
   adblues.forEach(a => {
@@ -8612,7 +8666,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260610.1431';
+const APP_VERSION = '260610.2042';
 
 let _swRegistration = null;
 
