@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.2130</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.2137</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -2163,11 +2163,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260610.2130</strong><br>
+      Version actuelle de l'app : <strong>v260610.2137</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260610.2130 disponible)
+      📢 Notifier les utilisateurs (v260610.2137 disponible)
     </button>
   </div>
       <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
@@ -7401,48 +7401,63 @@ function saveCT() {
   const type  = document.getElementById('ct-type').value;
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
 
-  // Pour "Autre", récupérer le motif libre et le stocker dans rem
   let remVal = document.getElementById('ct-rem').value;
   if (type === 'autre') {
     const motif = document.getElementById('ct-autre-motif').value.trim();
     if (!motif) { toast('Veuillez préciser le motif pour "Autre".'); return; }
     remVal = motif + (remVal ? ' — ' + remVal : '');
-
-    // Enregistrer le motif comme option personnalisée persistée dans la liste
     enregistrerMotifLibre(motif);
   }
 
-  const rec = {
-    id:     Date.now(),
-    date, vehId, type,
-    heure:  document.getElementById('ct-heure').value,
-    km:     document.getElementById('ct-km').value,
-    result: document.getElementById('ct-result').value,
-    next:   document.getElementById('ct-next').value,
-    rem:    remVal
-  };
-  ctEvents.unshift(rec);
+  const today = new Date().toISOString().slice(0,10);
+  const estPasse = date <= today;
 
-  // Mettre à jour la date CT si CT
-  if (type === 'ct' && rec.next) {
-    const veh = vehicules.find(v => v.id === vehId);
-    if (veh) veh.ct_valid = rec.next;
+  if (estPasse) {
+    // Date passée ou aujourd'hui → enregistrement direct dans ctEvents (historique)
+    const rec = {
+      id: Date.now(), date, vehId, type,
+      heure:  document.getElementById('ct-heure').value,
+      km:     document.getElementById('ct-km').value,
+      result: document.getElementById('ct-result').value,
+      next:   document.getElementById('ct-next').value,
+      rem:    remVal
+    };
+    ctEvents.unshift(rec);
+    // Mettre à jour date CT valide si type ct
+    if (type === 'ct' && rec.next) {
+      const veh = vehicules.find(v => v.id === vehId);
+      if (veh) veh.ct_valid = rec.next;
+    }
+    saveAll();
+    const v = vehicules.find(v => v.id === vehId);
+    logCreation('ctEvents', `RV effectué : ${v?.immat||vehId} — ${CT_TYPE_LABELS[type]||type} — ${formatDate(date)}`, { vehId, type, date });
+    toast('RV enregistré dans l\'historique ✅');
+  } else {
+    // Date future → planifier dans rendezvous
+    const rec = {
+      id: Date.now(), vehId, date, type,
+      heure:  document.getElementById('ct-heure').value,
+      garage: document.getElementById('ct-result').value,
+      km:     document.getElementById('ct-km').value,
+      statut: 'planifie',
+      notes:  remVal,
+      next:   document.getElementById('ct-next').value,
+      createdAt: new Date().toISOString()
+    };
+    rendezvous.unshift(rec);
+    saveAll();
+    // Rappel push 24h avant
+    if (Notification.permission === 'granted') {
+      const veh = vehicules.find(v => v.id === vehId);
+      programmerRappel(rec, veh);
+    }
+    const v = vehicules.find(v => v.id === vehId);
+    logCreation('rendezvous', `RV planifié : ${v?.immat||vehId} — ${CT_TYPE_LABELS[type]||type} — ${formatDate(date)}`, { vehId, type, date });
+    toast('RV planifié ✅ — visible sur le dashboard et le calendrier');
   }
 
-  saveAll();
   clearCTForm();
   renderCTTable();
-  // Programmer rappel 24h si date future
-  if (Notification.permission === 'granted') {
-    const veh = vehicules.find(v => v.id === vehId);
-    programmerRappel({ id: rec.id, date: rec.date, heure: rec.heure, type: rec.type, garage: rec.result, notes: rec.rem, vehId, statut:'planifie' }, veh);
-  }
-  const _ctN = ctEvents[0];
-  if (_ctN) {
-    const _vCTn = vehicules.find(v => v.id === _ctN.vehId);
-    logCreation('ctEvents', `CT créé : ${_vCTn ? _vCTn.immat : _ctN.vehId} — ${_ctN.type} — ${formatDate(_ctN.date)}`, { vehId:_ctN.vehId, type:_ctN.type, date:_ctN.date });
-  }
-  toast('RV enregistré ✅');
   renderAccueil();
   if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
 }
@@ -7455,6 +7470,43 @@ function clearCTForm() {
   const autreWrap = document.getElementById('ct-autre-wrap');
   if (autreWrap) autreWrap.style.display = 'none';
   onCTTypeChange();
+}
+
+function marquerRVEffectue(id) {
+  const r = rendezvous.find(x => x.id === id);
+  if (!r) return;
+  // Migrer vers ctEvents (historique réalisé)
+  ctEvents.unshift({
+    id:     Date.now(),
+    date:   r.date,
+    vehId:  r.vehId,
+    type:   r.type,
+    heure:  r.heure || '',
+    km:     r.km    || '',
+    result: r.garage || '',
+    next:   r.next  || '',
+    rem:    r.notes || ''
+  });
+  // Mettre à jour date CT valide si type ct
+  if (r.type === 'ct' && r.next) {
+    const veh = vehicules.find(v => v.id === r.vehId);
+    if (veh) veh.ct_valid = r.next;
+  }
+  // Supprimer de rendezvous
+  rendezvous = rendezvous.filter(x => x.id !== id);
+  saveAll();
+  renderCTTable();
+  renderAccueil();
+  toast('✅ RV marqué effectué — transféré dans l\'historique');
+}
+
+function annulerRV(id) {
+  if (!confirm('Annuler ce rendez-vous ?')) return;
+  rendezvous = rendezvous.filter(x => x.id !== id);
+  saveAll();
+  renderCTTable();
+  renderAccueil();
+  toast('RV annulé');
 }
 
 function deleteCT(id) {
@@ -7472,24 +7524,73 @@ function renderCTTable() {
   const tbody = document.getElementById('ct-tbody');
   if (!tbody) return;
 
-  const rows = ctEvents
+  // RV planifiés (rendezvous non annulés)
+  const planifies = rendezvous
+    .filter(r => r.statut !== 'annule' && r.statut !== 'fait')
+    .filter(r => !filterVeh  || r.vehId === filterVeh)
+    .filter(r => !filterType || r.type  === filterType)
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  // Historique ctEvents
+  const historique = ctEvents
     .filter(c => !filterVeh  || c.vehId === filterVeh)
     .filter(c => !filterType || c.type  === filterType)
     .sort((a,b) => b.date.localeCompare(a.date));
 
-  tbody.innerHTML = rows.length ? rows.map(c => {
-    const v   = vehicules.find(x => x.id === c.vehId);
-    const lbl = CT_TYPE_LABELS[c.type] || c.type;
-    const heureStr = c.heure ? ` ${c.heure}` : '';
-    return `<tr>
-      <td>${formatDate(c.date)}${heureStr}</td>
-      <td style="font-size:12px">${v ? v.marque + ' ' + v.immat : c.vehId}</td>
-      <td><span class="badge info" style="font-size:10px;white-space:nowrap">${lbl}</span></td>
-      <td style="font-size:12px">${c.result || '—'}</td>
-      <td style="font-size:12px;max-width:200px">${c.rem || '—'}</td>
-      <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCT(${c.id})">✕</button></td>
-    </tr>`;
-  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun RV enregistré</td></tr>';
+  let html = '';
+
+  if (planifies.length) {
+    html += `<tr><td colspan="6" style="background:var(--bleu-clair);padding:6px 10px;
+      font-size:12px;font-weight:700;color:var(--bleu)">📅 RV planifiés</td></tr>`;
+    html += planifies.map(r => {
+      const v   = vehicules.find(x => x.id === r.vehId);
+      const lbl = CT_TYPE_LABELS[r.type] || r.type;
+      const hr  = r.heure ? ' ' + r.heure : '';
+      const j   = Math.round((new Date(r.date)-new Date())/86400000);
+      const jLbl = j < 0 ? '<span style="color:var(--rouge)">Hier</span>'
+                 : j === 0 ? '<span style="color:var(--rouge)">Aujourd\'hui</span>'
+                 : j === 1 ? '<span style="color:var(--orange)">Demain</span>'
+                 : '<span style="color:var(--bleu)">dans '+j+'j</span>';
+      return `<tr style="background:var(--bleu-clair,#eaf4fb)">
+        <td>${formatDate(r.date)}${hr}<br><small>${jLbl}</small></td>
+        <td style="font-size:12px">${v ? v.marque+' '+v.immat : r.vehId}</td>
+        <td><span class="badge info" style="font-size:10px;white-space:nowrap">${lbl}</span></td>
+        <td style="font-size:12px">${r.garage||'—'}</td>
+        <td style="font-size:12px;max-width:160px">${r.notes||'—'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert);margin-right:4px"
+            onclick="marquerRVEffectue(${r.id})" title="Marquer effectué">✅</button>
+          <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+            onclick="annulerRV(${r.id})" title="Annuler">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  if (historique.length) {
+    html += `<tr><td colspan="6" style="background:var(--gris-clair);padding:6px 10px;
+      font-size:12px;font-weight:700;color:var(--texte-sec)">📋 Historique effectué</td></tr>`;
+    html += historique.map(c => {
+      const v   = vehicules.find(x => x.id === c.vehId);
+      const lbl = CT_TYPE_LABELS[c.type] || c.type;
+      const hr  = c.heure ? ' ' + c.heure : '';
+      return `<tr>
+        <td>${formatDate(c.date)}${hr}</td>
+        <td style="font-size:12px">${v ? v.marque+' '+v.immat : c.vehId}</td>
+        <td><span class="badge info" style="font-size:10px;white-space:nowrap">${lbl}</span></td>
+        <td style="font-size:12px">${c.result||'—'}</td>
+        <td style="font-size:12px;max-width:160px">${c.rem||'—'}</td>
+        <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+          onclick="deleteCT(${c.id})">✕</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  if (!html) {
+    html = '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun RV enregistré</td></tr>';
+  }
+
+  tbody.innerHTML = html;
 }
 
 function loadVehData() {
@@ -8675,7 +8776,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260610.2130';
+const APP_VERSION = '260610.2137';
 
 let _swRegistration = null;
 
