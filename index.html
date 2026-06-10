@@ -3337,6 +3337,15 @@ function renderMessagesChauf() {
       return telHtml + btnVu + ' ' + btnTraite + ' ' + btnDel;
     })() : '';
 
+    // Afficher "Vu le" côté chauffeur dans le fil
+    const vuLeHtml = !userIsAdmin() && isVu && m.vuLe
+      ? `<div style="font-size:11px;color:var(--bleu);margin-top:4px;font-weight:600">
+           👁 Vu par l'admin le ${new Date(m.vuLe).toLocaleString('fr-BE',
+             { day:'2-digit', month:'2-digit', year:'numeric',
+               hour:'2-digit', minute:'2-digit' })}
+         </div>`
+      : '';
+
     // Bouton supprimer chauffeur
     const chaufDeleteBtn = !userIsAdmin()
       ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
@@ -3389,6 +3398,7 @@ function renderMessagesChauf() {
       <div class="msg-body">
         <div style="font-size:13px">${m.msg}</div>
         <div class="msg-auteur">— ${m.auteur}</div>
+        ${vuLeHtml}
         ${photosHtml}
       </div>
       ${repHtml}
@@ -3440,12 +3450,13 @@ function marquerMessagesVus() {
   let modifie = false;
   const now = new Date().toISOString();
   messagesChauf.forEach(m => {
-    if ((m.statut === 'nonlu' || m.statut === 'vu' || !m.statut) && !m.vuLe) {
-      m.vuLe = now;
-      modifie = true;
+    if ((m.statut === 'nonlu' || !m.statut) && !m.vuLe) {
+      m.statut = 'vu';
+      m.vuLe   = now;
+      modifie  = true;
     }
   });
-  if (modifie) saveAll();
+  if (modifie) { saveAll(); renderMessagesChauf(); updateTabChauf(); }
 }
 
 function deleteChauf(id) {
