@@ -4,7 +4,7 @@
 // v1.6.1 : Notification push quotidienne à 7h00
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v260610.1423';
+const CACHE_NAME = 'mcr-flotte-v260610.1431';
 const CACHE_URLS = ['./', './index.html', './icon-192.png', './manifest.json'];
 
 // Rappels RV en mémoire { id, titre, corps, tag, fireAt }
@@ -44,6 +44,12 @@ self.addEventListener('fetch', event => {
       url.includes('googleapis') || url.includes('gstatic') ||
       url.includes('google.com')) return;
   if (event.request.method !== 'GET') return;
+
+  // Requêtes de vérification de version → réseau pur, jamais en cache
+  if (url.includes('nocache=')) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
 
   event.respondWith(
     fetch(event.request)

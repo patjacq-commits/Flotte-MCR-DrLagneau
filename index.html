@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.1423</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.1431</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -2163,11 +2163,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260610.1423</strong><br>
+      Version actuelle de l'app : <strong>v260610.1431</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260610.1423 disponible)
+      📢 Notifier les utilisateurs (v260610.1431 disponible)
     </button>
   </div>
       <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
@@ -4721,22 +4721,34 @@ async function ouvrirModalNouveauChaufeur() {
 
 // ── Détection de nouvelle version ────────────────────────
 async function verifierMaj() {
-  // Patrick (superadmin) ne voit jamais le bandeau — il crée les versions
   if (userIsSuperAdmin()) return;
 
   try {
-    // Lire la version publiée dans Firestore par Patrick
-    const doc = await db.collection('config').doc('version').get();
-    if (!doc.exists) return;
-    const versionServeur = doc.data().version || '';
-    if (!versionServeur || versionServeur === APP_VERSION) return;
-
-    // Une version plus récente est disponible → afficher le bandeau
-    // Comparer numériquement (ex: 260610.1414 > 260610.1402)
-    const vS = parseFloat(versionServeur.replace('.',''));
-    const vA = parseFloat(APP_VERSION.replace('.',''));
+    // Fetch direct de l'app sur GitHub Pages en ignorant tout cache
+    // ?nocache=timestamp force le navigateur à ne pas utiliser le SW
+    const url = location.origin + location.pathname + '?nocache=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return;
+    const text = await res.text();
+    const match = text.match(/APP_VERSION\s*=\s*'([\d.]+)'/);
+    if (!match) return;
+    const versionServeur = match[1];
+    // Comparer : si version distante > version locale → afficher bandeau
+    const vS = parseFloat(versionServeur.replace('.', ''));
+    const vA = parseFloat(APP_VERSION.replace('.', ''));
     if (vS > vA) afficherBandeauMaj(versionServeur);
-  } catch(e) {}
+  } catch(e) {
+    // Fallback hors ligne : vérifier Firestore
+    try {
+      const doc = await db.collection('config').doc('version').get();
+      if (!doc.exists) return;
+      const versionServeur = doc.data().version || '';
+      if (!versionServeur) return;
+      const vS = parseFloat(versionServeur.replace('.', ''));
+      const vA = parseFloat(APP_VERSION.replace('.', ''));
+      if (vS > vA) afficherBandeauMaj(versionServeur);
+    } catch(e2) {}
+  }
 }
 
 function afficherBandeauMaj(versionServeur) {
@@ -8600,7 +8612,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260610.1423';
+const APP_VERSION = '260610.1431';
 
 let _swRegistration = null;
 
