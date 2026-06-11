@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.1745</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.1803</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -2164,11 +2164,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260611.1745</strong><br>
+      Version actuelle de l'app : <strong>v260611.1803</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260611.1745 disponible)
+      📢 Notifier les utilisateurs (v260611.1803 disponible)
     </button>
   </div>
       <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
@@ -5587,12 +5587,23 @@ function ouvrirInfoVeh(vehId) {
 function updateTabAlertes() {
   const tabAlertes = document.querySelectorAll('.tab-btn')[2];
   if (!tabAlertes) return;
-  // Clignoter uniquement si CT à prendre ou entretien à prendre (pas les autres alertes)
   const alertes = buildAlertes();
-  const hasRVAPrendre = alertes.some(a =>
-    a.rvAPrendre && (a.category === 'ct' || a.category === 'entretien')
-  );
-  tabAlertes.classList.toggle('tab-urgent', hasRVAPrendre && !tabAlertes.classList.contains('active'));
+  // CT urgent > CT warn > Entretien urgent > Entretien warn
+  const hasCTUrgent      = alertes.some(a => a.rvAPrendre && a.category === 'ct'        && a.level === 'urgent');
+  const hasCTWarn        = alertes.some(a => a.rvAPrendre && a.category === 'ct'        && a.level === 'warn');
+  const hasEntretienUrgent = alertes.some(a => a.rvAPrendre && a.category === 'entretien' && a.level === 'urgent');
+  const hasEntretienWarn   = alertes.some(a => a.rvAPrendre && a.category === 'entretien' && a.level === 'warn');
+
+  const doit = hasCTUrgent || hasCTWarn || hasEntretienUrgent || hasEntretienWarn;
+  tabAlertes.classList.toggle('tab-urgent', doit && !tabAlertes.classList.contains('active'));
+
+  // Badge visuel : 🚨 si CT urgent, 🔶 si CT warn, 🔧 si entretien seul
+  let badge = tabAlertes.querySelector('.tab-badge-alertes');
+  if (doit) {
+    if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge-alertes'; tabAlertes.appendChild(badge); }
+    badge.textContent = hasCTUrgent ? '🚨' : hasCTWarn ? '🔶' : hasEntretienUrgent ? '🔧' : '🔩';
+    badge.title       = hasCTUrgent ? 'CT urgent !' : hasCTWarn ? 'CT à planifier' : 'Entretien à planifier';
+  } else if (badge) badge.remove();
 }
 
 /* Met à jour le badge et clignotement de l'onglet Alerte chauffeur (côté admin uniquement) */
@@ -5653,7 +5664,7 @@ function buildAlertes() {
         titre:`🔴 CARTE ROUGE — ${v.marque} ${v.immat}`,
         detail:`CT refusé. Circulation autorisée jusqu'au ${formatDate(v.ct_carte_rouge_date)}${jCR !== null ? ` (encore ${Math.max(0,jCR)} jour${jCR>1?'s':''})` : ''}. RV de repassage obligatoire !` });
     } else if (rvCT) {
-      if (j !== null && j <= 60) {
+      if (j !== null && j <= 35) {
         alertes.push({ level:'rv', icon:'📅', category:'ct', vehId:v.id, typeRV:'ct', rv:rvCT,
           titre:`CT planifié — ${v.marque} ${v.immat}`,
           detail:`CT valable jusqu'au ${formatDate(v.ct_valid)}. RV le ${formatDate(rvCT.date)}${rvCT.heure ? ' à ' + rvCT.heure : ''}${rvCT.garage ? ' — ' + rvCT.garage : ''}.` });
@@ -5671,8 +5682,8 @@ function buildAlertes() {
         alertes.push({ level:'warn', icon:'🔶', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
           titre:`CT à prendre — ${v.marque} ${v.immat}`,
           detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} — ${j} jour${j>1?'s':''} restants. Planifiez le RV.` });
-      } else if (j !== null && j <= 60) {
-        // 31–60 jours : warn (seuil abaissé de 90 à 60)
+      } else if (j !== null && j <= 35) {
+        // 31–35 jours : warn (seuil abaissé de 90 à 60)
         alertes.push({ level:'warn', icon:'🔶', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
           titre:`CT à planifier — ${v.marque} ${v.immat}`,
           detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} — ${j} jours restants. Pensez à prendre RV.` });
@@ -8810,7 +8821,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260611.1745';
+const APP_VERSION = '260611.1803';
 
 let _swRegistration = null;
 

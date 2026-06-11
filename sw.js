@@ -4,7 +4,7 @@
 // v1.6.1 : Notification push quotidienne à 7h00
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v260611.1745';
+const CACHE_NAME = 'mcr-flotte-v260611.1803';
 const CACHE_URLS = ['./', './index.html', './icon-192.png', './manifest.json'];
 
 // Rappels RV en mémoire { id, titre, corps, tag, fireAt }
