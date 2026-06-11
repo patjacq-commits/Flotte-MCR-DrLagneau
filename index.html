@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.1830</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.2221</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1949,11 +1949,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260611.1830</strong><br>
+      Version actuelle de l'app : <strong>v260611.2221</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260611.1830 disponible)
+      📢 Notifier les utilisateurs (v260611.2221 disponible)
     </button>
   </div>
 
@@ -5787,9 +5787,9 @@ function buildAlertes() {
 
     // ── Extincteur ────────────────────────────────────────────
     if (v.extincteur_valid === 'manquant') {
-      alertes.push({ level:'urgent', icon:'🧯', category:'extincteur', vehId:v.id, typeRV:null,
-        titre:`Extincteur MANQUANT — ${v.marque} ${v.immat}`,
-        detail:`L'extincteur du véhicule ${v.immat} est manquant. À remplacer immédiatement.` });
+      alertes.push({ level:'warn', icon:'🧯', category:'extincteur', vehId:v.id, typeRV:null,
+        titre:`Extincteur manquant — ${v.marque} ${v.immat}`,
+        detail:`L'extincteur du véhicule ${v.immat} est manquant. À remplacer.` });
     } else {
     const jExt = daysUntil(v.extincteur_valid);
     if (jExt !== null && jExt < 0) {
@@ -5880,15 +5880,54 @@ function renderAlerte(a) {
 
 function renderAlertesFull() {
   let alertes = buildAlertes();
-  // Appliquer filtre de niveau si venu du dashboard
   if (_alerteFilter) {
     alertes = alertes.filter(a => a.level === _alerteFilter);
-    _alerteFilter = ''; // reset après usage
+    _alerteFilter = '';
   }
-  document.getElementById('alertes-full').innerHTML = alertes.length
-    ? alertes.map(a => renderAlerte(a)).join('')
-    : '<p style="color:var(--texte-sec);padding:20px">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
-  // On est sur l'onglet Alertes : stopper le clignotement
+
+  const container = document.getElementById('alertes-full');
+  if (!container) return;
+
+  const urgentes     = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
+  const surveiller   = alertes.filter(a => a.level === 'warn'   || a.level === 'rv');
+
+  let html = '';
+
+  if (urgentes.length) {
+    html += '<h3 style="margin-bottom:10px">🔔 Alertes urgentes</h3>'
+          + '<div class="alertes-list">' + urgentes.map(a => renderAlerte(a)).join('') + '</div>';
+  }
+
+  if (surveiller.length) {
+    const CATEGORIES = [
+      { key:'ct',         label:'🏥 Contrôle Technique' },
+      { key:'entretien',  label:'🔧 Entretien garage' },
+      { key:'extincteur', label:'🧯 Extincteurs' },
+      { key:'assurance',  label:'🛡 Assurance' },
+      { key:'spw',        label:'📋 Vignette SPW' },
+      { key:undefined,    label:'⚠️ Autres' },
+    ];
+    let htmlSurv = '';
+    CATEGORIES.forEach(cat => {
+      const items = cat.key === undefined
+        ? surveiller.filter(a => !a.category)
+        : surveiller.filter(a => a.category === cat.key);
+      if (!items.length) return;
+      htmlSurv += '<div style="margin-bottom:10px">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;'
+        + 'letter-spacing:0.5px;margin-bottom:6px;padding:4px 8px;background:var(--gris-clair);'
+        + 'border-radius:4px">' + cat.label + '</div>'
+        + '<div class="alertes-list">' + items.map(a => renderAlerte(a)).join('') + '</div>'
+        + '</div>';
+    });
+    if (htmlSurv) {
+      html += '<div style="margin-top:' + (urgentes.length ? '18px' : '0') + '">'
+            + '<h3 style="margin-bottom:10px">⚠️ À surveiller</h3>' + htmlSurv + '</div>';
+    }
+  }
+
+  container.innerHTML = html || '<p style="color:var(--texte-sec);padding:20px">Aucune alerte active. Tous les véhicules sont à jour ✅</p>';
+
   const tabAlertes = document.querySelectorAll('.tab-btn')[2];
   if (tabAlertes) tabAlertes.classList.remove('tab-urgent');
 }
@@ -8850,7 +8889,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260611.1830';
+const APP_VERSION = '260611.2221';
 
 let _swRegistration = null;
 
