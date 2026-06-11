@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260610.2137</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.0524</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
@@ -1107,7 +1107,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Signaler un problème</button>
   <button class="tab-btn admin-only" onclick="showPage('statistiques',this)" style="display:none">💰 Coûts</button>
   <button class="tab-btn admin-only" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
-  <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 RV à prendre</button>
+  <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 Prendre RV</button>
   <button class="tab-btn" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
   <button class="tab-btn admin-only" onclick="showPage('pneus',this)" style="display:none">🛞 Pneus</button>
   <button class="tab-btn" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
@@ -1556,7 +1556,7 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE GARAGES/CT (admin) -->
 <div id="page-garages" class="page">
-  <h2 style="margin-bottom:14px">📋 RV à prendre</h2>
+  <h2 style="margin-bottom:14px">📋 Prendre RV</h2>
 
   <div class="form-card">
     <h3>Enregistrer un rendez-vous</h3>
@@ -1658,7 +1658,7 @@ td.ok { color: var(--vert); font-weight: 600; }
 
   <!-- Historique des RV enregistrés -->
   <div class="form-card">
-    <h3>RV enregistrés</h3>
+    <h3>Historique</h3>
     <div class="export-bar" style="margin-bottom:10px">
       <select id="ct-filter-veh" onchange="renderCTTable()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
         <option value="">Tous les véhicules</option>
@@ -2163,11 +2163,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260610.2137</strong><br>
+      Version actuelle de l'app : <strong>v260611.0524</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260610.2137 disponible)
+      📢 Notifier les utilisateurs (v260611.0524 disponible)
     </button>
   </div>
       <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
@@ -5446,7 +5446,7 @@ function programmerTousLesRappels() {
       programmerRappel(r, veh);
     });
 
-  // RV enregistrés dans ctEvents (onglet RV à prendre)
+  // RV enregistrés dans ctEvents (onglet Prendre RV)
   ctEvents
     .filter(c => c.date >= todayStr)
     .forEach(c => {
@@ -8776,7 +8776,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260610.2137';
+const APP_VERSION = '260611.0524';
 
 let _swRegistration = null;
 
