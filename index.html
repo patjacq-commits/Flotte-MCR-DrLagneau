@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.1823</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.1830</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1949,11 +1949,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260611.1823</strong><br>
+      Version actuelle de l'app : <strong>v260611.1830</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260611.1823 disponible)
+      📢 Notifier les utilisateurs (v260611.1830 disponible)
     </button>
   </div>
 
@@ -5786,6 +5786,11 @@ function buildAlertes() {
     }
 
     // ── Extincteur ────────────────────────────────────────────
+    if (v.extincteur_valid === 'manquant') {
+      alertes.push({ level:'urgent', icon:'🧯', category:'extincteur', vehId:v.id, typeRV:null,
+        titre:`Extincteur MANQUANT — ${v.marque} ${v.immat}`,
+        detail:`L'extincteur du véhicule ${v.immat} est manquant. À remplacer immédiatement.` });
+    } else {
     const jExt = daysUntil(v.extincteur_valid);
     if (jExt !== null && jExt < 0) {
       alertes.push({ level:'warn', icon:'🧯', category:'extincteur', vehId:null, typeRV:null,
@@ -5800,6 +5805,7 @@ function buildAlertes() {
         titre:`Extincteur à surveiller — ${v.immat}`,
         detail:`Expire le ${formatDate(v.extincteur_valid)} (dans ${jExt} jours).` });
     }
+    } // fin else manquant
 
     // ── Assurance ─────────────────────────────────────────────
     const jAss = daysUntil(v.assurance_valid);
@@ -6163,7 +6169,10 @@ function openVehDetail(id) {
     + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🪧 Vignette SPW</td></tr>'
     + dr('Valable jusqu\'au', v.spw_valid ? formatDate(v.spw_valid) : '—', spwA?.cls, spwA?.txt)
     + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🧯 Extincteur</td></tr>'
-    + dr('Valable jusqu\'au', v.extincteur_valid ? formatDate(v.extincteur_valid) : '—', extA?.cls, extA?.txt)
+    + dr('Valable jusqu\'au',
+        v.extincteur_valid === 'manquant' ? '<span style="color:var(--rouge);font-weight:700">⚠ Manquant</span>'
+        : v.extincteur_valid ? formatDate(v.extincteur_valid) : '—',
+        extA?.cls, extA?.txt)
     + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🏔 Pneumatiques</td></tr>'
     + dr('Dimensions été 🔴', v.dim_ete || '—')
     + dr('Marque pneus été', v.pneus_ete || '—')
@@ -6244,7 +6253,25 @@ function openVehEdit(id) {
     + field('Code carte Total',              'text',  'carte_total_code',     v.carte_total_code)
     + field('Validité carte Total',          'date',  'carte_total_valid',    v.carte_total_valid)
     + field('Vignette SPW jusqu\'au',         'date',  'spw_valid',            v.spw_valid)
-    + field('Extincteur jusqu\'au',           'date',  'extincteur_valid',     v.extincteur_valid)
+    + '<div class="form-group"><label style="font-size:13px">Extincteur jusqu\'au</label>'
+    + '<div style="display:flex;gap:6px;align-items:center">'
+    + '<input type="date" id="edit-extincteur-date" value="' + (v.extincteur_valid && v.extincteur_valid !== 'manquant' ? v.extincteur_valid : '') + '"'
+    + ' onchange="updateVehField(\'' + id + '\',\'extincteur_valid\',this.value||null)"'
+    + ' style="flex:1;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" />'
+    + '<label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;cursor:pointer">'
+    + '<input type="checkbox" id="edit-extincteur-manquant"'
+    + (v.extincteur_valid === 'manquant' ? ' checked' : '')
+    + ' onchange="'
+    + 'if(this.checked){'
+    + 'document.getElementById(\'edit-extincteur-date\').value=\'\';'
+    + 'updateVehField(\'' + id + '\',\'extincteur_valid\',\'manquant\');'
+    + '}else{'
+    + 'const d=document.getElementById(\'edit-extincteur-date\').value;'
+    + 'updateVehField(\'' + id + '\',\'extincteur_valid\',d||null);'
+    + '}"'
+    + ' style="width:16px;height:16px;cursor:pointer" />'
+    + ' Manquant</label>'
+    + '</div></div>'
     + field('Dimensions pneus été 🔴',        'text',  'dim_ete',              v.dim_ete)
     + field('Marque pneus été',              'text',  'pneus_ete',            v.pneus_ete)
     + field('Dimensions pneus hiver 🟤',      'text',  'dim_hiver',            v.dim_hiver)
@@ -8823,7 +8850,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260611.1823';
+const APP_VERSION = '260611.1830';
 
 let _swRegistration = null;
 
