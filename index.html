@@ -1084,9 +1084,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.1803</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260611.1823</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
+  <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
+    style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">⚙️</button>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role">🔐</button>
 </div>
 
@@ -1930,6 +1932,31 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div id="chauf-pwd-msg" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:6px"></div>
   </div>
 
+  <!-- Notifications push (tous les rôles) -->
+  <div class="form-card" style="max-width:480px;margin-top:14px">
+    <h3>🔔 Notifications push</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
+      Recevez un résumé quotidien à <strong>7h00</strong> avec les alertes urgentes, RV du jour et infos véhicules — même si l'app est fermée.
+    </p>
+    <div id="notif-statut" style="font-size:13px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" onclick="activerNotifications()">🔔 Activer les notifications</button>
+      <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
+    </div>
+  </div>
+
+  <!-- Gestion des versions (superadmin) -->
+  <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
+    <h3>🔄 Gestion des versions</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
+      Version actuelle de l'app : <strong>v260611.1823</strong><br>
+      Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
+    </p>
+    <button class="btn primary" onclick="publierVersion()">
+      📢 Notifier les utilisateurs (v260611.1823 disponible)
+    </button>
+  </div>
+
 </div>
 
 <!-- PAGE CAR WASH (admin) -->
@@ -2147,31 +2174,6 @@ td.ok { color: var(--vert); font-weight: 600; }
       <button class="btn primary" onclick="printReport('ct')">🖨 Rapport CT (tous)</button>
       <button class="btn" onclick="printReport('entretien')">🖨 Rapport entretiens</button>
       <button class="btn" onclick="exportAllCSV()">📊 Export complet CSV</button>
-    </div>
-  </div>
-
-  <!-- Notifications push -->
-  <div class="form-card">
-    <h3>🔔 Notifications push</h3>
-    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
-      Recevez un résumé quotidien à <strong>7h00</strong> avec les alertes urgentes, RV du jour et infos véhicules — même si l'app est fermée.
-    </p>
-    <div id="notif-statut" style="font-size:13px;margin-bottom:12px"></div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn primary" onclick="activerNotifications()">🔔 Activer les notifications</button>
-
-  <!-- Section version (superadmin) -->
-  <div class="form-card superadmin-only" style="margin-top:14px">
-    <h3>🔄 Gestion des versions</h3>
-    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260611.1803</strong><br>
-      Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
-    </p>
-    <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260611.1803 disponible)
-    </button>
-  </div>
-      <button class="btn" onclick="envoyerResumeImmediat()">📲 Tester maintenant</button>
     </div>
   </div>
 
@@ -8821,7 +8823,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260611.1803';
+const APP_VERSION = '260611.1823';
 
 let _swRegistration = null;
 
