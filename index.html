@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260612.1723</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260612.1731</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1949,11 +1949,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260612.1723</strong><br>
+      Version actuelle de l'app : <strong>v260612.1731</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260612.1723 disponible)
+      📢 Notifier les utilisateurs (v260612.1731 disponible)
     </button>
   </div>
 
@@ -7757,70 +7757,8 @@ function resetDatesFiltres() {
 }
 
 function renderHistorique() {
-  // Mode chauffeur : uniquement ses messages traités
-  if (!userIsAdmin()) {
-    const monUid = currentUser?.uid || '';
-    const monNom = currentUser?.nom || '';
-    const tbody = document.getElementById('hist-tbody');
-    const histAdmin = document.getElementById('hist-filtres-admin');
-    if (histAdmin) histAdmin.style.display = 'none';
-    // Masquer détail maintenance, montrer tableau
-    const maintDetail = document.getElementById('hist-maint-detail');
-    const tableView   = document.getElementById('hist-table-view');
-    if (maintDetail) maintDetail.style.display = 'none';
-    if (tableView)   tableView.style.display   = '';
-
-    const mesMsgs = messagesChauf.filter(m =>
-      ((monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)) &&
-      (m.statut === 'traite' || m.statut === 'lu')
-    ).sort((a,b) => b.date.localeCompare(a.date));
-
-    if (tbody) {
-      tbody.innerHTML = mesMsgs.length
-        ? mesMsgs.map(m => {
-            const v    = vehicules.find(x => x.id === m.vehId);
-            const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
-            const dateStr = new Date(m.date).toLocaleDateString('fr-BE',
-              { day:'2-digit', month:'2-digit', year:'numeric' });
-            const statut = m.statut === 'nonlu'
-              ? '<span class="badge warn" style="font-size:10px">⚠ Non traité</span>'
-              : '<span class="badge ok" style="font-size:10px">✅ Traité</span>';
-            const priorite = m.priorite === 'urgent'
-              ? '<span class="badge urgent" style="font-size:10px">🚨</span> ' : '';
-            const repNb   = (m.reponses || []).length;
-            const vuHtml  = m.vuLe
-              ? '<div style="font-size:11px;color:var(--vert);margin-top:3px">👁 Vu le '
-                + new Date(m.vuLe).toLocaleString('fr-BE',
-                    { day:'2-digit', month:'2-digit', year:'numeric',
-                      hour:'2-digit', minute:'2-digit' })
-                + '</div>'
-              : '<div style="font-size:11px;color:var(--texte-sec);margin-top:3px">👁 Pas encore vu</div>';
-            const repHtml = repNb
-              ? '<div style="margin-top:6px;padding:6px 10px;background:var(--bleu-clair);'
-                + 'border-radius:6px;border-left:3px solid var(--bleu)">'
-                + (m.reponses||[]).map(r =>
-                    '<div style="font-size:12px"><strong>' + r.auteur + '</strong> : '
-                    + r.texte + '</div>'
-                  ).join('')
-                + '</div>'
-              : '';
-            return `<tr>
-              <td style="padding:7px 10px;white-space:nowrap">${dateStr}</td>
-              <td style="font-size:12px">${vNom}</td>
-              <td>💬 Message</td>
-              <td>—</td>
-              <td style="font-size:12px">${priorite}${statut} — ${m.msg.slice(0,60)}${m.msg.length>60?'…':''}${vuHtml}${repHtml}</td>
-              <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-                onclick="deleteChaufMsg(${m.id})">🗑</button></td>
-            </tr>`;
-          }).join('')
-        : `<tr><td colspan="6" style="color:var(--texte-sec);text-align:center;padding:20px">
-             Aucun message dans votre historique.</td></tr>`;
-    }
-    return;
-  }
-
-  const filterVeh  = document.getElementById('hist-filter-veh')?.value  || '';
+  const histAdmin = document.getElementById('hist-filtres-admin');
+  if (histAdmin) histAdmin.style.display = userIsAdmin() ? '' : 'none';
   const filterType = document.getElementById('hist-filter-type')?.value || '';
   const dateDebut  = document.getElementById('hist-date-debut')?.value  || '';
   const dateFin    = document.getElementById('hist-date-fin')?.value    || '';
@@ -8899,7 +8837,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260612.1723';
+const APP_VERSION = '260612.1731';
 
 let _swRegistration = null;
 
