@@ -1084,7 +1084,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260612.1737</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260612.1751</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1949,11 +1949,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260612.1737</strong><br>
+      Version actuelle de l'app : <strong>v260612.1751</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260612.1737 disponible)
+      📢 Notifier les utilisateurs (v260612.1751 disponible)
     </button>
   </div>
 
@@ -2069,7 +2069,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <h2 style="margin-bottom:14px">📋 Historique</h2>
 
   <!-- Filtres admin uniquement -->
-  <div id="hist-filtres-admin" class="export-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+  <div id="hist-filtres" class="export-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
     <select id="hist-filter-veh" onchange="renderHistorique()">
       <option value="">Tous les véhicules</option>
     </select>
@@ -2082,7 +2082,7 @@ td.ok { color: var(--vert); font-weight: 600; }
       <option value="carwash">Car Wash</option>
       <option value="message">💬 Messages chauffeurs</option>
     </select>
-    <button class="btn" onclick="exportCSV()">⬇ Export CSV</button>
+    <button id="hist-export-csv" class="btn admin-only" style="display:none" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
 
   <!-- Vue détaillée maintenances (visible quand filtre = maintenance) -->
@@ -7757,8 +7757,6 @@ function resetDatesFiltres() {
 }
 
 function renderHistorique() {
-  const histAdmin = document.getElementById('hist-filtres-admin');
-  if (histAdmin) histAdmin.style.display = userIsAdmin() ? '' : 'none';
   const filterVeh  = document.getElementById('hist-filter-veh')?.value  || '';
   const filterType = document.getElementById('hist-filter-type')?.value || '';
   const dateDebut  = document.getElementById('hist-date-debut')?.value  || '';
@@ -8838,7 +8836,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260612.1737';
+const APP_VERSION = '260612.1751';
 
 let _swRegistration = null;
 
