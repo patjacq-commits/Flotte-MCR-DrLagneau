@@ -1087,7 +1087,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260622.1608</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260622.1639</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1954,11 +1954,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260622.1608</strong><br>
+      Version actuelle de l'app : <strong>v260622.1639</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260622.1608 disponible)
+      📢 Notifier les utilisateurs (v260622.1639 disponible)
     </button>
   </div>
 
@@ -5045,16 +5045,60 @@ function renderAccueil() {
       `<div id="bloc-infos-veh"></div>`;
   }
 
-  // ── RV programmés — admin uniquement, 7j avant, -24h après ──
+  // ── RV programmés — entre urgentes et à surveiller ──────────
   if (isAdmin) {
-    const now7     = new Date();
-    const limite7  = new Date(); limite7.setDate(limite7.getDate() + 7);
-    const hier     = new Date(); hier.setDate(hier.getDate() - 1);
-    const hierStr  = hier.toISOString().slice(0,10);
-    const limite7Str = limite7.toISOString().slice(0,10);
+    const nowTs    = Date.now();
+    const plus7Str = new Date(nowTs + 7*86400000).toISOString().slice(0,10);
 
+    const rvProg = [...rendezvous, ...ctEvents.filter(c => !c.statut || c.statut === 'planifie')]
+      .filter(r => r.statut !== 'annule' && r.statut !== 'fait')
+      .filter(r => {
+        const rvTime = new Date(r.date + 'T' + (r.heure || '23:59') + ':00').getTime();
+        return rvTime <= new Date(plus7Str + 'T23:59:59').getTime()
+            && (nowTs - rvTime) < 24 * 3600 * 1000;
+      })
+      .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
-        // Alertes à surveiller — admin uniquement
+    if (rvProg.length) {
+      const rvRows = rvProg.map(r => {
+        const v      = vehicules.find(x => x.id === r.vehId);
+        const vNom   = v ? `${v.marque} <b>${v.immat}</b>` : r.vehId;
+        const tl     = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
+        const garage = (r.garage||r.result) ? ` — ${r.garage||r.result}` : '';
+        const hr     = r.heure ? ` à <b>${r.heure}</b>` : '';
+        const motif  = (r.notes||r.rem) ? `<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">📝 ${r.notes||r.rem}</div>` : '';
+        const j      = Math.round((new Date(r.date) - new Date(today)) / 86400000);
+        const jStr   = j < 0  ? `<span style="color:var(--texte-sec);font-size:11px">Hier</span>`
+                     : j === 0 ? `<span style="color:var(--rouge);font-weight:700;font-size:11px">Aujourd'hui !</span>`
+                     : j === 1 ? `<span style="color:var(--orange);font-weight:700;font-size:11px">Demain</span>`
+                     : `<span style="color:var(--texte-sec);font-size:11px">dans ${j}j</span>`;
+        const rowBg  = j <= 0 ? 'background:var(--gris-clair);' : j === 1 ? 'background:var(--orange-clair);' : '';
+        return `<div style="${rowBg}display:flex;align-items:flex-start;gap:12px;padding:9px 14px;
+          border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
+          <div style="min-width:70px;flex-shrink:0;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
+            ${jStr}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px">${vNom}${hr}</div>
+            <div style="font-size:12px;color:var(--texte-sec)">${tl}${garage}</div>
+            ${motif}
+          </div>
+          <button class="btn btn-sm" onclick="allerAuxRV()" title="Gérer">✏️</button>
+        </div>`;
+      }).join('');
+
+      document.getElementById('alertes-dashboard').innerHTML +=
+        `<div style="margin-top:14px">
+          <h3 style="margin-bottom:8px;cursor:pointer" onclick="allerAuxRV()">
+            📅 RV programmés
+            <span style="font-size:12px;color:var(--bleu);text-decoration:underline;margin-left:6px">gérer →</span>
+          </h3>
+          <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">${rvRows}</div>
+        </div>`;
+    }
+
+    // Alertes à surveiller — admin uniquement
     if (alertesSurveiller.length) {
       const CATEGORIES = [
         { key:'ct',         label:'🏥 Contrôle Technique' },
@@ -8845,7 +8889,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260622.1608';
+const APP_VERSION = '260622.1639';
 
 let _swRegistration = null;
 
