@@ -1087,7 +1087,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260622.2123</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260622.2130</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1954,11 +1954,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260622.2123</strong><br>
+      Version actuelle de l'app : <strong>v260622.2130</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260622.2123 disponible)
+      📢 Notifier les utilisateurs (v260622.2130 disponible)
     </button>
   </div>
 
@@ -4898,14 +4898,8 @@ function renderAccueil() {
 
   const nbInfos = getInfosActives().length;
 
-  const nowTsRV   = Date.now();
-  const plus30RV  = new Date(nowTsRV + 30*86400000).toISOString().slice(0,10);
-  const nbRVprog  = [...rendezvous, ...ctEvents.filter(c => c.statut === 'planifie')]
-    .filter(r => r.statut !== 'annule' && r.statut !== 'fait')
-    .filter(r => {
-      const rvTime = new Date(r.date + 'T' + (r.heure || '23:59') + ':00').getTime();
-      return r.date <= plus30RV && !(nowTsRV - rvTime > 24 * 3600 * 1000);
-    }).length;
+  const nbRVprog = [...rendezvous, ...ctEvents.filter(c => c.statut === 'planifie')]
+    .filter(r => r.statut !== 'annule' && r.statut !== 'fait').length;
 
   document.getElementById('summary-grid').innerHTML = `
     <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
@@ -5046,21 +5040,11 @@ function renderAccueil() {
     dash.innerHTML += `<div id="bloc-infos-veh"></div>`;
   }
 
-  // ── 2. RV PLANIFIÉS — tous les RV à venir (tous rôles) ──────
+  // ── 2. RV PLANIFIÉS — tous les RV actifs ──────────────────
   {
-    const nowTs     = Date.now();
-    const todayStr  = new Date(nowTs).toISOString().slice(0,10);
-    const plus30Str = new Date(nowTs + 30*86400000).toISOString().slice(0,10);
-
     const rvProg = [...rendezvous,
                     ...ctEvents.filter(c => c.statut === 'planifie')]
       .filter(r => r.statut !== 'annule' && r.statut !== 'fait')
-      .filter(r => {
-        // Garder les RV futurs ET ceux passés depuis moins de 24h
-        const rvTime = new Date(r.date + 'T' + (r.heure || '23:59') + ':00').getTime();
-        const passeDepuis24h = nowTs - rvTime > 24 * 3600 * 1000;
-        return r.date <= plus30Str && !passeDepuis24h;
-      })
       .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
     let rvContent = '';
@@ -8900,7 +8884,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260622.2123';
+const APP_VERSION = '260622.2130';
 
 let _swRegistration = null;
 
