@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260623.1853</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260623.2017</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2065,11 +2065,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260623.1853</strong><br>
+      Version actuelle de l'app : <strong>v260623.2017</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260623.1853 disponible)
+      📢 Notifier les utilisateurs (v260623.2017 disponible)
     </button>
   </div>
 
@@ -8796,7 +8796,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260623.1853';
+const APP_VERSION = '260623.2017';
 
 let _swRegistration = null;
 
@@ -9126,28 +9126,31 @@ document.addEventListener('DOMContentLoaded', () => {
     updateNavbarMaint();
 
     // ── Migration ctEvents → rendezvous ──────────────────────
-    // Les anciens ctEvents deviennent des rendezvous avec statut 'effectue'
-    if (window._fbData_ctEvents && window._fbData_ctEvents.length) {
-      const existingIds = new Set(rendezvous.map(r => r.id));
+    // Lire depuis Firebase ET localStorage pour ne rien perdre
+    const ctSource = (window._fbData_ctEvents || [])
+      .concat(JSON.parse(localStorage.getItem('mcr_ct') || '[]'));
+    if (ctSource.length) {
+      const existingIds = new Set(rendezvous.map(r => String(r.id)));
       let migrated = false;
-      window._fbData_ctEvents.forEach(c => {
-        if (existingIds.has(c.id)) return; // déjà migré
+      ctSource.forEach(c => {
+        if (!c.id || existingIds.has(String(c.id))) return;
+        existingIds.add(String(c.id));
         rendezvous.push({
-          id:      c.id,
-          vehId:   c.vehId,
-          type:    c.type || 'ct',
-          date:    c.date,
-          heure:   c.heure || '',
-          garage:  c.result || c.garage || '',
-          km:      c.km || '',
-          notes:   c.rem || c.notes || '',
-          statut:  'effectue',
-          createdAt: c.createdAt || c.date,
+          id:        c.id,
+          vehId:     c.vehId,
+          type:      c.type   || 'ct',
+          date:      c.date,
+          heure:     c.heure  || '',
+          garage:    c.result || c.garage || '',
+          km:        c.km     || '',
+          notes:     c.rem    || c.notes  || '',
+          statut:    'effectue',
+          createdAt: c.createdAt || c.date + 'T00:00:00.000Z',
         });
         migrated = true;
       });
       if (migrated) {
-        rendezvous.sort((a,b) => b.date.localeCompare(a.date));
+        rendezvous.sort((a,b) => String(b.date).localeCompare(String(a.date)));
         saveAll();
       }
     }
