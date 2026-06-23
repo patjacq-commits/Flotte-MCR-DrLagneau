@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260623.2017</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260623.2028</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1675,141 +1675,8 @@ td.ok { color: var(--vert); font-weight: 600; }
   </div>
 </div>
 
-  <div class="form-card">
-    <h3>Enregistrer un rendez-vous</h3>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Véhicule</label>
-        <select id="ct-veh" onchange="onCTVehChange()"></select>
-      </div>
-      <div class="form-group">
-        <label>Type de RV</label>
-        <select id="ct-type" onchange="onCTTypeChange()">
-          <option value="ct">Contrôle Technique</option>
-          <option value="garage">Entretien Garage</option>
-          <option value="permutation">Permutation pneus</option>
-          <option value="pneus-av">Nouveaux pneus AV</option>
-          <option value="pneus-ar">Nouveaux pneus AR</option>
-          <option value="pneus-4">4 nouveaux pneus</option>
-          <option value="geometrie">Géométrie</option>
-          <option value="reparation">Réparation</option>
-          <option value="rappel-garage">Rappel du garage</option>
-          <option value="vitre">Réparation vitre</option>
-          <option value="entretien-lift">Entretien lift/rampe</option>
-          <option value="reparation-lift">Réparation lift/rampe</option>
-          <option value="enrouleur">Problème enrouleur</option>
-          <option value="treuil">Treuil bloqué</option>
-          <option value="crevaison">Crevaison</option>
-          <option value="livraison">Livraison nouveau véhicule</option>
-          <option value="marquage">Marquage véhicule</option>
-          <option value="autre">Autre…</option>
-        </select>
-      </div>
-      <!-- Champ motif libre pour "Autre" avec ajout à la liste -->
-      <div class="form-group" id="ct-autre-wrap" style="display:none">
-        <label>Précisez le motif</label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="ct-autre-motif" placeholder="ex: Révision climatisation…"
-            style="flex:1"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();ajouterMotifALaListe();}" />
-          <button type="button" class="btn primary btn-sm" onclick="ajouterMotifALaListe()" title="Enregistrer dans la liste">➕ Ajouter</button>
-        </div>
-        <div id="ct-motifs-libres-liste" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>
-      </div>
-      <div class="form-group">
-        <label>Date du RV</label>
-        <input type="date" id="ct-date" />
-      </div>
-      <div class="form-group">
-        <label>Heure du RV</label>
-        <input type="time" id="ct-heure" placeholder="ex: 08:30" />
-      </div>
-      <div class="form-group">
-        <label>Garage / Centre</label>
-        <input type="text" id="ct-result" placeholder="Garage pré-rempli selon le type"
-          oninput="updateGarageTelDisplay()" style="width:100%" />
-        <!-- Affichage téléphones -->
-        <div id="ct-tel-display" style="margin-top:6px;display:none;background:var(--bleu-clair);border-radius:6px;padding:8px 12px">
-          <div style="font-size:11px;font-weight:700;color:var(--bleu);margin-bottom:4px">📞 Contacts</div>
-          <div id="ct-tel-lines" style="font-size:13px;color:var(--texte)"></div>
-          <button onclick="toggleTelEdit()" style="background:none;border:none;font-size:11px;color:var(--bleu);cursor:pointer;padding:4px 0 0 0;text-decoration:underline">✏️ Modifier</button>
-        </div>
-        <!-- Formulaire édition téléphones -->
-        <div id="ct-tel-edit-wrap" style="display:none;margin-top:6px;background:var(--gris-clair);border-radius:6px;padding:10px">
-          <div style="font-size:11px;font-weight:700;color:var(--texte-sec);margin-bottom:8px">📞 Modifier les contacts</div>
-          <div class="form-group" style="margin-bottom:6px">
-            <label>Téléphone principal</label>
-            <input type="tel" id="ct-tel-principal" placeholder="ex: +32 61 51 10 34"
-              style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;font-size:14px;width:100%" />
-          </div>
-          <div class="form-group" style="margin-bottom:8px">
-            <label>GSM / autre</label>
-            <input type="tel" id="ct-tel-gsm" placeholder="ex: +32 477 12 34 56"
-              style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;font-size:14px;width:100%" />
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn primary btn-sm" onclick="sauvegarderTelGarage()">💾 Sauvegarder</button>
-            <button class="btn btn-sm" onclick="toggleTelEdit()">Annuler</button>
-          </div>
-        </div>
-      </div>
-      <!-- Kilométrage : visible uniquement pour types concernés (pas CT ni Entretien garage) -->
-      <div class="form-group" id="ct-km-wrap" style="display:none">
-        <label>Kilométrage à cette date</label>
-        <input type="number" id="ct-km" placeholder="Optionnel" />
-      </div>
-      <!-- Prochain CT : visible uniquement pour types autres que CT et Entretien (géré dans Véhicules) -->
-      <div class="form-group" id="ct-next-wrap" style="display:none">
-        <label>Prochain CT valable jusqu'au</label>
-        <input type="date" id="ct-next" />
-      </div>
-    </div>
-    <!-- Motif/Remarques : visible uniquement pour types autres que CT et Entretien garage -->
-    <div class="form-group" id="ct-rem-wrap" style="display:none;margin-top:12px">
-      <label>Motif / Remarques</label>
-      <textarea id="ct-rem" style="min-height:60px" placeholder="Précisez le motif, les travaux à effectuer..."></textarea>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:10px;">
-      <button class="btn primary" onclick="saveCT()">💾 Enregistrer</button>
-      <button class="btn" onclick="clearCTForm()">✕ Effacer</button>
-    </div>
-  </div>
+  
 
-  <!-- Historique des RV enregistrés -->
-  <div class="form-card">
-    <h3>Historique</h3>
-    <div class="export-bar" style="margin-bottom:10px">
-      <select id="ct-filter-veh" onchange="renderCTTable()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
-        <option value="">Tous les véhicules</option>
-      </select>
-      <select id="ct-filter-type" onchange="renderCTTable()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
-        <option value="">Tous les types</option>
-        <option value="ct">CT</option>
-        <option value="garage">Entretien Garage</option>
-        <option value="permutation">Permutation pneus</option>
-        <option value="pneus-av">Pneus AV</option>
-        <option value="pneus-ar">Pneus AR</option>
-        <option value="pneus-4">4 pneus</option>
-        <option value="geometrie">Géométrie</option>
-        <option value="reparation">Réparation</option>
-        <option value="rappel-garage">Rappel garage</option>
-        <option value="vitre">Vitre</option>
-        <option value="entretien-lift">Entretien lift/rampe</option>
-        <option value="reparation-lift">Réparation lift/rampe</option>
-        <option value="enrouleur">Enrouleur</option>
-        <option value="treuil">Treuil bloqué</option>
-        <option value="marquage">Marquage véhicule</option>
-        <option value="crevaison">Crevaison</option>
-        <option value="autre">Autre</option>
-      </select>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Garage</th><th>Motif</th><th>Action</th></tr></thead>
-        <tbody id="ct-tbody"></tbody>
-      </table>
-    </div>
-  </div>
 </div>
 
 <!-- PAGE PNEUS (admin) -->
@@ -2065,11 +1932,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260623.2017</strong><br>
+      Version actuelle de l'app : <strong>v260623.2028</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260623.2017 disponible)
+      📢 Notifier les utilisateurs (v260623.2028 disponible)
     </button>
   </div>
 
@@ -8796,7 +8663,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260623.2017';
+const APP_VERSION = '260623.2028';
 
 let _swRegistration = null;
 
