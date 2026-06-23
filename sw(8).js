@@ -1,22 +1,19 @@
 // ============================================================
-// SERVICE WORKER — MCR Opont Gestion de Flotte v1.5.0
+// SERVICE WORKER — MCR Opont Gestion de Flotte
+// STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v1.5.0';
+const CACHE_NAME = 'mcr-flotte-v260623.1853';
+const CACHE_ASSETS = ['./icon-192.png', './manifest.json'];
 
-const CACHE_URLS = [
-  './',
-  './index.html'
-];
-
-// Rappels en mémoire { id, titre, corps, tag, fireAt }
 let rappelsProgrammes = [];
+let timerResumeQuotidien = null;
 
-// ── Installation ─────────────────────────────────────────────
+// ── Installation ──────────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(CACHE_URLS))
+      .then(cache => cache.addAll(CACHE_ASSETS))
       .catch(e => console.warn('SW cache partiel:', e))
   );
   self.skipWaiting();
@@ -33,86 +30,37 @@ self.addEventListener('activate', event => {
   );
 });
 
-// ── Cache réseau ─────────────────────────────────────────────
+// ── Fetch ────────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
-  // Laisser passer Firebase et Google sans cache
   const url = event.request.url;
+  if (event.request.method !== 'GET') return;
   if (url.includes('firestore') || url.includes('firebase') ||
-      url.includes('googleapis') || url.includes('gstatic')) {
+      url.includes('googleapis') || url.includes('gstatic') ||
+      url.includes('google.com')) return;
+
+  // HTML principal + vérification version → toujours réseau, jamais en cache
+  const isHTML = url.includes('.html') || url.includes('nocache=') ||
+                 url.endsWith('/') || url === self.location.origin + '/';
+  if (isHTML) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 
+  // Assets (icônes, manifest) → cache first
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      // Toujours tenter le réseau en arrière-plan pour mettre à jour le cache
-      const networkFetch = fetch(event.request).then(response => {
-        if (response && response.status === 200 && event.request.method === 'GET') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => null);
-
-      // Retourner le cache immédiatement si disponible, sinon attendre le réseau
-      return cached || networkFetch || caches.match('./index.html');
-    })
-  );
-});
-
-// ── Messages depuis l'application ────────────────────────────
-self.addEventListener('message', event => {
-  const data = event.data;
-  if (!data) return;
-
-  if (data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-    return;
-  }
-
-  if (data.type === 'PROGRAMMER_RAPPEL') {
-    const { id, titre, corps, delai, tag } = data.payload;
-    const fireAt = Date.now() + delai;
-    rappelsProgrammes = rappelsProgrammes.filter(r => r.id !== id);
-    rappelsProgrammes.push({ id, titre, corps, tag, fireAt });
-    // Planifier via setTimeout (fiable dans les SW modernes)
-    setTimeout(() => envoyerRappel(id), delai);
-    console.log('SW: rappel dans', Math.round(delai / 3600000), 'h — RV', id);
-    return;
-  }
-
-  if (data.type === 'ANNULER_RAPPEL') {
-    rappelsProgrammes = rappelsProgrammes.filter(r => r.id !== data.id);
-  }
-});
-
-// ── Envoi du rappel ───────────────────────────────────────────
-function envoyerRappel(id) {
-  const r = rappelsProgrammes.find(x => x.id === id);
-  if (!r) return;
-  self.registration.showNotification(r.titre, {
-    body:             r.corps,
-    icon:             './icon-192.png',
-    badge:            './icon-192.png',
-    tag:              r.tag,
-    requireInteraction: true,
-    actions:          [{ action: 'voir', title: 'Voir le RV' }]
-  });
-  rappelsProgrammes = rappelsProgrammes.filter(x => x.id !== id);
-}
-
-// ── Clic sur une notification ─────────────────────────────────
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      for (const client of list) {
-        if (client.url.includes('Flotte-MCR') && 'focus' in client) {
-          client.focus();
-          client.postMessage({ type: 'NOTIF_CLICK' });
-          return;
-        }
-      }
-      if (clients.openWindow) return clients.openWindow('./');
-    })
+    caches.match(event.request)
+      .then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+          }
+          return response;
+        });
+      })
   );
 });
