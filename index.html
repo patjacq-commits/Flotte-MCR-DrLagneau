@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260622.2135</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260623.1853</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1572,6 +1572,109 @@ td.ok { color: var(--vert); font-weight: 600; }
 <div id="page-garages" class="page">
   <h2 style="margin-bottom:14px">📋 Prendre RV</h2>
 
+  <!-- Formulaire unique -->
+  <div class="form-card">
+    <h3>Enregistrer un rendez-vous</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="rv-veh" onchange="onRVVehChange()"></select>
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="rv-type" onchange="onRVTypeChange()">
+          <option value="ct">Contrôle Technique</option>
+          <option value="garage">Entretien Garage</option>
+          <option value="reparation">Réparation</option>
+          <option value="permutation">Permutation pneus</option>
+          <option value="pneus-av">Nouveaux pneus AV</option>
+          <option value="pneus-ar">Nouveaux pneus AR</option>
+          <option value="pneus-4">4 nouveaux pneus</option>
+          <option value="geometrie">Géométrie</option>
+          <option value="vitre">Réparation vitre</option>
+          <option value="entretien-lift">Entretien lift/rampe</option>
+          <option value="reparation-lift">Réparation lift/rampe</option>
+          <option value="enrouleur">Enrouleur</option>
+          <option value="treuil">Treuil bloqué</option>
+          <option value="crevaison">Crevaison</option>
+          <option value="marquage">Marquage véhicule</option>
+          <option value="livraison">Livraison nouveau véhicule</option>
+          <option value="autre">Autre…</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="rv-date" onchange="onRVDateChange()" />
+      </div>
+      <div class="form-group">
+        <label>Heure</label>
+        <input type="time" id="rv-heure" placeholder="08:30" />
+      </div>
+      <div class="form-group">
+        <label>Garage / Centre</label>
+        <input type="text" id="rv-garage" placeholder="ex: Picard Bouillon" />
+      </div>
+      <div class="form-group" id="rv-km-wrap" style="display:none">
+        <label>Kilométrage</label>
+        <input type="number" id="rv-km" placeholder="Optionnel" />
+      </div>
+    </div>
+    <!-- Motif libre pour "Autre" -->
+    <div id="rv-autre-wrap" style="display:none;margin-top:10px">
+      <div class="form-group">
+        <label>Motif</label>
+        <input type="text" id="rv-autre-motif" placeholder="Décrivez le motif…" list="rv-motifs-liste" />
+        <datalist id="rv-motifs-liste"></datalist>
+      </div>
+    </div>
+    <!-- Notes -->
+    <div class="form-group" id="rv-notes-wrap" style="display:none;margin-top:10px">
+      <label>Notes / Travaux prévus</label>
+      <textarea id="rv-notes" placeholder="Précisez les travaux…" style="min-height:60px"></textarea>
+    </div>
+    <!-- Indicateur statut (passé/futur) -->
+    <div id="rv-statut-info" style="display:none;margin:10px 0;padding:8px 12px;
+      border-radius:6px;font-size:13px;font-weight:600"></div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge)"
+        onclick="sauvegarderRV()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearRVForm()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <!-- Tableau RV -->
+  <div style="margin-top:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h3>Historique des RV</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="rv-filter-veh" onchange="renderTableRV()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
+          <option value="">Tous les véhicules</option>
+        </select>
+        <select id="rv-filter-statut" onchange="renderTableRV()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
+          <option value="">Tous les statuts</option>
+          <option value="planifie">Planifiés</option>
+          <option value="effectue">Effectués</option>
+          <option value="annule">Annulés</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Véhicule</th><th>Type</th>
+            <th>Garage</th><th>Notes</th><th>Statut</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="rv-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
   <div class="form-card">
     <h3>Enregistrer un rendez-vous</h3>
     <div class="form-grid">
@@ -1962,11 +2065,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260622.2135</strong><br>
+      Version actuelle de l'app : <strong>v260623.1853</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260622.2135 disponible)
+      📢 Notifier les utilisateurs (v260623.1853 disponible)
     </button>
   </div>
 
@@ -3151,35 +3254,26 @@ function getEvenementsJour(dateStr) {
     const v = vehicules.find(x => x.id === m.vehId);
     evts.push({ type:'maintenance', couleur:'#27ae60',
       label: '🔧 ' + (v?.immat||m.vehId),
-      detail: 'Maintenance ' + (v?.marque||'') + ' ' + (v?.immat||m.vehId) + (m.km ? ' — ' + parseInt(m.km).toLocaleString('fr-BE') + ' km' : '') });
+      detail: 'Maintenance ' + (v?.marque||'') + ' ' + (v?.immat||m.vehId) +
+        (m.km ? ' — ' + parseInt(m.km).toLocaleString('fr-BE') + ' km' : '') });
   });
-  // RV planifiés (collection rendezvous)
+  // Tous les RV (planifiés + effectués) depuis rendezvous
   rendezvous.filter(r => r.date === dateStr && r.statut !== 'annule').forEach(r => {
-    const v = vehicules.find(x => x.id === r.vehId);
-    const tl = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
-    evts.push({ type:'rv', couleur:'#2980b9',
-      label: '📅 ' + (v?.immat||r.vehId) + ' ' + tl,
-      detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||r.vehId)
-        + (r.heure ? ' à ' + r.heure : '')
-        + ((r.garage||r.result) ? ' — ' + (r.garage||r.result) : '')
-        + (r.notes ? ' — ' + r.notes : '') });
-  });
-  // CT events (historique réalisé — collection ctEvents, une seule fois)
-  ctEvents.filter(c => c.date === dateStr).forEach(c => {
-    const v  = vehicules.find(x => x.id === c.vehId);
-    const tl = CT_TYPE_LABELS?.[c.type] || c.type || 'CT';
-    evts.push({ type:'ct', couleur:'#e74c3c',
-      label: '🏥 ' + (v?.immat||c.vehId) + ' ' + tl,
-      detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||c.vehId)
-        + (c.result ? ' — ' + c.result : '')
-        + (c.km ? ' — ' + parseInt(c.km).toLocaleString('fr-BE') + ' km' : '')
-        + (c.rem ? ' — ' + c.rem : '') });
+    const v  = vehicules.find(x => x.id === r.vehId);
+    const tl = RV_TYPES?.[r.type] || r.type || 'RV';
+    const couleur = r.statut === 'planifie' ? '#2980b9' : '#27ae60';
+    const prefix  = r.statut === 'planifie' ? '📅' : '✅';
+    evts.push({ type: r.statut === 'planifie' ? 'rv' : 'ct', couleur,
+      label: prefix + ' ' + (v?.immat||r.vehId) + ' ' + tl,
+      detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||r.vehId) +
+        (r.heure ? ' à ' + r.heure : '') +
+        (r.garage ? ' — ' + r.garage : '') +
+        (r.notes ? ' — ' + r.notes : '') });
   });
   // Alerte expiration CT
   vehicules.forEach(v => {
     if (!v.ct_valid) return;
-    const j = daysUntil(v.ct_valid);
-    if (v.ct_valid === dateStr && j !== null && j >= 0 && j <= 30) {
+    if (v.ct_valid === dateStr) {
       evts.push({ type:'alerte', couleur:'#e67e22',
         label: '⚠️ CT ' + v.immat,
         detail: 'CT de ' + v.immat + ' expire le ' + formatDate(v.ct_valid) });
@@ -7312,505 +7406,324 @@ function clearMaintForm() {
 // FORMULAIRE CT / GARAGE
 // ============================================================
 // Mapping type → garage par défaut
-const CT_TYPE_GARAGE = {
-  'ct':             'Bièvre (Centre CT)',
-  'garage':         '',
-  'reparation':     '',
-  'rappel-garage':  '',
-  'permutation':    'Culot pneus',
-  'pneus-av':       'Culot pneus',
-  'pneus-ar':       'Culot pneus',
-  'pneus-4':        'Culot pneus',
-  'geometrie':      'Culot pneus',
-  'crevaison':      'Culot pneus',
-  'vitre':          'Carglass à Marche',
-  'entretien-lift': 'Recht',
-  'reparation-lift':'Recht',
-  'enrouleur':      'Recht',
-  'treuil':         'Recht',
-  'livraison':      'Recht',
-  'marquage':       'Arlon',
-  'autre':          '',
+// ============================================================
+// SYSTÈME RV — collection unique "rendezvous"
+// statuts : planifie | effectue | annule
+// ============================================================
+
+const RV_TYPES = {
+  ct:              '🏥 Contrôle Technique',
+  garage:          '🔧 Entretien Garage',
+  reparation:      '🔨 Réparation',
+  permutation:     '🔄 Permutation pneus',
+  'pneus-av':      '🛞 Pneus AV',
+  'pneus-ar':      '🛞 Pneus AR',
+  'pneus-4':       '🛞 4 pneus',
+  geometrie:       '📐 Géométrie',
+  vitre:           '🪟 Vitre',
+  'entretien-lift':'🔩 Entretien lift',
+  'reparation-lift':'🔩 Réparation lift',
+  enrouleur:       '🔁 Enrouleur',
+  treuil:          '⛓ Treuil',
+  crevaison:       '🔩 Crevaison',
+  marquage:        '🎨 Marquage',
+  livraison:       '🚐 Livraison',
+  autre:           '📝 Autre',
+};
+// Alias pour compatibilité avec l'ancien code
+const CT_TYPE_LABELS = RV_TYPES;
+
+// Types nécessitant un kilométrage
+const RV_TYPES_KM = ['reparation','permutation','pneus-av','pneus-ar','pneus-4',
+  'geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','treuil','livraison'];
+
+// Garages par défaut selon le type
+const RV_GARAGES_DEFAUT = {
+  ct:              'Centre de Contrôle Bièvre',
+  garage:          '',  // garage attitré du véhicule
+  reparation:      '',  // garage attitré du véhicule
+  'rappel-garage': '',
 };
 
-const CT_TYPE_LABELS = {
-  'ct':             '🏥 Contrôle Technique',
-  'garage':         '🔧 Entretien Garage',
-  'permutation':    '🔄 Permutation pneus',
-  'pneus-av':       '🔵 Pneus AV',
-  'pneus-ar':       '🔵 Pneus AR',
-  'pneus-4':        '🔵 4 pneus',
-  'geometrie':      '📐 Géométrie',
-  'reparation':     '🔩 Réparation',
-  'rappel-garage':  '📞 Rappel garage',
-  'vitre':          '🪟 Vitre',
-  'entretien-lift': '🔼 Entretien lift/rampe',
-  'reparation-lift':'🔼 Réparation lift/rampe',
-  'enrouleur':      '🔼 Enrouleur',
-  'treuil':         '🔼 Treuil bloqué',
-  'crevaison':      '🛞 Crevaison',
-  'livraison':      '🚐 Livraison nouveau véhicule',
-  'marquage':       '🏷 Marquage véhicule',
-  'autre':          '📝 Autre',
-};
-
-function populateEditSelects() {
-  ['ct-veh','edit-veh'].forEach(selId => {
-    const sel = document.getElementById(selId);
-    if (!sel) return;
-    sel.innerHTML = ORDRE_VEHICULES.map(id => {
-      const v = vehicules.find(x => x.id === id);
-      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
-    }).join('');
-  });
-
-  // Charger les motifs libres persistés
-  chargerMotifsLibres();
-
-  // Filtre véhicule dans l'historique CT
-  const filtSel = document.getElementById('ct-filter-veh');
-  if (filtSel && filtSel.options.length <= 1) {
-    vehicules.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
-      filtSel.appendChild(opt);
-    });
-  }
-
-  // Masquer "enrouleur" pour les véhicules sans équipement au chargement
-  onCTVehChange();
-  renderCTTable();
+// ── Motifs libres persistés ───────────────────────────────────
+function chargerMotifsLibres() {
+  const saved = JSON.parse(localStorage.getItem('mcr_motifs_rv') || '[]');
+  const dl = document.getElementById('rv-motifs-liste');
+  if (dl) dl.innerHTML = saved.map(m => `<option value="${m}">`).join('');
 }
-
-/* Pré-remplit le garage selon le type sélectionné */
-// ── Motifs libres persistés dans la liste déroulante type RV ──
-const LS_MOTIFS_LIBRES = 'mcr_motifs_libres_rv';
-
-function getMotifLibres() {
-  return JSON.parse(localStorage.getItem(LS_MOTIFS_LIBRES) || '[]');
-}
-
 function enregistrerMotifLibre(motif) {
   if (!motif) return;
-  const motifs = getMotifLibres();
-  if (motifs.includes(motif)) return;
-  motifs.push(motif);
-  localStorage.setItem(LS_MOTIFS_LIBRES, JSON.stringify(motifs));
-  chargerMotifsLibres();
-}
-
-function chargerMotifsLibres() {
-  const sel = document.getElementById('ct-type');
-  if (!sel) return;
-
-  // Supprimer les options custom déjà injectées
-  [...sel.options].filter(o => o.dataset.customLibre).forEach(o => o.remove());
-
-  const motifs = getMotifLibres();
-  const autreOpt = [...sel.options].find(o => o.value === 'autre');
-
-  motifs.forEach(m => {
-    const opt = document.createElement('option');
-    opt.value = 'libre_' + m;
-    opt.textContent = '📝 ' + m;
-    opt.dataset.customLibre = '1';
-    if (autreOpt) sel.insertBefore(opt, autreOpt);
-    else sel.appendChild(opt);
-    CT_TYPE_LABELS['libre_' + m] = '📝 ' + m;
-    CT_TYPE_GARAGE['libre_' + m] = '';
-  });
-
-  // Afficher les pastilles de gestion dans le formulaire (si visible)
-  const liste = document.getElementById('ct-motifs-libres-liste');
-  if (liste) {
-    liste.innerHTML = motifs.length
-      ? motifs.map(m => `
-        <span style="background:var(--bleu-clair);color:var(--bleu);font-size:12px;padding:3px 8px;border-radius:12px;display:inline-flex;align-items:center;gap:5px">
-          📝 ${m}
-          <button onclick="supprimerMotifLibre('${m.replace(/'/g,"\\'")}')" title="Supprimer de la liste"
-            style="background:none;border:none;color:var(--bleu);cursor:pointer;font-size:13px;padding:0;line-height:1">✕</button>
-        </span>`).join('')
-      : '<span style="font-size:11px;color:var(--texte-sec)">Aucun motif personnalisé enregistré</span>';
+  const saved = JSON.parse(localStorage.getItem('mcr_motifs_rv') || '[]');
+  if (!saved.includes(motif)) {
+    saved.unshift(motif);
+    localStorage.setItem('mcr_motifs_rv', JSON.stringify(saved.slice(0,30)));
   }
 }
 
-/* Ajoute le motif saisi dans la liste, sélectionne l'option correspondante et masque le champ */
-function ajouterMotifALaListe() {
-  const input = document.getElementById('ct-autre-motif');
-  if (!input) return;
-  const motif = input.value.trim();
-  if (!motif) { toast('Veuillez saisir un motif.'); return; }
-
-  enregistrerMotifLibre(motif); // sauvegarde + rafraîchit le select
-
-  // Sélectionner le nouveau motif dans le select
-  const sel = document.getElementById('ct-type');
-  if (sel) {
-    const opt = [...sel.options].find(o => o.value === 'libre_' + motif);
-    if (opt) {
-      sel.value = 'libre_' + motif;
-      onCTTypeChange(); // mettre à jour garage / km / masquer champ Autre
-    }
+// ── Peuplement du select véhicules ──────────────────────────
+function initGarages() {
+  const selVeh = document.getElementById('rv-veh');
+  if (selVeh && selVeh.options.length === 0) {
+    selVeh.innerHTML = ORDRE_VEHICULES.map(id => {
+      const v = vehicules.find(x => x.id === id);
+      return v ? `<option value="${v.id}">${v.immat} — ${v.marque}</option>` : '';
+    }).join('');
   }
-  input.value = '';
-  toast(`"${motif}" ajouté à la liste ✅`);
+  const fveh = document.getElementById('rv-filter-veh');
+  if (fveh && fveh.options.length <= 1) {
+    ORDRE_VEHICULES.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.immat + ' — ' + v.marque;
+      fveh.appendChild(opt);
+    });
+  }
+  renderTableRV();
 }
 
-function supprimerMotifLibre(motif) {
-  const motifs = getMotifLibres().filter(m => m !== motif);
-  localStorage.setItem(LS_MOTIFS_LIBRES, JSON.stringify(motifs));
-  delete CT_TYPE_LABELS['libre_' + motif];
-  delete CT_TYPE_GARAGE['libre_' + motif];
-  chargerMotifsLibres();
+// ── Handlers formulaire ──────────────────────────────────────
+function onRVVehChange() {
+  const vehId = document.getElementById('rv-veh')?.value;
+  const type  = document.getElementById('rv-type')?.value;
+  const veh   = vehicules.find(v => v.id === vehId);
+  const gar   = document.getElementById('rv-garage');
+  if (!gar) return;
+  if (type === 'ct') {
+    gar.value = RV_GARAGES_DEFAUT.ct;
+  } else if (['garage','reparation','rappel-garage'].includes(type)) {
+    gar.value = veh?.garage || '';
+  }
+  onRVDateChange();
 }
 
-// Téléphones des lieux de RV (éditables en localStorage)
-// Format: { principal: '...', gsm: '...' }
-const GARAGES_TEL_DEFAULT = {
-  'Bièvre (Centre CT)': { principal: '+32 61 51 10 34', gsm: '' },
-  'Culot pneus':        { principal: '+32 61 51 21 45', gsm: '' },
-  'Carglass à Marche':  { principal: '+32 86 21 43 00', gsm: '' },
-  'Recht':              { principal: '+32 80 44 72 55', gsm: '' },
-  'Arlon':              { principal: '+32 63 22 12 34', gsm: '' },
-  'Albert (Gedinne)':   { principal: '+32 61 58 82 10', gsm: '' },
-  'MIA':                { principal: '+32 61 23 45 67', gsm: '' },
-  'Picard':             { principal: '+32 61 46 67 89', gsm: '' },
-  'MS Motor':           { principal: '+32 61 34 56 78', gsm: '' },
-  'Dion':               { principal: '+32 61 56 78 90', gsm: '' },
-};
-function getGaragesTel() {
-  const saved = JSON.parse(localStorage.getItem('mcr_garages_tel') || '{}');
-  // Fusionner defaults + sauvegardés (les sauvegardés priment)
-  const result = {};
-  Object.keys({ ...GARAGES_TEL_DEFAULT, ...saved }).forEach(k => {
-    const def = GARAGES_TEL_DEFAULT[k] || { principal:'', gsm:'' };
-    const sv  = saved[k] || {};
-    // Compatibilité ancienne version (string)
-    if (typeof sv === 'string') result[k] = { principal: sv, gsm: '' };
-    else result[k] = { principal: sv.principal ?? def.principal, gsm: sv.gsm ?? def.gsm };
-  });
-  return result;
-}
-function setGarageTel(lieu, principal, gsm) {
-  const saved = JSON.parse(localStorage.getItem('mcr_garages_tel') || '{}');
-  saved[lieu] = { principal: principal || '', gsm: gsm || '' };
-  localStorage.setItem('mcr_garages_tel', JSON.stringify(saved));
-}
+function onRVTypeChange() {
+  const type = document.getElementById('rv-type')?.value;
+  const vehId = document.getElementById('rv-veh')?.value;
+  const veh   = vehicules.find(v => v.id === vehId);
+  const gar   = document.getElementById('rv-garage');
 
-// Montants Car Wash par lieu
-const CW_MONTANTS = {
-  'Bièvre':       [12, 15],
-  'Noirefontaine': [11, 12, 13],
-};
-const CT_TYPES_KM = ['permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison','entretien-lift','reparation-lift','enrouleur','treuil','reparation','livraison'];
+  // Garage pré-rempli
+  if (gar) {
+    if (type === 'ct') gar.value = RV_GARAGES_DEFAUT.ct;
+    else if (['garage','reparation'].includes(type)) gar.value = veh?.garage || '';
+    else gar.value = '';
+  }
 
-function onCTTypeChange() {
-  const type   = document.getElementById('ct-type').value;
-  const vehId  = document.getElementById('ct-veh').value;
-  const veh    = vehicules.find(v => v.id === vehId);
-  const garage = document.getElementById('ct-result');
-
-  // Garage pré-rempli selon le type
-  const garagesAttitre = ['garage','reparation','rappel-garage'];
-  garage.value = garagesAttitre.includes(type)
-    ? (veh ? veh.garage || '' : '')
-    : (CT_TYPE_GARAGE[type] || '');
-  updateGarageTelDisplay();
-
-  // ct-next : masqué pour CT et Entretien garage (géré dans Véhicules)
-  const nextWrap = document.getElementById('ct-next-wrap');
-  if (nextWrap) nextWrap.style.display = (type === 'ct' || type === 'garage') ? 'none' : 'none'; // toujours masqué
-
-  // ct-km : masqué pour CT et Entretien garage, visible pour autres types concernés
-  const kmWrap = document.getElementById('ct-km-wrap');
+  // Km
+  const kmWrap = document.getElementById('rv-km-wrap');
   if (kmWrap) {
-    const showKm = CT_TYPES_KM.includes(type) && type !== 'garage';
+    const showKm = RV_TYPES_KM.includes(type);
     kmWrap.style.display = showKm ? '' : 'none';
-    const kmInput = document.getElementById('ct-km');
-    if (kmInput) {
-      if (showKm && veh && !kmInput.value) kmInput.value = veh.km || '';
-      if (!showKm) kmInput.value = '';
+    if (showKm && veh) {
+      const km = document.getElementById('rv-km');
+      if (km && !km.value) km.value = veh.km || '';
     }
   }
 
-  // ct-rem : masqué pour CT et Entretien garage
-  const remWrap = document.getElementById('ct-rem-wrap');
-  if (remWrap) remWrap.style.display = (type === 'ct' || type === 'garage') ? 'none' : '';
-
-  // Afficher/masquer le champ "Autre" motif libre
-  const autreWrap = document.getElementById('ct-autre-wrap');
+  // Autre
+  const autreWrap = document.getElementById('rv-autre-wrap');
   if (autreWrap) {
     autreWrap.style.display = type === 'autre' ? '' : 'none';
     if (type === 'autre') chargerMotifsLibres();
   }
-  if (type !== 'autre') {
-    const motif = document.getElementById('ct-autre-motif');
-    if (motif) motif.value = '';
-  }
+
+  // Notes — visible pour tous sauf CT et garage (gérés dans Véhicules)
+  const notesWrap = document.getElementById('rv-notes-wrap');
+  if (notesWrap) notesWrap.style.display = (type === 'ct' || type === 'garage') ? 'none' : '';
 }
 
-/* Filtre les options selon le véhicule sélectionné (enrouleur = lift uniquement) */
-function onCTVehChange() {
-  const vehId = document.getElementById('ct-veh').value;
-  const veh   = vehicules.find(v => v.id === vehId);
-  const hasLift = veh && (veh.equipement === 'Élévateur' || veh.equipement === 'Rampe');
-
-  // Options lift/enrouleur
-  const liftTypes = ['entretien-lift','reparation-lift','enrouleur','treuil'];
-  const sel = document.getElementById('ct-type');
-  [...sel.options].forEach(opt => {
-    if (liftTypes.includes(opt.value)) {
-      opt.disabled = !hasLift;
-      opt.style.color = hasLift ? '' : 'var(--texte-sec)';
-      opt.textContent = CT_TYPE_LABELS[opt.value] + (hasLift ? '' : ' (non équipé)');
-    }
-  });
-
-  // Si type actuel est lift mais véhicule sans équipement → reset
-  if (!hasLift && liftTypes.includes(sel.value)) {
-    sel.value = 'ct';
-  }
-
-  // Mettre à jour le garage
-  onCTTypeChange();
-}
-
-function saveCT() {
-  const date  = document.getElementById('ct-date').value;
-  const vehId = document.getElementById('ct-veh').value;
-  const type  = document.getElementById('ct-type').value;
-  if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
-
-  // CT et Entretien garage : km/next/rem gérés dans l'onglet Véhicules
-  const needsKm  = CT_TYPES_KM.includes(type);
-  const needsRem = type !== 'ct' && type !== 'garage';
-
-  let remVal = needsRem ? document.getElementById('ct-rem')?.value || '' : '';
-  if (type === 'autre') {
-    const motif = document.getElementById('ct-autre-motif').value.trim();
-    if (!motif) { toast('Veuillez préciser le motif pour "Autre".'); return; }
-    remVal = motif + (remVal ? ' — ' + remVal : '');
-    enregistrerMotifLibre(motif);
-  }
-
+function onRVDateChange() {
+  const date = document.getElementById('rv-date')?.value;
+  const info = document.getElementById('rv-statut-info');
+  if (!info || !date) { if (info) info.style.display = 'none'; return; }
   const today = new Date().toISOString().slice(0,10);
-  const estPasse = date <= today;
-
-  if (estPasse) {
-    const rec = {
-      id:     Date.now(), date, vehId, type,
-      heure:  document.getElementById('ct-heure').value,
-      km:     needsKm ? document.getElementById('ct-km')?.value || '' : '',
-      result: document.getElementById('ct-result').value,
-      next:   '',
-      rem:    remVal
-    };
-    ctEvents.unshift(rec);
-    saveAll();
-    const v = vehicules.find(v => v.id === vehId);
-    logCreation('ctEvents', `RV effectué : ${v?.immat||vehId} — ${CT_TYPE_LABELS[type]||type} — ${formatDate(date)}`, { vehId, type, date });
-    toast('RV enregistré dans l\'historique ✅');
+  if (date < today) {
+    info.style.cssText = 'display:block;margin:10px 0;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;background:var(--bleu-clair);color:var(--bleu)';
+    info.textContent = "📋 Date passée → enregistré directement dans l'historique";
   } else {
-    const rec = {
-      id:     Date.now(), vehId, date, type,
-      heure:  document.getElementById('ct-heure').value,
-      garage: document.getElementById('ct-result').value,
-      km:     needsKm ? document.getElementById('ct-km')?.value || '' : '',
-      statut: 'planifie',
-      notes:  remVal,
-      next:   '',
-      createdAt: new Date().toISOString()
-    };
-    rendezvous.unshift(rec);
-    saveAll();
-    if (Notification.permission === 'granted') {
-      const veh = vehicules.find(v => v.id === vehId);
-      programmerRappel(rec, veh);
-    }
-    const v = vehicules.find(v => v.id === vehId);
-    logCreation('rendezvous', `RV planifié : ${v?.immat||vehId} — ${CT_TYPE_LABELS[type]||type} — ${formatDate(date)}`, { vehId, type, date });
-    toast('RV planifié ✅ — visible sur le dashboard et le calendrier');
+    info.style.cssText = 'display:block;margin:10px 0;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;background:var(--vert-clair);color:var(--vert)';
+    info.textContent = '📅 Date future → RV planifié, visible sur le dashboard et le calendrier';
+  }
+}
+
+// ── Sauvegarde unique ─────────────────────────────────────────
+function sauvegarderRV() {
+  const vehId = document.getElementById('rv-veh')?.value;
+  const type  = document.getElementById('rv-type')?.value;
+  const date  = document.getElementById('rv-date')?.value;
+  if (!vehId) { toast('Sélectionnez un véhicule.'); return; }
+  if (!date)  { toast('Indiquez une date.'); return; }
+
+  const today  = new Date().toISOString().slice(0,10);
+  const statut = date <= today ? 'effectue' : 'planifie';
+
+  let notes = document.getElementById('rv-notes')?.value || '';
+  if (type === 'autre') {
+    const motif = document.getElementById('rv-autre-motif')?.value?.trim() || '';
+    if (!motif) { toast('Précisez le motif.'); return; }
+    enregistrerMotifLibre(motif);
+    notes = motif + (notes ? ' — ' + notes : '');
   }
 
-  clearCTForm();
-  renderCTTable();
+  const rec = {
+    id:      Date.now(),
+    vehId, type, date, statut,
+    heure:   document.getElementById('rv-heure')?.value || '',
+    garage:  document.getElementById('rv-garage')?.value || '',
+    km:      document.getElementById('rv-km')?.value || '',
+    notes,
+    createdAt: new Date().toISOString(),
+  };
+
+  rendezvous.unshift(rec);
+  saveAll();
+
+  const v = vehicules.find(x => x.id === vehId);
+  logCreation('rendezvous',
+    `RV ${statut} : ${v?.immat||vehId} — ${RV_TYPES[type]||type} — ${formatDate(date)}`,
+    { vehId, type, date, statut });
+
+  if (statut === 'planifie' && Notification.permission === 'granted') {
+    programmerRappel(rec, v);
+  }
+
+  clearRVForm();
+  renderTableRV();
   renderAccueil();
   if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
+
+  toast(statut === 'planifie'
+    ? '📅 RV planifié — visible sur le dashboard'
+    : "✅ RV enregistré dans l'historique");
 }
 
-function clearCTForm() {
-  ['ct-km','ct-result','ct-next','ct-rem','ct-heure','ct-autre-motif'].forEach(id => {
+// ── Effacer le formulaire ─────────────────────────────────────
+function clearRVForm() {
+  ['rv-date','rv-heure','rv-garage','rv-km','rv-notes','rv-autre-motif'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  document.getElementById('ct-date').value = '';
-  document.getElementById('ct-type').value = 'ct';
-  ['ct-km-wrap','ct-next-wrap','ct-rem-wrap'].forEach(id => {
+  ['rv-km-wrap','rv-autre-wrap','rv-notes-wrap'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = 'none';
   });
-  const autreWrap = document.getElementById('ct-autre-wrap');
-  if (autreWrap) autreWrap.style.display = 'none';
+  const info = document.getElementById('rv-statut-info');
+  if (info) info.style.display = 'none';
 }
 
+// ── Marquer effectué ─────────────────────────────────────────
 function marquerRVEffectue(id) {
   const r = rendezvous.find(x => x.id === id);
   if (!r) return;
-  // Migrer vers ctEvents (historique réalisé)
-  ctEvents.unshift({
-    id:     Date.now(),
-    date:   r.date,
-    vehId:  r.vehId,
-    type:   r.type,
-    heure:  r.heure || '',
-    km:     r.km    || '',
-    result: r.garage || '',
-    next:   r.next  || '',
-    rem:    r.notes || ''
-  });
-  // Mettre à jour date CT valide si type ct
-  if (r.type === 'ct' && r.next) {
-    const veh = vehicules.find(v => v.id === r.vehId);
-    if (veh) veh.ct_valid = r.next;
-  }
-  // Supprimer de rendezvous
-  rendezvous = rendezvous.filter(x => x.id !== id);
+  r.statut = 'effectue';
   saveAll();
-  renderCTTable();
+  renderTableRV();
   renderAccueil();
-  toast('✅ RV marqué effectué — transféré dans l\'historique');
+  toast('✅ RV marqué effectué');
 }
 
+// ── Annuler un RV ─────────────────────────────────────────────
 function annulerRV(id) {
   if (!confirm('Annuler ce rendez-vous ?')) return;
-  rendezvous = rendezvous.filter(x => x.id !== id);
+  const r = rendezvous.find(x => x.id === id);
+  if (!r) return;
+  r.statut = 'annule';
   saveAll();
-  renderCTTable();
+  renderTableRV();
   renderAccueil();
   toast('RV annulé');
 }
 
-function deleteCT(id) {
-  if (!confirm('Supprimer ce RV ?')) return;
-  ctEvents = ctEvents.filter(c => c.id !== id);
-  const ctDel = ctEvents.find(c => c.id === id);
-  const vCTd  = ctDel ? vehicules.find(v => v.id === ctDel.vehId) : null;
-  logSuppression('ctEvents', `Suppression CT ${vCTd ? vCTd.immat : ctDel?.vehId||'?'} — ${ctDel ? formatDate(ctDel.date) : ''}`, ctDel);
-  saveAll(); renderCTTable(); toast('RV supprimé');
-}
-
-function renderCTTable() {
-  const filterVeh  = document.getElementById('ct-filter-veh')?.value  || '';
-  const filterType = document.getElementById('ct-filter-type')?.value || '';
-  const tbody = document.getElementById('ct-tbody');
-  if (!tbody) return;
-
-  // RV planifiés (rendezvous non annulés)
-  const planifies = rendezvous
-    .filter(r => r.statut !== 'annule' && r.statut !== 'fait')
-    .filter(r => !filterVeh  || r.vehId === filterVeh)
-    .filter(r => !filterType || r.type  === filterType)
-    .sort((a,b) => a.date.localeCompare(b.date));
-
-  // Historique ctEvents
-  const historique = ctEvents
-    .filter(c => !filterVeh  || c.vehId === filterVeh)
-    .filter(c => !filterType || c.type  === filterType)
-    .sort((a,b) => b.date.localeCompare(a.date));
-
-  let html = '';
-
-  if (planifies.length) {
-    html += `<tr><td colspan="6" style="background:var(--bleu-clair);padding:6px 10px;
-      font-size:12px;font-weight:700;color:var(--bleu)">📅 RV planifiés</td></tr>`;
-    html += planifies.map(r => {
-      const v   = vehicules.find(x => x.id === r.vehId);
-      const lbl = CT_TYPE_LABELS[r.type] || r.type;
-      const hr  = r.heure ? ' ' + r.heure : '';
-      const j   = Math.round((new Date(r.date)-new Date())/86400000);
-      const jLbl = j < 0 ? '<span style="color:var(--rouge)">Hier</span>'
-                 : j === 0 ? '<span style="color:var(--rouge)">Aujourd\'hui</span>'
-                 : j === 1 ? '<span style="color:var(--orange)">Demain</span>'
-                 : '<span style="color:var(--bleu)">dans '+j+'j</span>';
-      return `<tr style="background:var(--bleu-clair,#eaf4fb)">
-        <td>${formatDate(r.date)}${hr}<br><small>${jLbl}</small></td>
-        <td style="font-size:12px">${v ? v.marque+' '+v.immat : r.vehId}</td>
-        <td><span class="badge info" style="font-size:10px;white-space:nowrap">${lbl}</span></td>
-        <td style="font-size:12px">${r.garage||'—'}</td>
-        <td style="font-size:12px;max-width:160px">${r.notes||'—'}</td>
-        <td style="white-space:nowrap">
-          <button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert);margin-right:4px"
-            onclick="marquerRVEffectue(${r.id})" title="Marquer effectué">✅</button>
-          <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-            onclick="annulerRV(${r.id})" title="Annuler">✕</button>
-        </td>
-      </tr>`;
-    }).join('');
-  }
-
-  if (historique.length) {
-    html += `<tr><td colspan="6" style="background:var(--gris-clair);padding:6px 10px;
-      font-size:12px;font-weight:700;color:var(--texte-sec)">📋 Historique effectué</td></tr>`;
-    html += historique.map(c => {
-      const v   = vehicules.find(x => x.id === c.vehId);
-      const lbl = CT_TYPE_LABELS[c.type] || c.type;
-      const hr  = c.heure ? ' ' + c.heure : '';
-      return `<tr>
-        <td>${formatDate(c.date)}${hr}</td>
-        <td style="font-size:12px">${v ? v.marque+' '+v.immat : c.vehId}</td>
-        <td><span class="badge info" style="font-size:10px;white-space:nowrap">${lbl}</span></td>
-        <td style="font-size:12px">${c.result||'—'}</td>
-        <td style="font-size:12px;max-width:160px">${c.rem||'—'}</td>
-        <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-          onclick="deleteCT(${c.id})">✕</button></td>
-      </tr>`;
-    }).join('');
-  }
-
-  if (!html) {
-    html = '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun RV enregistré</td></tr>';
-  }
-
-  tbody.innerHTML = html;
-}
-
-function loadVehData() {
-  const id = document.getElementById('edit-veh').value;
-  const v = vehicules.find(x => x.id === id);
-  if (!v) return;
-  document.getElementById('edit-km').value = v.km;
-  document.getElementById('edit-ct-valid').value = v.ct_valid || '';
-  document.getElementById('edit-ct-carte-rouge').value = v.ct_carte_rouge_date || '';
-  document.getElementById('edit-next-entretien-km').value = v.prochain_entretien_km;
-  document.getElementById('edit-last-entretien-date').value = v.dernier_entretien_date || '';
-  document.getElementById('edit-last-entretien-km').value = v.dernier_entretien_km || '';
-}
-
-function saveVehEdit() {
-  const id = document.getElementById('edit-veh').value;
-  const v = vehicules.find(x => x.id === id);
-  if (!v) return;
-  v.km = parseInt(document.getElementById('edit-km').value) || v.km;
-  v.ct_valid = document.getElementById('edit-ct-valid').value || v.ct_valid;
-  v.ct_carte_rouge_date = document.getElementById('edit-ct-carte-rouge').value || null;
-  v.prochain_entretien_km = parseInt(document.getElementById('edit-next-entretien-km').value) || v.prochain_entretien_km;
-  v.dernier_entretien_date = document.getElementById('edit-last-entretien-date').value || v.dernier_entretien_date;
-  v.dernier_entretien_km = parseInt(document.getElementById('edit-last-entretien-km').value) || v.dernier_entretien_km;
+// ── Supprimer un RV ──────────────────────────────────────────
+function deleteRV(id) {
+  if (!confirm('Supprimer ce RV définitivement ?')) return;
+  rendezvous = rendezvous.filter(x => x.id !== id);
   saveAll();
+  renderTableRV();
   renderAccueil();
-  toast(`${v.marque} ${v.immat} mis à jour ✅`);
+  toast('RV supprimé');
+}
+// Alias pour compatibilité historique
+const deleteCT = deleteRV;
+
+// ── RV actif (planifié) pour un véhicule + type ───────────────
+function rvActif(vehId, type) {
+  return rendezvous.find(r =>
+    r.vehId === vehId && r.type === type && r.statut === 'planifie'
+  ) || null;
 }
 
-function quickEdit(id) {
-  openVehEdit(id);
+// ── Tableau des RV ───────────────────────────────────────────
+function renderTableRV() {
+  const tbody      = document.getElementById('rv-tbody');
+  if (!tbody) return;
+  const filterVeh    = document.getElementById('rv-filter-veh')?.value    || '';
+  const filterStatut = document.getElementById('rv-filter-statut')?.value || '';
+
+  let rows = [...rendezvous]
+    .filter(r => !filterVeh    || r.vehId  === filterVeh)
+    .filter(r => !filterStatut || r.statut === filterStatut)
+    .sort((a,b) => {
+      // Planifiés en premier (par date asc), puis effectués (date desc)
+      if (a.statut === 'planifie' && b.statut !== 'planifie') return -1;
+      if (b.statut === 'planifie' && a.statut !== 'planifie') return 1;
+      if (a.statut === 'planifie') return a.date.localeCompare(b.date);
+      return b.date.localeCompare(a.date);
+    });
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun RV enregistré</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const v   = vehicules.find(x => x.id === r.vehId);
+    const tl  = RV_TYPES[r.type] || r.type;
+    const hr  = r.heure ? ' ' + r.heure : '';
+    const clsSt = r.statut === 'planifie' ? 'badge info'
+                : r.statut === 'effectue' ? 'badge ok'
+                : 'badge';
+    const lblSt = r.statut === 'planifie' ? '📅 Planifié'
+                : r.statut === 'effectue' ? '✅ Effectué'
+                : '❌ Annulé';
+    const j = Math.round((new Date(r.date) - new Date()) / 86400000);
+    const rowBg = r.statut === 'planifie' && j <= 1 ? 'background:var(--orange-clair);' : '';
+    const btns = userIsAdmin() ? `
+      ${r.statut === 'planifie' ? `
+        <button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
+          onclick="marquerRVEffectue(${r.id})" title="Marquer effectué">✅</button>
+        <button class="btn btn-sm" onclick="annulerRV(${r.id})" title="Annuler">✕</button>
+      ` : ''}
+      <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
+        onclick="deleteRV(${r.id})" title="Supprimer">🗑</button>
+    ` : '';
+    return `<tr style="${rowBg}">
+      <td style="white-space:nowrap">${formatDate(r.date)}${hr}</td>
+      <td style="font-size:12px">${v ? v.marque+' '+v.immat : r.vehId}</td>
+      <td><span class="badge info" style="font-size:10px;white-space:nowrap">${tl}</span></td>
+      <td style="font-size:12px">${r.garage||'—'}</td>
+      <td style="font-size:12px;max-width:160px">${r.notes||'—'}</td>
+      <td><span class="${clsSt}" style="font-size:10px;white-space:nowrap">${lblSt}</span></td>
+      <td style="white-space:nowrap">${btns}</td>
+    </tr>`;
+  }).join('');
 }
 
-// ============================================================
-// HISTORIQUE
-// ============================================================
-function resetDatesFiltres() {
-  const d = document.getElementById('hist-date-debut'); if(d) d.value='';
-  const f = document.getElementById('hist-date-fin');   if(f) f.value='';
-  renderHistorique();
+// ── Aliases navigation ────────────────────────────────────────
+function allerAuxRV() {
+  const btn = document.querySelector('.tab-btn[onclick*="garages"]');
+  showPage('garages', btn);
 }
+function toggleRVDashboard() { allerAuxRV(); }
+function renderRVDashboard()  { allerAuxRV(); }
+
+// ── Compatibilité ancien code ─────────────────────────────────
+// Les anciens ctEvents sont migrés dans rendezvous au chargement (voir initUI)
+function renderRVHistorique() { renderTableRV(); }
+function saveRV()   { sauvegarderRV(); }
+function saveCT()   { sauvegarderRV(); }
+function clearCTForm() { clearRVForm(); }
+function onCTTypeChange()  { onRVTypeChange(); }
+function onCTVehChange()   { onRVVehChange(); }
 
 function renderHistorique() {
   const filterVeh  = document.getElementById('hist-filter-veh')?.value  || '';
@@ -7844,33 +7757,24 @@ function renderHistorique() {
   // ── Vue tableau général ────────────────────────────────────
   let rows = [];
 
-  ctEvents.forEach(c => {
-    if (filterType && filterType !== 'ct') return;
-    if (filterVeh && c.vehId !== filterVeh) return;
-    const v = vehicules.find(x => x.id === c.vehId);
-    const typeLabel = CT_TYPE_LABELS?.[c.type] || (c.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage');
-    const heureStr = c.heure ? ` ${c.heure}` : '';
-    rows.push({ date: c.date + heureStr, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: typeLabel, km: c.km, detail: (c.result||'')+(c.rem?' — '+c.rem:''), srcType:'ct', srcId: c.id });
-  });
-
+  // ── RV (tous statuts, depuis rendezvous) ─────────────────────
   rendezvous.forEach(r => {
-    if (filterType && filterType !== 'rv') return;
+    if (filterType && filterType !== 'ct' && filterType !== 'rv') return;
     if (filterVeh && r.vehId !== filterVeh) return;
     if (dateDebut && r.date < dateDebut) return;
     if (dateFin   && r.date > dateFin)   return;
-    // N'afficher que les RV passés dans l'historique (date <= hier)
-    if (r.date > hierStr) return;
-    const v = vehicules.find(x => x.id === r.vehId);
-    const typeLabel = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
-    const heureStr  = r.heure ? ' '+r.heure : '';
-    const garageStr = (r.result||r.garage) ? ' — '+(r.result||r.garage) : '';
-    const remStr    = (r.notes||r.rem)     ? ' — '+(r.notes||r.rem)     : '';
+    const v        = vehicules.find(x => x.id === r.vehId);
+    const typeLabel = RV_TYPES?.[r.type] || r.type || 'RV';
+    const heureStr  = r.heure  ? ' ' + r.heure : '';
+    const garageStr = r.garage ? ' — ' + r.garage : '';
+    const remStr    = r.notes  ? ' — ' + r.notes  : '';
+    const prefix    = r.statut === 'planifie' ? '📅' : r.statut === 'effectue' ? '✅' : '❌';
     rows.push({
-      date:    r.date+heureStr,
-      veh:     v ? v.marque+' '+v.immat : r.vehId,
-      type:    '📅 '+typeLabel,
+      date:    r.date + heureStr,
+      veh:     v ? v.marque + ' ' + v.immat : r.vehId,
+      type:    prefix + ' ' + typeLabel,
       km:      r.km,
-      detail:  garageStr+remStr,
+      detail:  garageStr + remStr,
       srcType: 'rv',
       srcId:   r.id
     });
@@ -8892,7 +8796,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260622.2135';
+const APP_VERSION = '260623.1853';
 
 let _swRegistration = null;
 
@@ -9220,6 +9124,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     appliquerDroits();
     updateNavbarMaint();
+
+    // ── Migration ctEvents → rendezvous ──────────────────────
+    // Les anciens ctEvents deviennent des rendezvous avec statut 'effectue'
+    if (window._fbData_ctEvents && window._fbData_ctEvents.length) {
+      const existingIds = new Set(rendezvous.map(r => r.id));
+      let migrated = false;
+      window._fbData_ctEvents.forEach(c => {
+        if (existingIds.has(c.id)) return; // déjà migré
+        rendezvous.push({
+          id:      c.id,
+          vehId:   c.vehId,
+          type:    c.type || 'ct',
+          date:    c.date,
+          heure:   c.heure || '',
+          garage:  c.result || c.garage || '',
+          km:      c.km || '',
+          notes:   c.rem || c.notes || '',
+          statut:  'effectue',
+          createdAt: c.createdAt || c.date,
+        });
+        migrated = true;
+      });
+      if (migrated) {
+        rendezvous.sort((a,b) => b.date.localeCompare(a.date));
+        saveAll();
+      }
+    }
+
     renderAccueil();
     updateTabAlertes();
     updateTabChauf();
