@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260623.2137</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260624.1303</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1662,6 +1662,15 @@ td.ok { color: var(--vert); font-weight: 600; }
         <select id="rv-filter-veh" onchange="renderTableRV()"
           style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
           <option value="">Tous les véhicules</option>
+          <option value="TLAM294">TLAM294 — Renault Kangoo</option>
+          <option value="TLAN633">TLAN633 — Renault Trafic</option>
+          <option value="TLAJ108">TLAJ108 — Fiat Doblo</option>
+          <option value="TLAJ109">TLAJ109 — Fiat Doblo</option>
+          <option value="TLAM789">TLAM789 — Renault Kangoo</option>
+          <option value="TLAM941">TLAM941 — Toyota Proace</option>
+          <option value="TLAN527">TLAN527 — Toyota Proace</option>
+          <option value="TLAN910">TLAN910 — Renault Trafic</option>
+          <option value="1RER037">1RER037 — Peugeot Expert</option>
         </select>
         <select id="rv-filter-statut" onchange="renderTableRV()"
           style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
@@ -1943,11 +1952,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260623.2137</strong><br>
+      Version actuelle de l'app : <strong>v260624.1303</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260623.2137 disponible)
+      📢 Notifier les utilisateurs (v260624.1303 disponible)
     </button>
   </div>
 
@@ -6377,22 +6386,6 @@ function closeModal(id) {
 let _rvVehId = null;
 
 /* Met à jour garage + visibilité km quand le type change dans le formulaire */
-function onRVTypeChange() {
-  const type = document.getElementById('rv-type').value;
-  const garageInput = document.getElementById('rv-garage');
-  const kmWrap = document.getElementById('rv-km-wrap');
-  const v = vehicules.find(x => x.id === _rvVehId);
-  if (type === 'ct') {
-    garageInput.value = 'Bièvre (Centre CT)';
-    if (kmWrap) kmWrap.style.display = 'none';
-    document.getElementById('rv-km').value = '';
-  } else {
-    garageInput.value = v ? (v.garage || '') : '';
-    if (kmWrap) kmWrap.style.display = '';
-    document.getElementById('rv-km').value = v ? (v.km || '') : '';
-  }
-}
-
 function openRV(vehId, typeRV) {
   if (!isAdmin) { toast('Accès réservé aux administrateurs.'); return; }
   const v = vehicules.find(x => x.id === vehId);
@@ -7351,30 +7344,32 @@ function initGarages() {
 
 // ── Handlers formulaire ──────────────────────────────────────
 function onRVVehChange() {
-  const vehId = document.getElementById('rv-veh')?.value;
-  const type  = document.getElementById('rv-type')?.value;
-  const veh   = vehicules.find(v => v.id === vehId);
-  const gar   = document.getElementById('rv-garage');
+  const vehId   = document.getElementById('rv-veh')?.value;
+  const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
+  const veh     = vehList.find(v => v.id === vehId);
+  const type    = document.getElementById('rv-type')?.value;
+  const gar     = document.getElementById('rv-garage');
   if (!gar) return;
+  // Pré-remplir le garage attitré (toujours modifiable manuellement)
   if (type === 'ct') {
     gar.value = RV_GARAGES_DEFAUT.ct;
-  } else if (['garage','reparation','rappel-garage'].includes(type)) {
+  } else {
     gar.value = veh?.garage || '';
   }
   onRVDateChange();
 }
 
 function onRVTypeChange() {
-  const type = document.getElementById('rv-type')?.value;
-  const vehId = document.getElementById('rv-veh')?.value;
-  const veh   = vehicules.find(v => v.id === vehId);
-  const gar   = document.getElementById('rv-garage');
+  const type    = document.getElementById('rv-type')?.value;
+  const vehId   = document.getElementById('rv-veh')?.value;
+  const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
+  const veh     = vehList.find(v => v.id === vehId);
+  const gar     = document.getElementById('rv-garage');
 
-  // Garage pré-rempli
+  // Garage pré-rempli selon type — toujours modifiable
   if (gar) {
     if (type === 'ct') gar.value = RV_GARAGES_DEFAUT.ct;
-    else if (['garage','reparation'].includes(type)) gar.value = veh?.garage || '';
-    else gar.value = '';
+    else               gar.value = veh?.garage || '';
   }
 
   // Km
@@ -8723,7 +8718,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260623.2137';
+const APP_VERSION = '260624.1303';
 
 let _swRegistration = null;
 
