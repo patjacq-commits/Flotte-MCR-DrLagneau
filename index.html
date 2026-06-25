@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260625.1812</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260625.1842</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1952,11 +1952,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260625.1812</strong><br>
+      Version actuelle de l'app : <strong>v260625.1842</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260625.1812 disponible)
+      📢 Notifier les utilisateurs (v260625.1842 disponible)
     </button>
   </div>
 
@@ -4852,11 +4852,6 @@ function renderRVDashboard() {
     + '</div>' + rows + '</div>';
 }
 
-function allerAuxRV() {
-  const btn = document.querySelector('.tab-btn[onclick*="garages"]');
-  showPage('garages', btn);
-}
-
 function renderAccueil() {
   const alertes = buildAlertes();
   const nbUrgent = alertes.filter(a => a.level === 'urgent').length;
@@ -5673,9 +5668,7 @@ function goToAlertesFilter(level) {
 // ============================================================
 
 /* Retourne le RV actif (planifié, non annulé) le plus récent pour un véhicule + type */
-function rvActif(vehId, typeRV) {
-  return rendezvous.find(r => r.vehId === vehId && r.type === typeRV && r.statut !== 'annule' && r.statut !== 'fait') || null;
-}
+
 
 function buildAlertes() {
   const alertes = [];
@@ -6253,8 +6246,8 @@ function openVehDetail(id) {
     + dr('Été → Hiver (km)', v.permut_ete_hiver_km ? parseInt(v.permut_ete_hiver_km).toLocaleString('fr-BE') + ' km' : '—')
     + rechtRows
     + (() => {
-        const hier3    = new Date(Date.now()-86400000).toISOString().slice(0,10);
-        const rvAv     = rendezvous
+        const hier3 = new Date(Date.now()-86400000).toISOString().slice(0,10);
+        const rvAv  = rendezvous
           .filter(r => r.vehId === v.id && r.statut === 'planifie' && r.date >= hier3)
           .sort((a,b) => a.date.localeCompare(b.date));
         if (!rvAv.length) return '';
@@ -6273,13 +6266,17 @@ function openVehDetail(id) {
             }).join('');
       })()
     + '</table>'
-    + `<button class="btn" style="margin-top:10px;color:var(--rouge);border-color:var(--rouge);width:100%;font-weight:700"
-        onclick="closeModal('modal-veh');ouvrirInterventionUrgente('${v.id}')">
-        🚨 Intervention urgente (sans RV)
-      </button>`
     + editBtn;
 
+  // Bouton intervention urgente — ajouté après innerHTML pour éviter les coupures de scroll
   document.getElementById('modal-veh').classList.add('open');
+  const bodyEl = document.getElementById('modal-veh-body');
+  const btnUrgent = document.createElement('button');
+  btnUrgent.className = 'btn';
+  btnUrgent.style.cssText = 'margin-top:12px;color:var(--rouge);border-color:var(--rouge);width:100%;font-weight:700;padding:11px';
+  btnUrgent.innerHTML = '🚨 Intervention urgente (sans RV)';
+  btnUrgent.onclick = () => { closeModal('modal-veh'); ouvrirInterventionUrgente(v.id); };
+  bodyEl.appendChild(btnUrgent);
 }
 
 /* Modal Modifier véhicule — saisie uniquement, toutes données modifiables */
@@ -6469,88 +6466,8 @@ function openRV(vehId, typeRV) {
   document.getElementById('modal-rv').classList.add('open');
 }
 
-function renderRVHistorique(vehId) {
-  const vRvs = rendezvous.filter(r => r.vehId === vehId).sort((a,b) => b.date.localeCompare(a.date));
-  const ICONES = { ct:'🏥', garage:'🔧', planifie:'📅', fait:'✅', annule:'❌', 'en-attente':'⏳' };
-  const LABELS = { ct:'Contrôle Technique', garage:'Entretien Garage' };
 
-  document.getElementById('rv-historique-body').innerHTML = vRvs.length
-    ? vRvs.map(r => {
-        const dotCls = r.statut === 'fait' ? r.type : r.statut === 'annule' ? 'annule' : 'planifie';
-        const icon = r.type === 'ct' ? '🏥' : '🔧';
-        const heureStr = r.heure ? ` à ${r.heure}` : '';
-        return `<div class="rv-timeline-item">
-          <div class="rv-dot ${dotCls}">${icon}</div>
-          <div class="rv-info">
-            <div class="rv-date">${formatDate(r.date)}${heureStr}</div>
-            <div class="rv-titre">${LABELS[r.type] || r.type}${r.garage ? ' — ' + r.garage : ''}</div>
-            ${r.km ? `<div class="rv-detail">Km estimé : ${parseInt(r.km).toLocaleString('fr-BE')}</div>` : ''}
-            ${r.notes ? `<div class="rv-detail" style="margin-top:2px;font-style:italic">${r.notes}</div>` : ''}
-          </div>
-          <span class="rv-statut ${r.statut}">${r.statut === 'planifie' ? 'Planifié' : r.statut === 'fait' ? 'Effectué' : r.statut === 'annule' ? 'Annulé' : r.statut}</span>
-          <button style="background:none;border:none;color:var(--gris);cursor:pointer;font-size:16px;padding:0 4px;margin-left:4px" title="Supprimer" onclick="deleteRV(${r.id})">✕</button>
-        </div>`;
-      }).join('')
-    : '<p style="color:var(--texte-sec);font-size:13px;padding:8px 0">Aucun rendez-vous enregistré pour ce véhicule.</p>';
-}
 
-function saveRV() {
-  const _rvAvant = null; // nouvelle création
-  const date = document.getElementById('rv-date').value;
-  const type = document.getElementById('rv-type').value;
-  if (!date) { toast('Veuillez indiquer une date de rendez-vous.'); return; }
-
-  const rec = {
-    id: Date.now(),
-    vehId: _rvVehId,
-    date,
-    type,
-    heure: document.getElementById('rv-heure').value,
-    garage: document.getElementById('rv-garage').value,
-    km: document.getElementById('rv-km').value,
-    statut: document.getElementById('rv-statut').value,
-    notes: document.getElementById('rv-notes').value,
-    createdAt: new Date().toISOString()
-  };
-
-  rendezvous.unshift(rec);
-  saveAll();
-
-  // Notifications push (uniquement si RV planifié)
-  if (rec.statut === 'planifie') {
-    const veh = vehicules.find(v => v.id === rec.vehId);
-    notifRV(rec, veh);         // notification immédiate
-    programmerRappel(rec, veh); // rappel 24h avant
-  }
-
-  renderRVHistorique(_rvVehId);
-  // Réinitialiser le formulaire
-  document.getElementById('rv-date').value = '';
-  document.getElementById('rv-heure').value = '';
-  document.getElementById('rv-notes').value = '';
-  document.getElementById('rv-statut').value = 'planifie';
-
-  const _rvNew = rendezvous[0];
-  if (_rvNew) {
-    const _vRV = vehicules.find(v => v.id === _rvNew.vehId);
-    logCreation('rendezvous', `RV créé : ${_vRV ? _vRV.immat : _rvNew.vehId} — ${_rvNew.type} — ${formatDate(_rvNew.date)}`, { vehId:_rvNew.vehId, type:_rvNew.type, date:_rvNew.date });
-  }
-  toast('Rendez-vous enregistré ✅');
-  // Rafraîchir le dashboard et alertes
-  renderAccueil();
-  if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
-}
-
-function deleteRV(id) {
-  if (!confirm('Supprimer ce rendez-vous ?')) return;
-  const rDel = rendezvous.find(r => r.id === id);
-  const vRVd = rDel ? vehicules.find(v => v.id === rDel.vehId) : null;
-  rendezvous = rendezvous.filter(r => r.id !== id);
-  logSuppression('rendezvous', `Suppression RV ${vRVd ? vRVd.immat : rDel?.vehId||'?'} — ${rDel ? formatDate(rDel.date) : ''}`, rDel ? { vehId:rDel.vehId, type:rDel.type, date:rDel.date } : null);
-  saveAll();
-  renderRVHistorique(_rvVehId);
-  toast('Rendez-vous supprimé');
-}
 
 // ============================================================
 // FORMULAIRE MAINTENANCE
@@ -8030,6 +7947,19 @@ function editHistItem(srcType, srcId) {
       Object.assign(m, changes);
       saveAll(); renderHistorique(); renderMaintTable(); toast('Maintenance modifiée ✅');
     });
+  } else if (srcType === 'rv') {
+    const r = rendezvous.find(x => x.id === id);
+    if (!r) return;
+    const v = vehicules.find(x => x.id === r.vehId);
+    openEditModal(`${RV_TYPES?.[r.type] || r.type} — ${v ? v.marque+' '+v.immat : r.vehId} — ${formatDate(r.date)}`, [
+      { label:'Date',    type:'date', key:'date',   val: r.date },
+      { label:'Heure',   type:'time', key:'heure',  val: r.heure  || '' },
+      { label:'Garage',  type:'text', key:'garage', val: r.garage || '' },
+      { label:'Notes',   type:'text', key:'notes',  val: r.notes  || '' },
+    ], (changes) => {
+      Object.assign(r, changes);
+      saveAll(); renderHistorique(); renderTableRV(); toast('RV modifié ✅');
+    });
   } else if (srcType === 'ct') {
     const c = ctEvents.find(x => x.id === id);
     if (!c) return;
@@ -8854,7 +8784,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260625.1812';
+const APP_VERSION = '260625.1842';
 
 let _swRegistration = null;
 
