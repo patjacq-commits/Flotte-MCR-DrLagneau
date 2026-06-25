@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260624.1303</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260625.1812</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1952,11 +1952,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260624.1303</strong><br>
+      Version actuelle de l'app : <strong>v260625.1812</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260624.1303 disponible)
+      📢 Notifier les utilisateurs (v260625.1812 disponible)
     </button>
   </div>
 
@@ -6254,25 +6254,29 @@ function openVehDetail(id) {
     + rechtRows
     + (() => {
         const hier3    = new Date(Date.now()-86400000).toISOString().slice(0,10);
-        const rvAv     = [...rendezvous, ...ctEvents]
-          .filter(r => r.vehId === v.id && r.statut !== 'annule' && r.statut !== 'fait' && r.date >= hier3)
+        const rvAv     = rendezvous
+          .filter(r => r.vehId === v.id && r.statut === 'planifie' && r.date >= hier3)
           .sort((a,b) => a.date.localeCompare(b.date));
         if (!rvAv.length) return '';
         return '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;'
           + 'border-top:1px solid var(--gris-bord)">📅 Rendez-vous à venir</td></tr>'
           + rvAv.map(r => {
-              const tl = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
-              const ga = (r.result||r.garage) ? ' — '+(r.result||r.garage) : '';
+              const tl = RV_TYPES?.[r.type] || r.type || 'RV';
+              const ga = r.garage ? ' — '+r.garage : '';
               const hr = r.heure ? ' à '+r.heure : '';
               const j  = Math.round((new Date(r.date)-new Date())/86400000);
               const jl = j < 0 ? '(hier)' : j === 0 ? '⚡ Aujourd\'hui' : j === 1 ? '⏰ Demain' : 'dans '+j+'j';
               const cl = j <= 1 ? 'var(--rouge)' : 'var(--bleu)';
               return '<tr><td style="padding:5px 0;font-size:12px;color:var(--texte-sec)">'
                 + formatDate(r.date)+hr+'<br><span style="font-size:11px;color:'+cl+'">'+jl+'</span></td>'
-                + '<td style="font-size:12px">'+tl+ga+(r.rem?'<br><span style="color:var(--texte-sec)">'+r.rem+'</span>':'')+'</td></tr>';
+                + '<td style="font-size:12px">'+tl+ga+(r.notes?'<br><span style="color:var(--texte-sec)">'+r.notes+'</span>':'')+'</td></tr>';
             }).join('');
       })()
     + '</table>'
+    + `<button class="btn" style="margin-top:10px;color:var(--rouge);border-color:var(--rouge);width:100%;font-weight:700"
+        onclick="closeModal('modal-veh');ouvrirInterventionUrgente('${v.id}')">
+        🚨 Intervention urgente (sans RV)
+      </button>`
     + editBtn;
 
   document.getElementById('modal-veh').classList.add('open');
@@ -7606,7 +7610,7 @@ function renderTableRV() {
                 : r.statut === 'effectue' ? 'badge ok'
                 : 'badge';
     const lblSt = r.statut === 'planifie' ? '📅 Planifié'
-                : r.statut === 'effectue' ? '✅ Effectué'
+                : r.statut === 'effectue' ? (r.urgent ? '🚨 Urgent' : '✅ Effectué')
                 : r.reporteAu ? '🔄 Reporté au ' + formatDate(r.reporteAu)
                 : '❌ Annulé';
     const j = Math.round((new Date(r.date) - new Date()) / 86400000);
@@ -7636,6 +7640,138 @@ function renderTableRV() {
 function allerAuxRV() {
   const btn = document.querySelector('.tab-btn[onclick*="garages"]');
   showPage('garages', btn);
+}
+
+// ── Intervention urgente sans RV ─────────────────────────────
+function ouvrirInterventionUrgente(vehId) {
+  const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
+  const veh = vehList.find(v => v.id === vehId);
+  if (!veh) return;
+
+  const existing = document.getElementById('modal-interv-urgente');
+  if (existing) existing.remove();
+
+  const today = new Date().toISOString().slice(0,10);
+  const now   = new Date().toTimeString().slice(0,5);
+
+  const div = document.createElement('div');
+  div.id = 'modal-interv-urgente';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:20px;max-width:400px;
+      width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <h3 style="margin:0;color:var(--rouge)">🚨 Intervention urgente</h3>
+        <button class="btn btn-sm" onclick="document.getElementById('modal-interv-urgente').remove()">✕</button>
+      </div>
+      <div style="font-size:13px;color:var(--texte-sec);margin-bottom:14px;padding:8px 12px;
+        background:var(--gris-clair);border-radius:6px">
+        🚐 <strong>${veh.marque} ${veh.immat}</strong>
+      </div>
+
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Type d'intervention</label>
+        <select id="interv-type" style="width:100%;border:1.5px solid var(--gris-bord);
+          border-radius:6px;padding:9px 10px;font-size:14px">
+          <option value="crevaison">🔩 Crevaison / Pneu crevé</option>
+          <option value="reparation">🔨 Réparation urgente</option>
+          <option value="radiateur">💧 Radiateur / Refroidissement</option>
+          <option value="batterie">🔋 Batterie / Démarrage</option>
+          <option value="frein">🛑 Freins</option>
+          <option value="carrosserie">💥 Carrosserie / Accident</option>
+          <option value="vitre">🪟 Vitre cassée</option>
+          <option value="lift">🔩 Problème lift / rampe</option>
+          <option value="autre">📝 Autre…</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Date</label>
+        <input type="date" id="interv-date" value="${today}"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:9px 10px;font-size:14px" />
+      </div>
+
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Heure</label>
+        <input type="time" id="interv-heure" value="${now}"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:9px 10px;font-size:14px" />
+      </div>
+
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Lieu / Garage</label>
+        <input type="text" id="interv-garage" placeholder="ex: Sur route N40, Garage Picard…"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:9px 10px;font-size:14px" />
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Description / Notes</label>
+        <textarea id="interv-notes" rows="3" placeholder="Décrivez l'intervention, les travaux effectués…"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;
+          padding:9px 10px;font-size:14px;resize:vertical"></textarea>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn primary" style="flex:1;background:var(--rouge);border-color:var(--rouge);
+          font-weight:700;padding:12px" onclick="enregistrerInterventionUrgente('${vehId}')">
+          💾 Enregistrer l'intervention
+        </button>
+        <button class="btn" onclick="document.getElementById('modal-interv-urgente').remove()">
+          Annuler
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+function enregistrerInterventionUrgente(vehId) {
+  const type   = document.getElementById('interv-type')?.value;
+  const date   = document.getElementById('interv-date')?.value;
+  const heure  = document.getElementById('interv-heure')?.value || '';
+  const garage = document.getElementById('interv-garage')?.value || '';
+  const notes  = document.getElementById('interv-notes')?.value || '';
+
+  if (!date) { toast('Indiquez une date.'); return; }
+
+  // ID basé sur date+heure pour intercalation correcte dans l'historique
+  const heureNum = heure.replace(':','') || '0000';
+  const id = parseInt(date.replace(/-/g,'') + heureNum + Math.floor(Math.random()*100));
+
+  const rec = {
+    id,
+    vehId,
+    type,
+    date,
+    heure,
+    garage,
+    notes,
+    statut:    'effectue',
+    urgent:    true,
+    createdAt: new Date().toISOString(),
+  };
+
+  rendezvous.push(rec);
+  // Trier par date+heure pour intercalation correcte
+  rendezvous.sort((a,b) => {
+    const da = a.date + (a.heure||'00:00');
+    const db = b.date + (b.heure||'00:00');
+    return db.localeCompare(da); // plus récent en premier
+  });
+
+  saveAll();
+  document.getElementById('modal-interv-urgente')?.remove();
+
+  const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
+  const veh = vehList.find(v => v.id === vehId);
+  logCreation('rendezvous',
+    `🚨 Intervention urgente : ${veh?.immat||vehId} — ${RV_TYPES[type]||type} — ${formatDate(date)}`,
+    { vehId, type, date, urgent: true });
+
+  renderTableRV();
+  renderAccueil();
+  if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
+
+  toast('🚨 Intervention enregistrée dans l\'historique');
 }
 
 // ── Compatibilité ancien code ─────────────────────────────────
@@ -8718,7 +8854,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260624.1303';
+const APP_VERSION = '260625.1812';
 
 let _swRegistration = null;
 
