@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1043</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1054</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1952,11 +1952,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260626.1043</strong><br>
+      Version actuelle de l'app : <strong>v260626.1054</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260626.1043 disponible)
+      📢 Notifier les utilisateurs (v260626.1054 disponible)
     </button>
   </div>
 
@@ -2078,11 +2078,12 @@ td.ok { color: var(--vert); font-weight: 600; }
     </select>
     <select id="hist-filter-type" onchange="renderHistorique()">
       <option value="">Tous les types</option>
-      <option value="maintenance">Maintenances</option>
+      <option value="urgent">🚨 Interventions urgentes</option>
       <option value="ct">CT / RV enregistrés</option>
       <option value="rv">Rendez-vous planifiés</option>
       <option value="adblue">AdBlue</option>
       <option value="carwash">Car Wash</option>
+      <option value="maintenance">Maintenances</option>
       <option value="message">💬 Messages chauffeurs</option>
     </select>
     <button id="hist-export-csv" class="btn admin-only" style="display:none" onclick="exportCSV()">⬇ Export CSV</button>
@@ -6080,6 +6081,12 @@ function renderVehicules() {
           if (dateMatch) {
             const dateExp = new Date(`${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`);
             if (!isNaN(dateExp.getTime()) && Date.now() > dateExp.getTime() + 12*3600000) return '';
+            const jRestants = Math.ceil((dateExp - Date.now()) / 86400000);
+            const duree = jRestants <= 0 ? "Fin aujourd\'hui" : jRestants === 1 ? "Encore 1 jour" : `Encore ${jRestants} jours`;
+            return `<div class="veh-row" style="background:var(--rouge-clair);border-radius:6px;padding:6px 10px;margin-top:5px;border-left:3px solid var(--rouge)">
+              <div style="font-size:12px;font-weight:700;color:var(--rouge)">🔴 Immobilisé — ${duree}</div>
+              <div style="font-size:12px">${v.infoSpec}</div>
+            </div>`;
           }
           return `<div class="veh-row info-veh-row" style="background:var(--bleu-clair);border-radius:6px;padding:6px 10px;margin-top:5px;border-left:3px solid var(--bleu);animation:pulse-info 2s ease infinite">
             <span style="font-size:13px;color:var(--bleu);font-weight:700">ℹ️ ${v.infoSpec}</span>
@@ -6112,7 +6119,7 @@ function renderVehicules() {
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
         ${isAdmin ? `<button class="btn btn-sm primary" onclick="openVehEdit('${v.id}')">✏️ Modifier</button>` : ''}
-        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu-clair);font-weight:600" onclick="ouvrirInfoVeh('${v.id}')" title="Ajouter/modifier une info pour ce véhicule">ℹ️ Info</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge);font-weight:600" onclick="ouvrirInterventionUrgente('${v.id}')" title="Enregistrer une intervention urgente">🚨 Urgent</button>` : ''}
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule('${v.id}')">🗑</button>` : ''}
       </div>
     </div>`;
@@ -6211,6 +6218,10 @@ function openVehDetail(id) {
     + '<button class="btn" style="color:var(--rouge);border-color:var(--rouge);width:100%;font-weight:700;padding:11px"'
     + ' onclick="closeModal(\'modal-veh\');ouvrirInterventionUrgente(\'' + v.id + '\')">'
     + '🚨 Intervention urgente (sans RV)</button>'
+    + (isAdmin
+        ? '<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu-clair);width:100%"'
+          + ' onclick="closeModal(\'modal-veh\');ouvrirInfoVeh(\'' + v.id + '\')">ℹ️ Immobilisation / Info véhicule</button>'
+        : '')
     + (isAdmin
         ? '<button class="btn btn-sm primary" style="width:100%"'
           + ' onclick="closeModal(\'modal-veh\');openVehEdit(\'' + v.id + '\')">✏️ Modifier le véhicule</button>'
@@ -7731,20 +7742,26 @@ function renderHistorique() {
 
   // ── RV (tous statuts, depuis rendezvous) ─────────────────────
   rendezvous.forEach(r => {
-    if (filterType && filterType !== 'ct' && filterType !== 'rv') return;
+    const isUrgent = r.urgent === true;
+    if (filterType === 'urgent'  && !isUrgent) return;
+    if (filterType === 'ct'      && (isUrgent || r.statut === 'planifie')) return;
+    if (filterType === 'rv'      && (isUrgent || r.statut !== 'planifie')) return;
+    if (filterType && filterType !== 'ct' && filterType !== 'rv' && filterType !== 'urgent') return;
     if (filterVeh && r.vehId !== filterVeh) return;
     if (dateDebut && r.date < dateDebut) return;
     if (dateFin   && r.date > dateFin)   return;
     const v        = vehicules.find(x => x.id === r.vehId);
-    const typeLabel = RV_TYPES?.[r.type] || r.type || 'RV';
+    const typeLabel = isUrgent
+      ? '🚨 ' + (RV_TYPES?.[r.type] || r.type || 'Intervention')
+      : (r.statut === 'planifie' ? '📅' : r.statut === 'effectue' ? '✅' : '❌')
+        + ' ' + (RV_TYPES?.[r.type] || r.type || 'RV');
     const heureStr  = r.heure  ? ' ' + r.heure : '';
     const garageStr = r.garage ? ' — ' + r.garage : '';
     const remStr    = r.notes  ? ' — ' + r.notes  : '';
-    const prefix    = r.statut === 'planifie' ? '📅' : r.statut === 'effectue' ? '✅' : '❌';
     rows.push({
       date:    r.date + heureStr,
       veh:     v ? v.marque + ' ' + v.immat : r.vehId,
-      type:    prefix + ' ' + typeLabel,
+      type:    typeLabel,
       km:      r.km,
       detail:  garageStr + remStr,
       srcType: 'rv',
@@ -8781,7 +8798,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260626.1043';
+const APP_VERSION = '260626.1054';
 
 let _swRegistration = null;
 
