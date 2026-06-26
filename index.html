@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1148</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1234</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1218,9 +1218,17 @@ td.ok { color: var(--vert); font-weight: 600; }
       <div id="cal-detail-content"></div>
     </div>
   </div>
+  <!-- Légende couleurs -->
+  <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;font-size:11px">
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#2980b9;flex-shrink:0"></span>📅 Planifié</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#2471a3;flex-shrink:0"></span>🏥 CT</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#e67e22;flex-shrink:0"></span>🔧 Entretien</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#27ae60;flex-shrink:0"></span>🔧 Maintenance</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#d35400;flex-shrink:0"></span>🛞 Pneumatique</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#c0392b;flex-shrink:0"></span>🔨 Réparation</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#8e44ad;flex-shrink:0"></span>🚨 Urgent</span>
+  </div>
 </div>
-
-<!-- PAGE MESSAGES / ALERTES CHAUFFEUR -->
 <div id="page-chauf" class="page">
   <h2 style="margin-bottom:4px">🚨 Signaler un problème</h2>
   <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">3 taps suffisent.</p>
@@ -1952,11 +1960,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260626.1148</strong><br>
+      Version actuelle de l'app : <strong>v260626.1234</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260626.1148 disponible)
+      📢 Notifier les utilisateurs (v260626.1234 disponible)
     </button>
   </div>
 
@@ -3138,7 +3146,21 @@ function calendrierMoisSuivant()   { _calDate.setMonth(_calDate.getMonth()+1); r
 function getEvenementsJour(dateStr) {
   const evts = [];
 
-  // Maintenances (historique)
+  // ── Palette couleurs par catégorie ──────────────────────────
+  function couleurRV(type, statut, urgent) {
+    if (urgent)                                             return '#8e44ad'; // 🟣 Intervention urgente
+    if (statut === 'planifie')                              return '#2980b9'; // 🔵 Planifié
+    if (type === 'ct')                                      return '#2471a3'; // 🔵 Contrôle Technique
+    if (type === 'garage')                                  return '#e67e22'; // 🟡 Entretien garage
+    if (['reparation','reparation-lift','vitre',
+         'enrouleur','treuil'].includes(type))              return '#c0392b'; // 🔴 Réparation
+    if (['permutation','pneus-av','pneus-ar','pneus-4',
+         'geometrie','crevaison'].includes(type))           return '#d35400'; // 🟠 Pneumatiques
+    if (type === 'maintenance')                             return '#27ae60'; // 🟢 Maintenance
+    return '#27ae60'; // 🟢 Défaut effectué
+  }
+
+  // Maintenances
   maintenances.filter(m => m.date === dateStr).forEach(m => {
     const v = vehicules.find(x => x.id === m.vehId);
     evts.push({ type:'maintenance', couleur:'#27ae60',
@@ -3147,15 +3169,15 @@ function getEvenementsJour(dateStr) {
         (m.km ? ' — ' + parseInt(m.km).toLocaleString('fr-BE') + ' km' : '') });
   });
 
-  // RV depuis rendezvous (planifiés + effectués)
+  // RV depuis rendezvous
   const idsRV = new Set();
   rendezvous.filter(r => r.date === dateStr && r.statut !== 'annule').forEach(r => {
     idsRV.add(String(r.id));
-    const v  = vehicules.find(x => x.id === r.vehId);
-    const tl = RV_TYPES?.[r.type] || r.type || 'RV';
-    const couleur = r.statut === 'planifie' ? '#2980b9' : r.urgent ? '#e74c3c' : '#27ae60';
-    const prefix  = r.statut === 'planifie' ? '📅' : r.urgent ? '🚨' : '✅';
-    evts.push({ type: r.statut === 'planifie' ? 'rv' : 'ct', couleur,
+    const v      = vehicules.find(x => x.id === r.vehId);
+    const tl     = RV_TYPES?.[r.type] || r.type || 'RV';
+    const coul   = couleurRV(r.type, r.statut, r.urgent);
+    const prefix = r.urgent ? '🚨' : r.statut === 'planifie' ? '📅' : '✅';
+    evts.push({ type: r.statut === 'planifie' ? 'rv' : 'ct', couleur: coul,
       label: prefix + ' ' + (v?.immat||r.vehId) + ' ' + tl,
       detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||r.vehId) +
         (r.heure ? ' à ' + r.heure : '') +
@@ -3163,23 +3185,23 @@ function getEvenementsJour(dateStr) {
         (r.notes ? ' — ' + r.notes : '') });
   });
 
-  // Fallback : anciens ctEvents pas encore migrés dans rendezvous
+  // Fallback ctEvents non encore migrés
   ctEvents.filter(c => c.date === dateStr && !idsRV.has(String(c.id))).forEach(c => {
     const v  = vehicules.find(x => x.id === c.vehId);
     const tl = RV_TYPES?.[c.type] || c.type || 'CT';
-    evts.push({ type:'ct', couleur:'#27ae60',
+    const coul = couleurRV(c.type, 'effectue', false);
+    evts.push({ type:'ct', couleur: coul,
       label: '✅ ' + (v?.immat||c.vehId) + ' ' + tl,
       detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||c.vehId) +
         (c.heure ? ' à ' + c.heure : '') +
-        (c.result || c.garage ? ' — ' + (c.result||c.garage) : '') +
+        (c.result||c.garage ? ' — ' + (c.result||c.garage) : '') +
         (c.rem ? ' — ' + c.rem : '') });
   });
 
   // Alerte expiration CT
   vehicules.forEach(v => {
-    if (!v.ct_valid) return;
     if (v.ct_valid === dateStr) {
-      evts.push({ type:'alerte', couleur:'#e67e22',
+      evts.push({ type:'alerte', couleur:'#e74c3c',
         label: '⚠️ CT ' + v.immat,
         detail: 'CT de ' + v.immat + ' expire le ' + formatDate(v.ct_valid) });
     }
@@ -3995,7 +4017,12 @@ function showPage(id, btn) {
     _sessionsListener();
     _sessionsListener = null;
   }
-  if (id === 'calendrier') renderCalendrier();
+  if (id === 'calendrier') {
+    // Synchroniser depuis window au cas où Firebase a répondu entre-temps
+    if (window._fbData_rendezvous && window._fbData_rendezvous.length) rendezvous = window._fbData_rendezvous;
+    if (window._fbData_ctEvents   && window._fbData_ctEvents.length)   ctEvents   = window._fbData_ctEvents;
+    renderCalendrier();
+  }
   if (id === 'statistiques') renderStatistiques();
   if (id === 'adblue')  initAdBlueOnglet();
   if (id === 'chauf') {
@@ -4886,8 +4913,7 @@ function renderAccueil() {
 
   const nbInfos = getInfosActives().length;
 
-  const nbRVprog = [...rendezvous, ...ctEvents.filter(c => c.statut === 'planifie')]
-    .filter(r => r.statut !== 'annule' && r.statut !== 'fait').length;
+  const nbRVprog = rendezvous.filter(r => r.statut === 'planifie').length;
 
   document.getElementById('summary-grid').innerHTML = `
     <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
@@ -5720,10 +5746,6 @@ function buildAlertes() {
         alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
           titre:`CT URGENT — ${v.marque} ${v.immat}`,
           detail:`CT expire le ${formatDate(v.ct_valid)} — dans ${j} jour${j>1?'s':''} ! Prenez RV immédiatement.` });
-      } else if (j !== null && j <= 30) {
-        alertes.push({ level:'warn', icon:'🔶', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
-          titre:`CT à prendre — ${v.marque} ${v.immat}`,
-          detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} — ${j} jour${j>1?'s':''} restants. Planifiez le RV.` });
       } else if (j !== null && j <= 35) {
         // 31–35 jours : warn (seuil abaissé de 90 à 60)
         alertes.push({ level:'warn', icon:'🔶', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
@@ -8815,7 +8837,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260626.1148';
+const APP_VERSION = '260626.1234';
 
 let _swRegistration = null;
 
