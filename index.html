@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1243</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1421</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1953,11 +1953,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260626.1243</strong><br>
+      Version actuelle de l'app : <strong>v260626.1421</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260626.1243 disponible)
+      📢 Notifier les utilisateurs (v260626.1421 disponible)
     </button>
   </div>
 
@@ -5047,55 +5047,79 @@ function renderAccueil() {
     dash.innerHTML += `<div id="bloc-infos-veh"></div>`;
   }
 
-  // ── 2. RV PLANIFIÉS — tous les RV actifs ──────────────────
+  // ── 2. RV PLANIFIÉS — 4 catégories ──────────────────────────
   {
-    const rvProg = [...rendezvous,
-                    ...ctEvents.filter(c => c.statut === 'planifie')]
-      .filter(r => r.statut !== 'annule' && r.statut !== 'fait')
+    const rvProg = rendezvous
+      .filter(r => r.statut === 'planifie')
       .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
+
+    const CATS_RV = [
+      { label:'🔧 Entretien Garage',   couleur:'#e67e22', bg:'#fef5e7',
+        types:['garage','entretien-lift','reparation-lift','enrouleur','treuil','marquage','livraison'] },
+      { label:'🏥 Contrôle Technique', couleur:'#2471a3', bg:'#eaf4fb',
+        types:['ct'] },
+      { label:'🛞 Pneumatiques',       couleur:'#d35400', bg:'#fdf2e9',
+        types:['permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison'] },
+      { label:'🔨 Réparations',        couleur:'#c0392b', bg:'#fdedec',
+        types:['reparation','vitre','autre'] },
+      { label:'📝 Autres',             couleur:'#6c3483', bg:'#f5eef8',
+        types:null },
+    ];
+
+    function rowRV(r) {
+      const v      = vehicules.find(x => x.id === r.vehId);
+      const vNom   = v ? v.marque + ' <b>' + v.immat + '</b>' : r.vehId;
+      const tl     = RV_TYPES?.[r.type] || r.type || 'RV';
+      const garage = (r.garage||r.result) ? ' — ' + (r.garage||r.result) : '';
+      const hr     = r.heure ? ' à <b>' + r.heure + '</b>' : '';
+      const motif  = (r.notes||r.rem) ? '<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">📝 ' + (r.notes||r.rem) + '</div>' : '';
+      const j      = Math.round((new Date(r.date) - new Date(today)) / 86400000);
+      const jStr   = j < 0  ? '<span style="color:var(--texte-sec);font-size:11px">Hier</span>'
+                   : j === 0 ? '<span style="color:var(--rouge);font-weight:700;font-size:11px">Aujourd\'hui !</span>'
+                   : j === 1 ? '<span style="color:var(--orange);font-weight:700;font-size:11px">Demain</span>'
+                   : '<span style="color:var(--texte-sec);font-size:11px">dans ' + j + 'j</span>';
+      const rowBg  = j <= 0 ? 'background:var(--gris-clair);' : j === 1 ? 'background:var(--orange-clair);' : '';
+      return '<div style="' + rowBg + 'display:flex;align-items:flex-start;gap:12px;padding:9px 14px;'
+        + 'border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">'
+        + '<div style="min-width:70px;flex-shrink:0;text-align:center">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--bleu)">' + formatDate(r.date) + '</div>'
+        + jStr + '</div>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:13px">' + vNom + hr + '</div>'
+        + '<div style="font-size:12px;color:var(--texte-sec)">' + tl + garage + '</div>'
+        + motif + '</div>'
+        + (isAdmin ? '<button class="btn btn-sm" onclick="allerAuxRV()" title="Gérer">✏️</button>' : '')
+        + '</div>';
+    }
 
     let rvContent = '';
     if (rvProg.length) {
-      rvContent = rvProg.map(r => {
-        const v      = vehicules.find(x => x.id === r.vehId);
-        const vNom   = v ? `${v.marque} <b>${v.immat}</b>` : r.vehId;
-        const tl     = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
-        const garage = (r.garage||r.result) ? ` — ${r.garage||r.result}` : '';
-        const hr     = r.heure ? ` à <b>${r.heure}</b>` : '';
-        const motif  = (r.notes||r.rem) ? `<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">📝 ${r.notes||r.rem}</div>` : '';
-        const j      = Math.round((new Date(r.date) - new Date(today)) / 86400000);
-        const jStr   = j < 0  ? `<span style="color:var(--texte-sec);font-size:11px">Hier</span>`
-                     : j === 0 ? `<span style="color:var(--rouge);font-weight:700;font-size:11px">Aujourd'hui !</span>`
-                     : j === 1 ? `<span style="color:var(--orange);font-weight:700;font-size:11px">Demain</span>`
-                     : `<span style="color:var(--texte-sec);font-size:11px">dans ${j}j</span>`;
-        const rowBg  = j <= 0 ? 'background:var(--gris-clair);' : j === 1 ? 'background:var(--orange-clair);' : '';
-        return `<div style="${rowBg}display:flex;align-items:flex-start;gap:12px;padding:9px 14px;
-          border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
-          <div style="min-width:70px;flex-shrink:0;text-align:center">
-            <div style="font-size:12px;font-weight:700;color:var(--bleu)">${formatDate(r.date)}</div>
-            ${jStr}
-          </div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px">${vNom}${hr}</div>
-            <div style="font-size:12px;color:var(--texte-sec)">${tl}${garage}</div>
-            ${motif}
-          </div>
-          ${isAdmin ? `<button class="btn btn-sm" onclick="allerAuxRV()" title="Gérer">✏️</button>` : ''}
-        </div>`;
-      }).join('');
+      CATS_RV.forEach(cat => {
+        const knownTypes = CATS_RV.filter(c => c.types).flatMap(c => c.types);
+        const items = cat.types === null
+          ? rvProg.filter(r => !knownTypes.includes(r.type))
+          : rvProg.filter(r => cat.types.includes(r.type));
+        if (!items.length) return;
+        rvContent += '<div style="margin-bottom:10px">'
+          + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'
+          + 'color:' + cat.couleur + ';padding:4px 10px;background:' + cat.bg + ';'
+          + 'border-left:3px solid ' + cat.couleur + ';border-radius:0 4px 4px 0;margin-bottom:4px">'
+          + cat.label + ' (' + items.length + ')</div>'
+          + '<div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">'
+          + items.map(r => rowRV(r)).join('') + '</div></div>';
+      });
     } else {
-      rvContent = '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucun RV planifié dans les 30 prochains jours ✅</p>';
+      rvContent = '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucun RV planifié ✅</p>';
     }
 
-    dash.innerHTML += `<div style="margin-top:18px">
-      <h3 style="margin-bottom:8px${isAdmin ? ';cursor:pointer' : ''}"${isAdmin ? ' onclick="allerAuxRV()"' : ''}>
-        📅 RV planifiés${isAdmin ? ' <span style="font-size:12px;color:var(--bleu);text-decoration:underline;margin-left:6px">gérer →</span>' : ''}
-      </h3>
-      <div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">
-        ${rvContent.startsWith('<p') ? `<div style="padding:12px 14px">${rvContent}</div>` : rvContent}
-      </div>
-    </div>`;
+    dash.innerHTML += '<div style="margin-top:18px">'
+      + '<h3 style="margin-bottom:10px' + (isAdmin ? ';cursor:pointer' : '') + '"'
+      + (isAdmin ? ' onclick="allerAuxRV()"' : '') + '>'
+      + '📅 RV planifiés' + (rvProg.length ? ' (' + rvProg.length + ')' : '')
+      + (isAdmin ? ' <span style="font-size:12px;color:var(--bleu);text-decoration:underline;margin-left:6px">gérer →</span>' : '')
+      + '</h3>' + rvContent + '</div>';
   }
+
 
   // ── 3. À SURVEILLER — uniquement les rubriques concernées ───
   {
@@ -8830,7 +8854,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260626.1243';
+const APP_VERSION = '260626.1421';
 
 let _swRegistration = null;
 
