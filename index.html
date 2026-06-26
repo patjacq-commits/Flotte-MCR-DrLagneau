@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1036</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1043</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1952,11 +1952,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260626.1036</strong><br>
+      Version actuelle de l'app : <strong>v260626.1043</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260626.1036 disponible)
+      📢 Notifier les utilisateurs (v260626.1043 disponible)
     </button>
   </div>
 
@@ -6111,7 +6111,7 @@ function renderVehicules() {
       </div>
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
-        ${isAdmin ? `<button class="btn btn-sm primary" onclick="quickEdit('${v.id}')">✏️ Modifier</button>` : ''}
+        ${isAdmin ? `<button class="btn btn-sm primary" onclick="openVehEdit('${v.id}')">✏️ Modifier</button>` : ''}
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu-clair);font-weight:600" onclick="ouvrirInfoVeh('${v.id}')" title="Ajouter/modifier une info pour ce véhicule">ℹ️ Info</button>` : ''}
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule('${v.id}')">🗑</button>` : ''}
       </div>
@@ -6278,7 +6278,7 @@ function openVehDetail(id) {
 /* Modal Modifier véhicule — saisie uniquement, toutes données modifiables */
 function openVehEdit(id) {
   const v = vehicules.find(x => x.id === id);
-  if (!v || !userIsAdmin()) return;
+  if (!v) return;
 
   let modal = document.getElementById('modal-veh-edit');
   if (!modal) {
@@ -8781,7 +8781,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260626.1036';
+const APP_VERSION = '260626.1043';
 
 let _swRegistration = null;
 
