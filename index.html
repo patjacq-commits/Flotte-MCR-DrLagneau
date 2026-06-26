@@ -1095,7 +1095,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1054</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260626.1148</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1952,11 +1952,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260626.1054</strong><br>
+      Version actuelle de l'app : <strong>v260626.1148</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260626.1054 disponible)
+      📢 Notifier les utilisateurs (v260626.1148 disponible)
     </button>
   </div>
 
@@ -3137,6 +3137,7 @@ function calendrierMoisSuivant()   { _calDate.setMonth(_calDate.getMonth()+1); r
 
 function getEvenementsJour(dateStr) {
   const evts = [];
+
   // Maintenances (historique)
   maintenances.filter(m => m.date === dateStr).forEach(m => {
     const v = vehicules.find(x => x.id === m.vehId);
@@ -3145,12 +3146,15 @@ function getEvenementsJour(dateStr) {
       detail: 'Maintenance ' + (v?.marque||'') + ' ' + (v?.immat||m.vehId) +
         (m.km ? ' — ' + parseInt(m.km).toLocaleString('fr-BE') + ' km' : '') });
   });
-  // Tous les RV (planifiés + effectués) depuis rendezvous
+
+  // RV depuis rendezvous (planifiés + effectués)
+  const idsRV = new Set();
   rendezvous.filter(r => r.date === dateStr && r.statut !== 'annule').forEach(r => {
+    idsRV.add(String(r.id));
     const v  = vehicules.find(x => x.id === r.vehId);
     const tl = RV_TYPES?.[r.type] || r.type || 'RV';
-    const couleur = r.statut === 'planifie' ? '#2980b9' : '#27ae60';
-    const prefix  = r.statut === 'planifie' ? '📅' : '✅';
+    const couleur = r.statut === 'planifie' ? '#2980b9' : r.urgent ? '#e74c3c' : '#27ae60';
+    const prefix  = r.statut === 'planifie' ? '📅' : r.urgent ? '🚨' : '✅';
     evts.push({ type: r.statut === 'planifie' ? 'rv' : 'ct', couleur,
       label: prefix + ' ' + (v?.immat||r.vehId) + ' ' + tl,
       detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||r.vehId) +
@@ -3158,6 +3162,19 @@ function getEvenementsJour(dateStr) {
         (r.garage ? ' — ' + r.garage : '') +
         (r.notes ? ' — ' + r.notes : '') });
   });
+
+  // Fallback : anciens ctEvents pas encore migrés dans rendezvous
+  ctEvents.filter(c => c.date === dateStr && !idsRV.has(String(c.id))).forEach(c => {
+    const v  = vehicules.find(x => x.id === c.vehId);
+    const tl = RV_TYPES?.[c.type] || c.type || 'CT';
+    evts.push({ type:'ct', couleur:'#27ae60',
+      label: '✅ ' + (v?.immat||c.vehId) + ' ' + tl,
+      detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||c.vehId) +
+        (c.heure ? ' à ' + c.heure : '') +
+        (c.result || c.garage ? ' — ' + (c.result||c.garage) : '') +
+        (c.rem ? ' — ' + c.rem : '') });
+  });
+
   // Alerte expiration CT
   vehicules.forEach(v => {
     if (!v.ct_valid) return;
@@ -8798,7 +8815,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260626.1054';
+const APP_VERSION = '260626.1148';
 
 let _swRegistration = null;
 
