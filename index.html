@@ -1099,7 +1099,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260701.0831</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260701.1524</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1957,11 +1957,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260701.0831</strong><br>
+      Version actuelle de l'app : <strong>v260701.1524</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260701.0831 disponible)
+      📢 Notifier les utilisateurs (v260701.1524 disponible)
     </button>
   </div>
 
@@ -3173,7 +3173,7 @@ function getEvenementsJour(dateStr) {
   rendezvous.filter(r => r.date === dateStr && r.statut !== 'annule').forEach(r => {
     idsRV.add(String(r.id));
     const v      = vehicules.find(x => x.id === r.vehId);
-    const tl     = RV_TYPES?.[r.type] || r.type || 'RV';
+    const tl     = labelRV(r.type);
     const coul   = couleurRV(r.type, r.statut, r.urgent);
     const prefix = r.urgent ? '🚨' : r.statut === 'planifie' ? '📅' : '✅';
     evts.push({ type: r.statut === 'planifie' ? 'rv' : 'ct', couleur: coul,
@@ -3187,7 +3187,7 @@ function getEvenementsJour(dateStr) {
   // Fallback ctEvents non encore migrés
   ctEvents.filter(c => c.date === dateStr && !idsRV.has(String(c.id))).forEach(c => {
     const v  = vehicules.find(x => x.id === c.vehId);
-    const tl = RV_TYPES?.[c.type] || c.type || 'CT';
+    const tl = labelRV(c.type);
     const coul = couleurRV(c.type, 'effectue', false);
     evts.push({ type:'ct', couleur: coul,
       label: '✅ ' + (v?.immat||c.vehId) + ' ' + tl,
@@ -4865,7 +4865,7 @@ function renderRVDashboard() {
   const rows = rvs.map(r => {
     const v      = vehicules.find(x => x.id === r.vehId);
     const vNom   = v ? v.marque + ' <b>' + v.immat + '</b>' : r.vehId;
-    const tl     = RV_TYPES?.[r.type] || r.type || 'RV';
+    const tl     = labelRV(r.type);
     const garage = r.garage ? ' — ' + r.garage : '';
     const hr     = r.heure  ? ' à <b>' + r.heure + '</b>' : '';
     const motif  = r.notes  ? '<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">📝 ' + r.notes + '</div>' : '';
@@ -4897,16 +4897,10 @@ function renderRVDashboard() {
 }
 
 function renderAccueil() {
-  // Forcer synchronisation depuis window pour éviter désynchronisation
+  // Forcer synchronisation depuis window
   if (window.rendezvous && window.rendezvous.length >= rendezvous.length) {
     rendezvous = window.rendezvous;
   }
-  // DEBUG temporaire - à supprimer
-  const _dbgPlanifie = rendezvous.filter(r => r.statut === 'planifie');
-  console.log('[renderAccueil] rendezvous.length=', rendezvous.length,
-    '| planifie=', _dbgPlanifie.length,
-    '| statuts=', [...new Set(rendezvous.map(r=>r.statut))],
-    '| premier RV=', rendezvous[0] ? JSON.stringify({id:rendezvous[0].id,statut:rendezvous[0].statut,date:rendezvous[0].date,type:rendezvous[0].type}) : 'aucun');
   const alertes = buildAlertes();
   const nbUrgent = alertes.filter(a => a.level === 'urgent').length;
   const nbWarn   = alertes.filter(a => a.level === 'warn').length;
@@ -5085,7 +5079,9 @@ function renderAccueil() {
     function rowRV(r) {
       const v      = vehicules.find(x => x.id === r.vehId);
       const vNom   = v ? v.marque + ' <b>' + v.immat + '</b>' : r.vehId;
-      const tl     = RV_TYPES?.[r.type] || r.type || 'RV';
+      const tl     = r.type && r.type.startsWith('libre_')
+        ? r.type.replace('libre_', '')  // ancien format : motif dans le type
+        : (labelRV(r.type));
       const garage = (r.garage||r.result) ? ' — ' + (r.garage||r.result) : '';
       const hr     = r.heure ? ' à <b>' + r.heure + '</b>' : '';
       const motif  = (r.notes||r.rem) ? '<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">📝 ' + (r.notes||r.rem) + '</div>' : '';
@@ -5113,8 +5109,9 @@ function renderAccueil() {
     if (rvProg.length) {
       CATS_RV.forEach(cat => {
         const knownTypes = CATS_RV.filter(c => c.types).flatMap(c => c.types);
+        const STANDARD_TYPES = Object.keys(RV_TYPES || {});
         const items = cat.types === null
-          ? rvProg.filter(r => !knownTypes.includes(r.type))
+          ? rvProg.filter(r => !knownTypes.includes(r.type))  // tout le reste
           : rvProg.filter(r => cat.types.includes(r.type));
         if (!items.length) return;
         rvContent += '<div style="margin-bottom:10px">'
@@ -6343,7 +6340,7 @@ function openVehDetail(id) {
         return '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;'
           + 'border-top:1px solid var(--gris-bord)">📅 Rendez-vous à venir</td></tr>'
           + rvAv.map(r => {
-              const tl = RV_TYPES?.[r.type] || r.type || 'RV';
+              const tl = labelRV(r.type);
               const ga = r.garage ? ' — '+r.garage : '';
               const hr = r.heure ? ' à '+r.heure : '';
               const j  = Math.round((new Date(r.date)-new Date())/86400000);
@@ -7289,7 +7286,13 @@ const RV_TYPES = {
   livraison:       '🚐 Livraison',
   autre:           '📝 Autre',
 };
-// Alias pour compatibilité avec l'ancien code
+// ── Label lisible pour un type RV (gère les anciens formats libre_...) ──
+function labelRV(type) {
+  if (!type) return 'RV';
+  if (type.startsWith('libre_')) return type.replace('libre_', '');
+  return RV_TYPES?.[type] || type;
+}
+
 const CT_TYPE_LABELS = RV_TYPES;
 
 // Types nécessitant un kilométrage
@@ -7830,7 +7833,7 @@ function renderHistorique() {
     const typeLabel = isUrgent
       ? '🚨 ' + (RV_TYPES?.[r.type] || r.type || 'Intervention')
       : (r.statut === 'planifie' ? '📅' : r.statut === 'effectue' ? '✅' : '❌')
-        + ' ' + (RV_TYPES?.[r.type] || r.type || 'RV');
+        + ' ' + (labelRV(r.type));
     const heureStr  = r.heure  ? ' ' + r.heure : '';
     const garageStr = r.garage ? ' — ' + r.garage : '';
     const remStr    = r.notes  ? ' — ' + r.notes  : '';
@@ -8874,7 +8877,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260701.0831';
+const APP_VERSION = '260701.1524';
 
 let _swRegistration = null;
 
