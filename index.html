@@ -1099,7 +1099,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260701.0827</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260701.0831</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1957,11 +1957,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260701.0827</strong><br>
+      Version actuelle de l'app : <strong>v260701.0831</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260701.0827 disponible)
+      📢 Notifier les utilisateurs (v260701.0831 disponible)
     </button>
   </div>
 
@@ -4901,6 +4901,12 @@ function renderAccueil() {
   if (window.rendezvous && window.rendezvous.length >= rendezvous.length) {
     rendezvous = window.rendezvous;
   }
+  // DEBUG temporaire - à supprimer
+  const _dbgPlanifie = rendezvous.filter(r => r.statut === 'planifie');
+  console.log('[renderAccueil] rendezvous.length=', rendezvous.length,
+    '| planifie=', _dbgPlanifie.length,
+    '| statuts=', [...new Set(rendezvous.map(r=>r.statut))],
+    '| premier RV=', rendezvous[0] ? JSON.stringify({id:rendezvous[0].id,statut:rendezvous[0].statut,date:rendezvous[0].date,type:rendezvous[0].type}) : 'aucun');
   const alertes = buildAlertes();
   const nbUrgent = alertes.filter(a => a.level === 'urgent').length;
   const nbWarn   = alertes.filter(a => a.level === 'warn').length;
@@ -8868,7 +8874,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260701.0827';
+const APP_VERSION = '260701.0831';
 
 let _swRegistration = null;
 
