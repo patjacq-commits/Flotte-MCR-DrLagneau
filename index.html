@@ -1099,7 +1099,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1122</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1231</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1128,7 +1128,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button class="tab-btn" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
   <button class="tab-btn admin-only" onclick="showPage('pneus',this)" style="display:none">🛞 Pneus</button>
   <button class="tab-btn" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
-  <button class="tab-btn" onclick="showPage('historique',this)" style="display:none">📋 Historique</button>
+  <button class="tab-btn" onclick="showPage('historique',this)" style="display:none">📋 Historique RV</button>
   <button class="tab-btn admin-only" onclick="showPage('rapports',this)" style="display:none">📄 Rapports</button>
   <button class="tab-btn superadmin-only" onclick="showPage('comptes',this)" style="display:none">👥 Comptes</button>
   <button class="tab-btn" onclick="showPage('profil',this)">⚙️ Profil</button>
@@ -1980,11 +1980,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260703.1122</strong><br>
+      Version actuelle de l'app : <strong>v260703.1231</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260703.1122 disponible)
+      📢 Notifier les utilisateurs (v260703.1231 disponible)
     </button>
   </div>
 
@@ -2097,7 +2097,7 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE HISTORIQUE (admin : tout / chauffeur : ses messages) -->
 <div id="page-historique" class="page">
-  <h2 style="margin-bottom:14px">📋 Historique</h2>
+  <h2 style="margin-bottom:14px">📋 Historique des RV</h2>
 
   <!-- Filtres admin uniquement -->
   <div id="hist-filtres" class="export-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
@@ -2105,14 +2105,11 @@ td.ok { color: var(--vert); font-weight: 600; }
       <option value="">Tous les véhicules</option>
     </select>
     <select id="hist-filter-type" onchange="renderHistorique()">
-      <option value="">Tous les types</option>
+      <option value="">Tous les RV</option>
       <option value="urgent">🚨 Interventions urgentes</option>
-      <option value="ct">CT / RV enregistrés</option>
-      <option value="rv">Rendez-vous planifiés</option>
-      <option value="adblue">AdBlue</option>
-      <option value="carwash">Car Wash</option>
-      <option value="maintenance">Maintenances</option>
-      <option value="message">💬 Messages chauffeurs</option>
+      <option value="planifie">📅 Planifiés</option>
+      <option value="effectue">✅ Effectués</option>
+      <option value="annule">❌ Annulés</option>
     </select>
     <button id="hist-export-csv" class="btn admin-only" style="display:none" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
@@ -7993,11 +7990,10 @@ function onCTTypeChange()  { onRVTypeChange(); }
 function onCTVehChange()   { onRVVehChange(); }
 
 function renderHistorique() {
-  const filterVeh  = document.getElementById('hist-filter-veh')?.value  || '';
-  const filterType = document.getElementById('hist-filter-type')?.value || '';
-  const dateDebut  = document.getElementById('hist-date-debut')?.value  || '';
-  const dateFin    = document.getElementById('hist-date-fin')?.value    || '';
-  const hierStr    = new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const filterVeh    = document.getElementById('hist-filter-veh')?.value  || '';
+  const filterType   = document.getElementById('hist-filter-type')?.value || '';
+  const dateDebut    = document.getElementById('hist-date-debut')?.value  || '';
+  const dateFin      = document.getElementById('hist-date-fin')?.value    || '';
 
   // Peupler le select véhicules une seule fois
   const sel = document.getElementById('hist-filter-veh');
@@ -8011,34 +8007,41 @@ function renderHistorique() {
     });
   }
 
-  // Afficher/masquer la vue maintenance détaillée vs tableau général
-  const isMaint = filterType === 'maintenance';
-  document.getElementById('hist-maint-detail').style.display = isMaint ? '' : 'none';
-  document.getElementById('hist-table-view').style.display   = isMaint ? 'none' : '';
+  // Masquer la vue maintenance détaillée
+  const maintDetail = document.getElementById('hist-maint-detail');
+  const tableView   = document.getElementById('hist-table-view');
+  if (maintDetail) maintDetail.style.display = 'none';
+  if (tableView)   tableView.style.display   = '';
 
-  if (isMaint) {
-    renderHistMaintDetail(filterVeh, dateDebut, dateFin);
-    return;
-  }
+  // ── Source : rendezvous + ctEvents (fallback) ─────────────────
+  const idsRV = new Set(rendezvous.map(r => String(r.id)));
+  const ctFallback = ctEvents
+    .filter(c => !idsRV.has(String(c.id)))
+    .map(c => ({
+      id: c.id, vehId: c.vehId, type: c.type || 'ct',
+      date: c.date, heure: c.heure || '',
+      garage: c.result || c.garage || '',
+      km: c.km || '', notes: c.rem || c.notes || '',
+      statut: 'effectue',
+    }));
 
-  // ── Vue tableau général ────────────────────────────────────
   let rows = [];
+  [...rendezvous, ...ctFallback].forEach(r => {
+    // Filtre par statut (via filterType)
+    if (filterType === 'urgent'   && !r.urgent)                    return;
+    if (filterType === 'planifie' && r.statut !== 'planifie')      return;
+    if (filterType === 'effectue' && r.statut !== 'effectue')      return;
+    if (filterType === 'annule'   && r.statut !== 'annule')        return;
+    if (filterVeh  && r.vehId !== filterVeh)                       return;
+    if (dateDebut  && r.date < dateDebut)                          return;
+    if (dateFin    && r.date > dateFin)                            return;
 
-  // ── RV (tous statuts, depuis rendezvous) ─────────────────────
-  rendezvous.forEach(r => {
-    const isUrgent = r.urgent === true;
-    if (filterType === 'urgent'  && !isUrgent) return;
-    if (filterType === 'ct'      && (isUrgent || r.statut === 'planifie')) return;
-    if (filterType === 'rv'      && (isUrgent || r.statut !== 'planifie')) return;
-    if (filterType && filterType !== 'ct' && filterType !== 'rv' && filterType !== 'urgent') return;
-    if (filterVeh && r.vehId !== filterVeh) return;
-    if (dateDebut && r.date < dateDebut) return;
-    if (dateFin   && r.date > dateFin)   return;
-    const v        = vehicules.find(x => x.id === r.vehId);
+    const v         = vehicules.find(x => x.id === r.vehId);
+    const isUrgent  = r.urgent === true;
     const typeLabel = isUrgent
-      ? '🚨 ' + (RV_TYPES?.[r.type] || r.type || 'Intervention')
+      ? '🚨 ' + labelRV(r.type)
       : (r.statut === 'planifie' ? '📅' : r.statut === 'effectue' ? '✅' : '❌')
-        + ' ' + (labelRV(r.type));
+        + ' ' + labelRV(r.type);
     const heureStr  = r.heure  ? ' ' + r.heure : '';
     const garageStr = r.garage ? ' — ' + r.garage : '';
     const remStr    = r.notes  ? ' — ' + r.notes  : '';
@@ -8052,46 +8055,6 @@ function renderHistorique() {
       srcId:   r.id
     });
   });
-
-  adblues.forEach(a => {
-    if (filterType && filterType !== 'adblue') return;
-    if (filterVeh && a.vehId !== filterVeh) return;
-    const v = vehicules.find(x => x.id === a.vehId);
-    rows.push({ date: a.date, veh: v ? v.marque + ' ' + v.immat : a.vehId, type: '💧 AdBlue', km: a.km, detail: `${a.litre.toFixed(2)} L${a.source === 'maintenance' ? ' (via maint.)' : ''}`, srcType:'adblue', srcId: a.id });
-  });
-
-  carwashes.forEach(c => {
-    if (filterType && filterType !== 'carwash') return;
-    if (filterVeh && c.vehId !== filterVeh) return;
-    const v = vehicules.find(x => x.id === c.vehId);
-    rows.push({ date: c.date, veh: v ? v.marque + ' ' + v.immat : c.vehId, type: '🚿 Car Wash', km: null, detail: `${c.lieu} — ${c.montant ? Number(c.montant).toFixed(2) + ' €' : '—'}`, srcType:'carwash', srcId: c.id });
-  });
-
-  // Si aucun filtre de type → ajouter aussi les maintenances en résumé
-  if (!filterType) {
-    maintenances.forEach(m => {
-      if (filterVeh && m.vehId !== filterVeh) return;
-      const v = vehicules.find(x => x.id === m.vehId);
-      const detail = [m.rem, m.ext, m.cw === 'oui' ? `CW ${m.cwLieu||''}` : ''].filter(Boolean).join(' — ') || '—';
-      rows.push({ date: m.date, veh: v ? v.marque + ' ' + v.immat : m.vehId, type:'Maintenance', km: m.km, detail, srcType:'maintenance', srcId: m.id });
-    });
-  }
-
-  // Messages chauffeurs — uniquement traités dans l'historique
-  if (!filterType || filterType === 'message') {
-    messagesChauf
-      .filter(m => m.statut === 'traite' || m.statut === 'lu')
-      .forEach(m => {
-      if (filterVeh && m.vehId !== filterVeh) return;
-      const v    = vehicules.find(x => x.id === m.vehId);
-      const vNom = v ? v.marque + ' ' + v.immat : m.vehId;
-      const prioriteLabel = m.priorite === 'urgent' ? '🚨 Urgent' : 'ℹ️ Info';
-      const statutLabel   = m.statut === 'nonlu' ? '⚠ Non traité' : '✅ Traité';
-      const repNb = (m.reponses||[]).length;
-      const detail = `${prioriteLabel} — ${statutLabel}${repNb ? ' — ' + repNb + ' rép.' : ''} — ${m.auteur} : ${m.msg.slice(0,60)}${m.msg.length>60?'…':''}`;
-      rows.push({ date: m.date, veh: vNom, type:'💬 Message', km: null, detail, srcType:'message', srcId: m.id });
-    });
-  }
 
   rows.sort((a,b) => b.date.localeCompare(a.date));
 
@@ -8108,7 +8071,7 @@ function renderHistorique() {
         <td style="font-size:12px;max-width:200px">${r.detail||'—'}</td>
         <td style="white-space:nowrap">${adminBtns(r.srcType,r.srcId)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée trouvée</td></tr>';
+    : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun RV trouvé</td></tr>';
 }
 
 /* Vue détaillée maintenances : une carte par maintenance avec tous les champs */
@@ -9082,7 +9045,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260703.1122';
+const APP_VERSION = '260703.1231';
 
 let _swRegistration = null;
 
