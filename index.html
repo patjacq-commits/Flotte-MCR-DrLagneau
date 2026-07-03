@@ -1099,7 +1099,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.0824</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.0844</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1963,11 +1963,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260703.0824</strong><br>
+      Version actuelle de l'app : <strong>v260703.0844</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260703.0824 disponible)
+      📢 Notifier les utilisateurs (v260703.0844 disponible)
     </button>
   </div>
 
@@ -5885,7 +5885,7 @@ function buildAlertes() {
 }
 
 function renderAlerte(a) {
-  // Carte RV planifié
+  // Carte RV planifié (déjà confirmé)
   if (a.level === 'rv') {
     const r = a.rv;
     const icon = a.typeRV === 'ct' ? '🏥' : '🔧';
@@ -5898,7 +5898,7 @@ function renderAlerte(a) {
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
         <span class="badge ok" style="font-size:11px">✅ RV confirmé</span>
-        ${isAdmin ? `<button class="alerte-rv-btn" style="color:#1a6b38;border-color:var(--vert);font-size:11px" onclick="openRV('${a.vehId}','${a.typeRV}')">Modifier</button>` : ''}
+        ${isAdmin ? `<button class="alerte-rv-btn" onclick="allerAuxRV()">📋 Prendre RV</button>` : ''}
       </div>
     </div>`;
   }
@@ -5911,15 +5911,14 @@ function renderAlerte(a) {
         <h4 style="color:var(--rouge-fonce);font-size:15px">${a.titre}</h4>
         <p style="font-weight:600">${a.detail}</p>
       </div>
-      ${isAdmin ? `<button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 RV repassage</button>` : ''}
+      ${isAdmin ? `<button class="alerte-rv-btn" onclick="allerAuxRV()">📋 Prendre RV</button>` : ''}
     </div>`;
   }
 
-  // Alerte normale — bouton Prendre RV visible uniquement pour les admins
+  // Alerte normale
   const btnRV = (isAdmin && a.vehId)
-    ? `<button class="alerte-rv-btn" onclick="openRV('${a.vehId}','${a.typeRV}')">📅 Prendre RV</button>`
+    ? `<button class="alerte-rv-btn" onclick="allerAuxRV()">📋 Prendre RV</button>`
     : '';
-  // CT à prendre dans le mois → classe clignotante orange
   const pulseClass = a.ctAPrendre ? 'alerte-ct-pulse' : a.level;
   return `<div class="alerte-item ${pulseClass}">
     <div class="alerte-icon">${a.icon}</div>
@@ -6423,18 +6422,19 @@ let _rvVehId = null;
 
 /* Met à jour garage + visibilité km quand le type change dans le formulaire */
 function openRV(vehId, typeRV) {
-  if (!isAdmin) { toast('Accès réservé aux administrateurs.'); return; }
-  // Naviguer vers l'onglet Prendre RV et pré-remplir
+  // Rediriger simplement vers l'onglet Prendre RV
   const btn = document.querySelector('.tab-btn[onclick*="garages"]');
   showPage('garages', btn);
-  setTimeout(() => {
-    const selVeh = document.getElementById('rv-veh');
-    const selType = document.getElementById('rv-type');
-    if (selVeh && vehId)   selVeh.value  = vehId;
-    if (selType && typeRV) selType.value = typeRV;
-    onRVVehChange();
-    onRVTypeChange();
-  }, 150);
+  // Pré-remplir le véhicule et le type si fournis
+  if (vehId || typeRV) {
+    setTimeout(() => {
+      const selVeh  = document.getElementById('rv-veh');
+      const selType = document.getElementById('rv-type');
+      if (selVeh  && vehId)   selVeh.value  = vehId;
+      if (selType && typeRV)  selType.value = typeRV;
+      if (vehId || typeRV)    onRVVehChange();
+    }, 150);
+  }
 }
 
 
@@ -8922,7 +8922,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260703.0824';
+const APP_VERSION = '260703.0844';
 
 let _swRegistration = null;
 
