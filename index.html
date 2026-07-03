@@ -1099,7 +1099,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.0844</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1122</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1603,26 +1603,43 @@ td.ok { color: var(--vert); font-weight: 600; }
         </select>
       </div>
       <div class="form-group">
-        <label>Type</label>
-        <select id="rv-type" onchange="onRVTypeChange()">
-          <option value="ct">Contrôle Technique</option>
-          <option value="garage">Entretien Garage</option>
-          <option value="reparation">Réparation</option>
-          <option value="permutation">Permutation pneus</option>
-          <option value="pneus-av">Nouveaux pneus AV</option>
-          <option value="pneus-ar">Nouveaux pneus AR</option>
-          <option value="pneus-4">4 nouveaux pneus</option>
-          <option value="geometrie">Géométrie</option>
-          <option value="vitre">Réparation vitre</option>
-          <option value="entretien-lift">Entretien lift/rampe</option>
-          <option value="reparation-lift">Réparation lift/rampe</option>
-          <option value="enrouleur">Enrouleur</option>
-          <option value="treuil">Treuil bloqué</option>
-          <option value="crevaison">Crevaison</option>
-          <option value="marquage">Marquage véhicule</option>
-          <option value="livraison">Livraison nouveau véhicule</option>
-          <option value="autre">Autre…</option>
-        </select>
+        <label>Catégorie / Type</label>
+        <div style="display:flex;gap:6px">
+          <select id="rv-type" onchange="onRVTypeChange()" style="flex:1">
+            <optgroup label="🔒 Sécurité / Entretien">
+              <option value="ct">Contrôle Technique</option>
+              <option value="garage">Entretien Garage</option>
+              <option value="reparation">Réparation / Adaptation</option>
+              <option value="rappel-marque">Rappel de la marque</option>
+            </optgroup>
+            <optgroup label="🪟 Vitrage">
+              <option value="rep-parebrise">Réparation pare-brise / vitre</option>
+              <option value="rempl-parebrise">Remplacement pare-brise / vitre</option>
+            </optgroup>
+            <optgroup label="🛞 Pneumatiques">
+              <option value="permutation">Permutation pneus</option>
+              <option value="pneus-av">Nouveaux pneus AV</option>
+              <option value="pneus-ar">Nouveaux pneus AR</option>
+              <option value="pneus-4">4 nouveaux pneus</option>
+              <option value="geometrie">Géométrie</option>
+              <option value="crevaison">Crevaison</option>
+            </optgroup>
+            <optgroup label="🔩 Recht">
+              <option value="entretien-lift">Entretien lift / rampe</option>
+              <option value="reparation-lift">Réparation lift / rampe</option>
+              <option value="enrouleur">Problème enrouleur(s)</option>
+              <option value="treuil">Problème treuil</option>
+            </optgroup>
+            <optgroup label="🎨 CP Arlon">
+              <option value="marquage">Marquage véhicule</option>
+            </optgroup>
+            <optgroup label="📝 Autre">
+              <option value="autre">Autre…</option>
+            </optgroup>
+          </select>
+          <button class="btn btn-sm admin-only" title="Ajouter un type/catégorie"
+            onclick="ouvrirAjoutTypeRV()" style="flex-shrink:0;padding:0 10px">➕</button>
+        </div>
       </div>
       <div class="form-group">
         <label>Date</label>
@@ -1963,11 +1980,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260703.0844</strong><br>
+      Version actuelle de l'app : <strong>v260703.1122</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260703.0844 disponible)
+      📢 Notifier les utilisateurs (v260703.1122 disponible)
     </button>
   </div>
 
@@ -5021,17 +5038,23 @@ function renderAccueil() {
       .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
     const CATS_RV = [
-      { label:'🔧 Entretien Garage',   couleur:'#e67e22', bg:'#fef5e7',
-        types:['garage','entretien-lift','reparation-lift','enrouleur','treuil','marquage','livraison'] },
-      { label:'🏥 Contrôle Technique', couleur:'#2471a3', bg:'#eaf4fb',
-        types:['ct'] },
-      { label:'🛞 Pneumatiques',       couleur:'#d35400', bg:'#fdf2e9',
+      { label:'🔒 Sécurité / Entretien', couleur:'#e67e22', bg:'#fef5e7',
+        types:['ct','garage','reparation','rappel-marque'] },
+      { label:'🪟 Vitrage',              couleur:'#5dade2', bg:'#eaf4fb',
+        types:['rep-parebrise','rempl-parebrise','vitre'] },
+      { label:'🏥 Contrôle Technique',   couleur:'#2471a3', bg:'#d6eaf8',
+        types:[] }, // absorbé dans Sécurité
+      { label:'🛞 Pneumatiques',          couleur:'#d35400', bg:'#fdf2e9',
         types:['permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison'] },
-      { label:'🔨 Réparations',        couleur:'#c0392b', bg:'#fdedec',
-        types:['reparation','vitre'] },
-      { label:'📝 Autres',             couleur:'#6c3483', bg:'#f5eef8',
+      { label:'🔩 Recht',                couleur:'#7d3c98', bg:'#f5eef8',
+        types:['entretien-lift','reparation-lift','enrouleur','treuil'] },
+      { label:'🎨 CP Arlon',             couleur:'#1e8449', bg:'#eafaf1',
+        types:['marquage'] },
+      { label:'🔨 Réparations',          couleur:'#c0392b', bg:'#fdedec',
+        types:[] }, // absorbé dans Sécurité
+      { label:'📝 Autres',               couleur:'#6c3483', bg:'#f5eef8',
         types:null },
-    ];
+    ].filter(cat => cat.types === null || cat.types.length > 0);
 
     function rowRV(r) {
       const v      = vehicules.find(x => x.id === r.vehId);
@@ -7222,23 +7245,30 @@ function clearMaintForm() {
 // ============================================================
 
 const RV_TYPES = {
-  ct:              '🏥 Contrôle Technique',
-  garage:          '🔧 Entretien Garage',
-  reparation:      '🔨 Réparation',
-  permutation:     '🔄 Permutation pneus',
-  'pneus-av':      '🛞 Pneus AV',
-  'pneus-ar':      '🛞 Pneus AR',
-  'pneus-4':       '🛞 4 pneus',
-  geometrie:       '📐 Géométrie',
-  vitre:           '🪟 Vitre',
-  'entretien-lift':'🔩 Entretien lift',
-  'reparation-lift':'🔩 Réparation lift',
-  enrouleur:       '🔁 Enrouleur',
-  treuil:          '⛓ Treuil',
-  crevaison:       '🔩 Crevaison',
-  marquage:        '🎨 Marquage',
-  livraison:       '🚐 Livraison',
-  autre:           '📝 Autre',
+  // Sécurité / Entretien
+  'ct':               '🏥 Contrôle Technique',
+  'garage':           '🔧 Entretien Garage',
+  'reparation':       '🔨 Réparation / Adaptation',
+  'rappel-marque':    '⚠️ Rappel de la marque',
+  // Vitrage
+  'rep-parebrise':    '🪟 Réparation pare-brise / vitre',
+  'rempl-parebrise':  '🪟 Remplacement pare-brise / vitre',
+  // Pneumatiques
+  'permutation':      '🔄 Permutation pneus',
+  'pneus-av':         '🛞 Nouveaux pneus AV',
+  'pneus-ar':         '🛞 Nouveaux pneus AR',
+  'pneus-4':          '🛞 4 nouveaux pneus',
+  'geometrie':        '📐 Géométrie',
+  'crevaison':        '🔩 Crevaison',
+  // Recht
+  'entretien-lift':   '🔩 Entretien lift / rampe',
+  'reparation-lift':  '🔩 Réparation lift / rampe',
+  'enrouleur':        '🔁 Problème enrouleur(s)',
+  'treuil':           '⛓ Problème treuil',
+  // CP Arlon
+  'marquage':         '🎨 Marquage véhicule',
+  // Autre
+  'autre':            '📝 Autre',
 };
 // ── Label lisible pour un type RV (gère les anciens formats libre_...) ──
 function labelRV(type) {
@@ -7278,6 +7308,7 @@ function enregistrerMotifLibre(motif) {
 
 // ── Peuplement du select véhicules ──────────────────────────
 function initGarages() {
+  chargerTypesRVPerso();
   // Enrichir le select avec les vraies marques depuis Firebase/localStorage
   const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
   const selVeh = document.getElementById('rv-veh');
@@ -7544,7 +7575,23 @@ function renderTableRV() {
   const filterVeh    = document.getElementById('rv-filter-veh')?.value    || '';
   const filterStatut = document.getElementById('rv-filter-statut')?.value || '';
 
-  let rows = [...rendezvous]
+  // Fusionner rendezvous + ctEvents (non encore migrés) sans doublons
+  const idsRV = new Set(rendezvous.map(r => String(r.id)));
+  const ctFallback = ctEvents
+    .filter(c => !idsRV.has(String(c.id)))
+    .map(c => ({
+      id:      c.id,
+      vehId:   c.vehId,
+      type:    c.type || 'ct',
+      date:    c.date,
+      heure:   c.heure  || '',
+      garage:  c.result || c.garage || '',
+      km:      c.km     || '',
+      notes:   c.rem    || c.notes  || '',
+      statut:  'effectue',
+    }));
+
+  let rows = [...rendezvous, ...ctFallback]
     .filter(r => !filterVeh    || r.vehId  === filterVeh)
     .filter(r => !filterStatut || r.statut === filterStatut)
     .sort((a,b) => {
@@ -7692,6 +7739,119 @@ function allerAuxRV() {
 }
 
 // ── Intervention urgente sans RV ─────────────────────────────
+// ── Types RV personnalisés (stockés dans Firestore config/rvTypes) ──────
+let _rvTypesPerso = {}; // { categorie: [{value, label}] }
+
+function chargerTypesRVPerso() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('mcr_rv_types') || '{}');
+    _rvTypesPerso = saved;
+    appliquerTypesRVPerso();
+  } catch(e) {}
+}
+
+function appliquerTypesRVPerso() {
+  const sel = document.getElementById('rv-type');
+  if (!sel) return;
+  // Supprimer les anciens optgroups perso
+  sel.querySelectorAll('optgroup[data-perso]').forEach(g => g.remove());
+  // Ajouter les catégories perso avant le groupe "Autre"
+  const groupAutre = sel.querySelector('optgroup[label="📝 Autre"]');
+  Object.entries(_rvTypesPerso).forEach(([cat, types]) => {
+    if (!types.length) return;
+    const og = document.createElement('optgroup');
+    og.label = cat;
+    og.setAttribute('data-perso', '1');
+    types.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.value; opt.textContent = t.label;
+      og.appendChild(opt);
+    });
+    if (groupAutre) sel.insertBefore(og, groupAutre);
+    else sel.appendChild(og);
+    // Ajouter dans RV_TYPES pour labelRV()
+    types.forEach(t => { if (!RV_TYPES[t.value]) RV_TYPES[t.value] = t.label; });
+  });
+}
+
+function ouvrirAjoutTypeRV() {
+  const existing = document.getElementById('modal-ajout-rv-type');
+  if (existing) existing.remove();
+
+  // Lister les catégories existantes
+  const sel = document.getElementById('rv-type');
+  const catsExistantes = sel
+    ? [...sel.querySelectorAll('optgroup')].map(g => g.label)
+    : [];
+
+  const div = document.createElement('div');
+  div.id = 'modal-ajout-rv-type';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:20px;max-width:380px;width:100%;
+      box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <h3 style="margin:0 0 16px">➕ Ajouter un type de RV</h3>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Catégorie</label>
+        <select id="ajout-rv-cat-select" style="width:100%;border:1.5px solid var(--gris-bord);
+          border-radius:6px;padding:9px 10px;font-size:14px" onchange="toggleNouvellecat()">
+          ${catsExistantes.map(c => `<option value="${c}">${c}</option>`).join('')}
+          <option value="__new__">➕ Nouvelle catégorie…</option>
+        </select>
+      </div>
+      <div class="form-group" id="ajout-rv-nouv-cat-wrap" style="display:none;margin-bottom:10px">
+        <label>Nom de la nouvelle catégorie</label>
+        <input type="text" id="ajout-rv-nouv-cat" placeholder="ex: 🚐 Livraisons"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:9px 10px;font-size:14px" />
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Libellé du type</label>
+        <input type="text" id="ajout-rv-label" placeholder="ex: Révision annuelle"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:9px 10px;font-size:14px" />
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn primary" style="flex:1" onclick="confirmerAjoutTypeRV()">💾 Ajouter</button>
+        <button class="btn" onclick="document.getElementById('modal-ajout-rv-type').remove()">Annuler</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+function toggleNouvellecat() {
+  const sel  = document.getElementById('ajout-rv-cat-select');
+  const wrap = document.getElementById('ajout-rv-nouv-cat-wrap');
+  if (wrap) wrap.style.display = sel?.value === '__new__' ? '' : 'none';
+}
+
+function confirmerAjoutTypeRV() {
+  const catSel  = document.getElementById('ajout-rv-cat-select')?.value;
+  const nouvCat = document.getElementById('ajout-rv-nouv-cat')?.value?.trim();
+  const label   = document.getElementById('ajout-rv-label')?.value?.trim();
+
+  if (!label) { toast('Indiquez un libellé.'); return; }
+
+  const categorie = catSel === '__new__' ? nouvCat : catSel;
+  if (!categorie) { toast('Indiquez un nom de catégorie.'); return; }
+
+  // Générer une clé unique
+  const value = 'perso_' + Date.now();
+
+  if (!_rvTypesPerso[categorie]) _rvTypesPerso[categorie] = [];
+  _rvTypesPerso[categorie].push({ value, label });
+  localStorage.setItem('mcr_rv_types', JSON.stringify(_rvTypesPerso));
+  RV_TYPES[value] = label;
+
+  appliquerTypesRVPerso();
+  document.getElementById('modal-ajout-rv-type')?.remove();
+
+  // Sélectionner le nouveau type
+  const sel = document.getElementById('rv-type');
+  if (sel) sel.value = value;
+
+  toast('✅ Type ajouté : ' + label);
+}
+
 function ouvrirInterventionUrgente(vehId) {
   const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
   const veh = vehList.find(v => v.id === vehId);
@@ -8922,7 +9082,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260703.0844';
+const APP_VERSION = '260703.1122';
 
 let _swRegistration = null;
 

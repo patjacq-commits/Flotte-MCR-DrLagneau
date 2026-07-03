@@ -3,7 +3,7 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v260703.0852';
+const CACHE_NAME = 'mcr-flotte-v260703.1122';
 const CACHE_ASSETS = ['./icon-192.png', './manifest.json'];
 
 let rappelsProgrammes = [];
