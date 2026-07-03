@@ -1135,7 +1135,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1428</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1801</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2016,11 +2016,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260703.1428</strong><br>
+      Version actuelle de l'app : <strong>v260703.1801</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260703.1428 disponible)
+      📢 Notifier les utilisateurs (v260703.1801 disponible)
     </button>
   </div>
 
@@ -4926,9 +4926,38 @@ function renderAccueil() {
   const nbRVprog = rendezvous.filter(r => r.statut === 'planifie').length;
 
   document.getElementById('summary-grid').innerHTML = `
-    <div class="summary-card bleu" onclick="showPage('vehicules', document.querySelectorAll('.tab-btn')[1])" title="Voir tous les véhicules">
-      <div class="num">${vehicules.length}</div><div class="lbl">Véhicules actifs</div>
-    </div>
+    (() => {
+      const immob = vehicules.filter(v => {
+        if (!v.infoSpec || !v.infoSpec.trim()) return false;
+        const dateMatch = v.infoSpec.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+        if (dateMatch) {
+          const y = dateMatch[3], m = dateMatch[2].padStart(2,'0'), d = dateMatch[1].padStart(2,'0');
+          const dateExp = new Date(y + '-' + m + '-' + d);
+          if (!isNaN(dateExp.getTime()) && Date.now() > dateExp.getTime() + 12*3600000) return false;
+        }
+        return true;
+      });
+      const nbImmob  = immob.length;
+      const couleur  = nbImmob > 0 ? 'var(--orange)' : 'var(--bleu)';
+      const tooltip  = nbImmob > 0
+        ? immob.map(v => v.immat + (v.infoSpec ? ' : ' + v.infoSpec.slice(0,40) : '')).join('\n')
+        : 'Voir tous les véhicules';
+      const sousTitre = nbImmob > 0
+        ? immob.map(v => '<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3;margin-top:2px">'
+            + v.immat + ' au garage</div>').join('')
+        : '';
+      const nbLabel = nbImmob > 0
+        ? 'Véhicule' + (vehicules.length > 1 ? 's' : '')
+          + ' <span style="color:var(--orange)">(' + nbImmob + ' immo.)</span>'
+        : 'Véhicules actifs';
+      return '<div class="summary-card" style="cursor:pointer;border-color:' + couleur + '"'
+        + ' onclick="showPage(\'vehicules\', document.querySelectorAll(\'.tab-btn\')[1])"'
+        + ' title="' + tooltip.replace(/"/g,"'") + '">'
+        + '<div class="num" style="color:' + couleur + '">' + vehicules.length + '</div>'
+        + '<div class="lbl">' + nbLabel + '</div>'
+        + sousTitre
+        + '</div>';
+    })()
     <div class="summary-card rouge" onclick="goToAlertesFilter('urgent')" title="Voir les alertes urgentes" ${urgentPulse}>
       <div class="num">${nbUrgent}</div><div class="lbl">Alertes urgentes</div>
     </div>
@@ -9081,7 +9110,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260703.1428';
+const APP_VERSION = '260703.1801';
 
 let _swRegistration = null;
 
