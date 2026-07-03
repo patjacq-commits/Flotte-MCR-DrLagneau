@@ -1135,7 +1135,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1841</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1849</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2019,11 +2019,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260703.1841</strong><br>
+      Version actuelle de l'app : <strong>v260703.1849</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260703.1841 disponible)
+      📢 Notifier les utilisateurs (v260703.1849 disponible)
     </button>
   </div>
 
@@ -6974,24 +6974,15 @@ function afficherInfoKmMaint() {
   spanDernier.textContent = 'Dernier relevé : ' + dernKm.toLocaleString('fr-BE') + ' km'
     + (dernDate ? ' (' + formatDate(dernDate) + ')' : '');
 
-  // Prochain entretien prévu
+  // Prochain entretien = dernier relevé + intervalle (toujours dynamique)
   const spanProchain = document.getElementById('maint-km-prochain');
-  const prochainKm = v.prochain_entretien_km
-    ? parseInt(v.prochain_entretien_km)
-    : (dernKm && v.interval_entretien_km ? dernKm + parseInt(v.interval_entretien_km) : null);
+  const intervalle   = parseInt(v.interval_entretien_km) || 20000;
+  const prochainKm   = dernKm + intervalle;
   if (spanProchain) {
-    if (prochainKm) {
-      // Utiliser le km actuel du véhicule (champ km de la fiche) en priorité
-      const kmActuel = (v.km && parseInt(v.km) > 0) ? parseInt(v.km) : dernKm;
-      const reste    = prochainKm - kmActuel;
-      const resteStr = reste > 0
-        ? ' — encore ' + reste.toLocaleString('fr-BE') + ' km'
-        : ' — ⚠️ dépassé de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km';
-      spanProchain.textContent = '🔧 Prochain entretien : ' + prochainKm.toLocaleString('fr-BE') + ' km' + resteStr;
-      spanProchain.style.color = reste <= 0 ? 'var(--rouge)' : reste <= 1500 ? 'var(--orange)' : 'var(--bleu)';
-    } else {
-      spanProchain.textContent = '';
-    }
+    spanProchain.textContent = '🔧 Prochain entretien prévu : '
+      + prochainKm.toLocaleString('fr-BE') + ' km'
+      + ' (dans ' + intervalle.toLocaleString('fr-BE') + ' km après dernier relevé)';
+    spanProchain.style.color = 'var(--bleu)';
   }
 
   info.style.display = '';
@@ -7080,9 +7071,15 @@ async function saveMaintenance() {
 
   maintenances.unshift(rec);
 
-  // Mettre à jour km du véhicule
+  // Mettre à jour km, dernier_entretien_km et prochain_entretien_km du véhicule
   const veh = vehicules.find(v => v.id === vehId);
-  if (veh && km > veh.km) veh.km = km;
+  if (veh) {
+    if (km > (veh.km || 0)) veh.km = km;
+    veh.dernier_entretien_km   = km;
+    veh.dernier_entretien_date = date;
+    const intervalle = veh.interval_entretien_km || 20000;
+    veh.prochain_entretien_km  = km + intervalle;
+  }
 
   // Photos : stocker UNIQUEMENT en localStorage (base64 trop volumineux pour Firebase)
   // On retire les photos de rec avant Firebase, on les sauvegarde à part
@@ -9130,7 +9127,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260703.1841';
+const APP_VERSION = '260703.1849';
 
 let _swRegistration = null;
 
