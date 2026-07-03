@@ -1135,7 +1135,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1808</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260703.1835</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1436,11 +1436,14 @@ td.ok { color: var(--vert); font-weight: 600; }
             oninput="aideKm(); sauvegarderBrouillon(); calculerDiffKm()" onfocus="aideKm()" onblur="setTimeout(()=>fermerAide('aide-km'),200)" />
           <div class="aide-bulle" id="aide-km"></div>
         </div>
-        <!-- Info dernier entretien + diff -->
+        <!-- Info dernier entretien + diff + prochain -->
         <div id="maint-km-info" style="display:none;margin-top:6px;padding:7px 10px;
           background:var(--bleu-clair);border-radius:6px;font-size:12px;color:var(--texte)">
-          <span id="maint-km-dernier"></span>
-          <span id="maint-km-diff" style="font-weight:700;color:var(--bleu);margin-left:8px"></span>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
+            <span id="maint-km-dernier"></span>
+            <span id="maint-km-diff" style="font-weight:700;color:var(--bleu)"></span>
+          </div>
+          <div id="maint-km-prochain" style="margin-top:4px;font-size:11px;color:var(--bleu);font-weight:600"></div>
         </div>
       </div>
     </div>
@@ -2016,11 +2019,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260703.1808</strong><br>
+      Version actuelle de l'app : <strong>v260703.1835</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260703.1808 disponible)
+      📢 Notifier les utilisateurs (v260703.1835 disponible)
     </button>
   </div>
 
@@ -6971,6 +6974,25 @@ function afficherInfoKmMaint() {
   spanDernier.textContent = 'Dernier relevé : ' + dernKm.toLocaleString('fr-BE') + ' km'
     + (dernDate ? ' (' + formatDate(dernDate) + ')' : '');
 
+  // Prochain entretien prévu
+  const spanProchain = document.getElementById('maint-km-prochain');
+  const prochainKm = v.prochain_entretien_km
+    ? parseInt(v.prochain_entretien_km)
+    : (dernKm && v.interval_entretien_km ? dernKm + parseInt(v.interval_entretien_km) : null);
+  if (spanProchain) {
+    if (prochainKm) {
+      const kmActuel  = v.km ? parseInt(v.km) : dernKm;
+      const reste     = prochainKm - kmActuel;
+      const resteStr  = reste > 0
+        ? ' — encore ' + reste.toLocaleString('fr-BE') + ' km'
+        : ' — ⚠️ dépassé de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km';
+      spanProchain.textContent = '🔧 Prochain entretien : ' + prochainKm.toLocaleString('fr-BE') + ' km' + resteStr;
+      spanProchain.style.color = reste <= 0 ? 'var(--rouge)' : reste <= 1500 ? 'var(--orange)' : 'var(--bleu)';
+    } else {
+      spanProchain.textContent = '';
+    }
+  }
+
   info.style.display = '';
   calculerDiffKm(dernKm);
 }
@@ -9107,7 +9129,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260703.1808';
+const APP_VERSION = '260703.1835';
 
 let _swRegistration = null;
 
