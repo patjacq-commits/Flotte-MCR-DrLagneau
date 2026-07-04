@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1825</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1840</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2035,11 +2035,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1825</strong><br>
+      Version actuelle de l'app : <strong>v260704.1840</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1825 disponible)
+      📢 Notifier les utilisateurs (v260704.1840 disponible)
     </button>
   </div>
 
@@ -6399,7 +6399,9 @@ function openVehDetail(id) {
     + dr('Dernier entretien le', formatDate(v.dernier_entretien_date))
     + dr('Dernier entretien à', v.dernier_entretien_km ? parseInt(v.dernier_entretien_km).toLocaleString('fr-BE') + ' km' : '—')
     + dr('Prochain entretien', (() => {
-        const km = v.prochain_entretien_km ? parseInt(v.prochain_entretien_km).toLocaleString('fr-BE') + ' km' : '—';
+        const prochainKm = v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null;
+        const kmActuel   = v.km ? parseInt(v.km) : null;
+        const km         = prochainKm ? prochainKm.toLocaleString('fr-BE') + ' km' : '—';
         let dateProchain = '—';
         if (v.dernier_entretien_date) {
           const d = parseDate(v.dernier_entretien_date);
@@ -6408,7 +6410,16 @@ function openVehDetail(id) {
             dateProchain = formatDate(d.toISOString().slice(0,10));
           }
         }
-        return km + (dateProchain !== '—' ? ' — avant le ' + dateProchain : '');
+        let resteStr = '';
+        if (prochainKm && kmActuel) {
+          const reste = prochainKm - kmActuel;
+          const couleur = reste <= 0 ? 'var(--rouge)' : reste <= 2500 ? 'var(--rouge)' : reste <= 4500 ? 'var(--orange)' : 'var(--vert)';
+          resteStr = ' <span style="font-weight:700;color:' + couleur + '">'
+            + (reste <= 0 ? '⚠️ dépassé de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km'
+                          : '~' + reste.toLocaleString('fr-BE') + ' km restants')
+            + '</span>';
+        }
+        return km + resteStr + (dateProchain !== '—' ? ' — avant le ' + dateProchain : '');
       })())
     + '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🛡 Assurance</td></tr>'
     + dr('Valable jusqu\'au', v.assurance_valid ? formatDate(v.assurance_valid) : '—', assA?.cls, assA?.txt)
@@ -9290,7 +9301,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1825';
+const APP_VERSION = '260704.1840';
 
 let _swRegistration = null;
 
