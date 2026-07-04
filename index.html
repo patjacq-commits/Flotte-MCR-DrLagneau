@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1851</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1900</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2035,11 +2035,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1851</strong><br>
+      Version actuelle de l'app : <strong>v260704.1900</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1851 disponible)
+      📢 Notifier les utilisateurs (v260704.1900 disponible)
     </button>
   </div>
 
@@ -6927,13 +6927,13 @@ function ajouterPhotos(input) {
     reader.onload = e => {
       const img = new Image();
       img.onload = () => {
-        const MAX = 800;
+        const MAX = 1024; // max 1024px — suffisant pour consultation mobile
         const ratio = Math.min(1, MAX / Math.max(img.width, img.height));
         const canvas = document.createElement('canvas');
         canvas.width  = Math.round(img.width  * ratio);
         canvas.height = Math.round(img.height * ratio);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        res({ name: file.name, data: canvas.toDataURL('image/jpeg', 0.72) });
+        res({ name: file.name, data: canvas.toDataURL('image/jpeg', 0.65) });
       };
       img.src = e.target.result;
     };
@@ -6941,7 +6941,7 @@ function ajouterPhotos(input) {
   }));
   Promise.all(promises).then(nouvelles => {
     _photosEnCours = [..._photosEnCours, ...nouvelles];
-    input.value = ''; // réinitialiser pour permettre re-sélection
+    input.value = '';
     rafraichirPreviewPhotos();
   });
 }
@@ -6952,13 +6952,32 @@ function supprimerPhoto(idx) {
   rafraichirPreviewPhotos();
 }
 
+/* Afficher une photo en plein écran (modal) — compatible Android */
+function voirPhoto(src, titre) {
+  const ex = document.getElementById('modal-photo-fullscreen');
+  if (ex) ex.remove();
+  const div = document.createElement('div');
+  div.id = 'modal-photo-fullscreen';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99999;'
+    + 'display:flex;align-items:center;justify-content:center;flex-direction:column;padding:12px';
+  div.innerHTML = '<img src="' + src + '" style="max-width:100%;max-height:85vh;border-radius:8px;object-fit:contain" />'
+    + '<div style="display:flex;gap:12px;margin-top:12px">'
+    + '<button class="btn" style="background:#fff;color:#000;font-weight:700" '
+    + 'onclick="document.getElementById(\'modal-photo-fullscreen\').remove()">✕ Fermer</button>'
+    + '</div>';
+  div.onclick = e => { if (e.target === div) div.remove(); };
+  document.body.appendChild(div);
+}
+
 /* Rafraîchit la prévisualisation avec boutons ✕ */
 function rafraichirPreviewPhotos() {
   const preview = document.getElementById('maint-photos-preview');
   if (!preview) return;
   preview.innerHTML = _photosEnCours.map((p, i) => `
     <div class="photo-wrap">
-      <img src="${p.data}" title="${p.name}" onclick="window.open('${p.data}','_blank')" style="cursor:pointer" />
+      <img src="${p.data}" title="${p.name}"
+        onclick="voirPhoto('${p.data}','${p.name}')"
+        style="cursor:pointer" />
       <button class="photo-del" onclick="supprimerPhoto(${i})" title="Supprimer cette photo">✕</button>
     </div>`).join('');
 }
@@ -7380,7 +7399,7 @@ function renderMaintTable() {
             photos.map(p => `<img src="${p.data}" title="${p.name}"
               style="width:44px;height:34px;object-fit:cover;border-radius:4px;
                      cursor:pointer;border:1px solid var(--gris-bord)"
-              onclick="window.open('${p.data}','_blank')" />`).join('') +
+              onclick="voirPhoto('${p.data}','${p.name}')" />`).join('') +
             `</div>`
           : '<span style="color:#ccc">—</span>';
 
@@ -8453,7 +8472,7 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
     const photos = photosLS[m.id] || m.photos || [];
     const photosHtml = photos.length
       ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(p =>
-          `<img src="${p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="window.open('${p.data}','_blank')" />`).join('')}</div>`
+          `<img src="${p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="voirPhoto('${p.data}','${p.name}')" />`).join('')}</div>`
       : '';
 
     const adminBtns = isAdmin
@@ -9359,7 +9378,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1851';
+const APP_VERSION = '260704.1900';
 
 let _swRegistration = null;
 
