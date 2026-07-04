@@ -143,7 +143,7 @@
             d.forEach(v => {
               const ref = VEHICULES_DATA.find(r => r.id === v.id);
               if (!ref) return;
-              ['km','dernier_entretien_km','dernier_entretien_date',
+              ['dernier_entretien_km','dernier_entretien_date',
                'prochain_entretien_km','interval_entretien_km','ct_valid'].forEach(c => {
                 if (ref[c] !== undefined) v[c] = ref[c];
               });
@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1808</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1818</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2035,11 +2035,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1808</strong><br>
+      Version actuelle de l'app : <strong>v260704.1818</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1808 disponible)
+      📢 Notifier les utilisateurs (v260704.1818 disponible)
     </button>
   </div>
 
@@ -2664,7 +2664,7 @@ window._refreshUI = function() {
       VEHICULES_DATA.forEach(ref => {
         const v = vehicules.find(x => x.id === ref.id);
         if (!v) return;
-        ['km','dernier_entretien_km','dernier_entretien_date',
+        ['dernier_entretien_km','dernier_entretien_date',
          'prochain_entretien_km','interval_entretien_km','ct_valid'].forEach(c => {
           if (ref[c] !== undefined) v[c] = ref[c];
         });
@@ -7114,10 +7114,15 @@ async function saveMaintenance() {
 
   maintenances.unshift(rec);
 
-  // Mettre à jour km actuel du véhicule uniquement (maintenance mensuelle)
-  // NB: dernier_entretien_km et dernier_entretien_date sont réservés aux entretiens garage
+  // Mettre à jour km actuel du véhicule avec le relevé saisi
   const veh = vehicules.find(v => v.id === vehId);
-  if (veh && km > (veh.km || 0)) veh.km = km;
+  if (veh && km > 0) {
+    veh.km = km;
+    window.vehicules = vehicules; // sync immédiat
+    // Mettre à jour VEHICULES_DATA en mémoire pour cohérence
+    const vRef = VEHICULES_DATA.find(r => r.id === vehId);
+    if (vRef) vRef.km = km;
+  }
 
   // Photos : stocker UNIQUEMENT en localStorage (base64 trop volumineux pour Firebase)
   // On retire les photos de rec avant Firebase, on les sauvegarde à part
@@ -9265,7 +9270,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1808';
+const APP_VERSION = '260704.1818';
 
 let _swRegistration = null;
 
