@@ -1135,7 +1135,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1412</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1427</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2019,11 +2019,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1412</strong><br>
+      Version actuelle de l'app : <strong>v260704.1427</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1412 disponible)
+      📢 Notifier les utilisateurs (v260704.1427 disponible)
     </button>
   </div>
 
@@ -6974,35 +6974,20 @@ function afficherInfoKmMaint() {
   spanDernier.textContent = 'Dernier relevé maintenance : ' + dernKm.toLocaleString('fr-BE') + ' km'
     + (dernDate ? ' (' + formatDate(dernDate) + ')' : '');
 
-  // ── Prochain entretien garage ──────────────────────────────
-  // Chercher le dernier entretien garage effectué (type 'garage' dans rendezvous + ctEvents)
-  const idsRV = new Set(rendezvous.map(r => String(r.id)));
-  const tousRV = [...rendezvous,
-    ...ctEvents.filter(c => !idsRV.has(String(c.id))).map(c => ({...c, type: c.type||'ct', statut:'effectue'}))
-  ];
-  const dernGarage = tousRV
-    .filter(r => r.vehId === vehId && r.type === 'garage' && r.statut === 'effectue' && r.km)
-    .sort((a,b) => b.date.localeCompare(a.date))[0];
-
+  // ── Prochain entretien garage : valeur fixe dans la fiche véhicule ──
   const spanProchain = document.getElementById('maint-km-prochain');
   if (spanProchain) {
-    const intervalle = parseInt(v.interval_entretien_km) || 20000;
-    // Km de référence : dernier entretien garage ou valeur fiche véhicule
-    const kmRefGarage = dernGarage
-      ? parseInt(dernGarage.km)
-      : (v.dernier_entretien_km ? parseInt(v.dernier_entretien_km) : null);
-
-    if (kmRefGarage) {
-      const prochainKm = kmRefGarage + intervalle;
-      const reste      = prochainKm - dernKm; // distance entre dernier relevé maintenance et prochain entretien garage
-      const resteStr   = reste > 0
+    const prochainKm = v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null;
+    if (prochainKm) {
+      const reste    = prochainKm - dernKm;
+      const resteStr = reste > 0
         ? ' — encore ~' + reste.toLocaleString('fr-BE') + ' km'
         : ' — ⚠️ dépassé de ~' + Math.abs(reste).toLocaleString('fr-BE') + ' km';
       spanProchain.textContent = '🔧 Prochain entretien garage : '
         + prochainKm.toLocaleString('fr-BE') + ' km' + resteStr;
       spanProchain.style.color = reste <= 0 ? 'var(--rouge)' : reste <= 1500 ? 'var(--orange)' : 'var(--bleu)';
     } else {
-      spanProchain.textContent = 'Dernier entretien garage non renseigné';
+      spanProchain.textContent = 'Prochain entretien garage non renseigné';
       spanProchain.style.color = 'var(--texte-sec)';
     }
   }
@@ -7095,14 +7080,12 @@ async function saveMaintenance() {
 
   maintenances.unshift(rec);
 
-  // Mettre à jour km, dernier_entretien_km et prochain_entretien_km du véhicule
+  // Mettre à jour km et dernier relevé du véhicule (maintenance mensuelle uniquement)
   const veh = vehicules.find(v => v.id === vehId);
   if (veh) {
     if (km > (veh.km || 0)) veh.km = km;
-    veh.dernier_entretien_km   = km;
     veh.dernier_entretien_date = date;
-    const intervalle = parseInt(veh.interval_entretien_km) || 20000;
-    veh.prochain_entretien_km  = km + intervalle;
+    // NB: prochain_entretien_km est géré par l'entretien garage (RV type 'garage'), pas la maintenance mensuelle
   }
 
   // Photos : stocker UNIQUEMENT en localStorage (base64 trop volumineux pour Firebase)
@@ -9151,7 +9134,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1412';
+const APP_VERSION = '260704.1427';
 
 let _swRegistration = null;
 
