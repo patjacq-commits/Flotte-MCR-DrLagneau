@@ -1135,7 +1135,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1500</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1507</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2019,11 +2019,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1500</strong><br>
+      Version actuelle de l'app : <strong>v260704.1507</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1500 disponible)
+      📢 Notifier les utilisateurs (v260704.1507 disponible)
     </button>
   </div>
 
@@ -7082,13 +7082,10 @@ async function saveMaintenance() {
 
   maintenances.unshift(rec);
 
-  // Mettre à jour km et dernier relevé du véhicule (maintenance mensuelle uniquement)
+  // Mettre à jour km actuel du véhicule uniquement (maintenance mensuelle)
+  // NB: dernier_entretien_km et dernier_entretien_date sont réservés aux entretiens garage
   const veh = vehicules.find(v => v.id === vehId);
-  if (veh) {
-    if (km > (veh.km || 0)) veh.km = km;
-    veh.dernier_entretien_date = date;
-    // NB: prochain_entretien_km est géré par l'entretien garage (RV type 'garage'), pas la maintenance mensuelle
-  }
+  if (veh && km > (veh.km || 0)) veh.km = km;
 
   // Photos : stocker UNIQUEMENT en localStorage (base64 trop volumineux pour Firebase)
   // On retire les photos de rec avant Firebase, on les sauvegarde à part
@@ -9136,7 +9133,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1500';
+const APP_VERSION = '260704.1507';
 
 let _swRegistration = null;
 
@@ -9460,21 +9457,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!v.assurance_valid) { v.assurance_valid = ref.assurance_valid; migrated = true; }
       if (!v.pression_av)     { v.pression_av     = ref.pression_av;     migrated = true; }
       if (!v.pression_ar)     { v.pression_ar     = ref.pression_ar;     migrated = true; }
-      // Corriger interval_entretien_km (toujours depuis VEHICULES_DATA = source de vérité)
-      if (v.interval_entretien_km !== ref.interval_entretien_km) {
-        v.interval_entretien_km = ref.interval_entretien_km; migrated = true;
-      }
-      // Corriger prochain_entretien_km si la valeur Firebase est incohérente
-      // Règle : prochain = dernier_entretien_km + interval (valeur de VEHICULES_DATA)
-      const dernRef     = ref.dernier_entretien_km;
+      // Corriger prochain_entretien_km si incohérent avec VEHICULES_DATA
+      // NB: dernier_entretien_km est géré par Firebase (mis à jour après chaque entretien garage)
+      // On ne l'écrase JAMAIS depuis VEHICULES_DATA
       const intervalRef = ref.interval_entretien_km;
-      const prochainRef = ref.prochain_entretien_km;
-      if (dernRef && intervalRef && prochainRef) {
-        const attendu = dernRef + intervalRef;
+      if (v.interval_entretien_km !== intervalRef) {
+        v.interval_entretien_km = intervalRef; migrated = true;
+      }
+      // prochain = dernier_entretien_km Firebase + intervalle (si la valeur Firebase est présente)
+      if (v.dernier_entretien_km && intervalRef) {
+        const attendu = parseInt(v.dernier_entretien_km) + parseInt(intervalRef);
         if (v.prochain_entretien_km !== attendu) {
-          v.prochain_entretien_km  = attendu;
-          v.dernier_entretien_km   = dernRef;
-          migrated = true;
+          v.prochain_entretien_km = attendu; migrated = true;
         }
       }
     });
