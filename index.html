@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1818</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1825</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2035,11 +2035,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1818</strong><br>
+      Version actuelle de l'app : <strong>v260704.1825</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1818 disponible)
+      📢 Notifier les utilisateurs (v260704.1825 disponible)
     </button>
   </div>
 
@@ -5132,6 +5132,11 @@ function renderAccueil() {
       .filter(r => r.statut === 'planifie')
       .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
+    // RV d'aujourd'hui ou passés non traités → mis en évidence en haut
+    const today2 = new Date().toISOString().slice(0,10);
+    const rvAujourdhui = rvProg.filter(r => r.date <= today2);
+    const rvFuturs     = rvProg.filter(r => r.date > today2);
+
     const CATS_RV = [
       { label:'🔒 Sécurité / Entretien', couleur:'#e67e22', bg:'#fef5e7',
         types:['ct','garage','reparation','rappel-marque'] },
@@ -5181,13 +5186,27 @@ function renderAccueil() {
     }
 
     let rvContent = '';
-    if (rvProg.length) {
+
+    // ── RV d'aujourd'hui ou passés non traités ──────────────
+    if (rvAujourdhui.length) {
+      rvContent += '<div style="margin-bottom:10px">'
+        + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'
+        + 'color:var(--rouge);padding:4px 10px;background:var(--rouge-clair);'
+        + 'border-left:3px solid var(--rouge);border-radius:0 4px 4px 0;margin-bottom:4px">'
+        + '⚡ À traiter aujourd\'hui ou en retard (' + rvAujourdhui.length + ')</div>'
+        + '<div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">'
+        + rvAujourdhui.map(r => rowRV(r)).join('')
+        + '</div></div>';
+    }
+
+    // ── RV futurs par catégorie ──────────────────────────────
+    if (rvFuturs.length) {
       CATS_RV.forEach(cat => {
         const knownTypes = CATS_RV.filter(c => c.types).flatMap(c => c.types);
         const STANDARD_TYPES = Object.keys(RV_TYPES || {});
         const items = cat.types === null
-          ? rvProg.filter(r => !knownTypes.includes(r.type))  // tout le reste
-          : rvProg.filter(r => cat.types.includes(r.type));
+          ? rvFuturs.filter(r => !knownTypes.includes(r.type))  // tout le reste
+          : rvFuturs.filter(r => cat.types.includes(r.type));
         if (!items.length) return;
         rvContent += '<div style="margin-bottom:10px">'
           + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;'
@@ -5197,7 +5216,8 @@ function renderAccueil() {
           + '<div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">'
           + items.map(r => rowRV(r)).join('') + '</div></div>';
       });
-    } else {
+    }
+    if (!rvAujourdhui.length && !rvFuturs.length) {
       rvContent = '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucun RV planifié ✅</p>';
     }
 
@@ -9270,7 +9290,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1818';
+const APP_VERSION = '260704.1825';
 
 let _swRegistration = null;
 
