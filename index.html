@@ -1135,7 +1135,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1513</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1521</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2019,11 +2019,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1513</strong><br>
+      Version actuelle de l'app : <strong>v260704.1521</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1513 disponible)
+      📢 Notifier les utilisateurs (v260704.1521 disponible)
     </button>
   </div>
 
@@ -7001,38 +7001,57 @@ function afficherInfoKmMaint() {
 
 
 function calculerDiffKm(dernKmOverride) {
-  const kmInput = document.getElementById('maint-km');
+  const kmInput  = document.getElementById('maint-km');
   const spanDiff = document.getElementById('maint-km-diff');
+  const spanProchain = document.getElementById('maint-km-prochain');
   if (!spanDiff || !kmInput) return;
 
   const kmNouveau = parseInt(kmInput.value);
   if (isNaN(kmNouveau)) { spanDiff.textContent = ''; return; }
 
-  // Récupérer le dernier km depuis le texte affiché si pas fourni
+  // Dernier relevé maintenance
   let dernKm = dernKmOverride;
   if (!dernKm) {
-    const vehId = document.getElementById('maint-veh')?.value;
+    const vehId   = document.getElementById('maint-veh')?.value;
     const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
-    const v = vehList.find(x => x.id === vehId);
+    const v       = vehList.find(x => x.id === vehId);
     const dernMaint = maintenances
       .filter(m => m.vehId === vehId && m.km)
       .sort((a,b) => b.date.localeCompare(a.date))[0];
     dernKm = dernMaint ? parseInt(dernMaint.km) : (v?.dernier_entretien_km ? parseInt(v.dernier_entretien_km) : null);
   }
 
-  if (!dernKm) { spanDiff.textContent = ''; return; }
-
-  const diff = kmNouveau - dernKm;
-  if (diff < 0) {
-    spanDiff.textContent = '⚠️ Inférieur au dernier relevé !';
-    spanDiff.style.color = 'var(--rouge)';
-  } else {
-    spanDiff.textContent = '+ ' + diff.toLocaleString('fr-BE') + ' km parcourus';
-    spanDiff.style.color = 'var(--bleu)';
+  // 1. Km parcourus depuis dernière maintenance
+  if (dernKm) {
+    const diff = kmNouveau - dernKm;
+    if (diff < 0) {
+      spanDiff.textContent = '⚠️ Inférieur au dernier relevé !';
+      spanDiff.style.color = 'var(--rouge)';
+    } else {
+      spanDiff.textContent = '+ ' + diff.toLocaleString('fr-BE') + ' km parcourus';
+      spanDiff.style.color = 'var(--bleu)';
+    }
   }
+
+  // 2. Rapprochement entretien garage (calculé sur le nouveau relevé saisi)
+  if (spanProchain) {
+    const vehId   = document.getElementById('maint-veh')?.value;
+    const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
+    const v       = vehList.find(x => x.id === vehId);
+    const prochainKm = v?.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null;
+    if (prochainKm) {
+      const reste    = prochainKm - kmNouveau;
+      const resteStr = reste > 0
+        ? ' — encore ~' + reste.toLocaleString('fr-BE') + ' km'
+        : ' — ⚠️ dépassé de ~' + Math.abs(reste).toLocaleString('fr-BE') + ' km';
+      spanProchain.textContent = '🔧 Prochain entretien garage : '
+        + prochainKm.toLocaleString('fr-BE') + ' km' + resteStr;
+      spanProchain.style.color = reste <= 0 ? 'var(--rouge)' : reste <= 1500 ? 'var(--orange)' : 'var(--bleu)';
+    }
+  }
+
   document.getElementById('maint-km-info').style.display = '';
 }
-
 function choisirKm(km) {
   const el = document.getElementById('maint-km');
   if (el) { el.value = km; el.dispatchEvent(new Event('input')); }
@@ -9133,7 +9152,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1513';
+const APP_VERSION = '260704.1521';
 
 let _swRegistration = null;
 
