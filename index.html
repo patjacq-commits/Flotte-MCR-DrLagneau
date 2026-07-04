@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1840</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1845</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2035,11 +2035,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1840</strong><br>
+      Version actuelle de l'app : <strong>v260704.1845</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1840 disponible)
+      📢 Notifier les utilisateurs (v260704.1845 disponible)
     </button>
   </div>
 
@@ -7181,13 +7181,67 @@ async function saveMaintenance() {
 
   if (document.getElementById('page-accueil').classList.contains('active')) renderAccueil();
   if (document.getElementById('page-kilometrage').classList.contains('active')) renderKilometrage();
-  toast('Maintenance enregistrée ✅');
 
-  // Vérifier si tous les véhicules ont été maintenus ce mois-ci
+  // Récapitulatif avec alertes pour ce véhicule
+  afficherRecapMaintenance(vehId, date, km, rec);
+}
+}
+
+function afficherRecapMaintenance(vehId, date, km, rec) {
+  const v       = vehicules.find(x => x.id === vehId);
+  const vNom    = v ? v.marque + ' ' + v.immat : vehId;
+  const alertes = [];
+
+  if (v && km) {
+    const kmN = parseInt(km);
+    // Entretien garage
+    if (v.prochain_entretien_km) {
+      const reste = parseInt(v.prochain_entretien_km) - kmN;
+      if (reste <= 0)    alertes.push({ icon:'🚨', couleur:'var(--rouge)', txt:'Entretien garage dépassé de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km !' });
+      else if (reste <= 2500) alertes.push({ icon:'🚨', couleur:'var(--rouge)', txt:'Entretien garage urgent : encore ' + reste.toLocaleString('fr-BE') + ' km' });
+      else if (reste <= 4500) alertes.push({ icon:'⚠️', couleur:'var(--orange)', txt:'Entretien garage à surveiller : encore ' + reste.toLocaleString('fr-BE') + ' km' });
+    }
+    // CT
+    if (v.ct_valid) {
+      const j = Math.round((new Date(v.ct_valid) - new Date()) / 86400000);
+      if (j < 0)       alertes.push({ icon:'🚨', couleur:'var(--rouge)', txt:'CT expiré depuis ' + Math.abs(j) + ' jours !' });
+      else if (j <= 7)  alertes.push({ icon:'🚨', couleur:'var(--rouge)', txt:'CT expire dans ' + j + ' jour' + (j>1?'s':'') + ' !' });
+      else if (j <= 35) alertes.push({ icon:'⚠️', couleur:'var(--orange)', txt:'CT à planifier : expire le ' + formatDate(v.ct_valid) });
+    }
+    // Remarques saisies
+    ['liquide_laveglace','huile_frein','huile_moteur','liquide_refroid'].forEach(champ => {
+      if (rec[champ] && rec[champ] !== '0' && rec[champ] !== '') {
+        alertes.push({ icon:'ℹ️', couleur:'var(--bleu)', txt:'Ajout ' + champ.replace(/_/g,' ') + ' : ' + rec[champ] });
+      }
+    });
+  }
+
+  const alertesHtml = alertes.length
+    ? alertes.map(a => '<div style="padding:6px 0;border-bottom:1px solid var(--gris-bord);font-size:13px">'
+        + '<span style="color:' + a.couleur + ';font-weight:600">' + a.icon + ' ' + a.txt + '</span></div>').join('')
+    : '<div style="font-size:13px;color:var(--vert)">✅ Aucune alerte détectée</div>';
+
+  const div = document.createElement('div');
+  div.id = 'modal-recap-maint';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9500;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:20px;max-width:400px;width:100%;'
+    + 'box-shadow:0 8px 32px rgba(0,0,0,0.2)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">✅ Maintenance enregistrée</div>'
+    + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">'
+    + vNom + ' — ' + formatDate(date) + (km ? ' — ' + parseInt(km).toLocaleString('fr-BE') + ' km' : '') + '</div>'
+    + (alertes.length ? '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--texte-sec);margin-bottom:6px">Alertes détectées</div>' : '')
+    + alertesHtml
+    + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn primary" style="flex:1" onclick="document.getElementById(\'modal-recap-maint\').remove()">OK</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+
+  // Vérifier complétude mensuelle
   verifierCompletudeMensuelle(date);
 }
 
-function verifierCompletudeMensuelle(dateSaisie) {
+
   // Extraire le mois et l'année de la date saisie
   const [annee, mois] = dateSaisie.split('-');
   const moisAnnee = `${annee}-${mois}`;
@@ -9301,7 +9355,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1840';
+const APP_VERSION = '260704.1845';
 
 let _swRegistration = null;
 
@@ -9642,6 +9696,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ctSource = (window._fbData_ctEvents || [])
         .concat(JSON.parse(localStorage.getItem('mcr_ct') || '[]'));
       if (!ctSource.length) {
+        // Pas de ctEvents à migrer → flag OK
         db.collection('config').doc('migration').set({ rv_done: true }).catch(()=>{});
         return;
       }
@@ -9668,7 +9723,14 @@ document.addEventListener('DOMContentLoaded', () => {
         rendezvous.sort((a,b) => String(b.date).localeCompare(String(a.date)));
         saveAll();
       }
-      db.collection('config').doc('migration').set({ rv_done: true }).catch(()=>{});
+      // Vérifier que TOUS les ctEvents sont maintenant dans rendezvous avant de poser le flag
+      const idsApres = new Set(rendezvous.map(r => String(r.id)));
+      const tousPresents = ctSource.every(c => c.id && idsApres.has(String(c.id)));
+      if (tousPresents) {
+        db.collection('config').doc('migration').set({ rv_done: true }).catch(()=>{});
+      } else {
+        console.warn('Migration incomplète — flag non posé, sera retentée au prochain démarrage');
+      }
     };
 
     db.collection('config').doc('migration').get()
