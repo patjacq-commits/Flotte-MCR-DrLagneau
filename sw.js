@@ -3,7 +3,7 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v260704.1436';
+const CACHE_NAME = 'mcr-flotte-v260704.1449';
 const CACHE_ASSETS = ['./icon-192.png', './manifest.json'];
 
 let rappelsProgrammes = [];
@@ -16,6 +16,7 @@ self.addEventListener('install', event => {
       .then(cache => cache.addAll(CACHE_ASSETS))
       .catch(e => console.warn('SW cache partiel:', e))
   );
+  // Forcer le nouveau SW à prendre le contrôle immédiatement
   self.skipWaiting();
 });
 
@@ -24,9 +25,24 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k !== CACHE_NAME).map(k => {
+          console.log('SW: suppression ancien cache', k);
+          return caches.delete(k);
+        })
       ))
-      .then(() => self.clients.claim())
+      .then(() => {
+        console.log('SW: activation v260704.1436 — prise de contrôle');
+        return self.clients.claim();
+      })
+      .then(() => {
+        // Forcer le rechargement de tous les clients ouverts
+        return self.clients.matchAll({ type: 'window' });
+      })
+      .then(clients => {
+        clients.forEach(client => {
+          client.postMessage({ type: 'SW_UPDATED', version: '260704.1436' });
+        });
+      })
   );
 });
 
@@ -38,7 +54,7 @@ self.addEventListener('fetch', event => {
       url.includes('googleapis') || url.includes('gstatic') ||
       url.includes('google.com')) return;
 
-  // HTML principal + vérification version → toujours réseau, jamais en cache
+  // HTML principal → toujours réseau, jamais en cache
   const isHTML = url.includes('.html') || url.includes('nocache=') ||
                  url.endsWith('/') || url === self.location.origin + '/';
   if (isHTML) {
@@ -63,4 +79,11 @@ self.addEventListener('fetch', event => {
         });
       })
   );
+});
+
+// ── Message handler ──────────────────────────────────────────
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
