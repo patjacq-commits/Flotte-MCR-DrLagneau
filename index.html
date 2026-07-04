@@ -144,7 +144,7 @@
               const ref = VEHICULES_DATA.find(r => r.id === v.id);
               if (!ref) return;
               ['dernier_entretien_km','dernier_entretien_date',
-               'prochain_entretien_km','interval_entretien_km'].forEach(c => {
+               'prochain_entretien_km','interval_entretien_km','ct_valid'].forEach(c => {
                 if (ref[c] !== undefined) v[c] = ref[c];
               });
             });
@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1603</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1619</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2035,11 +2035,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1603</strong><br>
+      Version actuelle de l'app : <strong>v260704.1619</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1603 disponible)
+      📢 Notifier les utilisateurs (v260704.1619 disponible)
     </button>
   </div>
 
@@ -2510,7 +2510,7 @@ const VEHICULES_DATA = [
   {
     id: 'TLAJ109', marque: 'Fiat Doblo', immat: 'TLAJ109', type: 'VSL',
     chassis: 'ZFA26300006J03006', mise_en_circulation: '2018-04-25', garage: 'Picard',
-    km: 223186, ct_valid: '2026-06-05',
+    km: 229782, ct_valid: '2026-12-05',
     dernier_entretien_date: '2025-12-05', dernier_entretien_km: 217484,
     interval_entretien_km: 20000, prochain_entretien_km: 237484,
     dim_ete: '195/60R16C 99/97T',
@@ -2567,7 +2567,7 @@ const VEHICULES_DATA = [
   {
     id: 'TLAM941', marque: 'Toyota Proace', immat: 'TLAM941', type: 'VSL',
     chassis: 'YARECYHT2GJ017144', mise_en_circulation: '2023-05-25', garage: 'MS Motor',
-    km: 75320, ct_valid: '2026-05-21',
+    km: 80778, ct_valid: '2026-11-21',
     dernier_entretien_date: '2026-04-09', dernier_entretien_km: 76593,
     interval_entretien_km: 20000, prochain_entretien_km: 96593,
     dim_ete: '205/60R16 92H',
@@ -2665,7 +2665,7 @@ window._refreshUI = function() {
         const v = vehicules.find(x => x.id === ref.id);
         if (!v) return;
         ['dernier_entretien_km','dernier_entretien_date',
-         'prochain_entretien_km','interval_entretien_km'].forEach(c => {
+         'prochain_entretien_km','interval_entretien_km','ct_valid'].forEach(c => {
           if (ref[c] !== undefined) v[c] = ref[c];
         });
       });
@@ -9160,7 +9160,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1603';
+const APP_VERSION = '260704.1619';
 
 let _swRegistration = null;
 
