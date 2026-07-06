@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260704.1900</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260706.1826</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1866,6 +1866,17 @@ td.ok { color: var(--vert); font-weight: 600; }
       </table>
     </div>
   </div>
+
+  <!-- COMMANDES PNEUS À PRÉVOIR -->
+  <div class="form-card admin-only" style="margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">📋 Commandes pneus à prévoir</h3>
+      <button class="btn btn-sm primary" onclick="ouvrirAjoutCommandePneu()">➕ Ajouter</button>
+    </div>
+    <div id="commandes-pneus-list">
+      <p style="color:var(--texte-sec);font-size:13px">Aucune commande en attente.</p>
+    </div>
+  </div>
 </div>
 
 <!-- PAGE ADBLUE (admin) -->
@@ -2035,11 +2046,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260704.1900</strong><br>
+      Version actuelle de l'app : <strong>v260706.1826</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260704.1900 disponible)
+      📢 Notifier les utilisateurs (v260706.1826 disponible)
     </button>
   </div>
 
@@ -3054,7 +3065,157 @@ function renderCWKTable() {
 // Véhicules concernés par la permutation (tous sauf 1RER037)
 const VEHICULES_PNEUS = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM941','TLAN527','TLAN910'];
 
+// ── COMMANDES PNEUS ──────────────────────────────────────────
+let commandesPneus = JSON.parse(localStorage.getItem('mcr_cmd_pneus') || '[]');
+
+function sauvegarderCommandesPneus() {
+  localStorage.setItem('mcr_cmd_pneus', JSON.stringify(commandesPneus));
+  if (window._fb && window._fb.fbSaveCollection) {
+    window._fb.fbSaveCollection('commandesPneus', commandesPneus).catch(()=>{});
+  }
+}
+
+function renderCommandesPneus() {
+  const el = document.getElementById('commandes-pneus-list');
+  if (!el) return;
+  if (!commandesPneus.length) {
+    el.innerHTML = '<p style="color:var(--texte-sec);font-size:13px">Aucune commande en attente.</p>';
+    return;
+  }
+  const sorted = [...commandesPneus].sort((a,b) => a.periode.localeCompare(b.periode));
+  el.innerHTML = sorted.map(c => {
+    const v    = vehicules.find(x => x.id === c.vehId);
+    const vNom = v ? v.marque + ' ' + v.immat : c.vehId;
+    const dim  = c.dim || (c.type === 'hiver' ? (v?.dim_hiver || '—') : (v?.dim_ete || '—'));
+    const couleur = c.commande ? 'var(--vert)' : 'var(--orange)';
+    return '<div style="padding:10px 14px;border-bottom:1px solid var(--gris-bord);'
+      + 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;'
+      + (c.commande ? 'opacity:0.6' : '') + '">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:13px;font-weight:700">' + vNom + '</div>'
+      + '<div style="font-size:12px;color:var(--texte-sec)">'
+      + '<b>' + c.qte + ' × pneu' + (c.qte > 1 ? 's' : '') + ' '
+      + (c.type === 'hiver' ? '❄️ Hiver' : '☀️ Été') + '</b>'
+      + (c.position ? ' — ' + c.position : '') + ' — ' + dim + '</div>'
+      + '<div style="font-size:12px;color:' + couleur + ';font-weight:600">📅 ' + c.periode
+      + (c.commande ? ' — ✅ Commandé' : '') + '</div>'
+      + (c.notes ? '<div style="font-size:11px;color:var(--texte-sec)">' + c.notes + '</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0">'
+      + (!c.commande ? '<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"'
+        + ' onclick="marquerCommandePneu(\'' + c.id + '\')">✅</button>' : '')
+      + '<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"'
+      + ' onclick="supprimerCommandePneu(\'' + c.id + '\')">✕</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+function ouvrirAjoutCommandePneu() {
+  const ex = document.getElementById('modal-ajout-cmd-pneu');
+  if (ex) ex.remove();
+
+  const now   = new Date();
+  const annee = now.getFullYear();
+  const mois  = now.getMonth() + 1;
+  const periodes = [];
+  for (let y = annee; y <= annee + 2; y++) {
+    periodes.push('octobre ' + y);
+    periodes.push('avril ' + (y+1));
+  }
+  const periodesValides = periodes.filter(p => {
+    const parts = p.split(' ');
+    const mNum  = parts[0] === 'octobre' ? 10 : 4;
+    const y     = parseInt(parts[1]);
+    return y > annee || (y === annee && mNum >= mois);
+  });
+
+  const vehOptions = ORDRE_VEHICULES.map(id => {
+    const v = vehicules.find(x => x.id === id);
+    return v ? '<option value="' + v.id + '">' + v.marque + ' ' + v.immat + '</option>' : '';
+  }).join('');
+
+  const style = 'width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:9px 10px;font-size:14px';
+
+  const div = document.createElement('div');
+  div.id = 'modal-ajout-cmd-pneu';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:20px;max-width:380px;width:100%;'
+    + 'box-shadow:0 8px 32px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto">'
+    + '<h3 style="margin:0 0 16px">🛞 Commande pneus à prévoir</h3>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Véhicule</label>'
+    + '<select id="cmd-pneu-veh" style="' + style + '" onchange="majDimCmdPneu()">' + vehOptions + '</select></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Type</label>'
+    + '<select id="cmd-pneu-type" style="' + style + '" onchange="majDimCmdPneu()">'
+    + '<option value="hiver">❄️ Hiver</option><option value="ete">☀️ Été</option></select></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Dimension (auto)</label>'
+    + '<input type="text" id="cmd-pneu-dim" placeholder="ex: 195/65R15" style="' + style + '" /></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Quantité</label>'
+    + '<select id="cmd-pneu-qte" style="' + style + '">'
+    + '<option value="1">1 pneu</option><option value="2" selected>2 pneus</option>'
+    + '<option value="3">3 pneus</option><option value="4">4 pneus</option></select></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Position</label>'
+    + '<select id="cmd-pneu-pos" style="' + style + '">'
+    + '<option value="">— Non précisé —</option>'
+    + '<option value="AV">Avant (AV)</option><option value="AR">Arrière (AR)</option>'
+    + '<option value="AV + AR">Avant + Arrière</option><option value="4 roues">4 roues</option></select></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Période prévue</label>'
+    + '<select id="cmd-pneu-periode" style="' + style + '">'
+    + periodesValides.map(p => '<option value="' + p + '">' + p + '</option>').join('') + '</select></div>'
+    + '<div class="form-group" style="margin-bottom:16px"><label>Notes (optionnel)</label>'
+    + '<input type="text" id="cmd-pneu-notes" placeholder="ex: roue de secours utilisée" style="' + style + '" /></div>'
+    + '<div style="display:flex;gap:10px">'
+    + '<button class="btn primary" style="flex:1" onclick="confirmerAjoutCommandePneu()">💾 Ajouter</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-ajout-cmd-pneu\').remove()">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  majDimCmdPneu();
+}
+
+function majDimCmdPneu() {
+  const vehId = document.getElementById('cmd-pneu-veh')?.value;
+  const type  = document.getElementById('cmd-pneu-type')?.value;
+  const dimEl = document.getElementById('cmd-pneu-dim');
+  if (!dimEl) return;
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  dimEl.value = type === 'hiver' ? (v.dim_hiver || '') : (v.dim_ete || '');
+}
+
+function confirmerAjoutCommandePneu() {
+  const vehId   = document.getElementById('cmd-pneu-veh')?.value;
+  const type    = document.getElementById('cmd-pneu-type')?.value;
+  const dim     = document.getElementById('cmd-pneu-dim')?.value?.trim();
+  const qte     = parseInt(document.getElementById('cmd-pneu-qte')?.value) || 2;
+  const pos     = document.getElementById('cmd-pneu-pos')?.value || '';
+  const periode = document.getElementById('cmd-pneu-periode')?.value;
+  const notes   = document.getElementById('cmd-pneu-notes')?.value?.trim() || '';
+  if (!vehId || !periode) { toast('Sélectionnez un véhicule et une période.'); return; }
+  commandesPneus.push({ id: Date.now(), vehId, type, dim, qte, position: pos, periode, notes, commande: false });
+  sauvegarderCommandesPneus();
+  renderCommandesPneus();
+  document.getElementById('modal-ajout-cmd-pneu')?.remove();
+  toast('✅ Commande ajoutée');
+}
+
+function marquerCommandePneu(id) {
+  const c = commandesPneus.find(x => String(x.id) === String(id));
+  if (!c) return;
+  c.commande = true;
+  sauvegarderCommandesPneus();
+  renderCommandesPneus();
+  toast('✅ Pneus commandés');
+}
+
+function supprimerCommandePneu(id) {
+  if (!confirm('Supprimer cette commande ?')) return;
+  commandesPneus = commandesPneus.filter(x => String(x.id) !== String(id));
+  sauvegarderCommandesPneus();
+  renderCommandesPneus();
+}
+
 function initPneus() {
+  renderCommandesPneus();
   const selVeh = document.getElementById('pneu-veh');
   if (selVeh && selVeh.options.length <= 0) {
     selVeh.innerHTML = VEHICULES_PNEUS.map(id => {
@@ -6019,6 +6180,33 @@ function buildAlertes() {
     if (!a.carteRouge && b.carteRouge) return 1;
     return (o[a.level]??3) - (o[b.level]??3);
   });
+  // ── Commandes pneus à prévoir ────────────────────────────
+  if (typeof commandesPneus !== 'undefined') {
+    const now   = new Date();
+    const mois  = now.getMonth() + 1; // 1-12
+    const annee = now.getFullYear();
+    // Alerter en septembre pour octobre, en mars pour avril
+    const alerterOct = mois >= 9;  // à partir de septembre
+    const alerterAvr = mois >= 3 && mois <= 5; // mars-mai pour avril
+    commandesPneus.filter(c => !c.commande).forEach(c => {
+      const [mNom, y] = c.periode.split(' ');
+      const mNum  = mNom === 'octobre' ? 10 : 4;
+      const yNum  = parseInt(y);
+      const aAlerter = (mNum === 10 && alerterOct && yNum === annee)
+                    || (mNum === 4  && alerterAvr && yNum === annee + 1);
+      if (!aAlerter) return;
+      const v    = vehicules.find(x => x.id === c.vehId);
+      const vNom = v ? v.marque + ' ' + v.immat : c.vehId;
+      const dim  = c.dim || (c.type === 'hiver' ? v?.dim_hiver : v?.dim_ete) || '—';
+      alertes.push({
+        level: 'warn', icon: '🛞', vehId: c.vehId, typeRV: null,
+        titre: `Pneus ${c.type === 'hiver' ? 'hiver' : 'été'} à commander — ${vNom}`,
+        detail: `${c.qte} × pneu${c.qte > 1 ? 's' : ''} ${c.type === 'hiver' ? '❄️' : '☀️'}${c.position ? ' ' + c.position : ''} — ${dim} — prévu ${c.periode}`
+          + (c.notes ? ` (${c.notes})` : ''),
+      });
+    });
+  }
+
   return alertes;
 }
 
@@ -9378,7 +9566,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260704.1900';
+const APP_VERSION = '260706.1826';
 
 let _swRegistration = null;
 
