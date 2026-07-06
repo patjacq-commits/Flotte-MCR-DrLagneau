@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260706.1826</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260706.1907</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2046,11 +2046,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260706.1826</strong><br>
+      Version actuelle de l'app : <strong>v260706.1907</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260706.1826 disponible)
+      📢 Notifier les utilisateurs (v260706.1907 disponible)
     </button>
   </div>
 
@@ -3096,7 +3096,9 @@ function renderCommandesPneus() {
       + '<div style="font-size:12px;color:var(--texte-sec)">'
       + '<b>' + c.qte + ' × pneu' + (c.qte > 1 ? 's' : '') + ' '
       + (c.type === 'hiver' ? '❄️ Hiver' : '☀️ Été') + '</b>'
-      + (c.position ? ' — ' + c.position : '') + ' — ' + dim + '</div>'
+      + (c.position ? ' — ' + c.position : '')
+      + (c.jantes ? ' — <b>sur jantes</b>' : '')
+      + ' — ' + dim + '</div>'
       + '<div style="font-size:12px;color:' + couleur + ';font-weight:600">📅 ' + c.periode
       + (c.commande ? ' — ✅ Commandé' : '') + '</div>'
       + (c.notes ? '<div style="font-size:11px;color:var(--texte-sec)">' + c.notes + '</div>' : '')
@@ -3159,6 +3161,9 @@ function ouvrirAjoutCommandePneu() {
     + '<option value="">— Non précisé —</option>'
     + '<option value="AV">Avant (AV)</option><option value="AR">Arrière (AR)</option>'
     + '<option value="AV + AR">Avant + Arrière</option><option value="4 roues">4 roues</option></select></div>'
+    + '<div class="form-group" style="margin-bottom:10px">'
+    + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">'
+    + '<input type="checkbox" id="cmd-pneu-jantes" style="width:18px;height:18px"> Sur jantes</label></div>'
     + '<div class="form-group" style="margin-bottom:10px"><label>Période prévue</label>'
     + '<select id="cmd-pneu-periode" style="' + style + '">'
     + periodesValides.map(p => '<option value="' + p + '">' + p + '</option>').join('') + '</select></div>'
@@ -3188,10 +3193,11 @@ function confirmerAjoutCommandePneu() {
   const dim     = document.getElementById('cmd-pneu-dim')?.value?.trim();
   const qte     = parseInt(document.getElementById('cmd-pneu-qte')?.value) || 2;
   const pos     = document.getElementById('cmd-pneu-pos')?.value || '';
+  const jantes  = document.getElementById('cmd-pneu-jantes')?.checked || false;
   const periode = document.getElementById('cmd-pneu-periode')?.value;
   const notes   = document.getElementById('cmd-pneu-notes')?.value?.trim() || '';
   if (!vehId || !periode) { toast('Sélectionnez un véhicule et une période.'); return; }
-  commandesPneus.push({ id: Date.now(), vehId, type, dim, qte, position: pos, periode, notes, commande: false });
+  commandesPneus.push({ id: Date.now(), vehId, type, dim, qte, position: pos, jantes, periode, notes, commande: false });
   sauvegarderCommandesPneus();
   renderCommandesPneus();
   document.getElementById('modal-ajout-cmd-pneu')?.remove();
@@ -6094,12 +6100,6 @@ function buildAlertes() {
           titre:`Entretien à planifier — ${v.marque} ${v.immat}`,
           detail: entretienDetail(false) });
       }
-    }
-
-    // ── Pneus ─────────────────────────────────────────────────
-    if (v.remarques && v.remarques.includes('pneu') && (v.remarques.includes('prévoir') || v.remarques.includes('remplacer') || v.remarques.includes('usé'))) {
-      alertes.push({ level:'warn', icon:'🔵', vehId:null, typeRV:null,
-        titre:`Pneus — ${v.marque} ${v.immat}`, detail:v.remarques });
     }
 
     // ── Carte Total ───────────────────────────────────────────
@@ -9566,7 +9566,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260706.1826';
+const APP_VERSION = '260706.1907';
 
 let _swRegistration = null;
 
