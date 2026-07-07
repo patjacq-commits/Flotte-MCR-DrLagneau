@@ -144,7 +144,7 @@
               const ref = VEHICULES_DATA.find(r => r.id === v.id);
               if (!ref) return;
               ['dernier_entretien_km','dernier_entretien_date',
-               'prochain_entretien_km','interval_entretien_km','ct_valid'].forEach(c => {
+               'prochain_entretien_km','interval_entretien_km'].forEach(c => {
                 if (ref[c] !== undefined) v[c] = ref[c];
               });
             });
@@ -1151,7 +1151,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260706.1907</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260707.1338</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2046,11 +2046,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260706.1907</strong><br>
+      Version actuelle de l'app : <strong>v260707.1338</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260706.1907 disponible)
+      📢 Notifier les utilisateurs (v260707.1338 disponible)
     </button>
   </div>
 
@@ -2421,10 +2421,6 @@ td.ok { color: var(--vert); font-weight: 600; }
         <input type="date" id="nv-carte-total-valid" />
       </div>
     </div>
-    <div class="form-group" style="margin-top:12px">
-      <label>Remarques</label>
-      <textarea id="nv-remarques" placeholder="Notes diverses…" style="min-height:60px"></textarea>
-    </div>
     <div style="margin-top:16px;display:flex;gap:10px">
       <button class="btn primary" onclick="sauvegarderNouveauVeh()">💾 Ajouter le véhicule</button>
       <button class="btn" onclick="closeModal('modal-nouveau-veh')">Annuler</button>
@@ -2478,7 +2474,6 @@ const VEHICULES_DATA = [
     equipement: null, recht_date: null, recht_motif: null,
     assurance_valid: '2027-01-31',
     pression_av: '3.0', pression_ar: '3.0',
-    remarques: 'RV Culot 7h30 le 27-04 pneus H pour pneus Eté'
   },
   {
     id: 'TLAN633', marque: 'Renault Trafic', immat: 'TLAN633', type: 'VSL',
@@ -2497,7 +2492,6 @@ const VEHICULES_DATA = [
     equipement: 'Élévateur', recht_date: '2025-02-26', recht_motif: 'Mise en service / transfert de Recht',
     assurance_valid: '2027-01-31',
     pression_av: '3.5', pression_ar: '3.5',
-    remarques: 'Roule déjà avec pneus été depuis la livraison'
   },
   {
     id: 'TLAJ108', marque: 'Fiat Doblo', immat: 'TLAJ108', type: 'VSL',
@@ -2516,7 +2510,6 @@ const VEHICULES_DATA = [
     equipement: 'Élévateur', recht_date: '2025-02-26', recht_motif: 'Contrôle périodique',
     assurance_valid: '2027-01-31',
     pression_av: '3.2', pression_ar: '3.5',
-    remarques: '2 nouveaux pneus "été" à prévoir pour l\'AV'
   },
   {
     id: 'TLAJ109', marque: 'Fiat Doblo', immat: 'TLAJ109', type: 'VSL',
@@ -2535,7 +2528,6 @@ const VEHICULES_DATA = [
     equipement: 'Élévateur', recht_date: '2021-11-09', recht_motif: 'Contrôle périodique',
     assurance_valid: '2027-01-31',
     pression_av: '3.2', pression_ar: '3.5',
-    remarques: ''
   },
   {
     id: 'TLAN910', marque: 'Renault Trafic', immat: 'TLAN910', type: 'VSL',
@@ -2554,7 +2546,6 @@ const VEHICULES_DATA = [
     equipement: 'Élévateur', recht_date: '2026-03-10', recht_motif: 'Mise en service / transfert de Recht',
     assurance_valid: '2027-01-31',
     pression_av: '3.5', pression_ar: '3.5',
-    remarques: 'Arrivée de Recht le 10-03. Roule avec pneus été'
   },
   {
     id: 'TLAM789', marque: 'Renault Kangoo', immat: 'TLAM789', type: 'VSL',
@@ -2573,7 +2564,6 @@ const VEHICULES_DATA = [
     equipement: null, recht_date: null, recht_motif: null,
     assurance_valid: '2027-01-31',
     pression_av: '3.0', pression_ar: '3.0',
-    remarques: 'ARD s\'use extérieur. Pneus hiver à user en été — nouveaux pneus neige à prévoir'
   },
   {
     id: 'TLAM941', marque: 'Toyota Proace', immat: 'TLAM941', type: 'VSL',
@@ -2592,7 +2582,6 @@ const VEHICULES_DATA = [
     equipement: 'Rampe', recht_date: '2023-06-05', recht_motif: 'Contrôle périodique',
     assurance_valid: '2027-01-31',
     pression_av: '3.2', pression_ar: '3.2',
-    remarques: 'ARD s\'use extérieur. 3 nouveaux pneus été + roue de secours utilisée'
   },
   {
     id: 'TLAN527', marque: 'Toyota Proace', immat: 'TLAN527', type: 'VSL',
@@ -2611,7 +2600,6 @@ const VEHICULES_DATA = [
     equipement: 'Rampe', recht_date: '2024-10-23', recht_motif: 'Mise en service',
     assurance_valid: '2027-01-31',
     pression_av: '2.6', pression_ar: '3.2',
-    remarques: 'Roule avec pneus été. Pneus hiver à prévoir'
   },
   {
     id: '1RER037', marque: 'Peugeot Expert', immat: '1RER037', type: 'Camionnette',
@@ -2630,7 +2618,6 @@ const VEHICULES_DATA = [
     equipement: null, recht_date: null, recht_motif: null,
     assurance_valid: '2027-01-31',
     pression_av: '3.5', pression_ar: '3.5',
-    remarques: 'Roule avec pneus 4 saisons (Vredestein Comtrac) — jauge huile moteur cassée'
   }
 ];
 
@@ -2676,7 +2663,7 @@ window._refreshUI = function() {
         const v = vehicules.find(x => x.id === ref.id);
         if (!v) return;
         ['dernier_entretien_km','dernier_entretien_date',
-         'prochain_entretien_km','interval_entretien_km','ct_valid'].forEach(c => {
+         'prochain_entretien_km','interval_entretien_km'].forEach(c => {
           if (ref[c] !== undefined) v[c] = ref[c];
         });
       });
@@ -6984,7 +6971,7 @@ function openModalNouveauVeh() {
   // Réinitialiser le formulaire
   ['nv-immat','nv-marque','nv-chassis','nv-garage','nv-km','nv-next-entretien',
    'nv-last-entretien-km','nv-dim-ete','nv-pneus-ete','nv-dim-hiver','nv-pneus-hiver',
-   'nv-carte-total-code','nv-remarques'].forEach(id => {
+   'nv-carte-total-code'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   ['nv-ct-valid','nv-mise-en-circ','nv-last-entretien-date','nv-carte-total-valid'].forEach(id => {
@@ -7038,7 +7025,7 @@ function sauvegarderNouveauVeh() {
     permut_hiver_ete_date: null, permut_hiver_ete_km: null,
     permut_ete_hiver_date: null, permut_ete_hiver_km: null,
     recht_date:            null, recht_motif:          null,
-    remarques:             document.getElementById('nv-remarques').value.trim()
+    remarques:             ''
   };
 
   vehicules.push(nvVeh);
@@ -9171,7 +9158,6 @@ function updateBackupInfo() {
 function exportAllCSV() {
   const rows = [['Immat','Marque','Type','Km_actuel','CT_valide_jusquau','Prochain_entretien_km','Dernier_entretien_le','Garage','Remarques']];
   vehicules.forEach(v => {
-    rows.push([v.immat, v.marque, v.type, v.km, v.ct_valid || '', v.prochain_entretien_km, v.dernier_entretien_date || '', v.garage, v.remarques || '']);
   });
   downloadCSV(rows, 'MCR_vehicules.csv');
 }
@@ -9566,7 +9552,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260706.1907';
+const APP_VERSION = '260707.1338';
 
 let _swRegistration = null;
 
