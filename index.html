@@ -676,6 +676,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   50%       { background: #ffdba0; }
 }
 .rv-blink { animation: pulse-rv-urgent 1.4s ease infinite; }
+@keyframes rv-blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
   0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); }
   50% { box-shadow: 0 0 0 8px rgba(192,57,43,0); }
 }
@@ -1153,7 +1154,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260707.2251</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260707.2258</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2048,11 +2049,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260707.2251</strong><br>
+      Version actuelle de l'app : <strong>v260707.2258</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260707.2251 disponible)
+      📢 Notifier les utilisateurs (v260707.2258 disponible)
     </button>
   </div>
 
@@ -6461,21 +6462,29 @@ function renderVehicules() {
             .sort((a,b) => a.date.localeCompare(b.date))
             .slice(0, 3);
           if (!rvs.length) return '';
-          return `<div style="margin-top:8px;border-top:0.5px solid var(--gris-bord);padding-top:7px">
-            <div style="font-size:11px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;
-              letter-spacing:0.5px;margin-bottom:5px">📅 RV planifiés</div>
-            ${rvs.map(r => {
+          return '<div style="margin-top:8px;border-top:0.5px solid var(--gris-bord);padding-top:7px">'
+            + '<div style="font-size:11px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;'
+            + 'letter-spacing:0.5px;margin-bottom:5px">📅 RV planifiés</div>'
+            + rvs.map(r => {
               const j       = Math.round((new Date(r.date) - new Date(todayStr)) / 86400000);
-              const couleur = j <= 1 ? 'var(--rouge)' : j <= 7 ? 'var(--orange)' : 'var(--texte-sec)';
+              const urgent  = j <= 2; // dans les 48h
+              const proche  = j <= 7;
+              const couleur = j <= 0 ? 'var(--rouge)' : urgent ? 'var(--rouge)' : proche ? 'var(--orange)' : 'var(--bleu)';
+              const bg      = urgent ? 'var(--rouge-clair)' : proche ? '#fef5e7' : 'var(--bleu-clair)';
+              const border  = urgent ? 'var(--rouge)' : proche ? 'var(--orange)' : 'var(--bleu)';
+              const anim    = urgent ? 'animation:rv-blink 1s ease infinite;' : '';
               const tl      = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
-              const garage  = (r.garage||r.result) ? ` — ${r.garage||r.result}` : '';
-              return `<div style="display:flex;justify-content:space-between;align-items:center;
-                font-size:12px;padding:2px 0;color:${couleur}">
-                <span>${tl}${garage}</span>
-                <span style="font-weight:600">${formatDate(r.date)}${j===0?' (auj.)':j===1?' (dem.)':''}</span>
-              </div>`;
-            }).join('')}
-          </div>`;
+              const garage  = (r.garage||r.result) ? ' — ' + (r.garage||r.result) : '';
+              const quand   = j === 0 ? ' 🔴 AUJOURD\'HUI' : j === 1 ? ' 🔴 DEMAIN' : j === 2 ? ' ⚠️ Après-demain' : '';
+              return '<div style="display:flex;justify-content:space-between;align-items:center;'
+                + 'font-size:12px;padding:4px 8px;margin-bottom:3px;border-radius:6px;'
+                + 'background:' + bg + ';border-left:3px solid ' + border + ';' + anim + '">'
+                + '<span style="font-weight:600;color:' + couleur + '">' + tl + garage + '</span>'
+                + '<span style="font-weight:700;color:' + couleur + '">'
+                + formatDateCourt(r.date) + (r.heure ? ' ' + r.heure : '') + quand
+                + '</span></div>';
+            }).join('')
+            + '</div>';
         })()}
       </div>
       <div class="veh-actions">
@@ -9597,7 +9606,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260707.2251';
+const APP_VERSION = '260707.2258';
 
 let _swRegistration = null;
 
