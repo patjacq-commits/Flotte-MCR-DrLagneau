@@ -110,17 +110,19 @@
       fbGetCollection('messagesChauf'),
       fbGetCollection('rechargesCle').catch(() => null),
       fbGetCollection('permutations').catch(() => null),
+      fbGetCollection('commandesPneus').catch(() => null),
       db.collection('config').doc('infosVehicules').get().catch(() => null),
-    ]).then(([maint, ct, veh, rv, ab, cw, chauf, rk, pm, infosDoc]) => {
-      if (maint  && maint.length)  window._fbData_maintenances  = maint;
-      if (ct     && ct.length)     window._fbData_ctEvents      = ct;
-      if (veh    && veh.length)    window._fbData_vehicules     = veh;
-      if (rv     && rv.length)     window._fbData_rendezvous    = rv;
-      if (ab     && ab.length)     window._fbData_adblues       = ab;
-      if (cw     && cw.length)     window._fbData_carwashes     = cw;
-      if (chauf  && chauf.length)  window._fbData_messagesChauf = chauf;
-      if (rk     && rk.length)     window._fbData_rechargesCle  = rk;
-      if (pm     && pm.length)     window._fbData_permutations  = pm;
+    ]).then(([maint, ct, veh, rv, ab, cw, chauf, rk, pm, cmdPneus, infosDoc]) => {
+      if (maint    && maint.length)    window._fbData_maintenances  = maint;
+      if (ct       && ct.length)       window._fbData_ctEvents      = ct;
+      if (veh      && veh.length)      window._fbData_vehicules     = veh;
+      if (rv       && rv.length)       window._fbData_rendezvous    = rv;
+      if (ab       && ab.length)       window._fbData_adblues       = ab;
+      if (cw       && cw.length)       window._fbData_carwashes     = cw;
+      if (chauf    && chauf.length)    window._fbData_messagesChauf = chauf;
+      if (rk       && rk.length)       window._fbData_rechargesCle  = rk;
+      if (pm       && pm.length)       window._fbData_permutations  = pm;
+      if (cmdPneus && cmdPneus.length) window._fbData_commandesPneus = cmdPneus;
       if (infosDoc && infosDoc.exists) {
         window._fbData_infosVehicules = infosDoc.data().infos || {};
       }
@@ -1151,7 +1153,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260707.1420</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260707.2229</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2046,11 +2048,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260707.1420</strong><br>
+      Version actuelle de l'app : <strong>v260707.2229</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260707.1420 disponible)
+      📢 Notifier les utilisateurs (v260707.2229 disponible)
     </button>
   </div>
 
@@ -2637,6 +2639,11 @@ let adblues       = window._fbData_adblues        || JSON.parse(localStorage.get
 let carwashes     = window._fbData_carwashes      || JSON.parse(localStorage.getItem('mcr_carwash')      || '[]');
 let rechargesCle  = window._fbData_rechargesCle   || JSON.parse(localStorage.getItem('mcr_recharges_cle')|| '[]');
 let permutations  = window._fbData_permutations   || JSON.parse(localStorage.getItem('mcr_permutations') || '[]');
+// Priorité Firebase pour commandesPneus
+if (window._fbData_commandesPneus && window._fbData_commandesPneus.length) {
+  commandesPneus = window._fbData_commandesPneus;
+  localStorage.setItem('mcr_cmd_pneus', JSON.stringify(commandesPneus));
+}
 let messagesChauf = window._fbData_messagesChauf  || JSON.parse(localStorage.getItem('mcr_chauf')        || '[]');
 let infosVehicules = JSON.parse(localStorage.getItem('mcr_infos_veh') || '{}');
 
@@ -2678,6 +2685,11 @@ window._refreshUI = function() {
   adblues       = window.adblues       || adblues;
   carwashes     = window.carwashes     || carwashes;
   messagesChauf = window.messagesChauf || messagesChauf;
+  // Charger commandesPneus depuis Firebase si disponible
+  if (window._fbData_commandesPneus && window._fbData_commandesPneus.length) {
+    commandesPneus = window._fbData_commandesPneus;
+    localStorage.setItem('mcr_cmd_pneus', JSON.stringify(commandesPneus));
+  }
 
   clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(() => {
@@ -9579,7 +9591,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260707.1420';
+const APP_VERSION = '260707.2229';
 
 let _swRegistration = null;
 
