@@ -1154,7 +1154,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260707.2258</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1502</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2049,11 +2049,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260707.2258</strong><br>
+      Version actuelle de l'app : <strong>v260708.1502</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260707.2258 disponible)
+      📢 Notifier les utilisateurs (v260708.1502 disponible)
     </button>
   </div>
 
@@ -2326,108 +2326,81 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- MODAL CONNEXION ADMIN -->
 <!-- MODAL NOUVEAU VÉHICULE -->
 <div class="modal-overlay" id="modal-nouveau-veh">
-  <div class="modal" style="max-width:560px">
+  <div class="modal" style="max-width:600px">
     <button class="modal-close" onclick="closeModal('modal-nouveau-veh')">✕</button>
     <h2 style="margin-bottom:16px">➕ Ajouter un véhicule</h2>
+
+    <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Identification</div>
     <div class="form-grid">
-      <div class="form-group">
-        <label>Immatriculation *</label>
-        <input type="text" id="nv-immat" placeholder="ex: TLAN999" style="text-transform:uppercase" />
-      </div>
-      <div class="form-group">
-        <label>Marque *</label>
-        <input type="text" id="nv-marque" placeholder="ex: Renault Kangoo" />
-      </div>
-      <div class="form-group">
-        <label>Type *</label>
+      <div class="form-group"><label>Immatriculation *</label><input type="text" id="nv-immat" placeholder="ex: TLAN999" style="text-transform:uppercase" /></div>
+      <div class="form-group"><label>Marque *</label><input type="text" id="nv-marque" placeholder="ex: Renault Kangoo" /></div>
+      <div class="form-group"><label>Type *</label>
         <select id="nv-type">
           <option value="VSL">VSL</option>
           <option value="Camionnette">Camionnette</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>N° Châssis</label>
-        <input type="text" id="nv-chassis" placeholder="ex: VF1RFK00X69093954" style="text-transform:uppercase" />
-      </div>
-      <div class="form-group">
-        <label>Mise en circulation</label>
-        <input type="date" id="nv-mise-en-circ" />
-      </div>
-      <div class="form-group">
-        <label>Garage attitré</label>
-        <input type="text" id="nv-garage" placeholder="ex: MIA, Picard…" />
-      </div>
-      <div class="form-group">
-        <label>Kilométrage actuel *</label>
-        <input type="number" id="nv-km" placeholder="ex: 15000" />
-      </div>
-      <div class="form-group">
-        <label>CT valable jusqu'au</label>
-        <input type="date" id="nv-ct-valid" />
-      </div>
-      <div class="form-group">
-        <label>Intervalle entretien (km)</label>
-        <select id="nv-interval">
-          <option value="20000">20 000 km (VSL)</option>
-          <option value="15000">15 000 km (Camionnette)</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Prochain entretien à (km)</label>
-        <input type="number" id="nv-next-entretien" placeholder="ex: 20000" />
-      </div>
-      <div class="form-group">
-        <label>Dernier entretien le</label>
-        <input type="date" id="nv-last-entretien-date" />
-      </div>
-      <div class="form-group">
-        <label>Dernier entretien à (km)</label>
-        <input type="number" id="nv-last-entretien-km" placeholder="ex: 0" />
-      </div>
-      <div class="form-group">
-        <label>Équipement</label>
+      <div class="form-group"><label>N° Châssis</label><input type="text" id="nv-chassis" placeholder="ex: VF1RFK00X69093954" style="text-transform:uppercase" /></div>
+      <div class="form-group"><label>Mise en circulation</label><input type="date" id="nv-mise-en-circ" /></div>
+      <div class="form-group"><label>Garage attitré</label><input type="text" id="nv-garage" placeholder="ex: MIA, Picard…" /></div>
+      <div class="form-group"><label>Équipement</label>
         <select id="nv-equipement">
           <option value="">Aucun</option>
           <option value="Élévateur">Élévateur</option>
           <option value="Rampe">Rampe</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>AdBlue</label>
+      <div class="form-group"><label>AdBlue</label>
         <select id="nv-adblue">
           <option value="non">Non</option>
           <option value="oui">Oui</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Dimensions pneus été</label>
-        <input type="text" id="nv-dim-ete" placeholder="ex: 205/60R16 96H" />
-      </div>
-      <div class="form-group">
-        <label>Marque pneus été</label>
-        <input type="text" id="nv-pneus-ete" placeholder="ex: Michelin Primacy 4" />
-      </div>
-      <div class="form-group">
-        <label>Dimensions pneus hiver</label>
-        <input type="text" id="nv-dim-hiver" placeholder="ex: 205/60R16 96H" />
-      </div>
-      <div class="form-group">
-        <label>Marque pneus hiver</label>
-        <input type="text" id="nv-pneus-hiver" placeholder="ex: Vredestein Wintrac" />
-      </div>
-      <div class="form-group">
-        <label>Code carte Total</label>
-        <input type="text" id="nv-carte-total-code" placeholder="ex: 1234" />
-      </div>
-      <div class="form-group">
-        <label>Carte Total valable jusqu'au</label>
-        <input type="date" id="nv-carte-total-valid" />
-      </div>
     </div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Kilométrage &amp; entretien</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Kilométrage actuel *</label><input type="number" id="nv-km" placeholder="ex: 15000" /></div>
+      <div class="form-group"><label>Intervalle entretien (km)</label>
+        <select id="nv-interval">
+          <option value="20000">20 000 km (VSL)</option>
+          <option value="15000">15 000 km (Camionnette)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Dernier entretien le</label><input type="date" id="nv-last-entretien-date" /></div>
+      <div class="form-group"><label>Dernier entretien à (km)</label><input type="number" id="nv-last-entretien-km" placeholder="ex: 60000" /></div>
+      <div class="form-group"><label>Prochain entretien à (km)</label><input type="number" id="nv-next-entretien" placeholder="calculé auto si vide" /></div>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Documents légaux</div>
+    <div class="form-grid">
+      <div class="form-group"><label>CT valable jusqu'au</label><input type="date" id="nv-ct-valid" /></div>
+      <div class="form-group"><label>Assurance jusqu'au</label><input type="date" id="nv-assurance-valid" /></div>
+      <div class="form-group"><label>Vignette SPW jusqu'au</label><input type="date" id="nv-spw-valid" /></div>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Pneus</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Dimensions pneus été 🔴</label><input type="text" id="nv-dim-ete" placeholder="ex: 205/60R16 96H" /></div>
+      <div class="form-group"><label>Marque pneus été</label><input type="text" id="nv-pneus-ete" placeholder="ex: Michelin Primacy 4" /></div>
+      <div class="form-group"><label>Dimensions pneus hiver 🟤</label><input type="text" id="nv-dim-hiver" placeholder="ex: 205/60R16 96H" /></div>
+      <div class="form-group"><label>Marque pneus hiver</label><input type="text" id="nv-pneus-hiver" placeholder="ex: Vredestein Wintrac" /></div>
+      <div class="form-group"><label>Pression AV (bar)</label><input type="text" id="nv-pression-av" placeholder="ex: 3.0" /></div>
+      <div class="form-group"><label>Pression AR (bar)</label><input type="text" id="nv-pression-ar" placeholder="ex: 3.0" /></div>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Carte carburant</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Code carte Total</label><input type="text" id="nv-carte-total-code" placeholder="ex: 1234" /></div>
+      <div class="form-group"><label>Carte Total valable jusqu'au</label><input type="date" id="nv-carte-total-valid" /></div>
+    </div>
+
     <div style="margin-top:16px;display:flex;gap:10px">
       <button class="btn primary" onclick="sauvegarderNouveauVeh()">💾 Ajouter le véhicule</button>
       <button class="btn" onclick="closeModal('modal-nouveau-veh')">Annuler</button>
     </div>
+  </div>
+</div>
   </div>
 </div>
 
@@ -6998,10 +6971,11 @@ function openModalNouveauVeh() {
   // Réinitialiser le formulaire
   ['nv-immat','nv-marque','nv-chassis','nv-garage','nv-km','nv-next-entretien',
    'nv-last-entretien-km','nv-dim-ete','nv-pneus-ete','nv-dim-hiver','nv-pneus-hiver',
-   'nv-carte-total-code'].forEach(id => {
+   'nv-carte-total-code','nv-pression-av','nv-pression-ar'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  ['nv-ct-valid','nv-mise-en-circ','nv-last-entretien-date','nv-carte-total-valid'].forEach(id => {
+  ['nv-ct-valid','nv-mise-en-circ','nv-last-entretien-date','nv-carte-total-valid',
+   'nv-assurance-valid','nv-spw-valid'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('nv-type').value = 'VSL';
@@ -7023,7 +6997,14 @@ function sauvegarderNouveauVeh() {
     toast('Un véhicule avec cette immatriculation existe déjà.'); return;
   }
 
-  const hasAdblue = document.getElementById('nv-adblue').value === 'oui';
+  const hasAdblue          = document.getElementById('nv-adblue').value === 'oui';
+  const intervalle         = parseInt(document.getElementById('nv-interval').value) || 20000;
+  const dernEntretienKm    = parseInt(document.getElementById('nv-last-entretien-km').value) || null;
+  const dernEntretienDate  = document.getElementById('nv-last-entretien-date').value || null;
+  const prochainSaisi      = parseInt(document.getElementById('nv-next-entretien').value) || null;
+  // Prochain entretien : saisi > dernier+intervalle > km+intervalle
+  const prochainEntretien  = prochainSaisi
+    || (dernEntretienKm ? dernEntretienKm + intervalle : km + intervalle);
 
   const nvVeh = {
     id:                    immat,
@@ -7036,28 +7017,50 @@ function sauvegarderNouveauVeh() {
     km,
     ct_valid:              document.getElementById('nv-ct-valid').value || null,
     ct_carte_rouge_date:   null,
-    dernier_entretien_date:document.getElementById('nv-last-entretien-date').value || null,
-    dernier_entretien_km:  parseInt(document.getElementById('nv-last-entretien-km').value) || null,
-    interval_entretien_km: parseInt(document.getElementById('nv-interval').value) || 20000,
-    prochain_entretien_km: parseInt(document.getElementById('nv-next-entretien').value) || km + 20000,
+    dernier_entretien_date: dernEntretienDate,
+    dernier_entretien_km:  dernEntretienKm,
+    interval_entretien_km: intervalle,
+    prochain_entretien_km: prochainEntretien,
     equipement:            document.getElementById('nv-equipement').value || null,
+    assurance_valid:       document.getElementById('nv-assurance-valid').value || null,
+    spw_valid:             document.getElementById('nv-spw-valid').value || null,
     dim_ete:               document.getElementById('nv-dim-ete').value.trim(),
     pneus_ete:             document.getElementById('nv-pneus-ete').value.trim(),
     dim_hiver:             document.getElementById('nv-dim-hiver').value.trim(),
     pneus_hiver:           document.getElementById('nv-pneus-hiver').value.trim(),
+    pression_av:           document.getElementById('nv-pression-av').value.trim(),
+    pression_ar:           document.getElementById('nv-pression-ar').value.trim(),
     carte_total_code:      document.getElementById('nv-carte-total-code').value.trim(),
     carte_total_valid:     document.getElementById('nv-carte-total-valid').value || null,
-    spw_valid:             null,
     extincteur_valid:      null,
     permut_hiver_ete_date: null, permut_hiver_ete_km: null,
     permut_ete_hiver_date: null, permut_ete_hiver_km: null,
     recht_date:            null, recht_motif:          null,
-    remarques:             ''
   };
 
   vehicules.push(nvVeh);
 
-  // Ajouter à l'ordre d'affichage s'il n'y est pas
+  // Ajouter à VEHICULES_DATA en mémoire (source de vérité pour les champs protégés)
+  VEHICULES_DATA.push({
+    id:                    immat,
+    immat,
+    marque,
+    type:                  nvVeh.type,
+    km,
+    ct_valid:              nvVeh.ct_valid,
+    dernier_entretien_date: dernEntretienDate,
+    dernier_entretien_km:  dernEntretienKm,
+    interval_entretien_km: intervalle,
+    prochain_entretien_km: prochainEntretien,
+    garage:                nvVeh.garage,
+    assurance_valid:       nvVeh.assurance_valid,
+    pression_av:           nvVeh.pression_av,
+    pression_ar:           nvVeh.pression_ar,
+    dim_ete:               nvVeh.dim_ete,
+    dim_hiver:             nvVeh.dim_hiver,
+  });
+
+  // Ajouter à l'ordre d'affichage
   if (!ORDRE_VEHICULES.includes(immat)) ORDRE_VEHICULES.push(immat);
 
   // AdBlue activé → ajouter à la liste
@@ -7066,6 +7069,7 @@ function sauvegarderNouveauVeh() {
   saveAll();
   closeModal('modal-nouveau-veh');
   renderVehicules();
+  renderAccueil();
   toast(`${marque} ${immat} ajouté ✅`);
 }
 
@@ -9606,7 +9610,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260707.2258';
+const APP_VERSION = '260708.1502';
 
 let _swRegistration = null;
 
