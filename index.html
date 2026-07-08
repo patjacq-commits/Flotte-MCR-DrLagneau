@@ -1154,7 +1154,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1502</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1517</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2049,11 +2049,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260708.1502</strong><br>
+      Version actuelle de l'app : <strong>v260708.1517</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260708.1502 disponible)
+      📢 Notifier les utilisateurs (v260708.1517 disponible)
     </button>
   </div>
 
@@ -2344,7 +2344,7 @@ td.ok { color: var(--vert); font-weight: 600; }
       <div class="form-group"><label>Mise en circulation</label><input type="date" id="nv-mise-en-circ" /></div>
       <div class="form-group"><label>Garage attitré</label><input type="text" id="nv-garage" placeholder="ex: MIA, Picard…" /></div>
       <div class="form-group"><label>Équipement</label>
-        <select id="nv-equipement">
+        <select id="nv-equipement" onchange="document.getElementById('nv-recht-section').style.display=this.value?'block':'none'">
           <option value="">Aucun</option>
           <option value="Élévateur">Élévateur</option>
           <option value="Rampe">Rampe</option>
@@ -2393,6 +2393,28 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div class="form-grid">
       <div class="form-group"><label>Code carte Total</label><input type="text" id="nv-carte-total-code" placeholder="ex: 1234" /></div>
       <div class="form-group"><label>Carte Total valable jusqu'au</label><input type="date" id="nv-carte-total-valid" /></div>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">🧯 Extincteur</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Extincteur valable jusqu'au</label><input type="date" id="nv-extincteur-valid" /></div>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="nv-extincteur-manquant" onchange="document.getElementById('nv-extincteur-valid').disabled=this.checked"> Extincteur manquant</label></div>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">🔄 Permutations pneus</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Hiver → Été (date)</label><input type="date" id="nv-permut-he-date" /></div>
+      <div class="form-group"><label>Hiver → Été (km)</label><input type="number" id="nv-permut-he-km" placeholder="ex: 55000" /></div>
+      <div class="form-group"><label>Été → Hiver (date)</label><input type="date" id="nv-permut-eh-date" /></div>
+      <div class="form-group"><label>Été → Hiver (km)</label><input type="number" id="nv-permut-eh-km" placeholder="ex: 52000" /></div>
+    </div>
+
+    <div id="nv-recht-section" style="display:none">
+      <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">🔧 Recht (équipement)</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Date dernière visite</label><input type="date" id="nv-recht-date" /></div>
+        <div class="form-group"><label>Motif</label><input type="text" id="nv-recht-motif" placeholder="ex: Contrôle annuel" /></div>
+      </div>
     </div>
 
     <div style="margin-top:16px;display:flex;gap:10px">
@@ -5439,7 +5461,7 @@ function renderKilometrage() {
   const filtVeh = document.getElementById('km-filtre-veh')?.value || '';
 
   // ── Tableau km entre maintenances ──────────────────────────
-  const vehOrdre  = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(Boolean);
+  const vehOrdre  = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(v => v && !v.archive);
   const vslSeuls  = vehOrdre.filter(v => v.id !== '1RER037');
   const BARS_MAX  = 4000;
   let totalFlotte = 0;
@@ -6307,11 +6329,13 @@ function renderVehicules() {
     return;
   }
 
-  const ordonnes = [...vehicules].sort((a, b) => {
-    const ia = ORDRE_VEHICULES.indexOf(a.id);
-    const ib = ORDRE_VEHICULES.indexOf(b.id);
-    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
-  });
+  const ordonnes = [...vehicules]
+    .filter(v => !v.archive)
+    .sort((a, b) => {
+      const ia = ORDRE_VEHICULES.indexOf(a.id);
+      const ib = ORDRE_VEHICULES.indexOf(b.id);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
 
   document.getElementById('vehicules-grid').innerHTML = ordonnes.map(v => {
     const ct = ctStatus(v);
@@ -6971,13 +6995,18 @@ function openModalNouveauVeh() {
   // Réinitialiser le formulaire
   ['nv-immat','nv-marque','nv-chassis','nv-garage','nv-km','nv-next-entretien',
    'nv-last-entretien-km','nv-dim-ete','nv-pneus-ete','nv-dim-hiver','nv-pneus-hiver',
-   'nv-carte-total-code','nv-pression-av','nv-pression-ar'].forEach(id => {
+   'nv-carte-total-code','nv-pression-av','nv-pression-ar',
+   'nv-permut-he-km','nv-permut-eh-km','nv-recht-motif'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   ['nv-ct-valid','nv-mise-en-circ','nv-last-entretien-date','nv-carte-total-valid',
-   'nv-assurance-valid','nv-spw-valid'].forEach(id => {
+   'nv-assurance-valid','nv-spw-valid','nv-extincteur-valid',
+   'nv-permut-he-date','nv-permut-eh-date','nv-recht-date'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  const extM = document.getElementById('nv-extincteur-manquant');
+  if (extM) { extM.checked = false; document.getElementById('nv-extincteur-valid').disabled = false; }
+  document.getElementById('nv-recht-section').style.display = 'none';
   document.getElementById('nv-type').value = 'VSL';
   document.getElementById('nv-equipement').value = '';
   document.getElementById('nv-adblue').value = 'non';
@@ -7032,10 +7061,14 @@ function sauvegarderNouveauVeh() {
     pression_ar:           document.getElementById('nv-pression-ar').value.trim(),
     carte_total_code:      document.getElementById('nv-carte-total-code').value.trim(),
     carte_total_valid:     document.getElementById('nv-carte-total-valid').value || null,
-    extincteur_valid:      null,
-    permut_hiver_ete_date: null, permut_hiver_ete_km: null,
-    permut_ete_hiver_date: null, permut_ete_hiver_km: null,
-    recht_date:            null, recht_motif:          null,
+    extincteur_valid:      document.getElementById('nv-extincteur-manquant')?.checked ? 'manquant'
+                           : (document.getElementById('nv-extincteur-valid')?.value || null),
+    permut_hiver_ete_date: document.getElementById('nv-permut-he-date')?.value || null,
+    permut_hiver_ete_km:   parseInt(document.getElementById('nv-permut-he-km')?.value) || null,
+    permut_ete_hiver_date: document.getElementById('nv-permut-eh-date')?.value || null,
+    permut_ete_hiver_km:   parseInt(document.getElementById('nv-permut-eh-km')?.value) || null,
+    recht_date:            document.getElementById('nv-recht-date')?.value || null,
+    recht_motif:           document.getElementById('nv-recht-motif')?.value?.trim() || null,
   };
 
   vehicules.push(nvVeh);
@@ -7080,10 +7113,64 @@ function sauvegarderNouveauVeh() {
 function supprimerVehicule(id) {
   const v = vehicules.find(x => x.id === id);
   if (!v) return;
-  const confirmMsg = `⚠️ Supprimer définitivement ${v.marque} ${v.immat} ?\n\nToutes les maintenances, RV, AdBlue et Car Wash associés à ce véhicule seront également supprimés.\n\nCette action est irréversible.`;
-  if (!confirm(confirmMsg)) return;
 
-  // Supprimer le véhicule et toutes ses données associées
+  const ex = document.getElementById('modal-archivage-veh');
+  if (ex) ex.remove();
+
+  const div = document.createElement('div');
+  div.id = 'modal-archivage-veh';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:400px;width:100%;'
+    + 'box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:17px;font-weight:700;margin-bottom:6px">🗑 Retirer un véhicule</div>'
+    + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">'
+    + v.marque + ' <b>' + v.immat + '</b></div>'
+    + '<div style="font-size:13px;margin-bottom:18px">Que souhaitez-vous faire avec ce véhicule et son historique ?</div>'
+    + '<div style="display:flex;flex-direction:column;gap:10px">'
+    + '<button class="btn primary" style="text-align:left;padding:12px 14px" onclick="archiverVehicule(\'' + id + '\')">'
+    + '📦 Archiver — conserver toutes les données<br>'
+    + '<span style="font-size:11px;font-weight:400;opacity:0.85">Le véhicule disparaît de l\'onglet mais son historique reste accessible</span>'
+    + '</button>'
+    + '<button class="btn" style="text-align:left;padding:12px 14px;color:var(--rouge);border-color:var(--rouge)" onclick="confirmerSuppressionVehicule(\'' + id + '\')">'
+    + '🗑 Supprimer définitivement<br>'
+    + '<span style="font-size:11px;font-weight:400;opacity:0.85">Toutes les données associées seront perdues</span>'
+    + '</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-archivage-veh\').remove()">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+function archiverVehicule(id) {
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('modal-archivage-veh')?.remove();
+
+  // Marquer le véhicule comme archivé dans Firebase
+  v.archive = true;
+  v.archive_date = new Date().toISOString().slice(0,10);
+  window.vehicules = vehicules;
+
+  // Retirer de l'ordre d'affichage (mais garder dans vehicules pour l'historique)
+  const idx = ORDRE_VEHICULES.indexOf(id);
+  if (idx > -1) ORDRE_VEHICULES.splice(idx, 1);
+  const idxAb = VEHICULES_ADBLUE.indexOf(id);
+  if (idxAb > -1) VEHICULES_ADBLUE.splice(idxAb, 1);
+
+  // Sauvegarder (vehicules inclus, avec archive:true)
+  saveAll();
+  renderVehicules();
+  renderAccueil();
+  toast(`📦 ${v.marque} ${v.immat} archivé — historique conservé`);
+}
+
+function confirmerSuppressionVehicule(id) {
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('modal-archivage-veh')?.remove();
+
+  if (!confirm('⚠️ Supprimer DÉFINITIVEMENT ' + v.marque + ' ' + v.immat + ' ?\n\nToutes les maintenances, RV, AdBlue et Car Wash seront perdus.\n\nCette action est irréversible.')) return;
+
   vehicules     = vehicules.filter(x => x.id !== id);
   maintenances  = maintenances.filter(m => m.vehId !== id);
   rendezvous    = rendezvous.filter(r => r.vehId !== id);
@@ -7092,7 +7179,6 @@ function supprimerVehicule(id) {
   ctEvents      = ctEvents.filter(c => c.vehId !== id);
   messagesChauf = messagesChauf.filter(m => m.vehId !== id);
 
-  // Retirer de l'ordre
   const idx = ORDRE_VEHICULES.indexOf(id);
   if (idx > -1) ORDRE_VEHICULES.splice(idx, 1);
   const idxAb = VEHICULES_ADBLUE.indexOf(id);
@@ -7101,7 +7187,7 @@ function supprimerVehicule(id) {
   saveAll();
   renderVehicules();
   renderAccueil();
-  toast(`${v.marque} ${v.immat} supprimé`);
+  toast(`${v.marque} ${v.immat} supprimé définitivement`);
 }
 
 /* Récupère la valeur finale d'un select avec option Autre */
@@ -9610,7 +9696,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260708.1502';
+const APP_VERSION = '260708.1517';
 
 let _swRegistration = null;
 
