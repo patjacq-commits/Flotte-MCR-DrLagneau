@@ -1154,7 +1154,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1526</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1534</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2057,11 +2057,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260708.1526</strong><br>
+      Version actuelle de l'app : <strong>v260708.1534</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260708.1526 disponible)
+      📢 Notifier les utilisateurs (v260708.1534 disponible)
     </button>
   </div>
 
@@ -8283,7 +8283,7 @@ function renderTableRV() {
   }).join('');
 }
 
-// ── Rappel entretien garage + CT urgent + RV dans 48h ────────
+// ── Rappel entretien garage + CT urgent + RV dans 48h + RV dépassés ──
 function verifierEntretiensUrgents() {
   if (!userIsAdmin()) return;
 
@@ -8292,6 +8292,11 @@ function verifierEntretiensUrgents() {
   const today       = new Date().toISOString().slice(0,10);
   const now         = Date.now();
   const h48         = 48 * 3600 * 1000;
+
+  // ── RV dépassés (date passée, non traités) ────────────────
+  const rvDepasses = rendezvous.filter(r =>
+    r.statut === 'planifie' && r.date < today
+  ).sort((a,b) => a.date.localeCompare(b.date));
 
   // ── RV dans les 48h ───────────────────────────────────────
   const rv48 = rendezvous.filter(r => {
@@ -8324,10 +8329,31 @@ function verifierEntretiensUrgents() {
     return { v, j, niveau: j < 0 ? 'urgent' : j <= 7 ? 'urgent' : 'warn', categorie: 'ct' };
   });
 
-  if (!rv48.length && !entretiens.length && !cts.length) return;
+  if (!rv48.length && !rvDepasses.length && !entretiens.length && !cts.length) return;
 
   const existing = document.getElementById('modal-entretien-urgent');
   if (existing) existing.remove();
+
+  // ── Lignes RV dépassés ────────────────────────────────────
+  const rowsDepasses = rvDepasses.map(r => {
+    const v    = vehicules.find(x => x.id === r.vehId);
+    const vNom = v ? v.marque + ' ' + r.vehId : r.vehId;
+    const tl   = labelRV(r.type);
+    const hr   = r.heure ? ' à ' + r.heure : '';
+    const gar  = r.garage ? ' — ' + r.garage : '';
+    return '<div data-rvid="' + r.id + '" style="padding:10px 14px;border-bottom:1px solid var(--gris-bord)">'
+      + '<div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--rouge)">'
+      + '🚨 ' + formatDateCourt(r.date) + hr + ' — <b>' + vNom + '</b>'
+      + '<span style="font-size:12px;color:var(--texte-sec);display:block;font-weight:400">' + tl + gar + '</span></div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+      + '<button class="btn btn-sm" style="background:var(--vert);color:#fff;border-color:var(--vert);flex:1"'
+      + ' onclick="traiterRVDepasse(' + r.id + ',\'effectue\')">✅ Effectué</button>'
+      + '<button class="btn btn-sm" style="background:var(--orange);color:#fff;border-color:var(--orange);flex:1"'
+      + ' onclick="traiterRVDepasse(' + r.id + ',\'atraiter\')">⏳ À traiter</button>'
+      + '<button class="btn btn-sm" style="background:var(--rouge);color:#fff;border-color:var(--rouge);flex:1"'
+      + ' onclick="traiterRVDepasse(' + r.id + ',\'annule\')">❌ Annulé</button>'
+      + '</div></div>';
+  }).join('');
 
   // ── Lignes RV 48h ─────────────────────────────────────────
   const rowsRV = rv48.map(r => {
@@ -8379,7 +8405,7 @@ function verifierEntretiensUrgents() {
       + '</div>';
   }).join('');
 
-  const nbTotal = rv48.length + aAlerter.length;
+  const nbTotal = rv48.length + rvDepasses.length + aAlerter.length;
   const div = document.createElement('div');
   div.id = 'modal-entretien-urgent';
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;'
@@ -8396,6 +8422,9 @@ function verifierEntretiensUrgents() {
     + '</div>'
     + '<button class="btn btn-sm" onclick="document.getElementById(\'modal-entretien-urgent\').remove()">Fermer</button>'
     + '</div>'
+    + (rvDepasses.length ? '<div id="rv-depasses-body"><div style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;'
+      + 'color:var(--rouge);background:var(--rouge-clair)">🚨 RV dépassés à traiter (' + rvDepasses.length + ')</div>'
+      + rowsDepasses + '</div>' : '')
     + (rv48.length ? '<div style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;'
       + 'color:var(--bleu);background:var(--bleu-clair)">📅 RV dans les 48h</div>' + rowsRV : '')
     + (aAlerter.length ? '<div style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;'
@@ -9810,7 +9839,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260708.1526';
+const APP_VERSION = '260708.1534';
 
 let _swRegistration = null;
 
@@ -10196,7 +10225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAccueil();
     updateTabAlertes();
     updateTabChauf();
-    setTimeout(verifierRVDepasses, 1500);
     setTimeout(verifierEntretiensUrgents, 4000);
   }
 
