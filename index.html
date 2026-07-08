@@ -1154,7 +1154,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1543</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1619</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2057,11 +2057,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260708.1543</strong><br>
+      Version actuelle de l'app : <strong>v260708.1619</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260708.1543 disponible)
+      📢 Notifier les utilisateurs (v260708.1619 disponible)
     </button>
   </div>
 
@@ -6023,7 +6023,7 @@ function buildAlertes() {
     const j = daysUntil(v.ct_valid);
     const isCamion = v.type === 'Camionnette';
     const seuilKmUrgent = isCamion ? 300 : 2500;
-    const seuilKmWarn   = isCamion ? 600 : 4500;
+    const seuilKmWarn   = isCamion ? 600 : 5000;
 
     // ── CT ──────────────────────────────────────────────────
     const rvCT = rvActif(v.id, 'ct');
@@ -8289,7 +8289,7 @@ function verifierEntretiensUrgents() {
   if (!userIsAdmin()) return;
 
   const seuilUrgent = 2500;
-  const seuilWarn   = 4500;
+  const seuilWarn   = 5000;
   const today       = new Date().toISOString().slice(0,10);
   const now         = Date.now();
   const h48         = 48 * 3600 * 1000;
@@ -8317,15 +8317,24 @@ function verifierEntretiensUrgents() {
 
   // ── Entretiens garage ──────────────────────────────────────
   const entretiens = vehicules.filter(v => {
-    if (!v.prochain_entretien_km || !v.km) return false;
-    const reste = parseInt(v.prochain_entretien_km) - parseInt(v.km);
+    const ref = VEHICULES_DATA.find(r => r.id === v.id);
+    const kmRef = ref?.km ? parseInt(ref.km) : (v.km ? parseInt(v.km) : null);
+    const prochainKm = ref?.prochain_entretien_km ? parseInt(ref.prochain_entretien_km)
+                     : (v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null);
+    if (!prochainKm || !kmRef) return false;
+    const reste = prochainKm - kmRef;
     if (reste > seuilWarn) return false;
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'garage' && r.statut === 'planifie');
-  }).map(v => ({
-    v, reste: parseInt(v.prochain_entretien_km) - parseInt(v.km),
-    niveau: (parseInt(v.prochain_entretien_km) - parseInt(v.km)) <= seuilUrgent ? 'urgent' : 'warn',
-    categorie: 'garage'
-  }));
+  }).map(v => {
+    const ref = VEHICULES_DATA.find(r => r.id === v.id);
+    const kmRef = ref?.km ? parseInt(ref.km) : parseInt(v.km);
+    const prochainKm = ref?.prochain_entretien_km ? parseInt(ref.prochain_entretien_km) : parseInt(v.prochain_entretien_km);
+    return {
+      v, reste: prochainKm - kmRef,
+      niveau: (prochainKm - kmRef) <= seuilUrgent ? 'urgent' : 'warn',
+      categorie: 'garage'
+    };
+  });
 
   // ── Contrôles techniques ───────────────────────────────────
   const cts = vehicules.filter(v => {
@@ -9848,7 +9857,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260708.1543';
+const APP_VERSION = '260708.1619';
 
 let _swRegistration = null;
 
