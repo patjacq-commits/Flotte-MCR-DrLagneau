@@ -1154,7 +1154,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1517</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260708.1526</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1202,6 +1202,14 @@ td.ok { color: var(--vert); font-weight: 600; }
 <!-- PAGE VEHICULES -->
 <div id="page-vehicules" class="page">
   <div id="vehicules-grid" class="vehicules-grid"></div>
+  <!-- Section véhicules archivés (admin uniquement) -->
+  <div id="section-archives" class="admin-only" style="display:none;margin-top:20px">
+    <div style="border-top:2px dashed var(--gris-bord);padding-top:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;
+        letter-spacing:0.5px;margin-bottom:12px">📦 Véhicules archivés</div>
+      <div id="vehicules-archives-grid" class="vehicules-grid"></div>
+    </div>
+  </div>
 </div>
 
 <!-- PAGE ALERTES -->
@@ -2049,11 +2057,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260708.1517</strong><br>
+      Version actuelle de l'app : <strong>v260708.1526</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260708.1517 disponible)
+      📢 Notifier les utilisateurs (v260708.1526 disponible)
     </button>
   </div>
 
@@ -6497,10 +6505,116 @@ function renderVehicules() {
   if (isAdmin) {
     const wrap = document.createElement('div');
     wrap.id = 'btn-ajouter-veh';
-    wrap.style.marginTop = '12px';
-    wrap.innerHTML = `<button class="btn primary" onclick="openModalNouveauVeh()">➕ Ajouter un véhicule</button>`;
+    wrap.style.cssText = 'margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center';
+    const nbArchives = vehicules.filter(v => v.archive).length;
+    wrap.innerHTML = '<button class="btn primary" onclick="openModalNouveauVeh()">➕ Ajouter un véhicule</button>'
+      + (nbArchives > 0
+        ? '<button class="btn" onclick="toggleArchives()" id="btn-toggle-archives">'
+          + '📦 Archivés (' + nbArchives + ')</button>'
+        : '');
     document.getElementById('vehicules-grid').insertAdjacentElement('afterend', wrap);
   }
+
+  // Rendre les véhicules archivés
+  renderVehiculesArchives();
+}
+
+function toggleArchives() {
+  const sec = document.getElementById('section-archives');
+  if (!sec) return;
+  const visible = sec.style.display !== 'none';
+  sec.style.display = visible ? 'none' : 'block';
+  const btn = document.getElementById('btn-toggle-archives');
+  if (btn) btn.textContent = visible
+    ? '📦 Archivés (' + vehicules.filter(v=>v.archive).length + ')'
+    : '📂 Masquer les archivés';
+}
+
+function renderVehiculesArchives() {
+  const grid = document.getElementById('vehicules-archives-grid');
+  if (!grid) return;
+  const archives = vehicules.filter(v => v.archive)
+    .sort((a,b) => (b.archive_date||'').localeCompare(a.archive_date||''));
+  if (!archives.length) {
+    document.getElementById('section-archives').style.display = 'none';
+    return;
+  }
+  grid.innerHTML = archives.map(v => {
+    const dateArchive = v.archive_date ? formatDateCourt(v.archive_date) : '—';
+    return '<div class="veh-card" style="opacity:0.75;border-style:dashed">'
+      + '<div class="veh-card-header">'
+      + '<div><div class="veh-immat">' + v.immat + '</div>'
+      + '<div class="veh-marque">' + v.marque + '</div>'
+      + '<div style="font-size:11px;color:var(--texte-sec);margin-top:3px">📦 Archivé le ' + dateArchive + '</div>'
+      + '</div></div>'
+      + '<div class="veh-actions" style="margin-top:8px">'
+      + '<button class="btn btn-sm" onclick="ouvrirHistoriqueArchive(\'' + v.id + '\')">📋 Historique</button>'
+      + '<button class="btn btn-sm" onclick="desarchiverVehicule(\'' + v.id + '\')" style="color:var(--vert);border-color:var(--vert)">♻️ Réactiver</button>'
+      + '<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="confirmerSuppressionVehicule(\'' + v.id + '\')">🗑</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+function ouvrirHistoriqueArchive(id) {
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  const maintV = maintenances.filter(m => m.vehId === id).sort((a,b) => b.date.localeCompare(a.date));
+  const rvV    = rendezvous.filter(r => r.vehId === id).sort((a,b) => b.date.localeCompare(a.date));
+  const abV    = adblues.filter(a => a.vehId === id).sort((a,b) => b.date.localeCompare(a.date));
+  const cwV    = carwashes.filter(c => c.vehId === id).sort((a,b) => b.date.localeCompare(a.date));
+
+  const rows = (arr, cols) => arr.length
+    ? '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px">'
+      + '<tr>' + cols.map(c => '<th style="text-align:left;padding:4px 8px;color:var(--texte-sec);font-size:11px">' + c + '</th>').join('') + '</tr>'
+      + arr.map(r => '<tr style="border-top:0.5px solid var(--gris-bord)">'
+        + cols.map((_,i) => '<td style="padding:4px 8px">' + (Object.values(r)[i+1] || '—') + '</td>').join('')
+        + '</tr>').join('') + '</table>'
+    : '<p style="color:var(--texte-sec);font-size:12px">Aucune donnée</p>';
+
+  document.getElementById('modal-veh-title').textContent = '📦 ' + v.marque + ' — ' + v.immat + ' (archivé)';
+  document.getElementById('modal-veh-body').innerHTML =
+    '<div style="font-size:13px;font-weight:700;margin-bottom:6px">🔧 Maintenances (' + maintV.length + ')</div>'
+    + (maintV.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">'
+      + '<tr><th style="text-align:left;padding:4px 8px;color:var(--texte-sec);font-size:11px">Date</th>'
+      + '<th style="text-align:left;padding:4px 8px;color:var(--texte-sec);font-size:11px">Km</th></tr>'
+      + maintV.map(m => '<tr style="border-top:0.5px solid var(--gris-bord)">'
+        + '<td style="padding:4px 8px">' + formatDateCourt(m.date) + '</td>'
+        + '<td style="padding:4px 8px">' + (m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '—') + '</td>'
+        + '</tr>').join('') + '</table>'
+      : '<p style="color:var(--texte-sec);font-size:12px;margin-bottom:14px">Aucune maintenance</p>')
+    + '<div style="font-size:13px;font-weight:700;margin-bottom:6px">📅 RV (' + rvV.length + ')</div>'
+    + (rvV.length ? '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">'
+      + '<tr><th style="text-align:left;padding:4px 8px;color:var(--texte-sec);font-size:11px">Date</th>'
+      + '<th style="text-align:left;padding:4px 8px;color:var(--texte-sec);font-size:11px">Type</th>'
+      + '<th style="text-align:left;padding:4px 8px;color:var(--texte-sec);font-size:11px">Statut</th></tr>'
+      + rvV.map(r => '<tr style="border-top:0.5px solid var(--gris-bord)">'
+        + '<td style="padding:4px 8px">' + formatDateCourt(r.date) + '</td>'
+        + '<td style="padding:4px 8px">' + (labelRV(r.type)||r.type) + '</td>'
+        + '<td style="padding:4px 8px">' + (r.statut||'—') + '</td>'
+        + '</tr>').join('') + '</table>'
+      : '<p style="color:var(--texte-sec);font-size:12px;margin-bottom:14px">Aucun RV</p>')
+    + '<div style="font-size:13px;font-weight:700;margin-bottom:6px">💧 AdBlue (' + abV.length + ')</div>'
+    + (abV.length ? '<p style="font-size:12px;margin-bottom:14px">' + abV.length + ' entrées</p>'
+      : '<p style="color:var(--texte-sec);font-size:12px;margin-bottom:14px">Aucun</p>')
+    + '<div style="font-size:13px;font-weight:700;margin-bottom:6px">🚿 Car Wash (' + cwV.length + ')</div>'
+    + (cwV.length ? '<p style="font-size:12px">' + cwV.length + ' lavages</p>'
+      : '<p style="color:var(--texte-sec);font-size:12px">Aucun</p>');
+
+  document.getElementById('modal-veh').classList.add('open');
+}
+
+function desarchiverVehicule(id) {
+  const v = vehicules.find(x => x.id === id);
+  if (!v) return;
+  if (!confirm('Réactiver ' + v.marque + ' ' + v.immat + ' dans la flotte ?')) return;
+  delete v.archive;
+  delete v.archive_date;
+  if (!ORDRE_VEHICULES.includes(id)) ORDRE_VEHICULES.push(id);
+  window.vehicules = vehicules;
+  saveAll();
+  renderVehicules();
+  renderAccueil();
+  toast('♻️ ' + v.marque + ' ' + v.immat + ' réactivé');
 }
 
 /* Affiche les téléphones du garage sélectionné */
@@ -9696,7 +9810,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260708.1517';
+const APP_VERSION = '260708.1526';
 
 let _swRegistration = null;
 
