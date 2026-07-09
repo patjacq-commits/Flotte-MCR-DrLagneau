@@ -1154,7 +1154,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260709.1104</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260709.1109</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2057,11 +2057,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260709.1104</strong><br>
+      Version actuelle de l'app : <strong>v260709.1109</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260709.1104 disponible)
+      📢 Notifier les utilisateurs (v260709.1109 disponible)
     </button>
   </div>
 
@@ -2665,10 +2665,14 @@ let _refreshTimer = null;
 window._refreshUI = function() {
   maintenances  = window.maintenances  || maintenances;
   ctEvents      = window.ctEvents      || ctEvents;
+  rendezvous    = window.rendezvous    || rendezvous;
+  adblues       = window.adblues       || adblues;
+  carwashes     = window.carwashes     || carwashes;
+  messagesChauf = window.messagesChauf || messagesChauf;
+
   if (window.vehicules && window.vehicules.length > 0) {
     vehicules = window.vehicules;
     // Réappliquer les valeurs d'entretien depuis VEHICULES_DATA (source de vérité)
-    // car Firebase peut avoir des valeurs corrompues
     if (typeof VEHICULES_DATA !== 'undefined') {
       VEHICULES_DATA.forEach(ref => {
         const v = vehicules.find(x => x.id === ref.id);
@@ -2680,29 +2684,21 @@ window._refreshUI = function() {
       });
     }
   }
-  rendezvous    = window.rendezvous    || rendezvous;
-  adblues       = window.adblues       || adblues;
-  carwashes     = window.carwashes     || carwashes;
-  messagesChauf = window.messagesChauf || messagesChauf;
+
   // Charger commandesPneus depuis Firebase si disponible
   if (window._fbData_commandesPneus && window._fbData_commandesPneus.length) {
     commandesPneus = window._fbData_commandesPneus;
     localStorage.setItem('mcr_cmd_pneus', JSON.stringify(commandesPneus));
   }
-  // Afficher modal rappels une seule fois — dès que vehicules est chargé depuis Firebase
-  if (!window._entretienUrgentChecked && window.vehicules?.length) {
+
+  // Afficher modal rappels — une seule fois, quand vehicules ET rendezvous sont chargés
+  if (!window._entretienUrgentChecked
+      && window.vehicules?.length
+      && rendezvous?.length) {
     window._entretienUrgentChecked = true;
-    // Délai 2s pour laisser VEHICULES_DATA corriger les valeurs et rendezvous se charger
     setTimeout(function() {
-      if (typeof verifierEntretiensUrgents === 'function') {
-        // Si rendezvous pas encore chargé, relâcher le flag pour réessayer
-        if (!rendezvous || !rendezvous.length) {
-          window._entretienUrgentChecked = false;
-          return;
-        }
-        verifierEntretiensUrgents();
-      }
-    }, 2000);
+      if (typeof verifierEntretiensUrgents === 'function') verifierEntretiensUrgents();
+    }, 500);
   }
 
   clearTimeout(_refreshTimer);
@@ -9896,7 +9892,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260709.1104';
+const APP_VERSION = '260709.1109';
 
 let _swRegistration = null;
 
