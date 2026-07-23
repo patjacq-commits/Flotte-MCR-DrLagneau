@@ -20,6 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
@@ -96,7 +97,9 @@
     }, e => console.warn('Firebase listen error:', colName, e));
   }
 
-  window._fb = { db, fbSaveCollection, fbGetCollection, fbListen };
+  window._fb     = { db, fbSaveCollection, fbGetCollection, fbListen };
+  window.db      = db;
+  window.storage = firebase.storage();
 
   // ── Chargement initial depuis Firebase ──────────────────────
   function chargerDonneesFirebase() {
@@ -1154,7 +1157,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260721.1953</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260723.0949</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2057,11 +2060,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260721.1953</strong><br>
+      Version actuelle de l'app : <strong>v260723.0949</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260721.1953 disponible)
+      📢 Notifier les utilisateurs (v260723.0949 disponible)
     </button>
   </div>
 
@@ -3657,7 +3660,7 @@ function renderMessagesChauf() {
     const photosHtml = photosSync.length
       ? '<div id="photos-msg-' + m.id + '" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
         + photosSync.map(p =>
-            '<img src="' + p.data + '" alt="photo"'
+            '<img src="' + (p.url||p.data) + '" alt="photo"'
             + ' style="width:80px;height:60px;object-fit:cover;border-radius:6px;'
             + 'border:1.5px solid var(--gris-bord);cursor:pointer"'
             + ' onclick="window.open(this.src,\'_blank\')" />').join('')
@@ -7441,8 +7444,9 @@ function supprimerPhoto(idx) {
   rafraichirPreviewPhotos();
 }
 
-/* Afficher une photo en plein écran (modal) — compatible Android */
+/* Afficher une photo en plein écran — compatible Android, Storage URLs et base64 */
 function voirPhoto(src, titre) {
+  // src peut être une URL Firebase Storage ou un base64
   const ex = document.getElementById('modal-photo-fullscreen');
   if (ex) ex.remove();
   const div = document.createElement('div');
@@ -7465,7 +7469,7 @@ function rafraichirPreviewPhotos() {
   preview.innerHTML = _photosEnCours.map((p, i) => `
     <div class="photo-wrap">
       <img src="${p.data}" title="${p.name}"
-        onclick="voirPhoto('${p.data}','${p.name}')"
+        onclick="voirPhoto('${p.url||p.data}','${p.name}')"
         style="cursor:pointer" />
       <button class="photo-del" onclick="supprimerPhoto(${i})" title="Supprimer cette photo">✕</button>
     </div>`).join('');
@@ -7631,8 +7635,33 @@ async function saveMaintenance() {
   const km    = parseInt(document.getElementById('maint-km').value);
   if (!date || !vehId || !km) { toast('Veuillez remplir au moins la date, le véhicule et le kilométrage.'); return; }
 
-  // Stocker photos dans localStorage ET dans le document Firestore
+  // Encoder et uploader les photos vers Firebase Storage
   const photos = await encodePhotos();
+  let photoUrls = [];
+  if (photos.length && window.storage) {
+    try {
+      toast('📤 Upload photos en cours...');
+      photoUrls = await Promise.all(photos.map(async (p, i) => {
+        const path = `maintenances/${Date.now()}_${i}_${vehId}.jpg`;
+        const ref  = window.storage.ref(path);
+        // Convertir base64 en blob
+        const resp = await fetch(p.data);
+        const blob = await resp.blob();
+        await ref.put(blob);
+        const url = await ref.getDownloadURL();
+        return { name: p.name, url, path };
+      }));
+    } catch(e) {
+      console.warn('Upload Storage échoué, fallback localStorage:', e);
+      // Fallback localStorage si Storage indisponible
+      try {
+        const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+        photosLS[Date.now()] = photos;
+        localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
+      } catch(e2) {}
+      photoUrls = photos.map(p => ({ name: p.name, url: p.data, path: null }));
+    }
+  }
 
   const rec = {
     id: Date.now(),
@@ -7644,41 +7673,27 @@ async function saveMaintenance() {
     ecl:    getSelectVal('maint-ecl',   'maint-ecl-custom'),
     pneus:  getSelectVal('maint-pneus', 'maint-pneus-custom'),
     ext:    getSelectVal('maint-ext',   'maint-ext-custom'),
-    // Stocker les photos directement dans le document (visibles par tous)
-    photosData: photos,
+    // Photos stockées dans Firebase Storage (URLs permanentes)
+    photosData: photoUrls,
     rem: document.getElementById('maint-rem').value
   };
 
-  // Aussi dans localStorage pour compatibilité hors-ligne
+  // Compatibilité localStorage (fallback hors-ligne avec les données base64)
   if (photos.length) {
-    const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
-    photosLS[rec.id] = photos;
-    localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
+    try {
+      const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+      photosLS[rec.id] = photos; // garder base64 en local pour hors-ligne
+      localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
+    } catch(e) { console.warn('Photos localStorage:', e); }
   }
 
   maintenances.unshift(rec);
-
-  // Mettre à jour km actuel du véhicule avec le relevé saisi
-  const veh = vehicules.find(v => v.id === vehId);
   if (veh && km > 0) {
     veh.km = km;
     window.vehicules = vehicules; // sync immédiat
     // Mettre à jour VEHICULES_DATA en mémoire pour cohérence
     const vRef = VEHICULES_DATA.find(r => r.id === vehId);
     if (vRef) vRef.km = km;
-  }
-
-  // Photos : stocker UNIQUEMENT en localStorage (base64 trop volumineux pour Firebase)
-  // On retire les photos de rec avant Firebase, on les sauvegarde à part
-  const photosData = rec.photos || [];
-  const recSansPhotos = { ...rec, photos: [] }; // version sans photos pour Firebase
-  maintenances[0] = recSansPhotos; // remplacer dans le tableau
-  if (photosData.length) {
-    try {
-      const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
-      photosLS[rec.id] = photosData;
-      localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
-    } catch(e) { console.warn('Photos trop volumineuses pour localStorage:', e); }
   }
 
   await saveAll();
@@ -7885,10 +7900,10 @@ function renderMaintTable() {
         const photos = m.photosData || photosLS[m.id] || m.photos || [];
         const photosHtml = photos.length
           ? `<div style="display:flex;flex-wrap:wrap;gap:2px">` +
-            photos.map(p => `<img src="${p.data}" title="${p.name}"
+            photos.map(p => `<img src="${p.url||p.data}" title="${p.name}"
               style="width:44px;height:34px;object-fit:cover;border-radius:4px;
                      cursor:pointer;border:1px solid var(--gris-bord)"
-              onclick="voirPhoto('${p.data}','${p.name}')" />`).join('') +
+              onclick="voirPhoto('${p.url||p.data}','${p.name}')" />`).join('') +
             `</div>`
           : '<span style="color:#ccc">—</span>';
 
@@ -9034,7 +9049,7 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
     const photos = photosLS[m.id] || m.photos || [];
     const photosHtml = photos.length
       ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(p =>
-          `<img src="${p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="voirPhoto('${p.data}','${p.name}')" />`).join('')}</div>`
+          `<img src="${p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="voirPhoto('${p.url||p.data}','${p.name}')" />`).join('')}</div>`
       : '';
 
     const adminBtns = isAdmin
@@ -9959,7 +9974,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260721.1953';
+const APP_VERSION = '260723.0949';
 
 let _swRegistration = null;
 
