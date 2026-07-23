@@ -828,6 +828,7 @@ td.ok { color: var(--vert); font-weight: 600; }
             overflow: hidden; }
 .msg-card.non-lu { border-color: var(--rouge-clair); background: #fff8f8; }
 .msg-card.lu { background: var(--blanc); }
+.msg-card.traite-card { opacity:0.6; background:var(--gris-clair); border-left:3px solid var(--vert); }
 .msg-card.urgent-msg { border-color: var(--rouge); border-width: 2px; }
 .msg-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
               background: var(--gris-clair); flex-wrap: wrap; }
@@ -1155,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260723.1142</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260723.1754</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1393,11 +1394,20 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div style="display:flex;align-items:center;justify-content:space-between;
          margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <h3 id="chauf-nb-titre">Signalements en cours</h3>
-      <select id="chauf-filter" onchange="renderMessagesChauf()"
-        style="border:1.5px solid var(--gris-bord);border-radius:6px;
-               padding:5px 8px;font-size:12px">
-        <option value="">Tous les véhicules</option>
-      </select>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <select id="chauf-filter-statut" onchange="renderMessagesChauf()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;
+                 padding:5px 8px;font-size:12px">
+          <option value="actifs">En cours</option>
+          <option value="traites">✅ Traités</option>
+          <option value="tous">Tous</option>
+        </select>
+        <select id="chauf-filter" onchange="renderMessagesChauf()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;
+                 padding:5px 8px;font-size:12px">
+          <option value="">Tous les véhicules</option>
+        </select>
+      </div>
     </div>
     <div id="chauf-msg-list" class="msg-list"></div>
   </div>
@@ -2058,11 +2068,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260723.1142</strong><br>
+      Version actuelle de l'app : <strong>v260723.1754</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260723.1142 disponible)
+      📢 Notifier les utilisateurs (v260723.1754 disponible)
     </button>
   </div>
 
@@ -3522,41 +3532,64 @@ function afficherDetailJour(dateStr) {
 const VEHICULES_ADBLUE_CHAUF = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
 
 function renderMessagesChauf() {
-  window.renderMessagesChauf = renderMessagesChauf; // exposer pour le listener Firebase
-  const filterVeh = document.getElementById('chauf-filter')?.value || '';
-  const list      = document.getElementById('chauf-msg-list');
+  window.renderMessagesChauf = renderMessagesChauf;
+  const filterVeh    = document.getElementById('chauf-filter')?.value || '';
+  const filterStatut = document.getElementById('chauf-filter-statut')?.value || 'actifs';
+  const list         = document.getElementById('chauf-msg-list');
   if (!list) return;
 
   let msgs = [...messagesChauf];
 
-  // Admin : non traités (nonlu + attente) ; traités → historique
   if (userIsAdmin()) {
-    msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'vu' || !m.statut);
+    if (filterStatut === 'actifs') {
+      msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'vu' || !m.statut);
+    } else if (filterStatut === 'traites') {
+      msgs = msgs.filter(m => m.statut === 'traite' || m.statut === 'lu');
+    }
+    // 'tous' = pas de filtre statut
   } else {
-    // Chauffeur : uniquement ses messages nonlu (attente et traite sont côté admin)
+    // Chauffeur : ses messages uniquement, tous statuts
     const monUid = currentUser?.uid || '';
     const monNom = currentUser?.nom || '';
     msgs = msgs.filter(m =>
-      ((monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)) &&
-      (m.statut === 'nonlu' || m.statut === 'vu' || !m.statut)
+      (monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)
     );
+    if (filterStatut === 'actifs') {
+      msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'vu' || !m.statut);
+    } else if (filterStatut === 'traites') {
+      msgs = msgs.filter(m => m.statut === 'traite' || m.statut === 'lu');
+    }
   }
 
   if (filterVeh) msgs = msgs.filter(m => m.vehId === filterVeh);
 
-  // Titre : admin = nb total non traités ; chauffeur = ses messages en cours
+  // Trier : actifs d'abord, puis traités; dans chaque groupe par date desc
+  msgs.sort((a,b) => {
+    const aTraite = a.statut === 'traite' || a.statut === 'lu';
+    const bTraite = b.statut === 'traite' || b.statut === 'lu';
+    if (aTraite !== bTraite) return aTraite ? 1 : -1;
+    return new Date(b.date) - new Date(a.date);
+  });
+
   const nbActifs = userIsAdmin()
     ? messagesChauf.filter(m => m.statut === 'nonlu' || m.statut === 'vu' || !m.statut).length
-    : msgs.length;
+    : messagesChauf.filter(m => {
+        const monUid = currentUser?.uid || '';
+        const monNom = currentUser?.nom || '';
+        return ((monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom))
+          && (m.statut === 'nonlu' || m.statut === 'vu' || !m.statut);
+      }).length;
+
   const titreEl = document.getElementById('chauf-nb-titre');
   if (titreEl) titreEl.textContent = nbActifs > 0
     ? `Signalements en cours (${nbActifs})`
     : 'Signalements en cours';
 
   if (!msgs.length) {
-    list.innerHTML = userIsAdmin()
-      ? '<p style="color:var(--texte-sec);padding:16px">✅ Aucun message en attente.</p>'
-      : '<p style="color:var(--texte-sec);padding:16px">Aucun message non traité.</p>';
+    list.innerHTML = filterStatut === 'traites'
+      ? '<p style="color:var(--texte-sec);padding:16px">Aucun signalement traité.</p>'
+      : '<p style="color:var(--texte-sec);padding:16px">'
+        + (userIsAdmin() ? '✅ Aucun message en attente.' : 'Aucun signalement en cours.') + '</p>';
     return;
   }
 
@@ -3669,7 +3702,7 @@ function renderMessagesChauf() {
           + 'margin-top:4px">📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
         : '';
 
-    return `<div class="msg-card ${isNonLu||isVu ? 'non-lu' : 'lu'} ${isUrgent ? 'urgent-msg' : ''}">
+    return `<div class="msg-card ${isTraite ? 'traite-card' : isNonLu||isVu ? 'non-lu' : 'lu'} ${isUrgent && !isTraite ? 'urgent-msg' : ''}">
       <div class="msg-header">
         <span class="badge ${badgeCls}" style="font-size:10px">${badgeTxt}</span>
         <span class="msg-veh">🚑 ${vNom}</span>
@@ -3678,6 +3711,7 @@ function renderMessagesChauf() {
       <div class="msg-body">
         <div style="font-size:13px">${m.msg}</div>
         <div class="msg-auteur">— ${m.auteur}</div>
+        ${isTraite && m.traiteLe ? `<div style="font-size:11px;color:var(--vert);margin-top:4px">✅ Traité le ${new Date(m.traiteLe).toLocaleString('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>` : ''}
         ${vuLeHtml}
         ${photosHtml}
       </div>
@@ -3697,13 +3731,17 @@ let _chaufPhotos   = [];
 function markChaufLu(id) {
   const m = messagesChauf.find(x => x.id === id);
   if (!m) return;
-  m.statut = 'traite';
+  m.statut  = 'traite';
+  m.traiteLe = new Date().toISOString();
+  // Update direct Firestore (autorisé admin)
+  if (window.db) {
+    window.db.collection('messagesChauf').doc(String(id))
+      .update({ statut: 'traite', traiteLe: m.traiteLe }).catch(() => saveAll());
+  }
   saveAll();
   renderMessagesChauf();
   updateTabChauf();
-  if (document.getElementById('page-historique')?.classList.contains('active'))
-    renderHistorique();
-  toast('✅ Message traité — transféré dans l\'Historique');
+  toast('✅ Signalement marqué traité');
 }
 
 function markChaufVu(id) {
@@ -9964,7 +10002,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260723.1142';
+const APP_VERSION = '260723.1754';
 
 let _swRegistration = null;
 
