@@ -170,6 +170,19 @@
         if (document.getElementById('page-chauf')?.classList.contains('active')) {
           window.renderMessagesChauf?.();
         }
+        // Alerte visuelle si nouveau message et admin pas sur la page signalement
+        if (typeof userIsAdmin === 'function' && userIsAdmin()) {
+          const ancienIds = new Set(ancien.map(m => m.id));
+          const nouveaux  = (d || []).filter(m => !ancienIds.has(m.id) && m.statut === 'nonlu');
+          if (nouveaux.length && !document.getElementById('page-chauf')?.classList.contains('active')) {
+            const tabChauf = document.getElementById('tab-chauf');
+            if (tabChauf) {
+              tabChauf.style.background = 'rgba(192,57,43,0.15)';
+              setTimeout(() => { if (tabChauf) tabChauf.style.background = ''; }, 5000);
+            }
+            toast('🚨 Nouveau signalement de ' + (nouveaux[0].auteur || 'chauffeur'));
+          }
+        }
 
         // Notification push immédiate si nouveau message non lu
         // (uniquement pour les admins, uniquement si l'app est en arrière-plan)
@@ -1156,7 +1169,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1142</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1200</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2089,11 +2102,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.1142</strong><br>
+      Version actuelle de l'app : <strong>v260724.1200</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.1142 disponible)
+      📢 Notifier les utilisateurs (v260724.1200 disponible)
     </button>
   </div>
 
@@ -3744,17 +3757,28 @@ function renderMessagesChauf() {
       return telHtml + btnVu + ' ' + btnTraite + ' ' + btnDel;
     })() : '';
 
-    // Afficher "Vu le" côté chauffeur dans le fil
-    const vuLeHtml = !userIsAdmin() && isVu && m.vuLe
-      ? `<div style="font-size:11px;color:var(--bleu);margin-top:4px;font-weight:600">
-           👁 Vu par l'admin le ${new Date(m.vuLe).toLocaleString('fr-BE',
-             { day:'2-digit', month:'2-digit', year:'numeric',
-               hour:'2-digit', minute:'2-digit' })}
-         </div>`
+    // Afficher le statut côté chauffeur
+    const vuLeHtml = !userIsAdmin()
+      ? isTraite
+        ? `<div style="font-size:11px;color:var(--vert);margin-top:6px;font-weight:600;
+                       background:#eafbea;padding:4px 8px;border-radius:6px;display:inline-block">
+             ✅ Traité le ${m.traiteLe ? new Date(m.traiteLe).toLocaleString('fr-BE',
+               {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}
+           </div>`
+        : isVu && m.vuLe
+          ? `<div style="font-size:11px;color:var(--bleu);margin-top:6px;font-weight:600;
+                         background:var(--bleu-clair);padding:4px 8px;border-radius:6px;display:inline-block">
+               👁 Lu par le responsable le ${new Date(m.vuLe).toLocaleString('fr-BE',
+                 {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+             </div>`
+          : `<div style="font-size:11px;color:var(--texte-sec);margin-top:6px;
+                         background:var(--gris-clair);padding:4px 8px;border-radius:6px;display:inline-block">
+               ⏳ En attente de traitement
+             </div>`
       : '';
 
-    // Bouton supprimer chauffeur
-    const chaufDeleteBtn = !userIsAdmin()
+    // Bouton supprimer chauffeur — uniquement sur les messages traités
+    const chaufDeleteBtn = !userIsAdmin() && isTraite
       ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
            onclick="deleteChaufMsg(${m.id})">🗑 Supprimer</button>`
       : '';
@@ -4266,10 +4290,40 @@ async function sendMessageChauf() {
   const v        = vehicules.find(x => x.id === _chaufVehId);
   const vNom     = v ? v.immat + ' — ' + v.marque : _chaufVehId;
   const nom      = currentUser?.nom || 'Chauffeur';
-  const photos   = _chaufPhotos.filter(Boolean);
-  const nbPhotos = photos.length;
   const note     = document.getElementById('chauf-msg')?.value?.trim() || '';
   const catLabel = CAT_LABELS[_chaufCat] || _chaufCat;
+  const isUrgentMsg = _chaufUrgence === 'urgent';
+
+  // Confirmation avant envoi
+  const confirmed = await new Promise(resolve => {
+    const exConf = document.getElementById('modal-pre-envoi');
+    if (exConf) exConf.remove();
+    const d = document.createElement('div');
+    d.id = 'modal-pre-envoi';
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+      + 'display:flex;align-items:center;justify-content:center;padding:16px';
+    d.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;'
+      + 'box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:14px;color:' + (isUrgentMsg?'var(--rouge)':'var(--bleu)') + '">'
+      + (isUrgentMsg ? '🚨 Signalement urgent' : '📋 Confirmer le signalement') + '</div>'
+      + '<div style="font-size:13px;margin-bottom:8px"><b>Véhicule :</b> ' + vNom + '</div>'
+      + '<div style="font-size:13px;margin-bottom:8px"><b>Problème :</b> ' + catLabel + '</div>'
+      + (note ? '<div style="font-size:13px;margin-bottom:8px"><b>Note :</b> ' + note + '</div>' : '')
+      + (_chaufPhotos.filter(Boolean).length ? '<div style="font-size:13px;margin-bottom:8px">📷 ' + _chaufPhotos.filter(Boolean).length + ' photo(s) jointe(s)</div>' : '')
+      + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:16px">Le responsable sera notifié immédiatement.</div>'
+      + '<div style="display:flex;gap:8px">'
+      + '<button class="btn primary" id="btn-conf-envoyer" style="flex:1;' + (isUrgentMsg?'background:var(--rouge);border-color:var(--rouge)':'') + '">📤 Envoyer</button>'
+      + '<button class="btn" id="btn-conf-annuler" style="flex:1">✕ Corriger</button>'
+      + '</div></div>';
+    document.body.appendChild(d);
+    document.getElementById('btn-conf-envoyer').onclick = () => { d.remove(); resolve(true); };
+    document.getElementById('btn-conf-annuler').onclick = () => { d.remove(); resolve(false); };
+  });
+
+  if (!confirmed) return;
+
+  const photos   = _chaufPhotos.filter(Boolean);
+  const nbPhotos = photos.length;
   // Le message = catégorie + note éventuelle
   const msgText  = catLabel + (note ? ' — ' + note : '');
 
@@ -10599,7 +10653,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.1142';
+const APP_VERSION = '260724.1200';
 
 let _swRegistration = null;
 
