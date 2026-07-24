@@ -20,7 +20,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
@@ -1157,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1008</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1015</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2088,11 +2087,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.1008</strong><br>
+      Version actuelle de l'app : <strong>v260724.1015</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.1008 disponible)
+      📢 Notifier les utilisateurs (v260724.1015 disponible)
     </button>
   </div>
 
@@ -5230,59 +5229,45 @@ async function publierVersion() {
 }
 // ── Rapport PDF mensuel de maintenance ───────────────────────
 // ── Rapport PDF maintenance (admin) ──────────────────────────
+// ── Rapport PDF maintenance (impression HTML) ────────────────
 function ouvrirModalRapportPDF() {
-  if (!window.jspdf) { toast('\u23f3 PDF en chargement\u2026'); return; }
   const ex = document.getElementById('modal-rapport-pdf');
   if (ex) ex.remove();
-
-  const annees    = [...new Set(maintenances.map(m => m.date?.slice(0,4)))].sort().reverse();
+  const annees     = [...new Set(maintenances.map(m => m.date?.slice(0,4)))].sort().reverse();
   const moisDispos = [...new Set(maintenances.map(m => m.date?.slice(0,7)))].sort().reverse();
-  if (!moisDispos.length) { toast('Aucune maintenance enregistr\u00e9e'); return; }
+  if (!moisDispos.length) { toast('Aucune maintenance enregistree'); return; }
 
   const div = document.createElement('div');
   div.id = 'modal-rapport-pdf';
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
-    + 'display:flex;align-items:center;justify-content:center;padding:16px';
-  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;'
-    + 'max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
-    + '<div style="font-size:16px;font-weight:700;margin-bottom:16px">📄 Rapport PDF de maintenance</div>'
-    + '<div class="form-group" style="margin-bottom:12px"><label>V\u00e9hicule</label>'
-    + '<select id="pdf-veh-select" style="width:100%">'
-    + '<option value="">Tous les v\u00e9hicules (par date)</option>'
-    + ORDRE_VEHICULES.map(id => {
-        const v = vehicules.find(x => x.id === id);
-        return (v && !v.archive) ? '<option value="' + id + '">' + v.marque + ' \u2014 ' + id + '</option>' : '';
-      }).join('')
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:16px">Rapport PDF de maintenance</div>'
+    + '<div class="form-group" style="margin-bottom:12px"><label>Vehicule</label><select id="pdf-veh-select" style="width:100%">'
+    + '<option value="">Tous les vehicules (par date)</option>'
+    + ORDRE_VEHICULES.map(id => { const v = vehicules.find(x => x.id === id); return (v && !v.archive) ? '<option value="' + id + '">' + v.marque + ' \u2014 ' + id + '</option>' : ''; }).join('')
     + '</select></div>'
-    + '<div class="form-group" style="margin-bottom:12px"><label>P\u00e9riode</label>'
-    + '<select id="pdf-periode-select" onchange="onPdfPeriodeChange()" style="width:100%">'
-    + '<option value="mois">Un mois pr\u00e9cis</option>'
+    + '<div class="form-group" style="margin-bottom:12px"><label>Periode</label><select id="pdf-periode-select" onchange="onPdfPeriodeChange()" style="width:100%">'
+    + '<option value="mois">Un mois precis</option>'
     + '<option value="debut">Depuis le 01/01/' + new Date().getFullYear() + '</option>'
-    + '<option value="annee">Toute une ann\u00e9e</option>'
+    + '<option value="annee">Toute une annee</option>'
     + '</select></div>'
-    + '<div id="pdf-mois-group" class="form-group" style="margin-bottom:16px"><label>Mois</label>'
-    + '<select id="pdf-mois-select" style="width:100%">'
-    + moisDispos.map(m => {
-        const [y,mo] = m.split('-');
-        const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'});
-        return '<option value="' + m + '">' + lbl.charAt(0).toUpperCase()+lbl.slice(1) + '</option>';
-      }).join('')
+    + '<div id="pdf-mois-group" class="form-group" style="margin-bottom:16px"><label>Mois</label><select id="pdf-mois-select" style="width:100%">'
+    + moisDispos.map(m => { const [y,mo] = m.split('-'); const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return '<option value="' + m + '">' + lbl.charAt(0).toUpperCase()+lbl.slice(1) + '</option>'; }).join('')
     + '</select></div>'
-    + '<div id="pdf-annee-group" class="form-group" style="margin-bottom:16px;display:none"><label>Ann\u00e9e</label>'
-    + '<select id="pdf-annee-select" style="width:100%">'
+    + '<div id="pdf-annee-group" class="form-group" style="margin-bottom:16px;display:none"><label>Annee</label><select id="pdf-annee-select" style="width:100%">'
     + annees.map(a => '<option value="' + a + '">' + a + '</option>').join('')
     + '</select></div>'
-    + '<div style="display:flex;gap:8px">'
-    + '<button class="btn primary" onclick="_genererPDFAdmin()">📥 G\u00e9n\u00e9rer</button>'
-    + '<button class="btn" onclick="document.getElementById(\'modal-rapport-pdf\').remove()">Annuler</button>'
-    + '</div></div>';
+    + '<div style="display:flex;gap:8px"><button class="btn primary" onclick="_genererPDFAdmin()">Generer PDF</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-rapport-pdf\').remove()">Annuler</button></div></div>';
   document.body.appendChild(div);
 }
 
 function onPdfPeriodeChange() {
   const v = document.getElementById('pdf-periode-select')?.value;
-  document.getElementById('pdf-mois-group').style.display  = v === 'mois'  ? '' : 'none';
-  document.getElementById('pdf-annee-group').style.display = v === 'annee' ? '' : 'none';
+  const mg = document.getElementById('pdf-mois-group');
+  const ag = document.getElementById('pdf-annee-group');
+  if (mg) mg.style.display = v === 'mois'  ? '' : 'none';
+  if (ag) ag.style.display = v === 'annee' ? '' : 'none';
 }
 
 function _genererPDFAdmin() {
@@ -5295,18 +5280,17 @@ function _genererPDFAdmin() {
   let maints = [...maintenances];
   if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
   const debutAnnee = new Date().getFullYear() + '-01-01';
-  const today      = new Date().toISOString().slice(0,10);
-  if      (periode === 'mois'  && moisSel)  maints = maints.filter(m => m.date?.startsWith(moisSel));
-  else if (periode === 'annee')              maints = maints.filter(m => m.date?.startsWith(anneeSel));
-  else if (periode === 'debut')              maints = maints.filter(m => m.date >= debutAnnee && m.date <= today);
+  const today = new Date().toISOString().slice(0,10);
+  if      (periode === 'mois'  && moisSel) maints = maints.filter(m => m.date?.startsWith(moisSel));
+  else if (periode === 'annee')            maints = maints.filter(m => m.date?.startsWith(anneeSel));
+  else if (periode === 'debut')            maints = maints.filter(m => m.date >= debutAnnee && m.date <= today);
 
-  if (!maints.length) { toast('Aucune maintenance pour cette s\u00e9lection'); return; }
+  if (!maints.length) { toast('Aucune maintenance pour cette selection'); return; }
 
   maints.sort((a,b) => {
     if (filterVeh) return (a.date||'').localeCompare(b.date||'');
-    const dateComp = (b.date||'').localeCompare(a.date||'');
-    if (dateComp !== 0) return dateComp;
-    return ORDRE_VEHICULES.indexOf(a.vehId) - ORDRE_VEHICULES.indexOf(b.vehId);
+    const dc = (b.date||'').localeCompare(a.date||'');
+    return dc !== 0 ? dc : ORDRE_VEHICULES.indexOf(a.vehId) - ORDRE_VEHICULES.indexOf(b.vehId);
   });
 
   let labelPeriode = '';
@@ -5315,57 +5299,34 @@ function _genererPDFAdmin() {
     labelPeriode = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'});
     labelPeriode = labelPeriode.charAt(0).toUpperCase()+labelPeriode.slice(1);
   } else if (periode === 'annee') {
-    labelPeriode = 'Ann\u00e9e ' + anneeSel;
+    labelPeriode = 'Annee ' + anneeSel;
   } else {
     labelPeriode = 'Depuis le 01/01/' + new Date().getFullYear();
   }
-  const vLabel = filterVeh
-    ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh
-    : 'Tous les v\u00e9hicules';
-
-  _construirePDF(maints, vLabel, labelPeriode, filterVeh);
+  const vLabel = filterVeh ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh : 'Tous les vehicules';
+  _construirePDF(maints, vLabel, labelPeriode);
 }
 
 function genererRapportPDF() { ouvrirModalRapportPDF(); }
 
 function genererRapportPDFChauf() {
-  if (!window.jspdf) { toast('⏳ PDF en chargement…'); return; }
-  const filterVeh = document.getElementById('chauf-maint-veh')?.value || '';
-
-  // Réutiliser la même logique que genererRapportPDF mais adaptée
-  const moisDispos = [...new Set(maintenances
-    .filter(m => !filterVeh || m.vehId === filterVeh)
-    .map(m => m.date?.slice(0,7)))].sort().reverse();
-
+  const moisDispos = [...new Set(maintenances.map(m => m.date?.slice(0,7)))].sort().reverse();
   if (!moisDispos.length) { toast('Aucune maintenance disponible'); return; }
-
+  const filterVeh = document.getElementById('chauf-maint-veh')?.value || '';
   const ex = document.getElementById('modal-rapport-pdf-chauf');
   if (ex) ex.remove();
+  const vLabel = filterVeh ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh : 'Tous les vehicules';
   const div = document.createElement('div');
   div.id = 'modal-rapport-pdf-chauf';
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
-    + 'display:flex;align-items:center;justify-content:center;padding:16px';
-
-  const vLabel = filterVeh
-    ? (vehicules.find(x=>x.id===filterVeh)?.marque || '') + ' ' + filterVeh
-    : 'Tous les véhicules';
-
-  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;'
-    + 'max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
-    + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">📄 Rapport PDF</div>'
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Rapport PDF</div>'
     + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:14px">' + vLabel + '</div>'
-    + '<div class="form-group" style="margin-bottom:16px"><label>Mois</label>'
-    + '<select id="rapport-mois-chauf" style="width:100%">'
-    + moisDispos.map(m => {
-        const [y,mo] = m.split('-');
-        const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'});
-        return `<option value="${m}">${lbl.charAt(0).toUpperCase()+lbl.slice(1)}</option>`;
-      }).join('')
+    + '<div class="form-group" style="margin-bottom:16px"><label>Mois</label><select id="rapport-mois-chauf" style="width:100%">'
+    + moisDispos.map(m => { const [y,mo] = m.split('-'); const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return '<option value="' + m + '">' + lbl.charAt(0).toUpperCase()+lbl.slice(1) + '</option>'; }).join('')
     + '</select></div>'
-    + '<div style="display:flex;gap:8px">'
-    + `<button class="btn primary" onclick="_genererPDFChauf('${filterVeh}')">📥 Générer</button>`
-    + '<button class="btn" onclick="document.getElementById(\'modal-rapport-pdf-chauf\').remove()">Annuler</button>'
-    + '</div></div>';
+    + '<div style="display:flex;gap:8px"><button class="btn primary" onclick="_genererPDFChauf(\'' + filterVeh + '\')">Generer PDF</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-rapport-pdf-chauf\').remove()">Annuler</button></div></div>';
   document.body.appendChild(div);
 }
 
@@ -5373,138 +5334,78 @@ function _genererPDFChauf(filterVeh) {
   const mois = document.getElementById('rapport-mois-chauf')?.value;
   if (!mois) return;
   document.getElementById('modal-rapport-pdf-chauf')?.remove();
-
-  if (!window.jspdf) { toast('PDF en chargement...'); return; }
-
   let maints = maintenances.filter(m => m.date?.startsWith(mois));
   if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
   if (!maints.length) { toast('Aucune maintenance pour ce mois'); return; }
-
   maints.sort((a,b) => {
     const ia = ORDRE_VEHICULES.indexOf(a.vehId);
     const ib = ORDRE_VEHICULES.indexOf(b.vehId);
     return ia !== ib ? ia - ib : (a.date||'').localeCompare(b.date||'');
   });
-
   const [annee, mo] = mois.split('-');
   let labelMois = new Date(annee, mo-1, 1).toLocaleDateString('fr-BE', {month:'long', year:'numeric'});
   labelMois = labelMois.charAt(0).toUpperCase() + labelMois.slice(1);
-
-  const vLabel = filterVeh
-    ? (vehicules.find(x => x.id === filterVeh)?.marque || '') + ' ' + filterVeh
-    : 'Tous les vehicules';
-
-  _construirePDF(maints, vLabel, labelMois, filterVeh);
+  const vLabel = filterVeh ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh : 'Tous les vehicules';
+  _construirePDF(maints, vLabel, labelMois);
 }
 
-// ── Construction PDF commune (admin + chauffeur) ─────────────
-function _construirePDF(maints, vLabel, labelPeriode, filterVeh) {
-  if (!window.jspdf) { toast('⏳ PDF en chargement…'); return; }
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+function _construirePDF(maints, vLabel, labelPeriode) {
+  const LABELS = { lg:'Lave-glace', hm:'Huile moteur', hf:'Huile frein', lr:'Liquide refroid.', ecl:'Eclairage', pneus:'Pneus', ext:'Extincteur' };
 
-  const ROUGE = [192,57,43]; const BLEU = [26,111,168];
-  const GRIS  = [100,100,100]; const GRIS_CLAIR = [245,245,245];
-  const W = 210; const MARG = 15;
-  const LABELS = { lg:'Lave-glace', hm:'Huile moteur', hf:'Huile frein',
-    lr:'Liquide refroid.', ecl:'\u00c9clairage', pneus:'Pneus', ext:'Extincteur' };
-  const COLS = Object.keys(LABELS);
-
-  // En-t\u00eate
-  doc.setFillColor(...ROUGE);
-  doc.rect(0, 0, W, 22, 'F');
-  doc.setTextColor(255,255,255);
-  doc.setFontSize(13); doc.setFont('helvetica','bold');
-  doc.text("Maison Croix-Rouge d'Opont", MARG, 10);
-  doc.setFontSize(10); doc.setFont('helvetica','normal');
-  doc.text('Maintenance \u2014 ' + labelPeriode + ' \u2014 ' + vLabel, MARG, 17);
-  doc.setTextColor(0,0,0);
-
-  let y = 28;
-  doc.setFillColor(...GRIS_CLAIR);
-  doc.rect(MARG, y, W-2*MARG, 8, 'F');
-  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...BLEU);
-  doc.text(maints.length + ' contr\u00f4le' + (maints.length>1?'s':'') + ' enregistr\u00e9' + (maints.length>1?'s':''), MARG+2, y+5.5);
-  doc.setTextColor(0,0,0); y += 12;
-
-  maints.forEach(m => {
-    if (y > 260) { doc.addPage(); y = 15; }
-    const v = vehicules.find(x => x.id === m.vehId);
+  const lignes = maints.map(m => {
+    const v    = vehicules.find(x => x.id === m.vehId);
     const vNom = v ? v.marque + ' \u2014 ' + m.vehId : m.vehId;
-    const km   = m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '\u2014';
     const date = m.date ? new Date(m.date+'T12:00').toLocaleDateString('fr-BE') : '\u2014';
+    const km   = m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '\u2014';
 
-    doc.setFillColor(...BLEU);
-    doc.rect(MARG, y, W-2*MARG, 7, 'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
-    doc.text(vNom, MARG+2, y+5);
-    doc.text(date + '   ' + km, W-MARG-2, y+5, {align:'right'});
-    doc.setTextColor(0,0,0); y += 9;
+    const cellules = Object.entries(LABELS).map(([k, label]) => {
+      const val = m[k] || '\u2014';
+      const isOk = val === 'OK' || val === 'ok';
+      const isNeutral = val === '\u2014';
+      const color = isNeutral ? '#666' : isOk ? '#27ae60' : '#c0392b';
+      const weight = (!isOk && !isNeutral) ? 'bold' : 'normal';
+      return '<td style="padding:5px 8px;border:1px solid #ddd;font-size:11px;color:' + color + ';font-weight:' + weight + ';text-align:center">' + label + '<br><span style="font-size:12px">' + val + '</span></td>';
+    }).join('');
 
-    const colW = (W-2*MARG)/COLS.length;
-    doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...GRIS);
-    COLS.forEach((c,i) => doc.text(LABELS[c], MARG+i*colW+colW/2, y, {align:'center'}));
-    y += 5;
+    const rem = m.rem ? '<tr><td colspan="7" style="padding:4px 8px;border:1px solid #ddd;font-size:11px;color:#c0392b;background:#fff8f8">Remarque : ' + m.rem + '</td></tr>' : '';
 
-    COLS.forEach((c,i) => {
-      const val = m[c] || '\u2014';
-      const isOk = val==='OK'||val==='ok';
-      const isNeutral = val==='\u2014';
-      doc.setTextColor(isNeutral ? GRIS : isOk ? [60,160,60] : ROUGE);
-      doc.setFont('helvetica', isOk||isNeutral ? 'normal' : 'bold');
-      doc.setFontSize(8);
-      doc.text(val.toString().substring(0,14), MARG+i*colW+colW/2, y, {align:'center'});
-    });
-    doc.setTextColor(0,0,0); doc.setFont('helvetica','normal'); y += 6;
+    return '<tr style="background:#e8f4fc"><td colspan="7" style="padding:6px 8px;font-weight:700;font-size:12px;border:1px solid #ddd">'
+      + vNom + '<span style="float:right;font-weight:400;color:#555">' + date + ' \u2014 ' + km + '</span></td></tr>'
+      + '<tr>' + cellules + '</tr>' + rem;
+  }).join('');
 
-    if (m.rem?.trim()) {
-      doc.setFontSize(8); doc.setTextColor(...ROUGE);
-      const ls = doc.splitTextToSize('Rem.: ' + m.rem, W-2*MARG-4);
-      doc.text(ls, MARG+2, y);
-      y += ls.length*4+2; doc.setTextColor(0,0,0);
-    }
-    doc.setDrawColor(220,220,220);
-    doc.line(MARG, y, W-MARG, y); y += 4;
-  });
-
-  // Alertes (admin uniquement)
-  if (userIsAdmin && userIsAdmin()) {
-    if (y > 240) { doc.addPage(); y = 15; }
-    y += 4;
-    doc.setFillColor(...GRIS_CLAIR);
-    doc.rect(MARG, y, W-2*MARG, 7, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...BLEU);
-    doc.text('Alertes actives', MARG+2, y+5.5);
-    doc.setTextColor(0,0,0); y += 10;
-    const alertes = buildAlertes().filter(a => a.level==='urgent'||a.level==='warn');
-    if (!alertes.length) {
-      doc.setFontSize(9); doc.setTextColor(60,160,60);
-      doc.text('\u2713 Aucune alerte active', MARG+2, y); y += 6;
+  // Alertes (admin)
+  let alertesHtml = '';
+  if (typeof buildAlertes === 'function' && typeof userIsAdmin === 'function' && userIsAdmin()) {
+    const alertes = buildAlertes().filter(a => a.level === 'urgent' || a.level === 'warn');
+    if (alertes.length) {
+      alertesHtml = '<h3 style="color:#1a6fa8;margin:20px 0 8px">Alertes actives</h3><ul style="margin:0;padding-left:18px">'
+        + alertes.map(a => '<li style="font-size:12px;margin-bottom:4px;color:' + (a.level==='urgent'?'#c0392b':'#e67e22') + '">' + a.titre + '</li>').join('')
+        + '</ul>';
     } else {
-      alertes.forEach(a => {
-        if (y > 272) { doc.addPage(); y = 15; }
-        doc.setFontSize(8);
-        doc.setTextColor(a.level==='urgent'?192:200, a.level==='urgent'?57:130, a.level==='urgent'?43:0);
-        const ls = doc.splitTextToSize((a.level==='urgent'?'! ':'. ') + a.titre, W-2*MARG-4);
-        doc.text(ls, MARG+2, y); y += ls.length*4+1;
-      });
-      doc.setTextColor(0,0,0);
+      alertesHtml = '<p style="color:#27ae60;font-size:12px;margin-top:16px">Aucune alerte active.</p>';
     }
   }
 
-  // Pied de page
-  const pages = doc.internal.getNumberOfPages();
-  for (let i=1; i<=pages; i++) {
-    doc.setPage(i);
-    doc.setFontSize(7); doc.setTextColor(...GRIS);
-    doc.text('MCR Opont Flotte \u2014 G\u00e9n\u00e9r\u00e9 le ' + new Date().toLocaleDateString('fr-BE')
-      + ' | Page ' + i + '/' + pages, W/2, 292, {align:'center'});
-  }
+  const html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
+    + '<title>Maintenance MCR \u2014 ' + labelPeriode + '</title>'
+    + '<style>@page{margin:15mm} body{font-family:Arial,sans-serif;font-size:13px;color:#222} '
+    + 'table{border-collapse:collapse;width:100%} h1{color:#c0392b;margin:0 0 4px} '
+    + '.entete{background:#c0392b;color:#fff;padding:10px 16px;margin:-0px} '
+    + '@media print{button{display:none}}</style></head><body>'
+    + '<div class="entete"><h1>Maison Croix-Rouge d\'Opont</h1>'
+    + '<div style="font-size:12px">Maintenance \u2014 ' + labelPeriode + ' \u2014 ' + vLabel + '</div></div>'
+    + '<p style="font-size:12px;color:#555;margin:8px 0">' + maints.length + ' contr\u00f4le(s) enregistr\u00e9(s) \u2014 G\u00e9n\u00e9r\u00e9 le ' + new Date().toLocaleDateString('fr-BE') + '</p>'
+    + '<table>' + lignes + '</table>'
+    + alertesHtml
+    + '<p style="text-align:center;font-size:10px;color:#999;margin-top:20px">MCR Opont Flotte</p>'
+    + '</body></html>';
 
-  const suffix = filterVeh ? '_' + filterVeh : '';
-  const moisPart = labelPeriode.replace(/ /g,'_').replace(/\//g,'-').substring(0,20);
-  doc.save('Maintenance_MCR_' + moisPart + suffix + '.pdf');
-  toast('📄 PDF g\u00e9n\u00e9r\u00e9');
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) { toast('Autorisez les popups pour generer le PDF'); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => { try { w.print(); } catch(e) {} }, 800);
 }
 
 
@@ -10422,7 +10323,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.1008';
+const APP_VERSION = '260724.1015';
 
 let _swRegistration = null;
 
