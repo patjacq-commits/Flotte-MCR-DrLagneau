@@ -20,6 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
@@ -1156,7 +1157,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.0923</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.0935</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1453,7 +1454,10 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE MAINTENANCE (admin) -->
 <div id="page-maintenance" class="page">
-  <h2 style="margin-bottom:14px">🔧 Maintenance mensuelle</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0">🔧 Maintenance mensuelle</h2>
+    <button class="btn" onclick="genererRapportPDF()" style="font-size:13px">📄 Rapport PDF</button>
+  </div>
   <!-- Formulaire de saisie — superadmin uniquement -->
   <div id="maint-form-saisie">
   <div class="form-card">
@@ -2068,11 +2072,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.0923</strong><br>
+      Version actuelle de l'app : <strong>v260724.0935</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.0923 disponible)
+      📢 Notifier les utilisateurs (v260724.0935 disponible)
     </button>
   </div>
 
@@ -5204,7 +5208,212 @@ async function publierVersion() {
     toast('❌ Erreur : ' + e.message);
   }
 }
-// ============================================================
+// ── Rapport PDF mensuel de maintenance ───────────────────────
+function genererRapportPDF() {
+  if (!window.jspdf) { toast('⏳ PDF en chargement…'); return; }
+  const { jsPDF } = window.jspdf;
+
+  // Sélectionner le mois le plus récent avec des maintenances
+  const moisDispos = [...new Set(maintenances.map(m => m.date?.slice(0,7)))].sort().reverse();
+  if (!moisDispos.length) { toast('Aucune maintenance enregistrée'); return; }
+
+  // Modal de sélection du mois
+  const ex = document.getElementById('modal-rapport-pdf');
+  if (ex) ex.remove();
+  const div = document.createElement('div');
+  div.id = 'modal-rapport-pdf';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;'
+    + 'max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:16px">📄 Rapport PDF de maintenance</div>'
+    + '<div class="form-group" style="margin-bottom:16px">'
+    + '<label>Sélectionnez le mois</label>'
+    + '<select id="rapport-mois-select" style="width:100%">'
+    + moisDispos.map(m => {
+        const [y, mo] = m.split('-');
+        const label = new Date(y, mo-1, 1).toLocaleDateString('fr-BE', { month:'long', year:'numeric' });
+        return `<option value="${m}">${label.charAt(0).toUpperCase()+label.slice(1)}</option>`;
+      }).join('')
+    + '</select></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button class="btn primary" onclick="_genererPDF()">📥 Générer</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-rapport-pdf\').remove()">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+function _genererPDF() {
+  const mois = document.getElementById('rapport-mois-select')?.value;
+  if (!mois) return;
+  document.getElementById('modal-rapport-pdf')?.remove();
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+
+  const [annee, mo] = mois.split('-');
+  const labelMois = new Date(annee, mo-1, 1).toLocaleDateString('fr-BE', { month:'long', year:'numeric' });
+  const titre = 'Rapport de maintenance — ' + labelMois.charAt(0).toUpperCase() + labelMois.slice(1);
+
+  const ROUGE = [192, 57, 43];
+  const BLEU  = [26, 111, 168];
+  const GRIS  = [100, 100, 100];
+  const GRIS_CLAIR = [245, 245, 245];
+  const W = 210; const MARG = 15;
+
+  // ── En-tête ──────────────────────────────────────────────
+  doc.setFillColor(...ROUGE);
+  doc.rect(0, 0, W, 22, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(14); doc.setFont('helvetica','bold');
+  doc.text('Maison Croix-Rouge d\'Opont', MARG, 10);
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.text(titre, MARG, 17);
+  doc.setTextColor(0,0,0);
+
+  // ── Filtre maintenances du mois ───────────────────────────
+  const maintMois = maintenances
+    .filter(m => m.date?.startsWith(mois))
+    .sort((a,b) => {
+      const va = ORDRE_VEHICULES.indexOf(a.vehId);
+      const vb = ORDRE_VEHICULES.indexOf(b.vehId);
+      return va - vb;
+    });
+
+  if (!maintMois.length) {
+    doc.setFontSize(12); doc.setTextColor(...GRIS);
+    doc.text('Aucune maintenance enregistrée pour ce mois.', MARG, 35);
+    doc.save('Maintenance_' + mois + '.pdf');
+    toast('📄 PDF généré');
+    return;
+  }
+
+  // Labels
+  const LABELS = {
+    lg:    'Lave-glace',    hm:   'Huile moteur',
+    hf:    'Huile frein',   lr:   'Liquide refroidissement',
+    ecl:   'Éclairage',     pneus:'Pneus',
+    ext:   'Extincteur',    rem:  'Remarques'
+  };
+  const COLS = ['lg','hm','hf','lr','ecl','pneus','ext'];
+
+  let y = 28;
+
+  // ── Résumé ────────────────────────────────────────────────
+  doc.setFillColor(...GRIS_CLAIR);
+  doc.rect(MARG, y, W-2*MARG, 8, 'F');
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...BLEU);
+  doc.text(`${maintMois.length} véhicule${maintMois.length>1?'s':''} contrôlé${maintMois.length>1?'s':''}`, MARG+2, y+5.5);
+  doc.setTextColor(0,0,0);
+  y += 12;
+
+  // ── Tableau par véhicule ──────────────────────────────────
+  maintMois.forEach((m, idx) => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    const vNom = v ? v.marque + ' — ' + m.vehId : m.vehId;
+    const kmStr = m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '—';
+    const dateStr = m.date ? new Date(m.date+'T12:00').toLocaleDateString('fr-BE') : '—';
+
+    // Vérifier espace page
+    if (y > 260) { doc.addPage(); y = 15; }
+
+    // En-tête véhicule
+    doc.setFillColor(...BLEU);
+    doc.rect(MARG, y, W-2*MARG, 7, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(9); doc.setFont('helvetica','bold');
+    doc.text(vNom, MARG+2, y+5);
+    doc.text(dateStr + '   ' + kmStr, W-MARG-2, y+5, { align:'right' });
+    doc.setTextColor(0,0,0);
+    y += 9;
+
+    // Niveaux et contrôles
+    const colW = (W-2*MARG) / COLS.length;
+    let hasProbleme = false;
+
+    // Headers
+    doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...GRIS);
+    COLS.forEach((c, i) => {
+      doc.text(LABELS[c], MARG + i*colW + colW/2, y, { align:'center' });
+    });
+    y += 5;
+
+    // Valeurs
+    doc.setFont('helvetica','normal');
+    COLS.forEach((c, i) => {
+      const val = m[c] || '—';
+      const isProbleme = val && val !== 'OK' && val !== '—' && val !== 'ok';
+      if (isProbleme) hasProbleme = true;
+      if (isProbleme) {
+        doc.setTextColor(...ROUGE);
+        doc.setFont('helvetica','bold');
+      } else {
+        doc.setTextColor(60,160,60);
+        doc.setFont('helvetica','normal');
+      }
+      doc.setFontSize(8);
+      doc.text(val.toString().substring(0,12), MARG + i*colW + colW/2, y, { align:'center' });
+    });
+    doc.setTextColor(0,0,0); doc.setFont('helvetica','normal');
+    y += 6;
+
+    // Remarques
+    if (m.rem && m.rem.trim()) {
+      doc.setFontSize(8); doc.setTextColor(...ROUGE);
+      const lines = doc.splitTextToSize('📝 ' + m.rem, W-2*MARG-4);
+      doc.text(lines, MARG+2, y);
+      y += lines.length * 4 + 2;
+      doc.setTextColor(0,0,0);
+    }
+
+    // Ligne de séparation
+    doc.setDrawColor(220,220,220);
+    doc.line(MARG, y, W-MARG, y);
+    y += 4;
+  });
+
+  // ── Alertes actives en bas ────────────────────────────────
+  if (y > 240) { doc.addPage(); y = 15; }
+  y += 4;
+  doc.setFillColor(...GRIS_CLAIR);
+  doc.rect(MARG, y, W-2*MARG, 7, 'F');
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(...BLEU);
+  doc.text('Alertes actives au moment du rapport', MARG+2, y+5.5);
+  doc.setTextColor(0,0,0);
+  y += 10;
+
+  const alertes = buildAlertes().filter(a => a.level === 'urgent' || a.level === 'warn');
+  if (!alertes.length) {
+    doc.setFontSize(9); doc.setTextColor(60,160,60);
+    doc.text('✓ Aucune alerte active', MARG+2, y);
+    y += 6;
+  } else {
+    alertes.forEach(a => {
+      if (y > 272) { doc.addPage(); y = 15; }
+      const icon = a.level === 'urgent' ? '🚨' : '⚠';
+      doc.setFontSize(8);
+      doc.setTextColor(a.level === 'urgent' ? 192 : 200, a.level === 'urgent' ? 57 : 130, a.level === 'urgent' ? 43 : 0);
+      const lines = doc.splitTextToSize(icon + ' ' + a.titre, W-2*MARG-4);
+      doc.text(lines, MARG+2, y);
+      y += lines.length * 4 + 1;
+    });
+    doc.setTextColor(0,0,0);
+  }
+
+  // ── Pied de page ─────────────────────────────────────────
+  const pages = doc.internal.getNumberOfPages();
+  for (let i=1; i<=pages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7); doc.setTextColor(...GRIS);
+    doc.text('MCR Opont Flotte — Généré le ' + new Date().toLocaleDateString('fr-BE')
+      + ' | Page ' + i + '/' + pages, W/2, 292, { align:'center' });
+  }
+
+  doc.save('Maintenance_MCR_' + mois + '.pdf');
+  toast('📄 PDF généré et téléchargé');
+}
+// ── Fin rapport PDF ───────────────────────────────────────────
+
 function toggleRVDashboard() {
   const panel = document.getElementById('rv-dashboard-panel');
   if (!panel) return;
@@ -10119,7 +10328,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.0923';
+const APP_VERSION = '260724.0935';
 
 let _swRegistration = null;
 
