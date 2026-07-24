@@ -1156,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1134</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1142</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2089,11 +2089,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.1134</strong><br>
+      Version actuelle de l'app : <strong>v260724.1142</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.1134 disponible)
+      📢 Notifier les utilisateurs (v260724.1142 disponible)
     </button>
   </div>
 
@@ -3872,11 +3872,27 @@ function marquerMessagesVus() {
 }
 
 function deleteChauf(id) {
-  if (!confirm('Supprimer ce message ?')) return;
+  const m = messagesChauf.find(x => x.id === id);
+  if (!m) return;
+  const v = vehicules.find(x => x.id === m.vehId);
+  const vNom = v ? v.marque + ' ' + m.vehId : m.vehId;
+  if (!confirm('⚠️ Supprimer définitivement ce signalement ?\n\n'
+    + 'Véhicule : ' + vNom + '\n'
+    + 'Message : ' + (m.msg || '').slice(0, 80) + '\n\n'
+    + 'Cette action est irréversible.')) return;
+
+  logAction('suppression', 'messagesChauf',
+    'Suppression signalement — ' + vNom + ' — ' + (m.msg||'').slice(0,60), m, null);
+
   messagesChauf = messagesChauf.filter(x => x.id !== id);
+  // Supprimer aussi dans Firestore
+  if (window.db) {
+    window.db.collection('messagesChauf').doc(String(id)).delete().catch(() => {});
+  }
   saveAll();
   renderMessagesChauf();
   updateTabChauf();
+  toast('Signalement supprimé');
 }
 
 async function sauvegarderTelephone() {
@@ -4095,6 +4111,9 @@ async function saveChauffeurAdBlue() {
 
   const rec = { id: Date.now(), vehId, date, litre, prixTotal: prixTotal || null, prixUnit: prixUnit || null, km, source: 'chauffeur' };
   adblues.unshift(rec);
+
+  logAction('creation', 'adblues',
+    'AdBlue chauffeur — ' + vehId + ' — ' + litre + ' L' + (prixTotal ? ' — ' + prixTotal + ' €' : ''), null, rec);
 
   // Sauvegarder directement dans Firestore (create autorisé pour chauffeur)
   try {
@@ -4329,6 +4348,10 @@ async function sendMessageChauf() {
 
   // Modal de confirmation d'envoi
   const exConf = document.getElementById('modal-confirm-envoi');
+  // Logger l'envoi
+  logAction('creation', 'messagesChauf',
+    'Signalement ' + (_chaufUrgence === 'urgent' ? 'URGENT' : '') + ' — ' + vNom + ' — ' + catLabel
+    + (note ? ' : ' + note.slice(0,60) : ''), null, msgRec);
   if (exConf) exConf.remove();
   const divConf = document.createElement('div');
   divConf.id = 'modal-confirm-envoi';
@@ -10576,7 +10599,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.1134';
+const APP_VERSION = '260724.1142';
 
 let _swRegistration = null;
 
