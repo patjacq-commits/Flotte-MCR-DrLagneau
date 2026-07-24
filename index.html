@@ -1156,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1116</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1125</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2089,11 +2089,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.1116</strong><br>
+      Version actuelle de l'app : <strong>v260724.1125</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.1116 disponible)
+      📢 Notifier les utilisateurs (v260724.1125 disponible)
     </button>
   </div>
 
@@ -4641,39 +4641,27 @@ function afficherEcranConnexion() {
     <div class="login-card" id="login-card-inscription" style="display:none">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
         <button onclick="afficherFormulaireConnexion()"
-          style="background:rgba(255,255,255,0.2);border:1.5px solid rgba(255,255,255,0.4);
-                 color:#fff;font-size:16px;cursor:pointer;padding:6px 12px;
+          style="background:#f5f5f5;border:1.5px solid #dce1e3;
+                 color:#333;font-size:16px;cursor:pointer;padding:6px 12px;
                  border-radius:8px;flex-shrink:0">← Retour</button>
         <div>
-          <div style="font-size:17px;font-weight:700;color:#fff">Créer un compte</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.7)">Accès activé par le responsable</div>
+          <div style="font-size:17px;font-weight:700;color:#c0392b">Créer un compte</div>
+          <div style="font-size:12px;color:#666">Accès activé par le responsable</div>
         </div>
       </div>
 
-      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.6);
-                  text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Vos informations</div>
+      <div style="font-size:12px;font-weight:700;color:#999;
+                  text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;text-align:left">Vos informations</div>
       <input type="text" id="insc-nom" placeholder="Nom et prénom *"
-        style="width:100%;border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;
-               padding:12px 14px;font-size:15px;margin-bottom:10px;
-               background:rgba(255,255,255,0.15);color:#fff;box-sizing:border-box"
         onkeydown="if(event.key==='Enter')document.getElementById('insc-email').focus()" />
       <input type="email" id="insc-email" placeholder="Adresse e-mail *"
         autocomplete="email" inputmode="email"
-        style="width:100%;border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;
-               padding:12px 14px;font-size:15px;margin-bottom:10px;
-               background:rgba(255,255,255,0.15);color:#fff;box-sizing:border-box"
         onkeydown="if(event.key==='Enter')document.getElementById('insc-pwd').focus()" />
       <input type="password" id="insc-pwd" placeholder="Mot de passe (min. 6 caractères) *"
         autocomplete="new-password"
-        style="width:100%;border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;
-               padding:12px 14px;font-size:15px;margin-bottom:10px;
-               background:rgba(255,255,255,0.15);color:#fff;box-sizing:border-box"
         onkeydown="if(event.key==='Enter')document.getElementById('insc-pwd2').focus()" />
       <input type="password" id="insc-pwd2" placeholder="Confirmer le mot de passe *"
         autocomplete="new-password"
-        style="width:100%;border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;
-               padding:12px 14px;font-size:15px;margin-bottom:14px;
-               background:rgba(255,255,255,0.15);color:#fff;box-sizing:border-box"
         onkeydown="if(event.key==='Enter')sInscrire()" />
 
       <button class="btn-login" onclick="sInscrire()">
@@ -4681,8 +4669,9 @@ function afficherEcranConnexion() {
       </button>
       <div class="login-error" id="insc-error"></div>
 
-      <div style="margin-top:14px;padding:10px 14px;background:rgba(255,255,255,0.12);
-                  border-radius:8px;font-size:12px;color:rgba(255,255,255,0.8);line-height:1.6">
+      <div style="margin-top:14px;padding:10px 14px;background:#fff8f0;
+                  border:1px solid #f0c080;border-radius:8px;
+                  font-size:12px;color:#666;line-height:1.6;text-align:left">
         ℹ️ Après création, votre compte sera validé par le responsable de flotte avant de pouvoir accéder à l'application.
       </div>
     </div>`;
@@ -10587,7 +10576,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.1116';
+const APP_VERSION = '260724.1125';
 
 let _swRegistration = null;
 
