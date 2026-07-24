@@ -1156,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1130</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1134</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2089,11 +2089,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.1130</strong><br>
+      Version actuelle de l'app : <strong>v260724.1134</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.1130 disponible)
+      📢 Notifier les utilisateurs (v260724.1134 disponible)
     </button>
   </div>
 
@@ -4602,8 +4602,8 @@ function afficherEcranConnexion() {
         <p class="sub" style="margin:0">Maison Croix-Rouge d'Opont</p>
       </div>
 
-      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.6);
-                  text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Connexion</div>
+      <div style="font-size:12px;font-weight:700;color:#999;
+                  text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;text-align:left">Connexion</div>
       <input type="email" id="auth-email" placeholder="Adresse e-mail"
         autocomplete="email" inputmode="email"
         onkeydown="if(event.key==='Enter')document.getElementById('auth-pwd').focus()" />
@@ -4616,20 +4616,20 @@ function afficherEcranConnexion() {
       <div class="login-error" id="auth-error"></div>
 
       <button onclick="motDePasseOublie()"
-        style="background:none;border:none;color:rgba(255,255,255,0.7);
+        style="background:none;border:none;color:#c0392b;
                font-size:13px;cursor:pointer;text-decoration:underline;
                text-underline-offset:3px;margin-top:10px;display:block;width:100%;text-align:center">
         🔑 Mot de passe oublié ?
       </button>
 
-      <div style="width:100%;border-top:1px solid rgba(255,255,255,0.25);margin:16px 0 14px"></div>
+      <div style="width:100%;border-top:1px solid #e0e0e0;margin:16px 0 14px"></div>
 
-      <div style="text-align:center;margin-bottom:10px;font-size:13px;color:rgba(255,255,255,0.75)">
+      <div style="text-align:center;margin-bottom:10px;font-size:13px;color:#666">
         Première connexion ?
       </div>
       <button onclick="afficherFormulaireInscription()"
-        style="background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.5);
-               color:#fff;font-size:15px;font-weight:700;cursor:pointer;
+        style="background:#f5f5f5;border:1.5px solid #dce1e3;
+               color:#333;font-size:15px;font-weight:700;cursor:pointer;
                padding:13px 20px;border-radius:10px;width:100%;display:flex;
                align-items:center;justify-content:center;gap:10px">
         <span style="font-size:22px">👤</span>
@@ -10576,7 +10576,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.1130';
+const APP_VERSION = '260724.1134';
 
 let _swRegistration = null;
 
