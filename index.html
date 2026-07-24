@@ -1156,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1026</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1041</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1265,10 +1265,12 @@ td.ok { color: var(--vert); font-weight: 600; }
 <div id="page-calendrier" class="page">
   <h2 style="margin-bottom:14px">📅 Calendrier des échéances</h2>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
-    <button class="btn" onclick="calendrierMoisPrecedent()">◀</button>
+    <button class="btn" onclick="calendrierPrecedent()">◀</button>
     <div id="cal-titre" style="font-size:16px;font-weight:700;flex:1;text-align:center"></div>
-    <button class="btn" onclick="calendrierMoisSuivant()">▶</button>
+    <button class="btn" onclick="calendrierSuivant()">▶</button>
     <button class="btn btn-sm" onclick="calendrierAujourdhui()">Aujourd'hui</button>
+    <button class="btn btn-sm" id="btn-vue-semaine" onclick="basculerVueCalendrier()"
+      style="background:var(--bleu-clair);color:var(--bleu);border-color:var(--bleu)">📆 Semaine</button>
   </div>
   <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
   <!-- Détail du jour sélectionné -->
@@ -1940,18 +1942,18 @@ td.ok { color: var(--vert); font-weight: 600; }
       <div class="form-group">
         <label>Type</label>
         <select id="chauf-ab-type" onchange="toggleChauffeurAdBlue()">
-          <option value="bidon">Bidon (10 L = 20 €)</option>
+          <option value="bidon">Bidon (volume et prix modifiables)</option>
           <option value="pompe">Pompe</option>
         </select>
       </div>
-      <div class="form-group" id="chauf-ab-litre-group" style="display:none">
+      <div class="form-group" id="chauf-ab-litre-group">
         <label>Volume (L)</label>
-        <input type="number" id="chauf-ab-litre" step="0.1" min="0.1" placeholder="ex: 8.5"
+        <input type="number" id="chauf-ab-litre" step="0.1" min="0.1" value="10"
           oninput="calcPrixLitre()" />
       </div>
-      <div class="form-group" id="chauf-ab-montant-group" style="display:none">
+      <div class="form-group" id="chauf-ab-montant-group">
         <label>Montant total (€)</label>
-        <input type="number" id="chauf-ab-prix" step="0.01" min="0" placeholder="ex: 12.40"
+        <input type="number" id="chauf-ab-prix" step="0.01" min="0" value="20"
           oninput="calcPrixLitre()" />
       </div>
       <div class="form-group" id="chauf-ab-prixl-group" style="display:none">
@@ -2087,11 +2089,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.1026</strong><br>
+      Version actuelle de l'app : <strong>v260724.1041</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.1026 disponible)
+      📢 Notifier les utilisateurs (v260724.1041 disponible)
     </button>
   </div>
 
@@ -2309,7 +2311,8 @@ td.ok { color: var(--vert); font-weight: 600; }
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn primary" onclick="printReport('ct')">🖨 Rapport CT (tous)</button>
       <button class="btn" onclick="printReport('entretien')">🖨 Rapport entretiens</button>
-      <button class="btn" onclick="exportAllCSV()">📊 Export complet CSV</button>
+      <button class="btn" onclick="exportAllCSV()">📊 Véhicules CSV</button>
+      <button class="btn" onclick="exportMaintenancesCSV()">📥 Maintenances CSV</button>
     </div>
   </div>
 
@@ -3406,6 +3409,33 @@ function renderPneuHistorique() {
 // ============================================================
 let _calDate = new Date();
 
+let _calVueSemaine = false;
+
+function basculerVueCalendrier() {
+  _calVueSemaine = !_calVueSemaine;
+  const btn = document.getElementById('btn-vue-semaine');
+  if (btn) btn.textContent = _calVueSemaine ? '📅 Mois' : '📆 Semaine';
+  renderCalendrier();
+}
+
+function calendrierPrecedent() {
+  if (_calVueSemaine) {
+    _calDate.setDate(_calDate.getDate() - 7);
+  } else {
+    _calDate.setMonth(_calDate.getMonth() - 1);
+  }
+  renderCalendrier();
+}
+
+function calendrierSuivant() {
+  if (_calVueSemaine) {
+    _calDate.setDate(_calDate.getDate() + 7);
+  } else {
+    _calDate.setMonth(_calDate.getMonth() + 1);
+  }
+  renderCalendrier();
+}
+
 function calendrierAujourdhui() { _calDate = new Date(); renderCalendrier(); }
 function calendrierMoisPrecedent() { _calDate.setMonth(_calDate.getMonth()-1); renderCalendrier(); }
 function calendrierMoisSuivant()   { _calDate.setMonth(_calDate.getMonth()+1); renderCalendrier(); }
@@ -3489,27 +3519,60 @@ function renderCalendrier() {
   const titre  = document.getElementById('cal-titre');
   if (!grid) return;
 
+  const today = new Date().toISOString().slice(0,10);
+  const JOURS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+  if (_calVueSemaine) {
+    // ── Vue semaine ─────────────────────────────────────────
+    // Trouver le lundi de la semaine courante
+    const lundi = new Date(_calDate);
+    lundi.setDate(lundi.getDate() - ((lundi.getDay() + 6) % 7));
+
+    const dimanche = new Date(lundi);
+    dimanche.setDate(dimanche.getDate() + 6);
+
+    const lblDebut = lundi.toLocaleDateString('fr-BE', {day:'2-digit', month:'short'});
+    const lblFin   = dimanche.toLocaleDateString('fr-BE', {day:'2-digit', month:'short', year:'numeric'});
+    titre.textContent = lblDebut + ' — ' + lblFin;
+
+    grid.innerHTML = JOURS.map(j => `<div class="cal-header-day">${j}</div>`).join('');
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(lundi);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toISOString().slice(0,10);
+      const isToday = dateStr === today;
+      const evts    = getEvenementsJour(dateStr);
+
+      const evtsHtml = evts.map(e =>
+        `<div class="cal-event-mini" style="background:${e.couleur};cursor:pointer;white-space:normal;margin:1px 0;padding:2px 4px;font-size:10px;border-radius:3px"
+          onclick="afficherDetailJour('${dateStr}')">${e.label}</div>`
+      ).join('');
+
+      const classes = ['cal-day', isToday ? 'today' : '', evts.length ? 'has-events' : ''].filter(Boolean).join(' ');
+      grid.innerHTML += `<div class="${classes}" style="min-height:80px;cursor:pointer" onclick="afficherDetailJour('${dateStr}')">
+        <div class="cal-jour-num ${isToday?'today-num':''}">${d.getDate()}</div>
+        ${evtsHtml}
+      </div>`;
+    }
+    return;
+  }
+
+  // ── Vue mois (existante) ──────────────────────────────────
   const annee  = _calDate.getFullYear();
   const mois   = _calDate.getMonth();
-  const today  = new Date().toISOString().slice(0,10);
 
   titre.textContent = new Date(annee, mois, 1).toLocaleDateString('fr-BE', { month:'long', year:'numeric' });
-
-  // En-têtes jours
-  const JOURS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   grid.innerHTML = JOURS.map(j => `<div class="cal-header-day">${j}</div>`).join('');
 
-  // Premier jour du mois (lundi = 0)
   const premierJour = new Date(annee, mois, 1);
-  const jourSemaine = (premierJour.getDay() + 6) % 7; // 0=lundi
+  const jourSemaine = (premierJour.getDay() + 6) % 7;
 
-  // Jours du mois précédent
   for (let i = jourSemaine - 1; i >= 0; i--) {
     const d = new Date(annee, mois, -i);
     grid.innerHTML += `<div class="cal-day autre-mois"><div class="cal-jour-num" style="color:#ccc">${d.getDate()}</div></div>`;
   }
 
-  // Jours du mois
   const nbJours = new Date(annee, mois + 1, 0).getDate();
   for (let j = 1; j <= nbJours; j++) {
     const dateStr = `${annee}-${String(mois+1).padStart(2,'0')}-${String(j).padStart(2,'0')}`;
@@ -3985,15 +4048,20 @@ function initChauf() {
 // ── Fonctions AdBlue chauffeur ────────────────────────────────
 function toggleChauffeurAdBlue() {
   const type = document.getElementById('chauf-ab-type')?.value;
-  const isPompe = type === 'pompe';
-  document.getElementById('chauf-ab-litre-group').style.display  = isPompe ? '' : 'none';
-  document.getElementById('chauf-ab-montant-group').style.display = isPompe ? '' : 'none';
-  document.getElementById('chauf-ab-prixl-group').style.display  = isPompe ? '' : 'none';
-  if (!isPompe) {
-    document.getElementById('chauf-ab-litre').value = '';
-    document.getElementById('chauf-ab-prix').value  = '';
-    document.getElementById('chauf-ab-prixl').textContent = '—';
+  // Les champs volume et montant sont toujours visibles
+  // Bidon : valeurs préremplies modifiables ; Pompe : champs vides
+  const litre = document.getElementById('chauf-ab-litre');
+  const prix  = document.getElementById('chauf-ab-prix');
+  if (type === 'bidon') {
+    if (litre && !litre.value) litre.value = '10';
+    if (prix  && !prix.value)  prix.value  = '20';
+  } else {
+    if (litre) litre.value = '';
+    if (prix)  prix.value  = '';
+    if (document.getElementById('chauf-ab-prixl'))
+      document.getElementById('chauf-ab-prixl').textContent = '—';
   }
+  calcPrixLitre();
 }
 
 function calcPrixLitre() {
@@ -4016,15 +4084,10 @@ async function saveChauffeurAdBlue() {
   const km    = document.getElementById('chauf-ab-km')?.value ? parseInt(document.getElementById('chauf-ab-km').value) : null;
 
   let litre, prixTotal, prixUnit;
-  if (type === 'bidon') {
-    litre     = 10;
-    prixTotal = 20;
-    prixUnit  = 2.0;
-  } else {
-    litre     = parseFloat(String(document.getElementById('chauf-ab-litre')?.value || '').replace(',','.'));
-    prixTotal = parseFloat(String(document.getElementById('chauf-ab-prix')?.value  || '').replace(',','.'));
-    prixUnit  = (litre > 0 && prixTotal > 0) ? prixTotal / litre : null;
-  }
+  // Bidon ou pompe : toujours lire les champs (bidon a des valeurs par défaut modifiables)
+  litre     = parseFloat(String(document.getElementById('chauf-ab-litre')?.value || '').replace(',','.'));
+  prixTotal = parseFloat(String(document.getElementById('chauf-ab-prix')?.value  || '').replace(',','.'));
+  prixUnit  = (litre > 0 && prixTotal > 0) ? prixTotal / litre : null;
 
   if (!date || !vehId || !litre || litre <= 0) {
     toast('Veuillez remplir la date, le véhicule et le volume.'); return;
@@ -4047,13 +4110,23 @@ async function saveChauffeurAdBlue() {
 }
 
 function clearChauffeurAdBlue() {
-  ['chauf-ab-date','chauf-ab-km','chauf-ab-litre','chauf-ab-prix'].forEach(id => {
+  ['chauf-ab-km'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  document.getElementById('chauf-ab-prixl').textContent = '—';
   const dateEl = document.getElementById('chauf-ab-date');
   if (dateEl) dateEl.value = new Date().toISOString().slice(0,10);
-  toggleChauffeurAdBlue();
+  // Remettre valeurs par défaut bidon
+  const type = document.getElementById('chauf-ab-type')?.value;
+  if (type === 'bidon') {
+    const l = document.getElementById('chauf-ab-litre'); if (l) l.value = '10';
+    const p = document.getElementById('chauf-ab-prix');  if (p) p.value = '20';
+  } else {
+    const l = document.getElementById('chauf-ab-litre'); if (l) l.value = '';
+    const p = document.getElementById('chauf-ab-prix');  if (p) p.value = '';
+  }
+  const pl = document.getElementById('chauf-ab-prixl');
+  if (pl) pl.textContent = type === 'bidon' ? '2.000 €/L' : '—';
+  calcPrixLitre();
 }
 
 function selectionnerVehicule(btn) {
@@ -4254,20 +4327,33 @@ async function sendMessageChauf() {
   renderMessagesChauf();
   updateTabChauf();
 
-  toast(_chaufUrgence === 'urgent' ? '🚨 Signalement urgent envoyé !' : '✅ Signalement envoyé !');
-
-  // SMS de secours
-  setTimeout(() => {
-    if (confirm('Envoyer aussi un SMS à Patrick ?')) {
-      const corps = encodeURIComponent(
-        (_chaufUrgence === 'urgent' ? '🚨 URGENT — ' : '') +
-        'MCR Opont — ' + vNom + '\n' +
-        catLabel + (note ? ' : ' + note : '') + '\n' +
-        'De : ' + nom + ' (' + dateStr + ')'
-      );
-      window.location.href = 'sms:0496224371?body=' + corps;
-    }
-  }, 400);
+  // Modal de confirmation d'envoi
+  const exConf = document.getElementById('modal-confirm-envoi');
+  if (exConf) exConf.remove();
+  const divConf = document.createElement('div');
+  divConf.id = 'modal-confirm-envoi';
+  divConf.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  const isUrgent = _chaufUrgence === 'urgent';
+  divConf.innerHTML = '<div style="background:#fff;border-radius:14px;padding:24px;max-width:360px;width:100%;'
+    + 'box-shadow:0 8px 32px rgba(0,0,0,0.25);text-align:center">'
+    + '<div style="font-size:48px;margin-bottom:12px">' + (isUrgent ? '🚨' : '✅') + '</div>'
+    + '<div style="font-size:17px;font-weight:700;margin-bottom:8px;color:' + (isUrgent ? 'var(--rouge)' : 'var(--vert)') + '">'
+    + (isUrgent ? 'Signalement urgent envoyé !' : 'Signalement envoyé !') + '</div>'
+    + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:6px">' + vNom + '</div>'
+    + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:16px">'
+    + catLabel + (note ? ' : ' + note.slice(0,60) + (note.length > 60 ? '…' : '') : '') + '</div>'
+    + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:20px">'
+    + 'Le responsable a été notifié. Vous pouvez suivre le traitement dans l\'onglet <b>Signaler</b>.</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<button class="btn" style="background:#1a6fa8;color:#fff;font-weight:700;padding:12px" '
+    + 'onclick="document.getElementById(\'modal-confirm-envoi\').remove();'
+    + 'const corps=encodeURIComponent((\'' + (isUrgent?'🚨 URGENT — ':'') + 'MCR Opont — ' + vNom.replace(/'/g,"\\'") + '\\n'
+    + catLabel.replace(/'/g,"\\'") + (note?' : '+note.slice(0,40).replace(/'/g,"\\'"):'') + '\\nDe : ' + nom.replace(/'/g,"\\'") + '\').replace(/\\\\n/g,\'%0A\'));'
+    + 'window.location.href=\'sms:0496224371?body=\'+corps">📱 Envoyer aussi un SMS</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-confirm-envoi\').remove()">Fermer</button>'
+    + '</div></div>';
+  document.body.appendChild(divConf);
 }
 
 function initAdBlueOnglet() {
@@ -9994,10 +10080,64 @@ function updateBackupInfo() {
 }
 
 function exportAllCSV() {
-  const rows = [['Immat','Marque','Type','Km_actuel','CT_valide_jusquau','Prochain_entretien_km','Dernier_entretien_le','Garage','Remarques']];
-  vehicules.forEach(v => {
+  // Export véhicules
+  const rows = [['Immat','Marque','Type','Km_actuel','CT_valide_jusquau','Prochain_entretien_km','Dernier_entretien_le','Dernier_entretien_km','Garage']];
+  vehicules.filter(v => !v.archive).forEach(v => {
+    rows.push([
+      v.immat || '', v.marque || '', v.type || '',
+      v.km || '', v.ct_valid || '', v.prochain_entretien_km || '',
+      v.dernier_entretien_date || '', v.dernier_entretien_km || '',
+      v.garage || ''
+    ]);
   });
-  downloadCSV(rows, 'MCR_vehicules.csv');
+  downloadCSV(rows, 'MCR_vehicules_' + new Date().toISOString().slice(0,10) + '.csv');
+}
+
+function exportMaintenancesCSV() {
+  const annee = new Date().getFullYear();
+  // Proposer le choix de l'année
+  const annees = [...new Set(maintenances.map(m => m.date?.slice(0,4)))].sort().reverse();
+  if (!annees.length) { toast('Aucune maintenance à exporter'); return; }
+
+  const ex = document.getElementById('modal-export-maint');
+  if (ex) ex.remove();
+  const div = document.createElement('div');
+  div.id = 'modal-export-maint';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:16px">📥 Export maintenances CSV</div>'
+    + '<div class="form-group" style="margin-bottom:16px"><label>Année</label>'
+    + '<select id="export-maint-annee" style="width:100%">'
+    + annees.map(a => '<option value="' + a + '">' + a + '</option>').join('')
+    + '<option value="">Toutes les années</option>'
+    + '</select></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button class="btn primary" onclick="_exportMaintenancesCSV()">📥 Exporter</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-export-maint\').remove()">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+function _exportMaintenancesCSV() {
+  const annee = document.getElementById('export-maint-annee')?.value || '';
+  document.getElementById('modal-export-maint')?.remove();
+
+  let maints = [...maintenances];
+  if (annee) maints = maints.filter(m => m.date?.startsWith(annee));
+  maints.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+  const rows = [['Date','Vehicule','Marque','Km','Lave-glace','Huile_moteur','Huile_frein','Liquide_refroid','Eclairage','Pneus','Extincteur','Remarques']];
+  maints.forEach(m => {
+    const v = vehicules.find(x => x.id === m.vehId);
+    rows.push([
+      m.date || '', m.vehId || '', v?.marque || '',
+      m.km || '', m.lg || '', m.hm || '', m.hf || '',
+      m.lr || '', m.ecl || '', m.pneus || '', m.ext || '', m.rem || ''
+    ]);
+  });
+
+  const suffix = annee ? '_' + annee : '_tout';
+  downloadCSV(rows, 'MCR_maintenances' + suffix + '.csv');
 }
 
 function downloadCSV(rows, filename) {
@@ -10390,7 +10530,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.1026';
+const APP_VERSION = '260724.1041';
 
 let _swRegistration = null;
 
