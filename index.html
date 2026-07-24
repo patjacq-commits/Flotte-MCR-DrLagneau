@@ -1156,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1015</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.1026</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2087,11 +2087,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260724.1015</strong><br>
+      Version actuelle de l'app : <strong>v260724.1026</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260724.1015 disponible)
+      📢 Notifier les utilisateurs (v260724.1026 disponible)
     </button>
   </div>
 
@@ -3873,6 +3873,73 @@ function repondreMessage(id) {
   if (document.getElementById('page-historique')?.classList.contains('active'))
     renderHistorique();
   toast('✅ Réponse envoyée — visible dans Historique du chauffeur');
+}
+
+// ── Vue maintenances pour chauffeurs ─────────────────────────
+function renderChaufMaintenances() {
+  const list   = document.getElementById('chauf-maint-list');
+  if (!list) return;
+
+  const selVeh = document.getElementById('chauf-maint-veh');
+
+  // Remplir le select véhicules si vide
+  if (selVeh && selVeh.options.length <= 1) {
+    ORDRE_VEHICULES.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v || v.archive) return;
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = v.marque + ' — ' + id;
+      selVeh.appendChild(opt);
+    });
+  }
+
+  const filterVeh = selVeh?.value || '';
+  const LABELS = {
+    lg:'Lave-glace', hm:'Huile moteur', hf:'Huile frein',
+    lr:'Liquide refroid.', ecl:'Éclairage', pneus:'Pneus', ext:'Extincteur'
+  };
+
+  // Filtrer depuis le début de l'année
+  const debutAnnee = new Date().getFullYear() + '-01-01';
+  let maints = [...maintenances]
+    .filter(m => (m.date || '') >= debutAnnee)
+    .sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+  if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
+
+  if (!maints.length) {
+    list.innerHTML = '<p style="color:var(--texte-sec);padding:12px;font-size:13px">Aucune maintenance enregistrée depuis le début de l\'année.</p>';
+    return;
+  }
+
+  list.innerHTML = maints.map(m => {
+    const v    = vehicules.find(x => x.id === m.vehId);
+    const vNom = v ? v.marque + ' — ' + m.vehId : m.vehId;
+    const date = m.date ? new Date(m.date+'T12:00').toLocaleDateString('fr-BE') : '—';
+    const km   = m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '—';
+
+    const niveaux = Object.entries(LABELS).map(([k, label]) => {
+      const val = m[k];
+      if (!val || val === '—') return '';
+      const isOk = val === 'OK' || val === 'ok';
+      const col  = isOk ? 'var(--vert)' : 'var(--rouge)';
+      const bg   = isOk ? '#eafbea' : '#fff0f0';
+      return '<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:' + bg + ';color:' + col + ';margin:2px;display:inline-block">'
+        + label + ': ' + val + '</span>';
+    }).join('');
+
+    const rem = m.rem ? '<div style="font-size:12px;color:var(--rouge);margin-top:6px">📝 ' + m.rem + '</div>' : '';
+
+    return '<div class="form-card" style="margin-bottom:10px;padding:12px 14px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px">'
+      + '<div style="font-weight:700;font-size:13px">' + vNom + '</div>'
+      + '<div style="font-size:12px;color:var(--texte-sec)">' + date + ' — ' + km + '</div>'
+      + '</div>'
+      + '<div>' + (niveaux || '<span style="color:var(--texte-sec);font-size:12px">Aucun niveau enregistré</span>') + '</div>'
+      + rem
+      + '</div>';
+  }).join('');
 }
 
 function initChauf() {
@@ -10323,7 +10390,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260724.1015';
+const APP_VERSION = '260724.1026';
 
 let _swRegistration = null;
 
