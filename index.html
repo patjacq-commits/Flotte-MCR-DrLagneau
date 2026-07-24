@@ -1156,7 +1156,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260723.1754</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260724.0911</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2068,11 +2068,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260723.1754</strong><br>
+      Version actuelle de l'app : <strong>v260724.0911</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260723.1754 disponible)
+      📢 Notifier les utilisateurs (v260724.0911 disponible)
     </button>
   </div>
 
@@ -8228,18 +8228,124 @@ function clearRVForm() {
 function marquerRVEffectue(id) {
   const r = rendezvous.find(x => String(x.id) === String(id));
   if (!r) return;
+
+  // Si RV type garage ET admin → proposer mise à jour entretien
+  if (r.type === 'garage' && userIsAdmin()) {
+    const v = vehicules.find(x => x.id === r.vehId);
+    const vNom = v ? v.marque + ' ' + v.immat : r.vehId;
+    const ref  = VEHICULES_DATA.find(x => x.id === r.vehId);
+    const kmActuel = ref?.km || v?.km || '';
+
+    const ex = document.getElementById('modal-entretien-effectue');
+    if (ex) ex.remove();
+
+    const div = document.createElement('div');
+    div.id = 'modal-entretien-effectue';
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+      + 'display:flex;align-items:center;justify-content:center;padding:16px';
+    div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;'
+      + 'max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🔧 Entretien garage effectué</div>'
+      + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">' + vNom + '</div>'
+      + '<div class="form-group" style="margin-bottom:12px">'
+      + '<label>Kilométrage au moment de la révision *</label>'
+      + '<input type="number" id="entretien-km-input" placeholder="ex: 80235" '
+      + 'value="' + kmActuel + '" style="font-size:16px;font-weight:700" /></div>'
+      + '<div class="form-group" style="margin-bottom:16px">'
+      + '<label>Date de la révision</label>'
+      + '<input type="date" id="entretien-date-input" value="' + new Date().toISOString().slice(0,10) + '" /></div>'
+      + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:16px;'
+      + 'background:var(--bleu-clair);padding:10px;border-radius:8px">'
+      + '📋 Le prochain entretien sera calculé automatiquement '
+      + '(+ ' + ((ref?.interval_entretien_km || v?.interval_entretien_km || 20000)/1000).toFixed(0) + ' 000 km)</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px">'
+      + '<button class="btn primary" onclick="confirmerEntretienEffectue(\'' + id + '\')">'
+      + '💾 Mettre à jour l\'entretien</button>'
+      + '<button class="btn" onclick="document.getElementById(\'modal-entretien-effectue\').remove();'
+      + '_marquerRVEffectueSimple(\'' + id + '\')">'
+      + 'Marquer effectué sans mise à jour</button>'
+      + '<button class="btn" onclick="document.getElementById(\'modal-entretien-effectue\').remove()">'
+      + 'Annuler</button>'
+      + '</div></div>';
+    document.body.appendChild(div);
+    setTimeout(() => document.getElementById('entretien-km-input')?.focus(), 100);
+    return;
+  }
+
+  _marquerRVEffectueSimple(id);
+}
+
+function _marquerRVEffectueSimple(id) {
+  const r = rendezvous.find(x => String(x.id) === String(id));
+  if (!r) return;
   r.statut = 'effectue';
-  // Mettre à jour directement dans Firestore
   if (window.db) {
     window.db.collection('rendezvous').doc(String(id)).update({ statut: 'effectue' }).catch(() => {});
   }
-  // Sync local immédiat
   window.rendezvous = rendezvous;
   saveAll();
   renderTableRV();
   renderAccueil();
   renderVehicules();
   toast('✅ RV marqué effectué');
+}
+
+function confirmerEntretienEffectue(id) {
+  const r   = rendezvous.find(x => String(x.id) === String(id));
+  if (!r) return;
+
+  const km  = parseInt(document.getElementById('entretien-km-input')?.value);
+  const dat = document.getElementById('entretien-date-input')?.value;
+
+  if (!km || km <= 0) { toast('⚠️ Veuillez saisir un kilométrage valide'); return; }
+
+  document.getElementById('modal-entretien-effectue')?.remove();
+
+  const v   = vehicules.find(x => x.id === r.vehId);
+  const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
+  const intervalle = ref?.interval_entretien_km || v?.interval_entretien_km || 20000;
+  const prochainKm = km + intervalle;
+  const today      = dat || new Date().toISOString().slice(0,10);
+
+  // Mettre à jour vehicules en mémoire
+  if (v) {
+    v.km                   = km;
+    v.dernier_entretien_km   = km;
+    v.dernier_entretien_date = today;
+    v.prochain_entretien_km  = prochainKm;
+  }
+
+  // Mettre à jour VEHICULES_DATA (source de vérité)
+  if (ref) {
+    ref.km                   = km;
+    ref.dernier_entretien_km   = km;
+    ref.dernier_entretien_date = today;
+    ref.prochain_entretien_km  = prochainKm;
+  }
+
+  // Marquer le RV effectué
+  r.statut = 'effectue';
+  if (window.db) {
+    window.db.collection('rendezvous').doc(String(id)).update({ statut: 'effectue' }).catch(() => {});
+    // Mettre à jour le véhicule dans Firestore
+    if (v) {
+      window.db.collection('vehicules').doc(String(r.vehId)).update({
+        km:                    km,
+        dernier_entretien_km:   km,
+        dernier_entretien_date: today,
+        prochain_entretien_km:  prochainKm,
+      }).catch(() => {});
+    }
+  }
+
+  window.rendezvous = rendezvous;
+  saveAll();
+  renderTableRV();
+  renderAccueil();
+  renderVehicules();
+  if (typeof verifierEntretiensUrgents === 'function') verifierEntretiensUrgents();
+
+  toast('✅ Entretien enregistré — prochain à ' + prochainKm.toLocaleString('fr-BE') + ' km');
 }
 
 // ── Annuler un RV ─────────────────────────────────────────────
@@ -10002,7 +10108,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260723.1754';
+const APP_VERSION = '260724.0911';
 
 let _swRegistration = null;
 
