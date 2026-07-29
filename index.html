@@ -1169,7 +1169,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1300</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1308</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1484,9 +1484,8 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE MAINTENANCE (admin) -->
 <div id="page-maintenance" class="page">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <h2 style="margin:0">🔧 Maintenance mensuelle</h2>
-    <button class="btn" onclick="ouvrirModalRapportPDF()" style="font-size:13px">📄 Rapport PDF</button>
   </div>
   <!-- Formulaire de saisie — superadmin uniquement -->
   <div id="maint-form-saisie">
@@ -1658,8 +1657,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
       <h3>Maintenances enregistrées</h3>
-      <button id="btn-print-maint" class="btn btn-sm" onclick="printRapportMaint()"
-        style="display:none">🖨 Imprimer</button>
+      <button id="btn-print-maint" class="btn btn-sm" onclick="ouvrirModalImpression()">🖨 Imprimer</button>
     </div>
     <!-- Filtres -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
@@ -2102,11 +2100,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260729.1300</strong><br>
+      Version actuelle de l'app : <strong>v260729.1308</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260729.1300 disponible)
+      📢 Notifier les utilisateurs (v260729.1308 disponible)
     </button>
   </div>
 
@@ -10413,20 +10411,68 @@ function headerRapport(titre, filtres) {
 }
 
 /* Rapport maintenances détaillé avec tous les champs */
+function ouvrirModalImpression() {
+  const ex = document.getElementById('modal-impression-maint');
+  if (ex) ex.remove();
+  const div = document.createElement('div');
+  div.id = 'modal-impression-maint';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:16px">🖨 Imprimer les maintenances</div>'
+    + '<div class="form-group" style="margin-bottom:12px"><label>Véhicule</label>'
+    + '<select id="imp-veh" style="width:100%"><option value="">Tous les véhicules</option>'
+    + ORDRE_VEHICULES.map(id => { const v = vehicules.find(x => x.id === id); return v && !v.archive ? '<option value="' + id + '">' + v.marque + ' — ' + id + '</option>' : ''; }).join('')
+    + '</select></div>'
+    + '<div class="form-group" style="margin-bottom:16px"><label>Période</label>'
+    + '<select id="imp-mois" style="width:100%"><option value="">Toutes les maintenances</option>'
+    + moisDispos.map(m => { const [y,mo] = m.split('-'); const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return '<option value="' + m + '">' + lbl.charAt(0).toUpperCase()+lbl.slice(1) + '</option>'; }).join('')
+    + '</select></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button class="btn primary" id="btn-imp-ok">🖨 Imprimer</button>'
+    + '<button class="btn" id="btn-imp-annuler">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('btn-imp-ok').addEventListener('click', () => {
+    const filtVeh  = document.getElementById('imp-veh')?.value  || '';
+    const filtMois = document.getElementById('imp-mois')?.value || '';
+    div.remove();
+    printRapportMaintAvecFiltres(filtVeh, filtMois);
+  });
+  document.getElementById('btn-imp-annuler').addEventListener('click', () => div.remove());
+}
+
+function printRapportMaintAvecFiltres(filtVeh, filtMois) {
+  let mList = [...maintenances];
+  if (filtVeh)  mList = mList.filter(m => m.vehId === filtVeh);
+  if (filtMois) mList = mList.filter(m => (m.date||'').startsWith(filtMois));
+  mList.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  if (!mList.length) { toast('Aucune maintenance pour ces critères.'); return; }
+  const v = filtVeh ? vehicules.find(x => x.id === filtVeh) : null;
+  const filtreStr = [
+    filtVeh  ? (v?.immat || filtVeh) : 'Tous véhicules',
+    filtMois ? (() => { const [y,mo] = filtMois.split('-'); const l = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return l.charAt(0).toUpperCase()+l.slice(1); })() : 'Toutes les dates',
+  ].join(' — ');
+  // Réutiliser printRapportMaint avec la liste filtrée
+  _imprimerListe(mList, filtreStr);
+}
+
 function printRapportMaint() {
+  // Appelé depuis l'onglet Maintenance avec les filtres du tableau actifs
   const filtVeh  = document.getElementById('maint-filter-veh')?.value  || '';
   const filtDate = document.getElementById('maint-filter-date')?.value || '';
-
   let mList = [...maintenances];
   if (filtVeh)  mList = mList.filter(m => m.vehId === filtVeh);
   if (filtDate) mList = mList.filter(m => m.date  === filtDate);
   mList.sort((a,b) => (a.date||'').localeCompare(b.date||''));
   if (!mList.length) { toast('Aucune maintenance pour ces critères.'); return; }
-
   const filtreStr = [
     filtVeh  ? vehicules.find(v=>v.id===filtVeh)?.immat : 'Tous véhicules',
     filtDate ? formatDate(filtDate) : 'Toutes les dates',
   ].filter(Boolean).join(' — ');
+  _imprimerListe(mList, filtreStr);
+}
+
+function _imprimerListe(mList, filtreStr) {
   // Dates uniques = une section de tableau par mois
   const datesUniques = [...new Set(mList.map(m => m.date))].sort();
   const vehIds = ORDRE_VEHICULES.filter(id => mList.some(m => m.vehId === id));
@@ -10647,7 +10693,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260729.1300';
+const APP_VERSION = '260729.1308';
 
 let _swRegistration = null;
 
