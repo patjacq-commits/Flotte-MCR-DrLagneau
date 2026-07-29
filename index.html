@@ -1169,7 +1169,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1234</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1240</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2102,11 +2102,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260729.1234</strong><br>
+      Version actuelle de l'app : <strong>v260729.1240</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260729.1234 disponible)
+      📢 Notifier les utilisateurs (v260729.1240 disponible)
     </button>
   </div>
 
@@ -5509,8 +5509,9 @@ async function publierVersion() {
 function ouvrirModalRapportPDF() {
   const ex = document.getElementById('modal-rapport-pdf');
   if (ex) ex.remove();
-  const annees     = [...new Set(maintenances.map(m => m.date?.slice(0,4)))].sort().reverse();
-  const moisDispos = [...new Set(maintenances.map(m => m.date?.slice(0,7)))].sort().reverse();
+  const normD = d => { if (!d) return ''; if (typeof d === 'string') return d.slice(0,10); if (d?.toDate) return d.toDate().toISOString().slice(0,10); if (d instanceof Date) return d.toISOString().slice(0,10); return String(d).slice(0,10); };
+  const annees     = [...new Set(maintenances.map(m => normD(m.date).slice(0,4)))].filter(Boolean).sort().reverse();
+  const moisDispos = [...new Set(maintenances.map(m => normD(m.date).slice(0,7)))].filter(Boolean).sort().reverse();
   if (!moisDispos.length) { toast('Aucune maintenance enregistree'); return; }
 
   const div = document.createElement('div');
@@ -5554,17 +5555,26 @@ function _genererPDFAdmin() {
   const anneeSel  = document.getElementById('pdf-annee-select')?.value || new Date().getFullYear().toString();
   document.getElementById('modal-rapport-pdf')?.remove();
 
-  let maints = [...maintenances];
+  // Normaliser les dates (string YYYY-MM-DD)
+  const normDate = d => {
+    if (!d) return '';
+    if (typeof d === 'string') return d.slice(0,10);
+    if (d?.toDate) return d.toDate().toISOString().slice(0,10); // Firestore Timestamp
+    if (d instanceof Date) return d.toISOString().slice(0,10);
+    return String(d).slice(0,10);
+  };
+
+  let maints = [...maintenances].map(m => ({ ...m, _dateNorm: normDate(m.date) }));
   if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
   const debutAnnee = new Date().getFullYear() + '-01-01';
   const today = new Date().toISOString().slice(0,10);
 
   // S'assurer que moisSel est valide si période = mois
-  const moisEffectif = moisSel || [...new Set(maintenances.map(m => m.date?.slice(0,7)))].sort().reverse()[0] || '';
+  const moisEffectif = moisSel || [...new Set(maintenances.map(m => normDate(m.date).slice(0,7)))].filter(Boolean).sort().reverse()[0] || '';
 
-  if      (periode === 'mois'  && moisEffectif) maints = maints.filter(m => m.date?.startsWith(moisEffectif));
-  else if (periode === 'annee')                 maints = maints.filter(m => m.date?.startsWith(anneeSel));
-  else if (periode === 'debut')                 maints = maints.filter(m => m.date >= debutAnnee && m.date <= today);
+  if      (periode === 'mois'  && moisEffectif) maints = maints.filter(m => m._dateNorm.startsWith(moisEffectif));
+  else if (periode === 'annee')                 maints = maints.filter(m => m._dateNorm.startsWith(anneeSel));
+  else if (periode === 'debut')                 maints = maints.filter(m => m._dateNorm >= debutAnnee && m._dateNorm <= today);
 
   if (!maints.length) { toast('Aucune maintenance pour cette selection'); return; }
 
@@ -10658,7 +10668,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260729.1234';
+const APP_VERSION = '260729.1240';
 
 let _swRegistration = null;
 
