@@ -1169,7 +1169,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1240</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1245</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2102,11 +2102,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260729.1240</strong><br>
+      Version actuelle de l'app : <strong>v260729.1245</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260729.1240 disponible)
+      📢 Notifier les utilisateurs (v260729.1245 disponible)
     </button>
   </div>
 
@@ -2797,7 +2797,7 @@ async function saveAll() {
     const { fbSaveCollection } = window._fb;
     const ensureId = (arr, prefix) => arr.map((x,i) => ({ ...x, id: x.id || `${prefix}_${Date.now()}_${i}` }));
     await Promise.all([
-      fbSaveCollection('maintenances',  ensureId(maintenances,  'maint')),
+      fbSaveCollection('maintenances',  ensureId(maintenances.map(m => ({...m, photosData:[]})), 'maint')),
       fbSaveCollection('ctEvents',      ensureId(ctEvents,      'ct')),
       fbSaveCollection('vehicules',     vehicules),
       fbSaveCollection('rendezvous',    ensureId(rendezvous,    'rv')),
@@ -8230,6 +8230,22 @@ async function saveMaintenance() {
     if (vRef) vRef.km = km;
   }
 
+  // Sauvegarder photos en localStorage uniquement (éviter dépassement 1MB Firestore)
+  if (photoUrls && photoUrls.length) {
+    try {
+      const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
+      photosLS[rec.id] = photoUrls;
+      localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
+    } catch(e) { console.warn('Photos localStorage:', e); }
+  }
+
+  // Sauvegarder dans Firestore SANS les photos
+  if (window.db) {
+    const recSansPhotos = { ...rec, photosData: [] };
+    window.db.collection('maintenances').doc(String(rec.id)).set(recSansPhotos)
+      .catch(e => console.warn('Firestore maintenance:', e));
+  }
+
   await saveAll();
   effacerBrouillon();
   clearMaintForm();
@@ -10668,7 +10684,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260729.1240';
+const APP_VERSION = '260729.1245';
 
 let _swRegistration = null;
 
