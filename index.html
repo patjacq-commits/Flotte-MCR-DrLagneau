@@ -409,7 +409,10 @@ button { cursor: pointer; }
   background: var(--blanc); border-bottom: 1.5px solid var(--gris-bord);
   display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch;
 }
-.tabs::-webkit-scrollbar { display: none; }
+.tabs::-webkit-scrollbar { height: 3px; }
+.tabs::-webkit-scrollbar-track { background: transparent; }
+.tabs::-webkit-scrollbar-thumb { background: var(--gris-bord); border-radius: 2px; }
+@media (max-width:600px) { .tabs::-webkit-scrollbar { display:none; } }
 .tab-btn {
   flex-shrink: 0; padding: 0 18px; height: 44px;
   background: none; border: none; border-bottom: 3px solid transparent;
@@ -1169,7 +1172,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1308</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1351</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2100,11 +2103,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260729.1308</strong><br>
+      Version actuelle de l'app : <strong>v260729.1351</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260729.1308 disponible)
+      📢 Notifier les utilisateurs (v260729.1351 disponible)
     </button>
   </div>
 
@@ -10412,6 +10415,7 @@ function headerRapport(titre, filtres) {
 
 /* Rapport maintenances détaillé avec tous les champs */
 function ouvrirModalImpression() {
+  const moisDispos = [...new Set(maintenances.map(m => (m.date||'').slice(0,7)))].filter(Boolean).sort().reverse();
   const ex = document.getElementById('modal-impression-maint');
   if (ex) ex.remove();
   const div = document.createElement('div');
@@ -10693,7 +10697,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260729.1308';
+const APP_VERSION = '260729.1351';
 
 let _swRegistration = null;
 
