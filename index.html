@@ -1172,7 +1172,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1127</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1243</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2103,11 +2103,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260730.1127</strong><br>
+      Version actuelle de l'app : <strong>v260730.1243</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260730.1127 disponible)
+      📢 Notifier les utilisateurs (v260730.1243 disponible)
     </button>
   </div>
 
@@ -2856,6 +2856,16 @@ function updateNavbarMaint() {
   });
 }
 
+/* Convertit un objet Date en chaîne YYYY-MM-DD en utilisant le fuseau LOCAL
+   (contrairement à toISOString() qui convertit en UTC et peut reculer d'un jour
+   à minuit local dans les fuseaux en avance sur UTC, comme la Belgique en été). */
+function toLocalYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const j = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + j;
+}
+
 /* Retourne la date du samedi le plus proche du dernier jour du mois M/Y.
    Si cette date est déjà passée, passe au mois suivant. */
 function prochainSamediFinDeMois() {
@@ -2913,7 +2923,7 @@ function deleteAdBlue(id) {
 /* Génère le HTML du bloc AdBlue pour un véhicule donné */
 function renderBlocAdBlue(v) {
   const hist = adblues.filter(a => a.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date));
-  const today = new Date().toISOString().slice(0,10);
+  const today = toLocalYMD(new Date());
 
   // Dernière entrée pour affichage résumé dans la cellule
   const last = hist[0] || null;
@@ -2979,9 +2989,9 @@ function initCarWash() {
       selFilt.appendChild(opt);
     });
   }
-  document.getElementById('cw-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('cw-date').value = toLocalYMD(new Date());
   const cwkDate = document.getElementById('cwk-date');
-  if (cwkDate) cwkDate.value = new Date().toISOString().slice(0,10);
+  if (cwkDate) cwkDate.value = toLocalYMD(new Date());
   updateCWMontants();
   renderCWTable();
   renderCWKTable();
@@ -3004,7 +3014,7 @@ function saveCarWash() {
 
 function clearCWForm() {
   document.getElementById('cw-montant').value = '';
-  document.getElementById('cw-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('cw-date').value = toLocalYMD(new Date());
 }
 
 function deleteCW(id) {
@@ -3063,7 +3073,7 @@ function saveRechargeKey() {
 }
 
 function clearCWKForm() {
-  const d = document.getElementById('cwk-date'); if (d) d.value = new Date().toISOString().slice(0,10);
+  const d = document.getElementById('cwk-date'); if (d) d.value = toLocalYMD(new Date());
   const m = document.getElementById('cwk-montant'); if (m) m.value = '';
   const g = document.getElementById('cwk-gratuit-montant'); if (g) g.value = '';
   const p = document.getElementById('cwk-total-preview'); if (p) p.textContent = '0,00 €';
@@ -3286,7 +3296,7 @@ function initPneus() {
       selFilt.appendChild(opt);
     });
   }
-  document.getElementById('pneu-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('pneu-date').value = toLocalYMD(new Date());
   renderPneuRecap();
   renderPneuHistorique();
 }
@@ -3325,7 +3335,7 @@ function savePermutation() {
 
 function clearPneuForm() {
   ['pneu-km','pneu-rem'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  document.getElementById('pneu-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('pneu-date').value = toLocalYMD(new Date());
   document.getElementById('pneu-lieu').value = 'Culot pneus';
 }
 
@@ -3505,7 +3515,7 @@ function renderCalendrier() {
   const titre  = document.getElementById('cal-titre');
   if (!grid) return;
 
-  const today = new Date().toISOString().slice(0,10);
+  const today = toLocalYMD(new Date());
   const JOURS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 
   if (_calVueSemaine) {
@@ -3526,7 +3536,7 @@ function renderCalendrier() {
     for (let i = 0; i < 7; i++) {
       const d = new Date(lundi);
       d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().slice(0,10);
+      const dateStr = toLocalYMD(d);
       const isToday = dateStr === today;
       const evts    = getEvenementsJour(dateStr);
 
@@ -4130,7 +4140,7 @@ function clearChauffeurAdBlue() {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const dateEl = document.getElementById('chauf-ab-date');
-  if (dateEl) dateEl.value = new Date().toISOString().slice(0,10);
+  if (dateEl) dateEl.value = toLocalYMD(new Date());
   // Remettre valeurs par défaut bidon
   const type = document.getElementById('chauf-ab-type')?.value;
   if (type === 'bidon') {
@@ -4417,7 +4427,7 @@ function initAdBlueOnglet() {
       `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
   }
   const abDate = document.getElementById('chauf-ab-date');
-  if (abDate && !abDate.value) abDate.value = new Date().toISOString().slice(0,10);
+  if (abDate && !abDate.value) abDate.value = toLocalYMD(new Date());
 
   // Masquer le bloc AdBlue chauffeur pour les admins (ils utilisent le formulaire admin)
   const chaufCard = document.getElementById('chauf-adblue-card');
@@ -4445,7 +4455,7 @@ function initAdBlueOnglet() {
   const veh   = vehId ? vehicules.find(x => x.id === vehId) : null;
   const kmEl  = document.getElementById('ab-ong-km');
   if (kmEl && veh) kmEl.value = veh.km;
-  document.getElementById('ab-ong-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ab-ong-date').value = toLocalYMD(new Date());
   renderAdBlueTable();
 }
 
@@ -4467,7 +4477,7 @@ function saveAdBlueOnglet() {
 function clearABForm() {
   document.getElementById('ab-ong-litre').value = '10.00';
   document.getElementById('ab-ong-km').value = '';
-  document.getElementById('ab-ong-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ab-ong-date').value = toLocalYMD(new Date());
 }
 
 function deleteAdBlueOnglet(id) {
@@ -5482,7 +5492,7 @@ async function publierVersion() {
 function ouvrirModalRapportPDF() {
   const ex = document.getElementById('modal-rapport-pdf');
   if (ex) ex.remove();
-  const normD = d => { if (!d) return ''; if (typeof d === 'string') return d.slice(0,10); if (d?.toDate) return d.toDate().toISOString().slice(0,10); if (d instanceof Date) return d.toISOString().slice(0,10); return String(d).slice(0,10); };
+  const normD = d => { if (!d) return ''; if (typeof d === 'string') return d.slice(0,10); if (d?.toDate) return toLocalYMD(d.toDate()); if (d instanceof Date) return toLocalYMD(d); return String(d).slice(0,10); };
   const annees     = [...new Set(maintenances.map(m => normD(m.date).slice(0,4)))].filter(Boolean).sort().reverse();
   const moisDispos = [...new Set(maintenances.map(m => normD(m.date).slice(0,7)))].filter(Boolean).sort().reverse();
   if (!moisDispos.length) { toast('Aucune maintenance enregistree'); return; }
@@ -5537,15 +5547,15 @@ function _genererPDFAdmin() {
   const normDate = d => {
     if (!d) return '';
     if (typeof d === 'string') return d.slice(0,10);
-    if (d?.toDate) return d.toDate().toISOString().slice(0,10); // Firestore Timestamp
-    if (d instanceof Date) return d.toISOString().slice(0,10);
+    if (d?.toDate) return toLocalYMD(d.toDate()); // Firestore Timestamp
+    if (d instanceof Date) return toLocalYMD(d);
     return String(d).slice(0,10);
   };
 
   let maints = [...maintenances].map(m => ({ ...m, _dateNorm: normDate(m.date) }));
   if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
   const debutAnnee = new Date().getFullYear() + '-01-01';
-  const today = new Date().toISOString().slice(0,10);
+  const today = toLocalYMD(new Date());
 
   // S'assurer que moisSel est valide si période = mois
   const moisEffectif = moisSel || [...new Set(maintenances.map(m => normDate(m.date).slice(0,7)))].filter(Boolean).sort().reverse()[0] || '';
@@ -5693,7 +5703,7 @@ function toggleRVDashboard() {
 function renderRVDashboard() {
   const panel = document.getElementById('rv-dashboard-panel');
   if (!panel) return;
-  const today = new Date().toISOString().slice(0,10);
+  const today = toLocalYMD(new Date());
 
   const rvs = rendezvous
     .filter(r => r.statut === 'planifie')
@@ -5932,7 +5942,7 @@ function renderAccueil() {
       .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
     // RV d'aujourd'hui ou passés non traités → mis en évidence en haut
-    const today2 = new Date().toISOString().slice(0,10);
+    const today2 = toLocalYMD(new Date());
     const rvAujourdhui = rvProg.filter(r => r.date <= today2);
     const rvFuturs     = rvProg.filter(r => r.date > today2);
 
@@ -6452,7 +6462,7 @@ document.addEventListener('keydown',e=>{
 
 function programmerTousLesRappels() {
   if (Notification.permission !== 'granted') return;
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = toLocalYMD(new Date());
 
   // RV planifiés (modal openRV)
   rendezvous
@@ -6527,7 +6537,7 @@ function sauvegarderInfoVeh(vehId, texte) {
   const veh = vehicules.find(x => x.id === vehId);
   if (veh) {
     veh.infoSpec = texte ? texte.trim() || null : null;
-    veh.infoSpecDate = texte && texte.trim() ? new Date().toISOString().slice(0,10) : null;
+    veh.infoSpecDate = texte && texte.trim() ? toLocalYMD(new Date()) : null;
   }
   localStorage.setItem('mcr_infos_veh', JSON.stringify({})); // vider l'ancien stockage
   saveAll();
@@ -6568,7 +6578,7 @@ function ouvrirInfoVeh(vehId) {
     const veh = vehicules.find(x => x.id === vehId);
     if (veh) {
       veh.infoSpec     = texte.trim() || null;
-      veh.infoSpecDate = texte.trim() ? new Date().toISOString().slice(0,10) : null;
+      veh.infoSpecDate = texte.trim() ? toLocalYMD(new Date()) : null;
     }
     saveAll();
     const n = getInfosActives().length;
@@ -6991,7 +7001,7 @@ function renderVehicules() {
         limite.setFullYear(limite.getFullYear() + (isCamion ? 2 : 1));
         const jLimite = Math.round((limite - TODAY) / 86400000);
         const limCls = jLimite < 0 ? 'danger' : jLimite <= 30 ? 'warn' : '';
-        dateEntretienStr = ` <span class="${limCls}" style="font-size:11px">et/ou ${formatDate(limite.toISOString().slice(0,10))}</span>`;
+        dateEntretienStr = ` <span class="${limCls}" style="font-size:11px">et/ou ${formatDate(toLocalYMD(limite))}</span>`;
       }
     }
 
@@ -7022,7 +7032,7 @@ function renderVehicules() {
       : '';
 
     // Pastille RV : compte les RV planifiés à venir pour ce véhicule
-    const todayStr = new Date().toISOString().slice(0,10);
+    const todayStr = toLocalYMD(new Date());
     const nbRV = [...rendezvous, ...ctEvents]
       .filter(r => r.vehId === v.id && r.statut === 'planifie' && r.date >= todayStr).length;
     const pastilleRV = nbRV > 0
@@ -7348,7 +7358,7 @@ function openVehDetail(id) {
           const d = parseDate(v.dernier_entretien_date);
           if (d) {
             d.setFullYear(d.getFullYear() + 1);
-            dateProchain = formatDate(d.toISOString().slice(0,10));
+            dateProchain = formatDate(toLocalYMD(d));
           }
         }
         let resteStr = '';
@@ -7389,7 +7399,7 @@ function openVehDetail(id) {
     + dr('Été → Hiver (km)', v.permut_ete_hiver_km ? parseInt(v.permut_ete_hiver_km).toLocaleString('fr-BE') + ' km' : '—')
     + rechtRows
     + (() => {
-        const hier3 = new Date(Date.now()-86400000).toISOString().slice(0,10);
+        const hier3 = toLocalYMD(new Date(Date.now()-86400000));
         const rvAv  = rendezvous
           .filter(r => r.vehId === v.id && r.statut === 'planifie' && r.date >= hier3)
           .sort((a,b) => a.date.localeCompare(b.date));
@@ -7590,12 +7600,12 @@ function chargerDraftVehicule(vehId) {
   let data = null;
   if (raw) { try { data = JSON.parse(raw); } catch(e) { data = null; } }
 
-  const samediStr = prochainSamediFinDeMois().toISOString().slice(0,10);
-  const today      = new Date().toISOString().slice(0,10);
+  const samediStr = toLocalYMD(prochainSamediFinDeMois());
+  const today      = toLocalYMD(new Date());
   // Le brouillon n'est considéré "du jour" que s'il a été modifié aujourd'hui même —
   // sinon la date de relevé doit toujours repartir sur la date calculée automatiquement
   // (celle affichée dans l'entête), même si un ancien brouillon contient une autre date.
-  const draftDuJour = !!(data && data._ts && new Date(data._ts).toISOString().slice(0,10) === today);
+  const draftDuJour = !!(data && data._ts && toLocalYMD(new Date(data._ts)) === today);
 
   if (data) {
     CHAMPS_MAINT.forEach(id => {
@@ -7931,7 +7941,7 @@ function archiverVehicule(id) {
 
   // Marquer le véhicule comme archivé dans Firebase
   v.archive = true;
-  v.archive_date = new Date().toISOString().slice(0,10);
+  v.archive_date = toLocalYMD(new Date());
   window.vehicules = vehicules;
 
   // Retirer de l'ordre d'affichage (mais garder dans vehicules pour l'historique)
@@ -8699,7 +8709,7 @@ function onRVDateChange() {
   const date = document.getElementById('rv-date')?.value;
   const info = document.getElementById('rv-statut-info');
   if (!info || !date) { if (info) info.style.display = 'none'; return; }
-  const today = new Date().toISOString().slice(0,10);
+  const today = toLocalYMD(new Date());
   if (date < today) {
     info.style.cssText = 'display:block;margin:10px 0;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:600;background:var(--bleu-clair);color:var(--bleu)';
     info.textContent = "📋 Date passée → enregistré directement dans l'historique";
@@ -8716,7 +8726,7 @@ function sauvegarderRV() {
   if (!vehId) { toast('Sélectionnez un véhicule.'); return; }
   if (!date)  { toast('Indiquez une date.'); return; }
 
-  const today  = new Date().toISOString().slice(0,10);
+  const today  = toLocalYMD(new Date());
   const statut = date < today ? 'effectue' : 'planifie';
 
   let notes = document.getElementById('rv-notes')?.value || '';
@@ -8801,7 +8811,7 @@ function marquerRVEffectue(id) {
       + 'value="' + kmActuel + '" style="font-size:16px;font-weight:700" /></div>'
       + '<div class="form-group" style="margin-bottom:16px">'
       + '<label>Date de la révision</label>'
-      + '<input type="date" id="entretien-date-input" value="' + new Date().toISOString().slice(0,10) + '" /></div>'
+      + '<input type="date" id="entretien-date-input" value="' + toLocalYMD(new Date()) + '" /></div>'
       + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:16px;'
       + 'background:var(--bleu-clair);padding:10px;border-radius:8px">'
       + '📋 Le prochain entretien sera calculé automatiquement '
@@ -8853,7 +8863,7 @@ function confirmerEntretienEffectue(id) {
   const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
   const intervalle = ref?.interval_entretien_km || v?.interval_entretien_km || 20000;
   const prochainKm = km + intervalle;
-  const today      = dat || new Date().toISOString().slice(0,10);
+  const today      = dat || toLocalYMD(new Date());
 
   // Mettre à jour vehicules en mémoire
   if (v) {
@@ -9069,7 +9079,7 @@ function verifierEntretiensUrgents() {
 
   const seuilUrgent = 2500;
   const seuilWarn   = 5000;
-  const today       = new Date().toISOString().slice(0,10);
+  const today       = toLocalYMD(new Date());
   const now         = Date.now();
   const h48         = 48 * 3600 * 1000;
 
@@ -9233,7 +9243,7 @@ function verifierEntretiensUrgents() {
 
 function verifierRVDepasses() {
   if (!userIsAdmin()) return; // réservé aux admins
-  const today = new Date().toISOString().slice(0,10);
+  const today = toLocalYMD(new Date());
   const depasses = rendezvous.filter(r =>
     r.statut === 'planifie' && r.date < today
   ).sort((a,b) => a.date.localeCompare(b.date));
@@ -9449,7 +9459,7 @@ function ouvrirInterventionUrgente(vehId) {
   const existing = document.getElementById('modal-interv-urgente');
   if (existing) existing.remove();
 
-  const today = new Date().toISOString().slice(0,10);
+  const today = toLocalYMD(new Date());
   const now   = new Date().toTimeString().slice(0,5);
 
   const div = document.createElement('div');
@@ -10270,7 +10280,7 @@ function exportAllCSV() {
       v.garage || ''
     ]);
   });
-  downloadCSV(rows, 'MCR_vehicules_' + new Date().toISOString().slice(0,10) + '.csv');
+  downloadCSV(rows, 'MCR_vehicules_' + toLocalYMD(new Date()) + '.csv');
 }
 
 function exportMaintenancesCSV() {
@@ -10745,7 +10755,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260730.1127';
+const APP_VERSION = '260730.1243';
 
 let _swRegistration = null;
 
@@ -10779,8 +10789,8 @@ function construireResumeQuotidien() {
   const alertes   = buildAlertes();
   const urgentes  = alertes.filter(a => a.level === 'urgent');
   const warns     = alertes.filter(a => a.level === 'warn');
-  const today     = new Date().toISOString().slice(0,10);
-  const demain    = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+  const today     = toLocalYMD(new Date());
+  const demain    = toLocalYMD(new Date(Date.now() + 86400000));
 
   // RV du jour et de demain
   const rvProches = [...rendezvous, ...ctEvents]
@@ -11043,7 +11053,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Pré-remplir date maintenance
   const md = document.getElementById('maint-date');
-  if (md) md.value = new Date().toISOString().slice(0,10);
+  if (md) md.value = toLocalYMD(new Date());
 
   function initUI() {
     if (window._fbData_vehicules)      vehicules     = window._fbData_vehicules;
