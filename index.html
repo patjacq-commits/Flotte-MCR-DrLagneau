@@ -124,6 +124,19 @@
     });
   })();
 
+  // Appliquer le mode gros caractères dès que possible (évite le flash de texte petit)
+  (function() {
+    try {
+      if (localStorage.getItem('mcr_gros_caracteres') === '1') {
+        document.addEventListener('DOMContentLoaded', () => {
+          document.body.classList.add('mode-gros-carac');
+          const cb = document.getElementById('toggle-gros-caracteres');
+          if (cb) cb.checked = true;
+        });
+      }
+    } catch(e) {}
+  })();
+
   const firebaseConfig = {
     apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
     authDomain: "mcr-opont.firebaseapp.com",
@@ -1036,7 +1049,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   .navbar-title { font-size: 11px; }
   .navbar-title small { display: none; }   /* masquer le sous-titre */
   #version-badge { display: none; }        /* masquer le badge version */
-  #sync-indicator { display: none; }       /* masquer ☁ Sync */
+  #sync-indicator { font-size: 14px; padding: 0 2px; }  /* compacté mais visible */
   .navbar-role { font-size: 10px; padding: 2px 7px; }
   #btn-role { flex-shrink: 0 !important; opacity: 1 !important; display: block !important; }
 
@@ -1219,6 +1232,26 @@ td.ok { color: var(--vert); font-weight: 600; }
 @supports (-webkit-touch-callout: none) {
   input, select, textarea { font-size: 16px !important; }
 }
+
+/* ══ MODE GROS CARACTÈRES ══════════════════════════════════ */
+body.mode-gros-carac { font-size: 19px; }
+body.mode-gros-carac .navbar-title,
+body.mode-gros-carac .navbar-title small { font-size: 15px; }
+body.mode-gros-carac .tab-btn { font-size: 16px; height: 52px; padding: 0 22px; }
+body.mode-gros-carac h2 { font-size: 26px; }
+body.mode-gros-carac h3 { font-size: 20px; }
+body.mode-gros-carac label { font-size: 16px; }
+body.mode-gros-carac input,
+body.mode-gros-carac select,
+body.mode-gros-carac textarea { font-size: 18px !important; padding: 12px 14px !important; }
+body.mode-gros-carac .btn { font-size: 16px; padding: 12px 20px; min-height: 46px; }
+body.mode-gros-carac .btn-sm { font-size: 14px; padding: 9px 14px; min-height: 40px; }
+body.mode-gros-carac .content { padding: 20px; }
+body.mode-gros-carac .msg-body,
+body.mode-gros-carac .msg-veh,
+body.mode-gros-carac .msg-date { font-size: 15px !important; }
+body.mode-gros-carac .veh-immat { font-size: 20px; }
+body.mode-gros-carac .veh-marque { font-size: 16px; }
 </style>
 </head>
 <body>
@@ -1277,9 +1310,10 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1340</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1400</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
-  <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
+  <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
+    style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">⚙️</button>
   <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;" onclick="toggleRole()" id="btn-role" title="Se connecter / Se déconnecter">🔐</button>
@@ -1318,6 +1352,7 @@ td.ok { color: var(--vert); font-weight: 600; }
 
 <!-- PAGE ACCUEIL -->
 <div id="page-accueil" class="page active">
+  <div id="checklist-mensuelle-admin" class="admin-only" style="display:none"></div>
   <div class="summary-grid" id="summary-grid"></div>
   <div id="alertes-dashboard"></div>
   <div id="rv-dashboard-panel" style="display:none;margin-top:14px"></div>
@@ -2141,6 +2176,19 @@ td.ok { color: var(--vert); font-weight: 600; }
 <div id="page-profil" class="page">
   <h2 style="margin-bottom:14px">⚙️ Mon profil</h2>
 
+  <!-- Confort de lecture -->
+  <div class="form-card" style="max-width:480px;margin-bottom:14px">
+    <h3>🔤 Confort de lecture</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
+      Agrandit le texte et les boutons dans toute l'application.
+    </p>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:15px;font-weight:600">
+      <input type="checkbox" id="toggle-gros-caracteres" onchange="toggleGrosCaracteres()"
+        style="width:22px;height:22px;cursor:pointer" />
+      Activer le mode gros caractères
+    </label>
+  </div>
+
   <!-- Numéro de portable -->
   <div class="form-card" style="max-width:480px;margin-bottom:14px">
     <h3>📱 Mon numéro de portable</h3>
@@ -2208,11 +2256,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260730.1340</strong><br>
+      Version actuelle de l'app : <strong>v260730.1400</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260730.1340 disponible)
+      📢 Notifier les utilisateurs (v260730.1400 disponible)
     </button>
   </div>
 
@@ -2889,12 +2937,29 @@ async function saveAll() {
 }
 
 /* Indicateur visuel de synchronisation */
+/* Badge de connectivité — 🟢 en ligne / 🔴 hors ligne, avec flash ✅ après sauvegarde */
+function updateSyncBadge() {
+  const el = document.getElementById('sync-indicator');
+  if (!el) return;
+  if (navigator.onLine) {
+    el.textContent = '🟢';
+    el.title = 'En ligne — synchronisé avec le cloud';
+  } else {
+    el.textContent = '🔴';
+    el.title = 'Hors ligne — vos actions seront envoyées au retour de la connexion';
+  }
+}
+window.addEventListener('online', updateSyncBadge);
+window.addEventListener('offline', updateSyncBadge);
+
 function showSyncIndicator() {
-  let ind = document.getElementById('sync-indicator');
+  const ind = document.getElementById('sync-indicator');
   if (!ind) return;
-  ind.style.opacity = '1';
+  if (!navigator.onLine) return; // pas de faux "sauvegardé" si hors ligne
+  ind.textContent = '✅';
+  ind.title = 'Enregistré';
   clearTimeout(ind._t);
-  ind._t = setTimeout(() => { ind.style.opacity = '0'; }, 2000);
+  ind._t = setTimeout(updateSyncBadge, 1500);
 }
 
 // ============================================================
@@ -4007,6 +4072,13 @@ function deleteChauf(id) {
   toast('Signalement supprimé');
 }
 
+/* Active/désactive le mode gros caractères et mémorise le choix */
+function toggleGrosCaracteres() {
+  const actif = document.getElementById('toggle-gros-caracteres')?.checked;
+  document.body.classList.toggle('mode-gros-carac', !!actif);
+  localStorage.setItem('mcr_gros_caracteres', actif ? '1' : '0');
+}
+
 async function sauvegarderTelephone() {
   const tel   = document.getElementById('profil-telephone')?.value?.trim() || '';
   const msgEl = document.getElementById('profil-tel-msg');
@@ -4205,7 +4277,11 @@ function calcPrixLitre() {
   }
 }
 
+let _verrouAdBlue = false;
 async function saveChauffeurAdBlue() {
+  if (_verrouAdBlue) return; // évite un double envoi si double-tap
+  _verrouAdBlue = true;
+  setTimeout(() => { _verrouAdBlue = false; }, 2500);
   const date  = document.getElementById('chauf-ab-date')?.value;
   const vehId = document.getElementById('chauf-ab-veh')?.value;
   const type  = document.getElementById('chauf-ab-type')?.value;
@@ -4371,7 +4447,11 @@ function clearChaufForm() {
   });
 }
 
+let _verrouSignalement = false;
 async function sendMessageChauf() {
+  if (_verrouSignalement) return; // évite un double envoi si double-tap
+  _verrouSignalement = true;
+  setTimeout(() => { _verrouSignalement = false; }, 2500);
   if (!_chaufVehId)  { toast('Sélectionnez un véhicule.');  return; }
   if (!_chaufCat)    { toast('Sélectionnez la nature du problème.'); return; }
 
@@ -5630,6 +5710,8 @@ async function publierVersion() {
   if (!userIsSuperAdmin()) return;
   try {
     await db.collection('config').doc('version').set({ version: APP_VERSION });
+    localStorage.setItem('mcr_derniere_version_publiee', APP_VERSION);
+    if (typeof renderChecklistMensuelle === 'function') renderChecklistMensuelle();
     toast('✅ Version ' + APP_VERSION + ' publiée — Angélique et les chauffeurs seront notifiés');
   } catch(e) {
     toast('❌ Erreur : ' + e.message);
@@ -5897,7 +5979,77 @@ function renderRVDashboard() {
     + '</div>' + rows + '</div>';
 }
 
+/* Checklist mensuelle admin — se réinitialise automatiquement chaque mois */
+function renderChecklistMensuelle() {
+  const container = document.getElementById('checklist-mensuelle-admin');
+  if (!container) return;
+  if (typeof userIsAdmin !== 'function' || !userIsAdmin()) { container.style.display = 'none'; return; }
+
+  const moisActuel  = toLocalYMD(new Date()).slice(0,7); // YYYY-MM
+  const cleStorage  = 'mcr_checklist_' + moisActuel;
+  let etat = {};
+  try { etat = JSON.parse(localStorage.getItem(cleStorage) || '{}'); } catch(e) {}
+
+  // 1. Maintenance effectuée pour tous les véhicules actifs ce mois
+  const vehActifs = vehicules.filter(v => !v.archive);
+  const vehAvecMaint = new Set(
+    maintenances.filter(m => (m.date||'').startsWith(moisActuel)).map(m => m.vehId)
+  );
+  const maintOK = vehActifs.length > 0 && vehActifs.every(v => vehAvecMaint.has(v.id));
+
+  // 2. Dernière version publiée aux utilisateurs
+  const versionOK = localStorage.getItem('mcr_derniere_version_publiee') === APP_VERSION;
+
+  // 3. Stock pneus vérifié (case manuelle)
+  const pneusOK = !!etat.pneus;
+
+  const items = [
+    { key:'maint',   auto:true,  ok: maintOK,
+      label: 'Maintenance effectuée pour tous les véhicules (' + vehAvecMaint.size + '/' + vehActifs.length + ')' },
+    { key:'version', auto:true,  ok: versionOK,
+      label: 'Dernière mise à jour publiée aux utilisateurs (v' + APP_VERSION + ')' },
+    { key:'pneus',   auto:false, ok: pneusOK,
+      label: 'Stock pneus vérifié' },
+  ];
+
+  const nbFait = items.filter(i => i.ok).length;
+
+  if (nbFait === items.length) {
+    container.style.display = '';
+    container.innerHTML = '<div class="form-card" style="padding:10px 14px;margin-bottom:14px;'
+      + 'display:flex;align-items:center;gap:8px;background:#eafbea;border-color:var(--vert)">'
+      + '<span style="font-size:18px">✅</span>'
+      + '<span style="font-size:13px;color:var(--vert);font-weight:600">Checklist du mois complète</span>'
+      + '</div>';
+    return;
+  }
+
+  container.style.display = '';
+  container.innerHTML = '<div class="form-card" style="padding:14px 16px;margin-bottom:14px;'
+    + 'border-color:var(--orange);background:#fef9f0">'
+    + '<div style="font-weight:700;font-size:14px;margin-bottom:8px">📋 Checklist du mois — ' + nbFait + '/' + items.length + '</div>'
+    + items.map(i => '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;'
+        + 'cursor:' + (i.auto ? 'default' : 'pointer') + '">'
+        + '<input type="checkbox" ' + (i.ok ? 'checked' : '') + ' ' + (i.auto ? 'disabled' : '')
+        + (i.auto ? '' : ' onchange="toggleChecklistItem(\'' + i.key + '\')"')
+        + ' style="width:18px;height:18px;' + (i.auto ? 'opacity:0.6' : 'cursor:pointer') + '" />'
+        + '<span style="' + (i.ok ? 'color:var(--vert);text-decoration:line-through;opacity:0.7' : '') + '">' + i.label + '</span>'
+        + '</label>').join('')
+    + '</div>';
+}
+
+function toggleChecklistItem(key) {
+  const moisActuel = toLocalYMD(new Date()).slice(0,7);
+  const cleStorage = 'mcr_checklist_' + moisActuel;
+  let etat = {};
+  try { etat = JSON.parse(localStorage.getItem(cleStorage) || '{}'); } catch(e) {}
+  etat[key] = !etat[key];
+  localStorage.setItem(cleStorage, JSON.stringify(etat));
+  renderChecklistMensuelle();
+}
+
 function renderAccueil() {
+  renderChecklistMensuelle();
   // Forcer synchronisation depuis window
   if (window.rendezvous && window.rendezvous.length >= rendezvous.length) {
     rendezvous = window.rendezvous;
@@ -8381,7 +8533,11 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.aide-recherche')) fermerAide('aide-km');
 });
 
+let _verrouMaintenance = false;
 async function saveMaintenance() {
+  if (_verrouMaintenance) return; // évite un double enregistrement si double-tap
+  _verrouMaintenance = true;
+  setTimeout(() => { _verrouMaintenance = false; }, 2500);
   const date  = document.getElementById('maint-date').value;
   const vehId = document.getElementById('maint-veh').value;
   const km    = parseInt(document.getElementById('maint-km').value);
@@ -10914,7 +11070,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260730.1340';
+const APP_VERSION = '260730.1400';
 
 let _swRegistration = null;
 
@@ -11196,6 +11352,7 @@ if ('serviceWorker' in navigator) {
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  updateSyncBadge();
   // Fermer modals en cliquant dehors (vérification d'existence pour éviter
   // toute erreur si un modal a été retiré/renommé lors d'une mise à jour)
   document.getElementById('modal-veh')?.addEventListener('click', function(e) {
