@@ -1172,7 +1172,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260729.1351</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1109</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -1501,7 +1501,7 @@ td.ok { color: var(--vert); font-weight: 600; }
       </div>
       <div class="form-group">
         <label>Véhicule</label>
-        <select id="maint-veh" onchange="sauvegarderBrouillon(); afficherInfoKmMaint()"></select>
+        <select id="maint-veh" onchange="changerVehiculeMaint()"></select>
       </div>
       <div class="form-group">
         <label>Kilométrage relevé</label>
@@ -2103,11 +2103,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260729.1351</strong><br>
+      Version actuelle de l'app : <strong>v260730.1109</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260729.1351 disponible)
+      📢 Notifier les utilisateurs (v260730.1109 disponible)
     </button>
   </div>
 
@@ -7548,18 +7548,30 @@ function openRV(vehId, typeRV) {
 // ============================================================
 // BROUILLON MAINTENANCE — sauvegarde automatique
 // ============================================================
-const BROUILLON_KEY = 'mcr_maint_brouillon';
+const BROUILLON_PREFIX = 'mcr_maint_brouillon_';
+const LAST_VEH_MAINT_KEY = 'mcr_maint_last_veh';
 
 const CHAMPS_MAINT = [
-  'maint-veh','maint-date','maint-km',
+  'maint-date','maint-km',
   'maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus',
   'maint-ext','maint-rem',
   'maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom',
   'maint-ecl-custom','maint-pneus-custom','maint-ext-custom',
 ];
 
-/* Sauvegarde tous les champs du formulaire en localStorage */
+// Champs remis à "OK" par défaut quand aucun brouillon n'existe pour le véhicule.
+// Lave-glace et huile moteur sont EXCLUS : ce sont des consommables dont la
+// quantité réellement ajoutée doit être saisie, pas un simple "OK".
+const CHAMPS_OK_PAR_DEFAUT = ['maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'];
+
+let _maintVehActuel = null; // véhicule actuellement affiché dans le formulaire
+
+function brouillonKey(vehId) { return BROUILLON_PREFIX + vehId; }
+
+/* Sauvegarde tous les champs du formulaire en localStorage, pour le véhicule actuellement sélectionné */
 function sauvegarderBrouillon() {
+  const vehId = document.getElementById('maint-veh')?.value;
+  if (!vehId) return;
   const data = {};
   CHAMPS_MAINT.forEach(id => {
     const el = document.getElementById(id);
@@ -7567,39 +7579,81 @@ function sauvegarderBrouillon() {
   });
   data['_photos'] = _photosEnCours.map(p => ({ name: p.name, data: p.data }));
   data['_ts'] = Date.now();
-  localStorage.setItem(BROUILLON_KEY, JSON.stringify(data));
+  localStorage.setItem(brouillonKey(vehId), JSON.stringify(data));
+  localStorage.setItem(LAST_VEH_MAINT_KEY, vehId);
   updateIndicateurBrouillon(true);
 }
 
-/* Restaure le brouillon si disponible */
-function restaurerBrouillon() {
-  const raw = localStorage.getItem(BROUILLON_KEY);
-  if (!raw) return;
-  let data;
-  try { data = JSON.parse(raw); } catch(e) { return; }
+/* Charge le brouillon du véhicule donné, ou applique les valeurs par défaut si aucun brouillon */
+function chargerDraftVehicule(vehId) {
+  const raw = localStorage.getItem(brouillonKey(vehId));
+  let data = null;
+  if (raw) { try { data = JSON.parse(raw); } catch(e) { data = null; } }
 
-  // Restaurer chaque champ
-  CHAMPS_MAINT.forEach(id => {
-    if (!(id in data)) return;
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = data[id] || '';
-    // Si c'est un champ custom visible → l'afficher
-    if (id.endsWith('-custom') && data[id]) el.style.display = '';
-  });
+  const samedi    = prochainSamediFinDeMois();
+  const samediStr = samedi.toISOString().slice(0,10);
+  const today     = new Date().toISOString().slice(0,10);
 
-  // Restaurer les photos
-  if (data['_photos'] && data['_photos'].length) {
-    _photosEnCours = data['_photos'];
+  if (data) {
+    CHAMPS_MAINT.forEach(id => {
+      if (id === 'maint-date') return; // gérée séparément ci-dessous
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = data[id] || '';
+      if (id.endsWith('-custom') && data[id]) el.style.display = '';
+    });
+    const brouillonDate = data['maint-date'] || '';
+    const maintDateEl = document.getElementById('maint-date');
+    if (maintDateEl) maintDateEl.value = (!brouillonDate || brouillonDate < today) ? samediStr : brouillonDate;
+
+    _photosEnCours = data['_photos'] || [];
+    rafraichirPreviewPhotos();
+  } else {
+    // Pas de brouillon pour ce véhicule → valeurs par défaut
+    const dateEl = document.getElementById('maint-date'); if (dateEl) dateEl.value = samediStr;
+    const kmEl   = document.getElementById('maint-km');   if (kmEl)   kmEl.value   = '';
+    ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = CHAMPS_OK_PAR_DEFAUT.includes(id) ? 'OK' : '';
+    });
+    ['maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom',
+     'maint-ecl-custom','maint-pneus-custom','maint-ext-custom'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.value = ''; el.style.display = 'none'; }
+    });
+    const remEl = document.getElementById('maint-rem'); if (remEl) remEl.value = '';
+    _photosEnCours = [];
     rafraichirPreviewPhotos();
   }
-
-  updateIndicateurBrouillon(true);
+  updateIndicateurBrouillon(!!data);
 }
 
-/* Supprime le brouillon (après enregistrement) */
+/* Appelé quand l'utilisateur change de véhicule dans le formulaire de maintenance */
+function changerVehiculeMaint() {
+  // Sauvegarder d'abord le brouillon du véhicule qu'on quitte (données encore dans le formulaire)
+  if (_maintVehActuel) {
+    const data = {};
+    CHAMPS_MAINT.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) data[id] = el.value;
+    });
+    data['_photos'] = _photosEnCours.map(p => ({ name: p.name, data: p.data }));
+    data['_ts'] = Date.now();
+    localStorage.setItem(brouillonKey(_maintVehActuel), JSON.stringify(data));
+  }
+
+  const nouveauVeh = document.getElementById('maint-veh')?.value;
+  _maintVehActuel = nouveauVeh;
+  if (nouveauVeh) localStorage.setItem(LAST_VEH_MAINT_KEY, nouveauVeh);
+  chargerDraftVehicule(nouveauVeh);
+  afficherInfoKmMaint();
+}
+
+/* Supprime le brouillon du véhicule actuellement affiché (après enregistrement) */
 function effacerBrouillon() {
-  localStorage.removeItem(BROUILLON_KEY);
+  const vehId = document.getElementById('maint-veh')?.value || _maintVehActuel;
+  if (vehId) localStorage.removeItem(brouillonKey(vehId));
   updateIndicateurBrouillon(false);
 }
 
@@ -7607,8 +7661,10 @@ function effacerBrouillon() {
 function updateIndicateurBrouillon(actif) {
   const el = document.getElementById('maint-brouillon-indicator');
   if (!el) return;
-  if (actif && localStorage.getItem(BROUILLON_KEY)) {
-    const data = JSON.parse(localStorage.getItem(BROUILLON_KEY) || '{}');
+  const vehId = document.getElementById('maint-veh')?.value || _maintVehActuel;
+  const raw   = vehId ? localStorage.getItem(brouillonKey(vehId)) : null;
+  if (actif && raw) {
+    const data = JSON.parse(raw || '{}');
     const ago  = data._ts ? Math.round((Date.now() - data._ts) / 60000) : 0;
     el.style.display = '';
     el.textContent   = `📝 Brouillon sauvegardé${ago < 1 ? ' à l\'instant' : ' il y a ' + ago + ' min'}`;
@@ -7627,32 +7683,14 @@ function populateMaintSelect() {
 
   injecterToutesCustomOpts();
 
-  // Date de la prochaine maintenance (samedi le plus proche du dernier jour du mois)
-  const samedi = prochainSamediFinDeMois();
-  const samediStr = samedi.toISOString().slice(0,10);
-
-  // Vérifier si un brouillon existe
-  const brouillon = localStorage.getItem(BROUILLON_KEY);
-  if (brouillon) {
-    // Restaurer le brouillon
-    restaurerBrouillon();
-    // Mais TOUJOURS forcer la date à la prochaine maintenance
-    // (si le brouillon contient une date dépassée, on la remplace)
-    const maintDateEl = document.getElementById('maint-date');
-    const brouillonDate = maintDateEl ? maintDateEl.value : '';
-    const today = new Date().toISOString().slice(0,10);
-    // Remplacer si la date du brouillon est dans le passé ou vide
-    if (!brouillonDate || brouillonDate < today) {
-      if (maintDateEl) maintDateEl.value = samediStr;
-    }
-  } else {
-    // Pas de brouillon → valeurs par défaut
-    document.getElementById('maint-date').value = samediStr;
-    ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = 'OK';
-    });
+  // Sélectionner le dernier véhicule utilisé (s'il existe encore dans la liste)
+  const dernierVeh = localStorage.getItem(LAST_VEH_MAINT_KEY);
+  if (dernierVeh && [...sel.options].some(o => o.value === dernierVeh)) {
+    sel.value = dernierVeh;
   }
+
+  _maintVehActuel = sel.value;
+  chargerDraftVehicule(_maintVehActuel);
 
   renderMaintTable();
 }
@@ -7714,6 +7752,7 @@ function handleSelectOther(sel, customId) {
       sel.value = val;
       customEl.style.display = 'none';
       customEl.value = '';
+      sauvegarderBrouillon();
     };
     customEl.onblur = enregistrer;
     customEl.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); enregistrer(); } };
@@ -7721,6 +7760,7 @@ function handleSelectOther(sel, customId) {
   } else {
     customEl.style.display = 'none';
     customEl.value = '';
+    sauvegarderBrouillon();
   }
 }
 
@@ -10697,7 +10737,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260729.1351';
+const APP_VERSION = '260730.1109';
 
 let _swRegistration = null;
 
