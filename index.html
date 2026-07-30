@@ -1172,7 +1172,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1109</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1127</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2103,11 +2103,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260730.1109</strong><br>
+      Version actuelle de l'app : <strong>v260730.1127</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260730.1109 disponible)
+      📢 Notifier les utilisateurs (v260730.1127 disponible)
     </button>
   </div>
 
@@ -7590,9 +7590,12 @@ function chargerDraftVehicule(vehId) {
   let data = null;
   if (raw) { try { data = JSON.parse(raw); } catch(e) { data = null; } }
 
-  const samedi    = prochainSamediFinDeMois();
-  const samediStr = samedi.toISOString().slice(0,10);
-  const today     = new Date().toISOString().slice(0,10);
+  const samediStr = prochainSamediFinDeMois().toISOString().slice(0,10);
+  const today      = new Date().toISOString().slice(0,10);
+  // Le brouillon n'est considéré "du jour" que s'il a été modifié aujourd'hui même —
+  // sinon la date de relevé doit toujours repartir sur la date calculée automatiquement
+  // (celle affichée dans l'entête), même si un ancien brouillon contient une autre date.
+  const draftDuJour = !!(data && data._ts && new Date(data._ts).toISOString().slice(0,10) === today);
 
   if (data) {
     CHAMPS_MAINT.forEach(id => {
@@ -7602,16 +7605,11 @@ function chargerDraftVehicule(vehId) {
       el.value = data[id] || '';
       if (id.endsWith('-custom') && data[id]) el.style.display = '';
     });
-    const brouillonDate = data['maint-date'] || '';
-    const maintDateEl = document.getElementById('maint-date');
-    if (maintDateEl) maintDateEl.value = (!brouillonDate || brouillonDate < today) ? samediStr : brouillonDate;
-
     _photosEnCours = data['_photos'] || [];
     rafraichirPreviewPhotos();
   } else {
     // Pas de brouillon pour ce véhicule → valeurs par défaut
-    const dateEl = document.getElementById('maint-date'); if (dateEl) dateEl.value = samediStr;
-    const kmEl   = document.getElementById('maint-km');   if (kmEl)   kmEl.value   = '';
+    const kmEl = document.getElementById('maint-km'); if (kmEl) kmEl.value = '';
     ['maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus','maint-ext'].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -7626,6 +7624,14 @@ function chargerDraftVehicule(vehId) {
     _photosEnCours = [];
     rafraichirPreviewPhotos();
   }
+
+  // Date de relevé : toujours la date calculée automatiquement (celle de l'entête),
+  // sauf si elle a été adaptée manuellement AUJOURD'HUI (ajustement ponctuel en cours de saisie).
+  const maintDateEl = document.getElementById('maint-date');
+  if (maintDateEl) {
+    maintDateEl.value = (draftDuJour && data['maint-date']) ? data['maint-date'] : samediStr;
+  }
+
   updateIndicateurBrouillon(!!data);
 }
 
@@ -8238,6 +8244,8 @@ async function saveMaintenance() {
     photosData: photoUrls,
     rem: document.getElementById('maint-rem').value
   };
+
+  const veh = vehicules.find(v => v.id === vehId);
 
   maintenances.unshift(rec);
   if (veh && km > 0) {
@@ -10737,7 +10745,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260730.1109';
+const APP_VERSION = '260730.1127';
 
 let _swRegistration = null;
 
