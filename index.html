@@ -21,6 +21,109 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script>
+  // ══════════════════════════════════════════════════════════
+  // FILET DE SÉCURITÉ — capture les erreurs JS non gérées
+  // (synchrones ET dans les fonctions async/Promise) et affiche
+  // un message clair à l'utilisateur au lieu d'un échec silencieux.
+  // ══════════════════════════════════════════════════════════
+  (function() {
+    const IGNORER = [
+      'ResizeObserver loop', 'Script error.', 'Non-Error promise rejection',
+      'chrome-extension://', 'moz-extension://',
+    ];
+    const dejaSignalees = new Set(); // évite le spam si l'erreur se répète
+    let compteurErreurs = 0;
+
+    function signaler(message, source, ligne, colonne, stack) {
+      if (IGNORER.some(m => (message||'').includes(m))) return;
+      const cle = (message||'') + '|' + (ligne||'');
+      if (dejaSignalees.has(cle)) return;
+      dejaSignalees.add(cle);
+      compteurErreurs++;
+
+      const horodatage = new Date().toLocaleString('fr-BE');
+      const details = `Erreur : ${message}\nFichier : ${source || 'inconnu'}:${ligne||'?'}:${colonne||'?'}\nHeure : ${horodatage}\nPage : ${window.location.href}\nStack : ${(stack||'').slice(0,500)}`;
+
+      // Log Firestore best-effort (silencieux si échoue) — visible dans Comptes admin
+      try {
+        if (window.db) {
+          window.db.collection('erreursApp').add({
+            message: String(message).slice(0,500),
+            source: String(source||'').slice(0,200),
+            ligne, colonne,
+            stack: String(stack||'').slice(0,1000),
+            date: new Date().toISOString(),
+            url: window.location.href,
+            uid: (window.currentUser && window.currentUser.uid) || null,
+            nom: (window.currentUser && window.currentUser.nom) || null,
+          }).catch(() => {});
+        }
+      } catch(e) {}
+
+      afficherBanniereErreur(details, compteurErreurs);
+    }
+
+    function afficherBanniereErreur(details, nb) {
+      const ancien = document.getElementById('banniere-erreur-app');
+      if (ancien) ancien.remove();
+
+      const div = document.createElement('div');
+      div.id = 'banniere-erreur-app';
+      div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;'
+        + 'background:#c0392b;color:#fff;padding:14px 16px;box-shadow:0 2px 12px rgba(0,0,0,0.3);'
+        + 'font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:13px;'
+        + 'display:flex;flex-direction:column;gap:8px';
+
+      div.innerHTML =
+          '<div style="display:flex;align-items:flex-start;gap:10px">'
+        +   '<div style="font-size:22px;flex-shrink:0">⚠️</div>'
+        +   '<div style="flex:1;min-width:0">'
+        +     '<div style="font-weight:700;margin-bottom:3px">Une erreur technique est survenue</div>'
+        +     '<div style="font-size:12px;opacity:0.95;line-height:1.5">'
+        +       "L'action que vous venez de faire n'a peut-\u00eatre pas \u00e9t\u00e9 enregistr\u00e9e. "
+        +       'Merci de : <b>1)</b> re-tenter l\'action, <b>2)</b> v\u00e9rifier si elle appara\u00eet bien '
+        +       'dans la liste concern\u00e9e, et si le probl\u00e8me persiste <b>3)</b> pr\u00e9venir Patrick avec le bouton ci-dessous.'
+        +     '</div>'
+        +   '</div>'
+        +   '<button id="btn-fermer-erreur-app" style="background:rgba(255,255,255,0.25);border:none;'
+        +     'color:#fff;font-size:18px;cursor:pointer;padding:2px 10px;border-radius:6px;flex-shrink:0">\u2715</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        +   '<button id="btn-copier-erreur-app" style="background:#fff;color:#c0392b;font-weight:700;'
+        +     'border:none;padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer">'
+        +     '\u{1F4CB} Copier les d\u00e9tails techniques</button>'
+        +   '<a href="sms:0496224371" style="background:rgba(255,255,255,0.2);color:#fff;text-decoration:none;'
+        +     'border:1px solid rgba(255,255,255,0.5);padding:8px 14px;border-radius:8px;font-size:12px;'
+        +     'display:inline-flex;align-items:center">\u{1F4F1} Pr\u00e9venir Patrick par SMS</a>'
+        + '</div>';
+
+      document.body.appendChild(div);
+
+      document.getElementById('btn-fermer-erreur-app').onclick = () => div.remove();
+      document.getElementById('btn-copier-erreur-app').onclick = () => {
+        const zone = document.createElement('textarea');
+        zone.value = details;
+        document.body.appendChild(zone);
+        zone.select();
+        try { document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(zone);
+        const btn = document.getElementById('btn-copier-erreur-app');
+        if (btn) { const txt = btn.textContent; btn.textContent = '\u2705 Copi\u00e9 !'; setTimeout(() => { if (btn) btn.textContent = txt; }, 2000); }
+      };
+    }
+
+    window.addEventListener('error', function(e) {
+      signaler(e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack);
+    });
+
+    window.addEventListener('unhandledrejection', function(e) {
+      const err = e.reason;
+      const msg = err && err.message ? err.message : String(err);
+      const stack = err && err.stack ? err.stack : '';
+      signaler(msg, '(promesse non g\u00e9r\u00e9e)', '', '', stack);
+    });
+  })();
+
   const firebaseConfig = {
     apiKey: "AIzaSyC_zhE6feTWxzdDc7lXkFRZn5vfw3EQCDk",
     authDomain: "mcr-opont.firebaseapp.com",
@@ -1174,7 +1277,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1311</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1327</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" style="font-size:11px;color:rgba(255,255,255,0.8);opacity:0;transition:opacity 0.5s;white-space:nowrap">☁ Sync</div>
   <button title="Mon profil" onclick="showPage('profil',document.querySelector('.tab-btn[onclick*=profil]'))"
@@ -2105,11 +2208,11 @@ td.ok { color: var(--vert); font-weight: 600; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260730.1311</strong><br>
+      Version actuelle de l'app : <strong>v260730.1327</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260730.1311 disponible)
+      📢 Notifier les utilisateurs (v260730.1327 disponible)
     </button>
   </div>
 
@@ -4614,6 +4717,7 @@ function showPage(id, btn) {
     renderGestionComptes();
     renderSessionsActives();
     renderHistoriqueLog();
+    renderErreursApp();
   } else if (_sessionsListener) {
     // Arrêter le listener temps réel quand on quitte l'onglet Comptes
     _sessionsListener();
@@ -5378,6 +5482,49 @@ async function renderHistoriqueLog() {
   } catch(e) {
     container.innerHTML = `<p style="color:var(--rouge)">Erreur de chargement : ${e.message}</p>`;
   }
+}
+
+/* Affiche les erreurs JS signalées automatiquement par le filet de sécurité */
+async function renderErreursApp() {
+  const container = document.getElementById('erreurs-app-container');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--texte-sec)">Chargement…</p>';
+
+  try {
+    const snap = await db.collection('erreursApp').orderBy('date', 'desc').limit(50).get();
+    const erreurs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (!erreurs.length) {
+      container.innerHTML = '<p style="color:var(--vert);text-align:center;padding:16px">✅ Aucune erreur signalée récemment.</p>';
+      return;
+    }
+
+    container.innerHTML = erreurs.map(e => {
+      const dateStr = e.date ? new Date(e.date).toLocaleString('fr-BE',
+        { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+      return `<div style="border:1px solid var(--gris-bord);border-left:3px solid var(--rouge);
+        border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff8f8">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:4px">
+          <span style="font-size:12px;font-weight:700;color:var(--rouge)">🐞 ${e.message || 'Erreur inconnue'}</span>
+          <span style="font-size:11px;color:var(--texte-sec)">${dateStr}</span>
+        </div>
+        <div style="font-size:11px;color:var(--texte-sec)">
+          ${e.nom ? '👤 ' + e.nom + ' — ' : ''}${e.source || ''}${e.ligne ? ':' + e.ligne : ''}
+        </div>
+        <button class="btn btn-sm" style="margin-top:6px;font-size:11px;padding:3px 8px"
+          onclick="supprimerErreurApp('${e.id}')">🗑 Marquer comme traitée</button>
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    container.innerHTML = `<p style="color:var(--rouge)">Erreur de chargement : ${e.message}</p>`;
+  }
+}
+
+function supprimerErreurApp(id) {
+  db.collection('erreursApp').doc(id).delete()
+    .then(() => renderErreursApp())
+    .catch(() => toast('Erreur lors de la suppression'));
 }
 
 async function updateBadgeComptes() {
@@ -10767,7 +10914,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260730.1311';
+const APP_VERSION = '260730.1327';
 
 let _swRegistration = null;
 
@@ -11228,6 +11375,21 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
     <div id="hist-log-container">
+      <p style="color:var(--texte-sec)">Chargement…</p>
+    </div>
+  </div>
+
+  <!-- Erreurs techniques signalées automatiquement -->
+  <div class="form-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <h3>🐞 Erreurs techniques signalées</h3>
+      <button class="btn btn-sm" onclick="renderErreursApp()">🔄</button>
+    </div>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">
+      Erreurs JavaScript détectées automatiquement sur les appareils des utilisateurs.
+      Si une action semble ne pas s'être enregistrée, vérifiez ici.
+    </p>
+    <div id="erreurs-app-container">
       <p style="color:var(--texte-sec)">Chargement…</p>
     </div>
   </div>
