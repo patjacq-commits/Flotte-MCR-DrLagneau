@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260730.1410</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260731.1857</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2218,11 +2218,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260730.1410</strong><br>
+      Version actuelle de l'app : <strong>v260731.1857</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260730.1410 disponible)
+      📢 Notifier les utilisateurs (v260731.1857 disponible)
     </button>
   </div>
 
@@ -9348,6 +9348,20 @@ function renderTableRV() {
 }
 
 // ── Rappel entretien garage + CT urgent + RV dans 48h + RV dépassés ──
+function categorieTypeRV(type) {
+  if (type === 'ct') return { key:'ct', label:'\ud83c\udfe5 Contr\u00f4le technique' };
+  if (type === 'garage' || type === 'reparation' || type === 'rappel-marque')
+    return { key:'garage', label:'\ud83d\udd27 Entretien garage' };
+  if (type === 'rep-parebrise' || type === 'rempl-parebrise')
+    return { key:'vitrage', label:'\ud83e\ude9f Vitrage' };
+  if (['permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison'].includes(type))
+    return { key:'pneus', label:'\ud83d\udee1 Pneumatiques' };
+  if (['entretien-lift','reparation-lift','enrouleur','treuil'].includes(type))
+    return { key:'recht', label:'\u2696 Recht' };
+  if (type === 'marquage') return { key:'cparlon', label:'\ud83d\udccb CP Arlon' };
+  return { key:'autre', label:'\ud83d\udcdd Autre' };
+}
+
 function verifierEntretiensUrgents() {
   if (!userIsAdmin()) return;
 
@@ -9357,28 +9371,27 @@ function verifierEntretiensUrgents() {
   const now         = Date.now();
   const h48         = 48 * 3600 * 1000;
 
-  // ── RV dépassés (date passée OU aujourd'hui avec heure passée) ──
+  // \u2500\u2500 RV d\u00e9pass\u00e9s (date pass\u00e9e OU aujourd'hui avec heure pass\u00e9e) \u2500\u2500
   const rvDepasses = rendezvous.filter(r => {
     if (r.statut !== 'planifie') return false;
-    if (r.date < today) return true; // date passée
+    if (r.date < today) return true;
     if (r.date === today) {
-      // aujourd'hui : vérifier si l'heure est passée
-      if (!r.heure) return false; // pas d'heure → considéré comme futur
+      if (!r.heure) return false;
       const msRV = new Date(r.date + 'T' + r.heure).getTime();
       return msRV < now;
     }
     return false;
-  }).sort((a,b) => a.date.localeCompare(b.date));
+  });
 
-  // ── RV dans les 48h ───────────────────────────────────────
+  // \u2500\u2500 RV dans les 48h \u2500\u2500
   const rv48 = rendezvous.filter(r => {
     if (r.statut !== 'planifie') return false;
     const dateHeure = r.heure ? r.date + 'T' + r.heure : r.date + 'T00:00';
     const msRV = new Date(dateHeure).getTime();
     return msRV > now && msRV - now <= h48;
-  }).sort((a,b) => (a.date+a.heure).localeCompare(b.date+b.heure));
+  });
 
-  // ── Entretiens garage ──────────────────────────────────────
+  // \u2500\u2500 Entretiens garage (sans RV planifi\u00e9) \u2500\u2500
   const entretiens = vehicules.filter(v => {
     const ref = VEHICULES_DATA.find(r => r.id === v.id);
     const kmRef = ref?.km ? parseInt(ref.km) : (v.km ? parseInt(v.km) : null);
@@ -9388,105 +9401,120 @@ function verifierEntretiensUrgents() {
     const reste = prochainKm - kmRef;
     if (reste > seuilWarn) return false;
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'garage' && r.statut === 'planifie');
-  }).map(v => {
-    const ref = VEHICULES_DATA.find(r => r.id === v.id);
-    const kmRef = ref?.km ? parseInt(ref.km) : parseInt(v.km);
-    const prochainKm = ref?.prochain_entretien_km ? parseInt(ref.prochain_entretien_km) : parseInt(v.prochain_entretien_km);
-    return {
-      v, reste: prochainKm - kmRef,
-      niveau: (prochainKm - kmRef) <= seuilUrgent ? 'urgent' : 'warn',
-      categorie: 'garage'
-    };
   });
 
-  // ── Contrôles techniques ───────────────────────────────────
+  // \u2500\u2500 Contr\u00f4les techniques (sans RV planifi\u00e9) \u2500\u2500
   const cts = vehicules.filter(v => {
     if (!v.ct_valid) return false;
     const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
     if (j > 35) return false;
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'ct' && r.statut === 'planifie');
-  }).map(v => {
-    const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
-    return { v, j, niveau: j < 0 ? 'urgent' : j <= 7 ? 'urgent' : 'warn', categorie: 'ct' };
   });
 
   if (!rv48.length && !rvDepasses.length && !entretiens.length && !cts.length) return;
 
+  // \u2500\u2500 Construire une liste plate d'items avec urgence \u2500\u2500
+  const PRIORITE = { retard: 0, h48: 1, planifier: 2 };
+  const items = [];
+
+  rvDepasses.forEach(r => {
+    const v = vehicules.find(x => x.id === r.vehId);
+    items.push({
+      v, type: r.type, priorite: PRIORITE.retard,
+      badge: 'En retard', badgeCouleur: 'var(--rouge)', badgeFond: 'var(--rouge-clair)',
+      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId),
+      detail: formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : '') + (r.garage ? ' \u2014 ' + r.garage : ''),
+      actionsHtml: '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
+        + '<button class="btn btn-sm" style="background:var(--vert);color:#fff;border-color:var(--vert);flex:1"'
+        + ' onclick="traiterRVDepasse(' + r.id + ',\'effectue\')">\u2705 Effectu\u00e9</button>'
+        + '<button class="btn btn-sm" style="background:var(--orange);color:#fff;border-color:var(--orange);flex:1"'
+        + ' onclick="traiterRVDepasse(' + r.id + ',\'atraiter\')">\u23f3 \u00c0 traiter</button>'
+        + '<button class="btn btn-sm" style="background:var(--rouge);color:#fff;border-color:var(--rouge);flex:1"'
+        + ' onclick="traiterRVDepasse(' + r.id + ',\'annule\')">\u274c Annul\u00e9</button>'
+        + '</div>',
+    });
+  });
+
+  rv48.forEach(r => {
+    const v = vehicules.find(x => x.id === r.vehId);
+    const dateHeure = r.heure ? r.date + 'T' + r.heure : r.date + 'T00:00';
+    const heuresRestantes = Math.round((new Date(dateHeure).getTime() - now) / 3600000);
+    items.push({
+      v, type: r.type, priorite: PRIORITE.h48,
+      badge: '48h', badgeCouleur: 'var(--bleu)', badgeFond: 'var(--bleu-clair)',
+      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId),
+      detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ~' + heuresRestantes + 'h'
+        + (r.garage ? ' \u2014 ' + r.garage : ''),
+      actionsHtml: '',
+    });
+  });
+
+  entretiens.forEach(v => {
+    const ref = VEHICULES_DATA.find(r => r.id === v.id);
+    const kmRef = ref?.km ? parseInt(ref.km) : parseInt(v.km);
+    const prochainKm = ref?.prochain_entretien_km ? parseInt(ref.prochain_entretien_km) : parseInt(v.prochain_entretien_km);
+    const reste = prochainKm - kmRef;
+    items.push({
+      v, type: 'garage', priorite: PRIORITE.planifier,
+      badge: '\u00c0 planifier', badgeCouleur: 'var(--orange)', badgeFond: '#fef5e7',
+      titre: v.marque + ' \u2014 ' + v.immat,
+      detail: reste.toLocaleString('fr-BE') + ' km restants',
+      actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
+        + ' onclick="document.getElementById(\'modal-entretien-urgent\').remove();allerAuxRV()">\ud83d\udccb Prendre RV</button>',
+    });
+  });
+
+  cts.forEach(v => {
+    const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
+    const jStr = j < 0 ? 'Expir\u00e9 depuis ' + Math.abs(j) + ' jours'
+      : j === 0 ? 'Expire aujourd\'hui'
+      : 'Expire dans ' + j + ' jour' + (j > 1 ? 's' : '');
+    items.push({
+      v, type: 'ct', priorite: PRIORITE.planifier,
+      badge: '\u00c0 planifier', badgeCouleur: 'var(--orange)', badgeFond: '#fef5e7',
+      titre: v.marque + ' \u2014 ' + v.immat,
+      detail: jStr + ' (' + formatDate(v.ct_valid) + ')',
+      actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
+        + ' onclick="document.getElementById(\'modal-entretien-urgent\').remove();allerAuxRV()">\ud83d\udccb Prendre RV</button>',
+    });
+  });
+
+  // \u2500\u2500 Regrouper par cat\u00e9gorie de type \u2500\u2500
+  const groupes = {};
+  items.forEach(item => {
+    const cat = categorieTypeRV(item.type);
+    if (!groupes[cat.key]) groupes[cat.key] = { label: cat.label, items: [], prioriteMin: 99 };
+    groupes[cat.key].items.push(item);
+    groupes[cat.key].prioriteMin = Math.min(groupes[cat.key].prioriteMin, item.priorite);
+  });
+
+  // Trier les items de chaque groupe par urgence, puis les groupes par urgence min
+  Object.values(groupes).forEach(g => g.items.sort((a,b) => a.priorite - b.priorite));
+  const groupesOrdonnes = Object.values(groupes).sort((a,b) => a.prioriteMin - b.prioriteMin);
+
   const existing = document.getElementById('modal-entretien-urgent');
   if (existing) existing.remove();
 
-  // ── Lignes RV dépassés ────────────────────────────────────
-  const rowsDepasses = rvDepasses.map(r => {
-    const v    = vehicules.find(x => x.id === r.vehId);
-    const vNom = v ? v.marque + ' ' + r.vehId : r.vehId;
-    const tl   = labelRV(r.type);
-    const hr   = r.heure ? ' à ' + r.heure : '';
-    const gar  = r.garage ? ' — ' + r.garage : '';
-    return '<div data-rvid="' + r.id + '" style="padding:10px 14px;border-bottom:1px solid var(--gris-bord)">'
-      + '<div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--rouge)">'
-      + '🚨 ' + formatDateCourt(r.date) + hr + ' — <b>' + vNom + '</b>'
-      + '<span style="font-size:12px;color:var(--texte-sec);display:block;font-weight:400">' + tl + gar + '</span></div>'
-      + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
-      + '<button class="btn btn-sm" style="background:var(--vert);color:#fff;border-color:var(--vert);flex:1"'
-      + ' onclick="traiterRVDepasse(' + r.id + ',\'effectue\')">✅ Effectué</button>'
-      + '<button class="btn btn-sm" style="background:var(--orange);color:#fff;border-color:var(--orange);flex:1"'
-      + ' onclick="traiterRVDepasse(' + r.id + ',\'atraiter\')">⏳ À traiter</button>'
-      + '<button class="btn btn-sm" style="background:var(--rouge);color:#fff;border-color:var(--rouge);flex:1"'
-      + ' onclick="traiterRVDepasse(' + r.id + ',\'annule\')">❌ Annulé</button>'
-      + '</div></div>';
+  const corpsHtml = groupesOrdonnes.map(g => {
+    const lignesHtml = g.items.map(item =>
+      '<div style="padding:10px 16px;border-top:0.5px solid var(--gris-bord)">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+      + '<div>'
+      + '<div style="font-size:13px;font-weight:700">' + item.titre + '</div>'
+      + '<div style="font-size:12px;color:var(--texte-sec)">' + item.detail + '</div>'
+      + '</div>'
+      + '<div style="font-size:11px;font-weight:700;color:' + item.badgeCouleur + ';background:' + item.badgeFond + ';'
+      + 'padding:2px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0">' + item.badge + '</div>'
+      + '</div>'
+      + item.actionsHtml
+      + '</div>'
+    ).join('');
+    return '<div style="padding:8px 16px;font-size:11px;font-weight:700;text-transform:uppercase;'
+      + 'letter-spacing:0.5px;color:var(--texte-sec);background:var(--gris-clair)">'
+      + g.label + ' (' + g.items.length + ')</div>' + lignesHtml;
   }).join('');
 
-  // ── Lignes RV 48h ─────────────────────────────────────────
-  const rowsRV = rv48.map(r => {
-    const v    = vehicules.find(x => x.id === r.vehId);
-    const vNom = v ? v.marque + ' ' + r.vehId : r.vehId;
-    const dateHeure = r.heure ? r.date + 'T' + r.heure : r.date + 'T00:00';
-    const msRV  = new Date(dateHeure).getTime();
-    const heuresRestantes = Math.round((msRV - now) / 3600000);
-    const label = r.heure
-      ? formatDate(r.date) + ' à ' + r.heure
-      : formatDate(r.date);
-    return '<div style="padding:10px 14px;border-bottom:1px solid var(--gris-bord)">'
-      + '<div style="font-size:13px;font-weight:700;color:var(--bleu);margin-bottom:4px">'
-      + '📅 ' + vNom + '</div>'
-      + '<div style="font-size:12px;color:var(--texte-sec)">'
-      + labelRV(r.type) + (r.garage ? ' — ' + r.garage : '') + '</div>'
-      + '<div style="font-size:12px;color:var(--bleu);font-weight:600">'
-      + label + ' — dans ~' + heuresRestantes + 'h</div>'
-      + (r.notes ? '<div style="font-size:11px;color:var(--texte-sec)">' + r.notes + '</div>' : '')
-      + '</div>';
-  }).join('');
-
-  // ── Lignes entretiens + CT ─────────────────────────────────
-  const aAlerter = [...entretiens, ...cts]
-    .sort((a,b) => a.niveau !== b.niveau ? (a.niveau === 'urgent' ? -1 : 1) : 0);
-
-  const rowsAlertes = aAlerter.map(({v, reste, j, niveau, categorie}) => {
-    const couleur = niveau === 'urgent' ? 'var(--rouge)' : 'var(--orange)';
-    const icon    = niveau === 'urgent' ? '🚨' : '⚠️';
-    let desc, btnAction;
-    if (categorie === 'garage') {
-      const mois = Math.round(reste / 3000 * 10) / 10;
-      desc = 'Prochain entretien à ' + parseInt(v.prochain_entretien_km).toLocaleString('fr-BE')
-           + ' km — encore ~' + reste.toLocaleString('fr-BE') + ' km (~' + mois + ' mois)';
-      btnAction = "document.getElementById('modal-entretien-urgent').remove();allerAuxRV()";
-    } else {
-      const jStr = j < 0 ? 'Expiré depuis ' + Math.abs(j) + ' jours !'
-        : j === 0 ? 'Expire aujourd\'hui !'
-        : 'Expire dans ' + j + ' jour' + (j > 1 ? 's' : '') + ' (' + formatDate(v.ct_valid) + ')';
-      desc = 'CT : ' + jStr;
-      btnAction = "document.getElementById('modal-entretien-urgent').remove();allerAuxRV()";
-    }
-    return '<div style="padding:10px 14px;border-bottom:1px solid var(--gris-bord)">'
-      + '<div style="font-size:13px;font-weight:700;color:' + couleur + ';margin-bottom:4px">'
-      + icon + ' ' + v.marque + ' <b>' + v.immat + '</b></div>'
-      + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:4px">' + desc + '</div>'
-      + '<button class="btn btn-sm primary" style="width:100%"'
-      + ' onclick="' + btnAction + '">📋 Prendre RV</button>'
-      + '</div>';
-  }).join('');
-
-  const nbTotal = rv48.length + rvDepasses.length + aAlerter.length;
+  const nbTotal = items.length;
   const div = document.createElement('div');
   div.id = 'modal-entretien-urgent';
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;'
@@ -9497,19 +9525,13 @@ function verifierEntretiensUrgents() {
     + 'padding:14px 16px;border-bottom:2px solid var(--orange);'
     + 'position:sticky;top:0;background:#fff;z-index:1">'
     + '<div>'
-    + '<div style="font-size:16px;font-weight:700;color:var(--orange)">🔔 Rappels</div>'
+    + '<div style="font-size:16px;font-weight:700;color:var(--orange)">\ud83d\udd14 Rappels</div>'
     + '<div style="font-size:12px;color:var(--texte-sec);margin-top:2px">'
     + nbTotal + ' notification' + (nbTotal > 1 ? 's' : '') + '</div>'
     + '</div>'
     + '<button class="btn btn-sm" onclick="document.getElementById(\'modal-entretien-urgent\').remove()">Fermer</button>'
     + '</div>'
-    + (rvDepasses.length ? '<div id="rv-depasses-body"><div style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;'
-      + 'color:var(--rouge);background:var(--rouge-clair)">🚨 RV dépassés à traiter (' + rvDepasses.length + ')</div>'
-      + rowsDepasses + '</div>' : '')
-    + (rv48.length ? '<div style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;'
-      + 'color:var(--bleu);background:var(--bleu-clair)">📅 RV dans les 48h</div>' + rowsRV : '')
-    + (aAlerter.length ? '<div style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;'
-      + 'color:var(--orange);background:#fef5e7">⚠️ RV à planifier</div>' + rowsAlertes : '')
+    + corpsHtml
     + '</div>';
   document.body.appendChild(div);
 }
@@ -10888,7 +10910,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260730.1410';
+const APP_VERSION = '260731.1857';
 
 let _swRegistration = null;
 
