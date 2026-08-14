@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1702</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1716</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1852,7 +1852,23 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
       <div class="form-group">
         <label>Garage / Centre</label>
-        <input type="text" id="rv-garage" placeholder="ex: Picard Bouillon" />
+        <input type="text" id="rv-garage" placeholder="ex: Picard Bouillon"
+          oninput="updateGarageTelDisplay()" onchange="updateGarageTelDisplay()" />
+        <div id="ct-tel-display" style="display:none;margin-top:6px;font-size:13px;
+             align-items:center;gap:10px;flex-wrap:wrap">
+          <div id="ct-tel-lines" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+          <button type="button" class="btn btn-sm" onclick="toggleTelEdit()" style="padding:2px 8px;font-size:11px">✏️ Modifier</button>
+        </div>
+        <div id="ct-tel-edit-wrap" style="display:none;margin-top:8px;padding:10px;
+             background:var(--gris-clair);border-radius:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            <input type="tel" id="ct-tel-principal" placeholder="Téléphone principal"
+              style="flex:1;min-width:130px;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 8px;font-size:13px" />
+            <input type="tel" id="ct-tel-gsm" placeholder="GSM"
+              style="flex:1;min-width:130px;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 8px;font-size:13px" />
+          </div>
+          <button type="button" class="btn btn-sm primary" onclick="sauvegarderTelGarage()">💾 Enregistrer les contacts</button>
+        </div>
       </div>
       <div class="form-group" id="rv-km-wrap" style="display:none">
         <label>Kilométrage</label>
@@ -2205,11 +2221,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260814.1702</strong><br>
+      Version actuelle de l'app : <strong>v260814.1716</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260814.1702 disponible)
+      📢 Notifier les utilisateurs (v260814.1716 disponible)
     </button>
   </div>
 
@@ -2335,6 +2351,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       <option value="planifie">📅 Planifiés</option>
       <option value="effectue">✅ Effectués</option>
       <option value="annule">❌ Annulés</option>
+      <option value="maintenance">🔧 Maintenances</option>
     </select>
     <button id="hist-export-csv" class="btn admin-only" style="display:none" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
@@ -2822,6 +2839,17 @@ window._refreshUI = function() {
     }, 500);
   }
 
+  // Notifications push pour les RV dans les 48h — une seule vérification par session
+  if (!window._rappelsRVChecked
+      && window.vehicules?.length
+      && rendezvous?.length
+      && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    window._rappelsRVChecked = true;
+    setTimeout(function() {
+      if (typeof programmerTousLesRappels === 'function') programmerTousLesRappels();
+    }, 1000);
+  }
+
   // Réinitialiser le flag quand l'app revient au premier plan
   // → le modal se réaffiche à chaque ouverture tant qu'il y a des RV dépassés
   if (!window._visibilityListenerAdded) {
@@ -2829,6 +2857,7 @@ window._refreshUI = function() {
     document.addEventListener('visibilitychange', function() {
       if (document.visibilityState === 'visible') {
         window._entretienUrgentChecked = false;
+        window._rappelsRVChecked = false;
       }
     });
   }
@@ -3922,6 +3951,16 @@ function renderMessagesChauf() {
           + 'margin-top:4px">📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
         : '';
 
+    // Formulaire de réponse — admin uniquement
+    const replyFormHtml = userIsAdmin()
+      ? `<div style="display:flex;gap:6px;margin-top:8px">
+           <input type="text" id="reponse-input-${m.id}" placeholder="Répondre au chauffeur…"
+             style="flex:1;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 8px;font-size:13px"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();repondreMessage(${m.id});}" />
+           <button class="btn btn-sm primary" onclick="repondreMessage(${m.id})">↩️ Répondre</button>
+         </div>`
+      : '';
+
     return `<div class="msg-card ${isTraite ? 'traite-card' : isNonLu||isVu ? 'non-lu' : 'lu'} ${isUrgent && !isTraite ? 'urgent-msg' : ''}">
       <div class="msg-header">
         <span class="badge ${badgeCls}" style="font-size:10px">${badgeTxt}</span>
@@ -3936,6 +3975,7 @@ function renderMessagesChauf() {
         ${photosHtml}
       </div>
       ${repHtml}
+      ${replyFormHtml}
       ${adminBtns || chaufDeleteBtn
         ? `<div class="msg-actions">${adminBtns}${chaufDeleteBtn}</div>` : ''}
     </div>`;
@@ -6648,30 +6688,39 @@ document.addEventListener('keydown',e=>{
 });
 
 
+/* Vérifie les RV planifiés dans les prochaines 48h et notifie ceux pas encore
+   signalés. Appelée à chaque ouverture de l'app (si notifications actives) —
+   approche fiable, contrairement à une programmation via le Service Worker qui
+   ne peut pas garantir un minuteur survivant 24h (le SW est régulièrement tué
+   par le navigateur entre deux ouvertures de l'app). */
 function programmerTousLesRappels() {
-  if (Notification.permission !== 'granted') return;
-  const todayStr = toLocalYMD(new Date());
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!('serviceWorker' in navigator)) return;
 
-  // RV planifiés (modal openRV)
-  rendezvous
-    .filter(r => r.statut === 'planifie' && r.date >= todayStr)
-    .forEach(r => {
-      const veh = vehicules.find(v => v.id === r.vehId);
-      programmerRappel(r, veh);
-    });
+  let dejaNotifies = [];
+  try { dejaNotifies = JSON.parse(localStorage.getItem('mcr_rv_notifies') || '[]'); } catch(e) {}
 
-  // RV enregistrés dans ctEvents (onglet Prendre RV)
-  ctEvents
-    .filter(c => c.date >= todayStr)
-    .forEach(c => {
-      const veh = vehicules.find(v => v.id === c.vehId);
-      const fakeRV = {
-        id: c.id, date: c.date, heure: c.heure || null,
-        type: c.type, garage: c.result || '', notes: c.rem || '',
-        vehId: c.vehId, statut: 'planifie'
-      };
-      programmerRappel(fakeRV, veh);
-    });
+  const maintenant    = Date.now();
+  const dansQuarante8h = maintenant + 48 * 3600 * 1000;
+
+  const rvProches = rendezvous.filter(r => {
+    if (r.statut !== 'planifie') return false;
+    if (dejaNotifies.includes(String(r.id))) return false;
+    const dateHeure = r.heure ? r.date + 'T' + r.heure : r.date + 'T08:00';
+    const t = new Date(dateHeure).getTime();
+    return t > maintenant && t <= dansQuarante8h;
+  });
+
+  if (!rvProches.length) return;
+
+  rvProches.forEach(r => {
+    const veh = vehicules.find(v => v.id === r.vehId);
+    notifRV(r, veh);
+    dejaNotifies.push(String(r.id));
+  });
+
+  // Ne garder que les 300 dernières entrées pour ne pas grossir indéfiniment
+  localStorage.setItem('mcr_rv_notifies', JSON.stringify(dejaNotifies.slice(-300)));
 }
 
 // ============================================================
@@ -7450,22 +7499,23 @@ function setGarageTel(garage, principal, gsm) {
 
 /* Affiche les téléphones du garage sélectionné */
 function updateGarageTelDisplay() {
-  const garage = document.getElementById('ct-result')?.value?.trim();
+  const garage = document.getElementById('rv-garage')?.value?.trim();
   const display = document.getElementById('ct-tel-display');
   const lines   = document.getElementById('ct-tel-lines');
   if (!display || !lines) return;
 
-  const tels = garage ? (getGaragesTel()[garage] || { principal:'', gsm:'' }) : { principal:'', gsm:'' };
-
-  if (!tels.principal && !tels.gsm) {
+  if (!garage) {
     display.style.display = 'none';
     return;
   }
 
-  display.style.display = '';
+  const tels = getGaragesTel()[garage] || { principal:'', gsm:'' };
+
+  display.style.display = 'flex';
   let html = '';
   if (tels.principal) html += `<div>📞 <a href="tel:${tels.principal}" style="color:var(--texte);text-decoration:none">${tels.principal}</a></div>`;
   if (tels.gsm)       html += `<div>📱 <a href="tel:${tels.gsm}" style="color:var(--texte);text-decoration:none">${tels.gsm}</a></div>`;
+  if (!tels.principal && !tels.gsm) html += `<span style="color:var(--texte-sec);font-size:12px">Aucun contact enregistré</span>`;
   lines.innerHTML = html;
 
   // Pré-remplir les champs d'édition
@@ -7482,7 +7532,7 @@ function toggleTelEdit() {
 }
 
 function sauvegarderTelGarage() {
-  const garage    = document.getElementById('ct-result')?.value?.trim();
+  const garage    = document.getElementById('rv-garage')?.value?.trim();
   const principal = document.getElementById('ct-tel-principal')?.value?.trim();
   const gsm       = document.getElementById('ct-tel-gsm')?.value?.trim();
   if (!garage) { toast('Saisissez d\'abord le nom du garage.'); return; }
@@ -8932,7 +8982,8 @@ function sauvegarderRV() {
     { vehId, type, date, statut });
 
   if (statut === 'planifie' && Notification.permission === 'granted') {
-    programmerRappel(rec, v);
+    // Vérifie si ce nouveau RV tombe déjà dans la fenêtre des 48h (rare mais possible)
+    programmerTousLesRappels();
   }
 
   clearRVForm();
@@ -9745,9 +9796,15 @@ function renderHistorique() {
     });
   }
 
-  // Masquer la vue maintenance détaillée
+  // Basculer entre la vue tableau RV et la vue détaillée maintenance
   const maintDetail = document.getElementById('hist-maint-detail');
   const tableView   = document.getElementById('hist-table-view');
+  if (filterType === 'maintenance') {
+    if (maintDetail) maintDetail.style.display = '';
+    if (tableView)   tableView.style.display   = 'none';
+    renderHistMaintDetail(filterVeh, dateDebut, dateFin);
+    return;
+  }
   if (maintDetail) maintDetail.style.display = 'none';
   if (tableView)   tableView.style.display   = '';
 
@@ -10512,7 +10569,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260814.1702';
+const APP_VERSION = '260814.1716';
 
 let _swRegistration = null;
 
@@ -10662,6 +10719,7 @@ async function activerNotifications() {
   const perm = await Notification.requestPermission();
   if (perm === 'granted') {
     programmerResumeQuotidien();
+    programmerTousLesRappels();
     const cible   = new Date(Date.now() + delaiJusquaSeptHeures());
     const heureStr = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit' });
     toast(`✅ Prochain résumé : ${heureStr}`);
@@ -10691,51 +10749,19 @@ function updateStatutNotif() {
 /* Envoie une notification immédiate via le SW */
 function notifRV(rv, vehicule) {
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
-  const typeLabel = rv.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
+  const typeLabel = labelRV(rv.type);
   const heureStr  = rv.heure ? ` à ${rv.heure}` : '';
   const garageStr = rv.garage ? ` — ${rv.garage}` : '';
   const vNom = vehicule ? `${vehicule.marque} ${vehicule.immat}` : rv.vehId;
 
   navigator.serviceWorker.ready.then(reg => {
-    reg.showNotification(`📅 RV planifié — ${vNom}`, {
+    reg.showNotification(`📅 RV proche — ${vNom}`, {
       body: `${typeLabel} le ${formatDate(rv.date)}${heureStr}${garageStr}`,
       icon: './icon-192.png',
       badge: './icon-192.png',
       tag: `rv-${rv.id}`,
       data: { url: window.location.href },
       requireInteraction: false
-    });
-  });
-}
-
-/* Programme un rappel 24h avant le RV via le SW (message postMessage) */
-function programmerRappel(rv, vehicule) {
-  if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
-  if (!rv.date) return;
-
-  // Calculer le timestamp du RV
-  const dateStr  = rv.date + (rv.heure ? 'T' + rv.heure : 'T08:00');
-  const rvTime   = new Date(dateStr).getTime();
-  const rappelTime = rvTime - 24 * 60 * 60 * 1000; // 24h avant
-  const now      = Date.now();
-
-  if (rappelTime <= now) return; // RV passé ou dans moins de 24h
-
-  const typeLabel = rv.type === 'ct' ? 'Contrôle Technique' : 'Entretien Garage';
-  const heureStr  = rv.heure ? ` à ${rv.heure}` : '';
-  const garageStr = rv.garage ? ` — ${rv.garage}` : '';
-  const vNom = vehicule ? `${vehicule.marque} ${vehicule.immat}` : rv.vehId;
-
-  navigator.serviceWorker.ready.then(reg => {
-    reg.active.postMessage({
-      type: 'PROGRAMMER_RAPPEL',
-      payload: {
-        id:       rv.id,
-        titre:    `⏰ Rappel RV demain — ${vNom}`,
-        corps:    `${typeLabel} le ${formatDate(rv.date)}${heureStr}${garageStr}`,
-        delai:    rappelTime - now, // ms avant d'envoyer
-        tag:      `rappel-${rv.id}`
-      }
     });
   });
 }
