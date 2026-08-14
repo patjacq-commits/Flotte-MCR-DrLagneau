@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1516</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1524</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2218,11 +2218,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260814.1516</strong><br>
+      Version actuelle de l'app : <strong>v260814.1524</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260814.1516 disponible)
+      📢 Notifier les utilisateurs (v260814.1524 disponible)
     </button>
   </div>
 
@@ -5683,9 +5683,9 @@ function ouvrirModalRapportPDF() {
   const ex = document.getElementById('modal-rapport-pdf');
   if (ex) ex.remove();
   const normD = d => { if (!d) return ''; if (typeof d === 'string') return d.slice(0,10); if (d?.toDate) return toLocalYMD(d.toDate()); if (d instanceof Date) return toLocalYMD(d); return String(d).slice(0,10); };
-  const annees     = [...new Set(maintenances.map(m => normD(m.date).slice(0,4)))].filter(Boolean).sort().reverse();
-  const moisDispos = [...new Set(maintenances.map(m => normD(m.date).slice(0,7)))].filter(Boolean).sort().reverse();
-  if (!moisDispos.length) { toast('Aucune maintenance enregistree'); return; }
+  const annees      = [...new Set(maintenances.map(m => normD(m.date).slice(0,4)))].filter(Boolean).sort().reverse();
+  const datesDispos = [...new Set(maintenances.map(m => normD(m.date)))].filter(Boolean).sort().reverse();
+  if (!datesDispos.length) { toast('Aucune maintenance enregistree'); return; }
 
   const div = document.createElement('div');
   div.id = 'modal-rapport-pdf';
@@ -5697,12 +5697,12 @@ function ouvrirModalRapportPDF() {
     + ORDRE_VEHICULES.map(id => { const v = vehicules.find(x => x.id === id); return (v && !v.archive) ? '<option value="' + id + '">' + v.marque + ' \u2014 ' + id + '</option>' : ''; }).join('')
     + '</select></div>'
     + '<div class="form-group" style="margin-bottom:12px"><label>Periode</label><select id="pdf-periode-select" onchange="onPdfPeriodeChange()" style="width:100%">'
-    + '<option value="mois">Un mois precis</option>'
+    + '<option value="date">Une date precise (un releve)</option>'
     + '<option value="debut">Depuis le 01/01/' + new Date().getFullYear() + '</option>'
     + '<option value="annee">Toute une annee</option>'
     + '</select></div>'
-    + '<div id="pdf-mois-group" class="form-group" style="margin-bottom:16px"><label>Mois</label><select id="pdf-mois-select" style="width:100%">'
-    + moisDispos.map(m => { const [y,mo] = m.split('-'); const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return '<option value="' + m + '">' + lbl.charAt(0).toUpperCase()+lbl.slice(1) + '</option>'; }).join('')
+    + '<div id="pdf-date-group" class="form-group" style="margin-bottom:16px"><label>Date du releve</label><select id="pdf-date-select" style="width:100%">'
+    + datesDispos.map(d => '<option value="' + d + '">' + formatDateCourt(d) + '</option>').join('')
     + '</select></div>'
     + '<div id="pdf-annee-group" class="form-group" style="margin-bottom:16px;display:none"><label>Annee</label><select id="pdf-annee-select" style="width:100%">'
     + annees.map(a => '<option value="' + a + '">' + a + '</option>').join('')
@@ -5719,16 +5719,16 @@ function ouvrirModalRapportPDF() {
 
 function onPdfPeriodeChange() {
   const v = document.getElementById('pdf-periode-select')?.value;
-  const mg = document.getElementById('pdf-mois-group');
+  const dg = document.getElementById('pdf-date-group');
   const ag = document.getElementById('pdf-annee-group');
-  if (mg) mg.style.display = v === 'mois'  ? '' : 'none';
+  if (dg) dg.style.display = v === 'date'  ? '' : 'none';
   if (ag) ag.style.display = v === 'annee' ? '' : 'none';
 }
 
 function _genererPDFAdmin() {
   const filterVeh = document.getElementById('pdf-veh-select')?.value || '';
-  const periode   = document.getElementById('pdf-periode-select')?.value || 'mois';
-  const moisSel   = document.getElementById('pdf-mois-select')?.value || '';
+  const periode   = document.getElementById('pdf-periode-select')?.value || 'date';
+  const dateSel   = document.getElementById('pdf-date-select')?.value || '';
   const anneeSel  = document.getElementById('pdf-annee-select')?.value || new Date().getFullYear().toString();
 
   document.getElementById('modal-rapport-pdf')?.remove();
@@ -5747,12 +5747,12 @@ function _genererPDFAdmin() {
   const debutAnnee = new Date().getFullYear() + '-01-01';
   const today = toLocalYMD(new Date());
 
-  // S'assurer que moisSel est valide si période = mois
-  const moisEffectif = moisSel || [...new Set(maintenances.map(m => normDate(m.date).slice(0,7)))].filter(Boolean).sort().reverse()[0] || '';
+  // S'assurer que dateSel est valide si période = date précise
+  const dateEffective = dateSel || [...new Set(maintenances.map(m => normDate(m.date)))].filter(Boolean).sort().reverse()[0] || '';
 
-  if      (periode === 'mois'  && moisEffectif) maints = maints.filter(m => m._dateNorm.startsWith(moisEffectif));
-  else if (periode === 'annee')                 maints = maints.filter(m => m._dateNorm.startsWith(anneeSel));
-  else if (periode === 'debut')                 maints = maints.filter(m => m._dateNorm >= debutAnnee && m._dateNorm <= today);
+  if      (periode === 'date'  && dateEffective) maints = maints.filter(m => m._dateNorm === dateEffective);
+  else if (periode === 'annee')                  maints = maints.filter(m => m._dateNorm.startsWith(anneeSel));
+  else if (periode === 'debut')                  maints = maints.filter(m => m._dateNorm >= debutAnnee && m._dateNorm <= today);
 
   if (!maints.length) { toast('Aucune maintenance pour cette selection'); return; }
 
@@ -5763,10 +5763,8 @@ function _genererPDFAdmin() {
   });
 
   let labelPeriode = '';
-  if (periode === 'mois' && moisEffectif) {
-    const [y,mo] = moisEffectif.split('-');
-    labelPeriode = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'});
-    labelPeriode = labelPeriode.charAt(0).toUpperCase()+labelPeriode.slice(1);
+  if (periode === 'date' && dateEffective) {
+    labelPeriode = formatDateCourt(dateEffective);
   } else if (periode === 'annee') {
     labelPeriode = 'Annee ' + anneeSel;
   } else {
@@ -5779,8 +5777,8 @@ function _genererPDFAdmin() {
 function genererRapportPDF() { ouvrirModalRapportPDF(); }
 
 function genererRapportPDFChauf() {
-  const moisDispos = [...new Set(maintenances.map(m => m.date?.slice(0,7)))].sort().reverse();
-  if (!moisDispos.length) { toast('Aucune maintenance disponible'); return; }
+  const datesDispos = [...new Set(maintenances.map(m => m.date?.slice(0,10)))].filter(Boolean).sort().reverse();
+  if (!datesDispos.length) { toast('Aucune maintenance disponible'); return; }
   const filterVeh = document.getElementById('chauf-maint-veh')?.value || '';
   const ex = document.getElementById('modal-rapport-pdf-chauf');
   if (ex) ex.remove();
@@ -5791,8 +5789,8 @@ function genererRapportPDFChauf() {
   div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
     + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Rapport PDF</div>'
     + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:14px">' + vLabel + '</div>'
-    + '<div class="form-group" style="margin-bottom:16px"><label>Mois</label><select id="rapport-mois-chauf" style="width:100%">'
-    + moisDispos.map(m => { const [y,mo] = m.split('-'); const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return '<option value="' + m + '">' + lbl.charAt(0).toUpperCase()+lbl.slice(1) + '</option>'; }).join('')
+    + '<div class="form-group" style="margin-bottom:16px"><label>Date du relevé</label><select id="rapport-date-chauf" style="width:100%">'
+    + datesDispos.map(d => '<option value="' + d + '">' + formatDateCourt(d) + '</option>').join('')
     + '</select></div>'
     + '<div style="display:flex;gap:8px"><button class="btn primary" onclick="_genererPDFChauf(\'' + filterVeh + '\')">Generer PDF</button>'
     + '<button class="btn" onclick="document.getElementById(\'modal-rapport-pdf-chauf\').remove()">Annuler</button></div></div>';
@@ -5800,22 +5798,19 @@ function genererRapportPDFChauf() {
 }
 
 function _genererPDFChauf(filterVeh) {
-  const mois = document.getElementById('rapport-mois-chauf')?.value;
-  if (!mois) return;
+  const dateSel = document.getElementById('rapport-date-chauf')?.value;
+  if (!dateSel) return;
   document.getElementById('modal-rapport-pdf-chauf')?.remove();
-  let maints = maintenances.filter(m => m.date?.startsWith(mois));
+  let maints = maintenances.filter(m => m.date === dateSel);
   if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
-  if (!maints.length) { toast('Aucune maintenance pour ce mois'); return; }
+  if (!maints.length) { toast('Aucune maintenance pour cette date'); return; }
   maints.sort((a,b) => {
     const ia = ORDRE_VEHICULES.indexOf(a.vehId);
     const ib = ORDRE_VEHICULES.indexOf(b.vehId);
-    return ia !== ib ? ia - ib : (a.date||'').localeCompare(b.date||'');
+    return ia - ib;
   });
-  const [annee, mo] = mois.split('-');
-  let labelMois = new Date(annee, mo-1, 1).toLocaleDateString('fr-BE', {month:'long', year:'numeric'});
-  labelMois = labelMois.charAt(0).toUpperCase() + labelMois.slice(1);
   const vLabel = filterVeh ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh : 'Tous les vehicules';
-  _construirePDF(maints, vLabel, labelMois);
+  _construirePDF(maints, vLabel, formatDateCourt(dateSel));
 }
 
 function _construirePDF(maints, vLabel, labelPeriode) {
@@ -10926,7 +10921,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260814.1516';
+const APP_VERSION = '260814.1524';
 
 let _swRegistration = null;
 
