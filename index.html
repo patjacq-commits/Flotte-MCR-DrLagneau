@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1547</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1556</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1762,7 +1762,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
       <h3>Maintenances enregistrées</h3>
-      <button id="btn-print-maint" class="btn btn-sm" onclick="ouvrirModalImpression()">🖨 Imprimer</button>
+      <button id="btn-print-maint" class="btn btn-sm" onclick="ouvrirModalRapportPDF()">🖨 Imprimer</button>
     </div>
     <!-- Filtres -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
@@ -2218,11 +2218,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260814.1547</strong><br>
+      Version actuelle de l'app : <strong>v260814.1556</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260814.1547 disponible)
+      📢 Notifier les utilisateurs (v260814.1556 disponible)
     </button>
   </div>
 
@@ -8655,7 +8655,7 @@ function imprimerRapportGlobalDuJour(date) {
   const mList = maintenances.filter(m => m.date === date)
     .sort((a,b) => ORDRE_VEHICULES.indexOf(a.vehId) - ORDRE_VEHICULES.indexOf(b.vehId));
   if (!mList.length) { toast('Aucune maintenance à imprimer.'); return; }
-  _imprimerListe(mList, 'Relevé du ' + formatDateCourt(date));
+  _construirePDF(mList, 'Tous les véhicules', formatDateCourt(date));
 }
 
 function verifierCompletudeMensuelle(dateSaisie) {
@@ -10657,244 +10657,6 @@ function headerRapport(titre, filtres) {
 }
 
 /* Rapport maintenances détaillé avec tous les champs */
-function ouvrirModalImpression() {
-  const moisDispos = [...new Set(maintenances.map(m => (m.date||'').slice(0,7)))].filter(Boolean).sort().reverse();
-  const ex = document.getElementById('modal-impression-maint');
-  if (ex) ex.remove();
-  const div = document.createElement('div');
-  div.id = 'modal-impression-maint';
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
-    + '<div style="font-size:16px;font-weight:700;margin-bottom:16px">🖨 Imprimer les maintenances</div>'
-    + '<div class="form-group" style="margin-bottom:12px"><label>Véhicule</label>'
-    + '<select id="imp-veh" style="width:100%"><option value="">Tous les véhicules</option>'
-    + ORDRE_VEHICULES.map(id => { const v = vehicules.find(x => x.id === id); return v && !v.archive ? '<option value="' + id + '">' + v.marque + ' — ' + id + '</option>' : ''; }).join('')
-    + '</select></div>'
-    + '<div class="form-group" style="margin-bottom:16px"><label>Période</label>'
-    + '<select id="imp-mois" style="width:100%"><option value="">Toutes les maintenances</option>'
-    + moisDispos.map(m => { const [y,mo] = m.split('-'); const lbl = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return '<option value="' + m + '">' + lbl.charAt(0).toUpperCase()+lbl.slice(1) + '</option>'; }).join('')
-    + '</select></div>'
-    + '<div style="display:flex;gap:8px">'
-    + '<button class="btn primary" id="btn-imp-ok">🖨 Imprimer</button>'
-    + '<button class="btn" id="btn-imp-annuler">Annuler</button>'
-    + '</div></div>';
-  document.body.appendChild(div);
-  document.getElementById('btn-imp-ok').addEventListener('click', () => {
-    const filtVeh  = document.getElementById('imp-veh')?.value  || '';
-    const filtMois = document.getElementById('imp-mois')?.value || '';
-    div.remove();
-    printRapportMaintAvecFiltres(filtVeh, filtMois);
-  });
-  document.getElementById('btn-imp-annuler').addEventListener('click', () => div.remove());
-}
-
-function printRapportMaintAvecFiltres(filtVeh, filtMois) {
-  let mList = [...maintenances];
-  if (filtVeh)  mList = mList.filter(m => m.vehId === filtVeh);
-  if (filtMois) mList = mList.filter(m => (m.date||'').startsWith(filtMois));
-  mList.sort((a,b) => (a.date||'').localeCompare(b.date||''));
-  if (!mList.length) { toast('Aucune maintenance pour ces critères.'); return; }
-  const v = filtVeh ? vehicules.find(x => x.id === filtVeh) : null;
-  const filtreStr = [
-    filtVeh  ? (v?.immat || filtVeh) : 'Tous véhicules',
-    filtMois ? (() => { const [y,mo] = filtMois.split('-'); const l = new Date(y,mo-1,1).toLocaleDateString('fr-BE',{month:'long',year:'numeric'}); return l.charAt(0).toUpperCase()+l.slice(1); })() : 'Toutes les dates',
-  ].join(' — ');
-  // Réutiliser printRapportMaint avec la liste filtrée
-  _imprimerListe(mList, filtreStr);
-}
-
-function printRapportMaint() {
-  // Appelé depuis l'onglet Maintenance avec les filtres du tableau actifs
-  const filtVeh  = document.getElementById('maint-filter-veh')?.value  || '';
-  const filtDate = document.getElementById('maint-filter-date')?.value || '';
-  let mList = [...maintenances];
-  if (filtVeh)  mList = mList.filter(m => m.vehId === filtVeh);
-  if (filtDate) mList = mList.filter(m => m.date  === filtDate);
-  mList.sort((a,b) => (a.date||'').localeCompare(b.date||''));
-  if (!mList.length) { toast('Aucune maintenance pour ces critères.'); return; }
-  const filtreStr = [
-    filtVeh  ? vehicules.find(v=>v.id===filtVeh)?.immat : 'Tous véhicules',
-    filtDate ? formatDate(filtDate) : 'Toutes les dates',
-  ].filter(Boolean).join(' — ');
-  _imprimerListe(mList, filtreStr);
-}
-
-function _imprimerListe(mList, filtreStr) {
-  // Dates uniques = une section de tableau par mois
-  const datesUniques = [...new Set(mList.map(m => m.date))].sort();
-  const vehIds = ORDRE_VEHICULES.filter(id => mList.some(m => m.vehId === id));
-
-  // Champs colonnes (un par colonne dans le tableau)
-  const CHAMPS = [
-    { key:'lg',    label:'Lave-glace'       },
-    { key:'hm',    label:'Huile moteur'     },
-    { key:'hf',    label:'Huile frein'      },
-    { key:'lr',    label:'Refroidissement'  },
-    { key:'ecl',   label:'Éclairage'        },
-    { key:'pneus', label:'Pneus'            },
-    { key:'ext',   label:'Extérieur'        },
-  ];
-
-  // 9 colonnes : Véhicule + Km + 7 champs
-  // Véhicule = 14%, Km = 10%, chaque champ = (76/7)% ≈ 10.86%
-  const pctVeh   = 14;
-  const pctKm    = 10;
-  const pctChamp = ((100 - pctVeh - pctKm) / CHAMPS.length).toFixed(2);
-
-  const cssExtra = `<style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',Arial,sans-serif;font-size:8.5px;color:#222;padding:8px}
-    h1{font-size:13px;color:#c0392b;margin-bottom:1px}
-    .meta{font-size:8px;color:#666;margin-bottom:8px}
-    .header-bar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-    h2{font-size:10px;color:#fff;background:#2c3e50;margin:10px 0 0;
-       padding:3px 8px;border-left:4px solid #c0392b}
-    table{border-collapse:collapse;width:100%;table-layout:fixed;
-          border:1px solid #999;margin-bottom:2px}
-    th,td{border:1px solid #aaa;padding:3px 4px;text-align:center;
-          overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-    th{background:#34495e;color:#fff;font-size:7.5px;font-weight:700}
-    th.h-veh{background:#c0392b;text-align:left;width:${pctVeh}%}
-    th.h-km{background:#2980b9;width:${pctKm}%}
-    th.h-champ{width:${pctChamp}%}
-    td.veh-cell{background:#f5f5f5;font-weight:700;text-align:left;
-                font-size:8px;white-space:normal;word-break:break-word}
-    td.km-cell{background:#ebf5fb;font-weight:600;font-size:8px;color:#1a5276}
-    td.ok{color:#27ae60;font-weight:800;font-size:10px}
-    td.warn{color:#e67e22;font-weight:700;font-size:7.5px;white-space:normal;
-            word-break:break-word}
-    td.absent{background:#fafafa;color:#ccc;font-size:10px}
-    .rem-table{width:100%;border-collapse:collapse;margin:8px 0 4px}
-    .rem-table th{background:#e67e22;color:#fff;text-align:left;
-                  font-size:8px;padding:2px 6px}
-    .rem-table td{border:1px solid #f0c080;padding:2px 6px;
-                  font-size:8px;background:#fef9e7;vertical-align:top}
-    .rem-veh{font-weight:700;width:14%;white-space:nowrap}
-    .rem-date{width:10%;white-space:nowrap}
-    .leg{font-size:7.5px;color:#666;margin-top:6px;
-         display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid #ddd;padding-top:4px}
-    .foot{font-size:7.5px;color:#999;margin-top:4px;text-align:right}
-    @media print{
-      body{padding:4px}
-      @page{size:A4 landscape;margin:6mm}
-      h2{page-break-before:auto}
-    }
-  </style>`;
-
-  const dateGen = new Date().toLocaleDateString('fr-BE',
-    {day:'2-digit',month:'long',year:'numeric'});
-
-  let body = `<div class="header-bar">
-    <svg width="22" height="22" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="15" fill="#fff" stroke="#dc241f" stroke-width="2"/>
-      <rect x="13" y="7" width="6" height="18" rx="1" fill="#dc241f"/>
-      <rect x="7" y="13" width="18" height="6" rx="1" fill="#dc241f"/>
-    </svg>
-    <div>
-      <h1>Maison Croix-Rouge — Opont &nbsp;|&nbsp; Rapport Maintenances</h1>
-      <div class="meta">${filtreStr} — Généré le ${dateGen}</div>
-    </div>
-  </div>`;
-
-  // Collecter toutes les remarques pour la section en bas
-  const remarques = [];
-
-  // ── Un tableau par date de maintenance ────────────────────
-  datesUniques.forEach(d => {
-    const dateLabel = new Date(d + 'T12:00:00').toLocaleDateString('fr-BE',
-      {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-
-    body += `<h2>📅 Maintenance du ${dateLabel}</h2>`;
-    body += `<table>`;
-
-    // En-tête colonnes
-    body += `<tr>
-      <th class="h-veh">Véhicule</th>
-      <th class="h-km">Kilométrage</th>`;
-    CHAMPS.forEach(c => {
-      body += `<th class="h-champ">${c.label}</th>`;
-    });
-    body += `</tr>`;
-
-    // Une ligne par véhicule
-    vehIds.forEach(vehId => {
-      const v  = vehicules.find(x => x.id === vehId);
-      const ms = mList.filter(m => m.vehId === vehId && m.date === d);
-      const m  = ms[0] || null;
-
-      const vNom = v
-        ? `${v.marque} <span style="font-family:monospace;background:#555;color:#fff;
-            padding:0 2px;border-radius:2px;font-size:7px">${v.immat}</span>`
-        : vehId;
-
-      body += `<tr>`;
-      body += `<td class="veh-cell">${vNom}</td>`;
-
-      if (!m) {
-        // Véhicule absent ce mois-ci
-        body += `<td class="absent" colspan="${CHAMPS.length + 1}">—</td>`;
-      } else {
-        const kmStr = m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '—';
-        body += `<td class="km-cell">${kmStr}</td>`;
-        CHAMPS.forEach(c => {
-          const val = m[c.key];
-          if (!val) {
-            body += `<td class="absent">—</td>`;
-          } else if (val === 'OK') {
-            body += `<td class="ok">✓</td>`;
-          } else {
-            body += `<td class="warn">${val}</td>`;
-          }
-        });
-        // Collecter les remarques pour la section en bas
-        if (m.rem) {
-          remarques.push({ date: d, dateLabel, vehId, vNom, rem: m.rem });
-        }
-      }
-      body += `</tr>`;
-    });
-
-    body += `</table>`;
-  });
-
-  // ── Section remarques / commentaires ──────────────────────
-  if (remarques.length) {
-    body += `<h2 style="margin-top:16px">📝 Commentaires & anomalies</h2>`;
-    body += `<table class="rem-table">
-      <tr>
-        <th>Date</th>
-        <th>Véhicule</th>
-        <th>Commentaire</th>
-      </tr>`;
-    remarques.forEach(r => {
-      body += `<tr>
-        <td style="white-space:nowrap">${new Date(r.date + 'T12:00:00').toLocaleDateString('fr-BE',
-          {day:'2-digit',month:'2-digit',year:'numeric'})}</td>
-        <td class="rem-veh">${r.vNom}</td>
-        <td>${r.rem}</td>
-      </tr>`;
-    });
-    body += `</table>`;
-  }
-
-  // ── Légende ───────────────────────────────────────────────
-  body += `<div class="leg">
-    <span style="color:#27ae60;font-weight:700">✓ = OK</span>
-    <span style="color:#e67e22;font-weight:700">Texte coloré = anomalie / valeur</span>
-    <span style="color:#ccc">— = non renseigné</span>
-    <span>LG = Lave-glace &nbsp;|&nbsp; HM = Huile moteur &nbsp;|&nbsp;
-          HF = Huile frein &nbsp;|&nbsp; LR = Liquide refroidissement</span>
-    <span>Écl = Éclairage &nbsp;|&nbsp; Pneus &nbsp;|&nbsp; Ext = Extérieur</span>
-  </div>
-  <div class="foot">
-    ${mList.length} maintenance(s) — ${vehIds.length} véhicule(s) —
-    MCR Opont © ${new Date().getFullYear()}
-  </div>`;
-
-  ouvrirImpression(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Rapport Maintenances MCR</title>${cssExtra}</head>
-    <body>${body}</body></html>`);
-}
 
 function printReport(type) {
   const d = new Date().toLocaleDateString('fr-BE');
@@ -10940,7 +10702,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260814.1547';
+const APP_VERSION = '260814.1556';
 
 let _swRegistration = null;
 
