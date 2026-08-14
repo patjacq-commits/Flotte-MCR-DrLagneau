@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260731.1857</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1516</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2218,11 +2218,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260731.1857</strong><br>
+      Version actuelle de l'app : <strong>v260814.1516</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260731.1857 disponible)
+      📢 Notifier les utilisateurs (v260814.1516 disponible)
     </button>
   </div>
 
@@ -8608,6 +8608,10 @@ function afficherRecapMaintenance(vehId, date, km, rec) {
         + '<span style="color:' + a.couleur + ';font-weight:600">' + a.icon + ' ' + a.txt + '</span></div>').join('')
     : '<div style="font-size:13px;color:var(--vert)">✅ Aucune alerte détectée</div>';
 
+  // Véhicules déjà enregistrés pour cette même date de relevé (le "tour" de maintenance en cours)
+  const dejaEnregistres = [...new Set(maintenances.filter(m => m.date === date).map(m => m.vehId))];
+  const nbDeja = dejaEnregistres.length;
+
   const div = document.createElement('div');
   div.id = 'modal-recap-maint';
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9500;'
@@ -8619,13 +8623,25 @@ function afficherRecapMaintenance(vehId, date, km, rec) {
     + vNom + ' — ' + formatDate(date) + (km ? ' — ' + parseInt(km).toLocaleString('fr-BE') + ' km' : '') + '</div>'
     + (alertes.length ? '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--texte-sec);margin-bottom:6px">Alertes détectées</div>' : '')
     + alertesHtml
+    + '<div style="margin-top:14px;padding:10px 12px;background:var(--bleu-clair);border-radius:8px;font-size:12px;color:var(--texte-sec)">'
+    + '📋 ' + nbDeja + ' véhicule' + (nbDeja>1?'s':'') + ' déjà enregistré' + (nbDeja>1?'s':'') + ' pour le ' + formatDateCourt(date) + '</div>'
     + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn" style="flex:1" onclick="imprimerRapportGlobalDuJour(\'' + date + '\')">🖨 Imprimer tout (' + nbDeja + ')</button>'
     + '<button class="btn primary" style="flex:1" onclick="document.getElementById(\'modal-recap-maint\').remove()">OK</button>'
     + '</div></div>';
   document.body.appendChild(div);
 
   // Vérifier complétude mensuelle
   verifierCompletudeMensuelle(date);
+}
+
+/* Imprime le rapport de toutes les maintenances déjà enregistrées pour une date donnée */
+function imprimerRapportGlobalDuJour(date) {
+  document.getElementById('modal-recap-maint')?.remove();
+  const mList = maintenances.filter(m => m.date === date)
+    .sort((a,b) => ORDRE_VEHICULES.indexOf(a.vehId) - ORDRE_VEHICULES.indexOf(b.vehId));
+  if (!mList.length) { toast('Aucune maintenance à imprimer.'); return; }
+  _imprimerListe(mList, 'Relevé du ' + formatDateCourt(date));
 }
 
 function verifierCompletudeMensuelle(dateSaisie) {
@@ -10910,7 +10926,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260731.1857';
+const APP_VERSION = '260814.1516';
 
 let _swRegistration = null;
 
