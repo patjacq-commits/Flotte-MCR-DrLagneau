@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1524</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1547</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2218,11 +2218,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260814.1524</strong><br>
+      Version actuelle de l'app : <strong>v260814.1547</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260814.1524 disponible)
+      📢 Notifier les utilisateurs (v260814.1547 disponible)
     </button>
   </div>
 
@@ -5683,53 +5683,80 @@ function ouvrirModalRapportPDF() {
   const ex = document.getElementById('modal-rapport-pdf');
   if (ex) ex.remove();
   const normD = d => { if (!d) return ''; if (typeof d === 'string') return d.slice(0,10); if (d?.toDate) return toLocalYMD(d.toDate()); if (d instanceof Date) return toLocalYMD(d); return String(d).slice(0,10); };
-  const annees      = [...new Set(maintenances.map(m => normD(m.date).slice(0,4)))].filter(Boolean).sort().reverse();
   const datesDispos = [...new Set(maintenances.map(m => normD(m.date)))].filter(Boolean).sort().reverse();
   if (!datesDispos.length) { toast('Aucune maintenance enregistree'); return; }
+
+  const vehListeHtml = ORDRE_VEHICULES.map(id => {
+    const v = vehicules.find(x => x.id === id);
+    if (!v || v.archive) return '';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px">'
+      + '<input type="checkbox" class="pdf-veh-item" value="' + id + '" disabled />'
+      + v.marque + ' \u2014 ' + id + '</label>';
+  }).join('');
+
+  const datesListeHtml = datesDispos.map(d =>
+    '<label style="display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px">'
+    + '<input type="checkbox" class="pdf-date-item" value="' + d + '" disabled />'
+    + formatDateCourt(d) + '</label>'
+  ).join('');
 
   const div = document.createElement('div');
   div.id = 'modal-rapport-pdf';
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:400px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
     + '<div style="font-size:16px;font-weight:700;margin-bottom:16px">Rapport PDF de maintenance</div>'
-    + '<div class="form-group" style="margin-bottom:12px"><label>Vehicule</label><select id="pdf-veh-select" style="width:100%">'
-    + '<option value="">Tous les vehicules (par date)</option>'
-    + ORDRE_VEHICULES.map(id => { const v = vehicules.find(x => x.id === id); return (v && !v.archive) ? '<option value="' + id + '">' + v.marque + ' \u2014 ' + id + '</option>' : ''; }).join('')
-    + '</select></div>'
-    + '<div class="form-group" style="margin-bottom:12px"><label>Periode</label><select id="pdf-periode-select" onchange="onPdfPeriodeChange()" style="width:100%">'
-    + '<option value="date">Une date precise (un releve)</option>'
-    + '<option value="debut">Depuis le 01/01/' + new Date().getFullYear() + '</option>'
-    + '<option value="annee">Toute une annee</option>'
-    + '</select></div>'
-    + '<div id="pdf-date-group" class="form-group" style="margin-bottom:16px"><label>Date du releve</label><select id="pdf-date-select" style="width:100%">'
-    + datesDispos.map(d => '<option value="' + d + '">' + formatDateCourt(d) + '</option>').join('')
-    + '</select></div>'
-    + '<div id="pdf-annee-group" class="form-group" style="margin-bottom:16px;display:none"><label>Annee</label><select id="pdf-annee-select" style="width:100%">'
-    + annees.map(a => '<option value="' + a + '">' + a + '</option>').join('')
-    + '</select></div>'
+
+    + '<div class="form-group" style="margin-bottom:14px">'
+    + '<label>V\u00e9hicules</label>'
+    + '<div style="max-height:150px;overflow-y:auto;border:1.5px solid var(--gris-bord);border-radius:8px;padding:8px 10px">'
+    + '<label style="display:flex;align-items:center;gap:8px;padding:4px 2px;font-weight:700;font-size:13px;'
+    +   'border-bottom:1px solid var(--gris-bord);margin-bottom:4px">'
+    + '<input type="checkbox" id="pdf-veh-tous" checked onchange="onPdfVehTousChange()" /> Tous les v\u00e9hicules</label>'
+    + vehListeHtml
+    + '</div></div>'
+
+    + '<div class="form-group" style="margin-bottom:16px">'
+    + '<label>Dates des relev\u00e9s</label>'
+    + '<div style="max-height:150px;overflow-y:auto;border:1.5px solid var(--gris-bord);border-radius:8px;padding:8px 10px">'
+    + '<label style="display:flex;align-items:center;gap:8px;padding:4px 2px;font-weight:700;font-size:13px;'
+    +   'border-bottom:1px solid var(--gris-bord);margin-bottom:4px">'
+    + '<input type="checkbox" id="pdf-date-toutes" checked onchange="onPdfDateToutesChange()" /> Toutes les dates</label>'
+    + datesListeHtml
+    + '</div></div>'
+
     + '<div style="display:flex;gap:8px">'
     + '<button class="btn primary" id="btn-generer-pdf-admin">Generer PDF</button>'
     + '<button class="btn" id="btn-annuler-pdf-admin">Annuler</button>'
     + '</div></div>';
   document.body.appendChild(div);
-  onPdfPeriodeChange();
   document.getElementById('btn-generer-pdf-admin').addEventListener('click', _genererPDFAdmin);
   document.getElementById('btn-annuler-pdf-admin').addEventListener('click', () => div.remove());
 }
 
-function onPdfPeriodeChange() {
-  const v = document.getElementById('pdf-periode-select')?.value;
-  const dg = document.getElementById('pdf-date-group');
-  const ag = document.getElementById('pdf-annee-group');
-  if (dg) dg.style.display = v === 'date'  ? '' : 'none';
-  if (ag) ag.style.display = v === 'annee' ? '' : 'none';
+function onPdfVehTousChange() {
+  const tous = document.getElementById('pdf-veh-tous')?.checked;
+  document.querySelectorAll('.pdf-veh-item').forEach(cb => {
+    cb.disabled = tous;
+    if (tous) cb.checked = false;
+  });
+}
+
+function onPdfDateToutesChange() {
+  const toutes = document.getElementById('pdf-date-toutes')?.checked;
+  document.querySelectorAll('.pdf-date-item').forEach(cb => {
+    cb.disabled = toutes;
+    if (toutes) cb.checked = false;
+  });
 }
 
 function _genererPDFAdmin() {
-  const filterVeh = document.getElementById('pdf-veh-select')?.value || '';
-  const periode   = document.getElementById('pdf-periode-select')?.value || 'date';
-  const dateSel   = document.getElementById('pdf-date-select')?.value || '';
-  const anneeSel  = document.getElementById('pdf-annee-select')?.value || new Date().getFullYear().toString();
+  const tousVeh          = document.getElementById('pdf-veh-tous')?.checked;
+  const vehSelectionnes  = tousVeh ? [] : [...document.querySelectorAll('.pdf-veh-item:checked')].map(cb => cb.value);
+  const toutesDates      = document.getElementById('pdf-date-toutes')?.checked;
+  const datesSelectionnees = toutesDates ? [] : [...document.querySelectorAll('.pdf-date-item:checked')].map(cb => cb.value);
+
+  if (!tousVeh && !vehSelectionnes.length)    { toast('S\u00e9lectionnez au moins un v\u00e9hicule.'); return; }
+  if (!toutesDates && !datesSelectionnees.length) { toast('S\u00e9lectionnez au moins une date.'); return; }
 
   document.getElementById('modal-rapport-pdf')?.remove();
 
@@ -5743,34 +5770,26 @@ function _genererPDFAdmin() {
   };
 
   let maints = [...maintenances].map(m => ({ ...m, _dateNorm: normDate(m.date) }));
-  if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
-  const debutAnnee = new Date().getFullYear() + '-01-01';
-  const today = toLocalYMD(new Date());
-
-  // S'assurer que dateSel est valide si période = date précise
-  const dateEffective = dateSel || [...new Set(maintenances.map(m => normDate(m.date)))].filter(Boolean).sort().reverse()[0] || '';
-
-  if      (periode === 'date'  && dateEffective) maints = maints.filter(m => m._dateNorm === dateEffective);
-  else if (periode === 'annee')                  maints = maints.filter(m => m._dateNorm.startsWith(anneeSel));
-  else if (periode === 'debut')                  maints = maints.filter(m => m._dateNorm >= debutAnnee && m._dateNorm <= today);
+  if (!tousVeh)     maints = maints.filter(m => vehSelectionnes.includes(m.vehId));
+  if (!toutesDates) maints = maints.filter(m => datesSelectionnees.includes(m._dateNorm));
 
   if (!maints.length) { toast('Aucune maintenance pour cette selection'); return; }
 
   maints.sort((a,b) => {
-    if (filterVeh) return (a.date||'').localeCompare(b.date||'');
-    const dc = (b.date||'').localeCompare(a.date||'');
+    const dc = (b._dateNorm||'').localeCompare(a._dateNorm||'');
     return dc !== 0 ? dc : ORDRE_VEHICULES.indexOf(a.vehId) - ORDRE_VEHICULES.indexOf(b.vehId);
   });
 
-  let labelPeriode = '';
-  if (periode === 'date' && dateEffective) {
-    labelPeriode = formatDateCourt(dateEffective);
-  } else if (periode === 'annee') {
-    labelPeriode = 'Annee ' + anneeSel;
-  } else {
-    labelPeriode = 'Depuis le 01/01/' + new Date().getFullYear();
-  }
-  const vLabel = filterVeh ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh : 'Tous les vehicules';
+  const vLabel = tousVeh ? 'Tous les vehicules'
+    : vehSelectionnes.length === 1
+      ? ((vehicules.find(x=>x.id===vehSelectionnes[0])?.marque||'') + ' \u2014 ' + vehSelectionnes[0])
+      : vehSelectionnes.length + ' vehicules selectionnes';
+
+  const labelPeriode = toutesDates ? 'Toutes les dates'
+    : datesSelectionnees.length === 1
+      ? formatDateCourt(datesSelectionnees[0])
+      : datesSelectionnees.length + ' dates selectionnees';
+
   _construirePDF(maints, vLabel, labelPeriode);
 }
 
@@ -10921,7 +10940,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260814.1524';
+const APP_VERSION = '260814.1547';
 
 let _swRegistration = null;
 
