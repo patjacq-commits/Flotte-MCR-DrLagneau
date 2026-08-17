@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260817.1151</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260817.1219</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2160,6 +2160,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
       Patrick pourra vous rappeler directement depuis l'app.
     </p>
+    <div id="profil-tel-warning" style="display:none;margin-bottom:12px;padding:8px 12px;
+         background:#fef5e7;border:1px solid var(--orange);border-radius:6px;
+         font-size:13px;color:var(--orange);font-weight:600">
+      ⚠️ Numéro non renseigné — le responsable ne peut pas vous rappeler en cas d'urgence
+    </div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
       <div class="form-group" style="flex:1;margin:0">
         <label>Numéro (ex: 0477 123 456)</label>
@@ -2221,11 +2226,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260817.1151</strong><br>
+      Version actuelle de l'app : <strong>v260817.1219</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260817.1151 disponible)
+      📢 Notifier les utilisateurs (v260817.1219 disponible)
     </button>
   </div>
 
@@ -4079,6 +4084,8 @@ async function sauvegarderTelephone() {
     await db.collection('roles').doc(currentUser.uid).set({ telephone: tel }, { merge: true });
     if (msgEl) { msgEl.textContent='✅ Numéro enregistré !'; msgEl.style.cssText='display:block;background:var(--vert-clair);color:var(--vert);padding:6px 10px;border-radius:6px;font-size:13px'; }
     setTimeout(() => { if (msgEl) msgEl.style.display='none'; }, 3000);
+    const warn = document.getElementById('profil-tel-warning');
+    if (warn) warn.style.display = 'none';
   } catch(e) {
     if (msgEl) { msgEl.textContent='❌ Erreur : '+e.message; msgEl.style.display='block'; }
   }
@@ -4099,10 +4106,11 @@ async function chargerTelephones() {
 function initProfil() {
   if (!currentUser?.uid) return;
   db.collection('roles').doc(currentUser.uid).get().then(doc => {
-    if (doc.exists && doc.data().telephone) {
-      const el = document.getElementById('profil-telephone');
-      if (el) el.value = doc.data().telephone;
-    }
+    const tel = doc.exists ? doc.data().telephone : '';
+    const el = document.getElementById('profil-telephone');
+    if (el && tel) el.value = tel;
+    const warn = document.getElementById('profil-tel-warning');
+    if (warn) warn.style.display = tel ? 'none' : '';
   }).catch(() => {});
 }
 
@@ -7309,7 +7317,12 @@ function renderVehicules() {
             return ` <span style="color:${c};font-weight:700;font-size:11px">(${reste2 <= 0 ? '⚠️ dépassé' : '~' + reste2.toLocaleString('fr-BE') + ' km'})</span>`;
           })()}${dateEntretienStr}</span>
         </div>
-        <div class="veh-row"><span class="label">Garage attitré</span><span class="val">${v.garage || '—'}</span></div>
+        <div class="veh-row"><span class="label">Garage attitré</span><span class="val">${v.garage || '—'}${(() => {
+          if (!v.garage) return '';
+          const tels = getGaragesTel()[v.garage];
+          const tel = tels?.gsm || tels?.principal;
+          return tel ? ` <a href="tel:${tel}" style="font-size:11px;color:var(--bleu);text-decoration:none;white-space:nowrap">📞 ${tel}</a>` : '';
+        })()}</span></div>
         <div class="veh-row"><span class="label">Mise en circulation</span><span class="val">${formatDate(v.mise_en_circulation)}</span></div>
         ${abRow}
         ${cwRow}
@@ -9406,11 +9419,16 @@ function verifierEntretiensUrgents() {
     const kmRef = ref?.km ? parseInt(ref.km) : parseInt(v.km);
     const prochainKm = ref?.prochain_entretien_km ? parseInt(ref.prochain_entretien_km) : parseInt(v.prochain_entretien_km);
     const reste = prochainKm - kmRef;
+    const dejaDepasse = reste < 0;
     items.push({
-      v, type: 'garage', priorite: PRIORITE.planifier,
-      badge: '\u00c0 planifier', badgeCouleur: 'var(--orange)', badgeFond: '#fef5e7',
+      v, type: 'garage', priorite: dejaDepasse ? PRIORITE.retard : PRIORITE.planifier,
+      badge: dejaDepasse ? 'En retard' : '\u00c0 planifier',
+      badgeCouleur: dejaDepasse ? 'var(--rouge)' : 'var(--orange)',
+      badgeFond: dejaDepasse ? 'var(--rouge-clair)' : '#fef5e7',
       titre: v.marque + ' \u2014 ' + v.immat,
-      detail: reste.toLocaleString('fr-BE') + ' km restants',
+      detail: dejaDepasse
+        ? ('D\u00e9pass\u00e9 de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km')
+        : (reste.toLocaleString('fr-BE') + ' km restants'),
       actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
         + ' onclick="document.getElementById(\'modal-entretien-urgent\').remove();allerAuxRV()">\ud83d\udccb Prendre RV</button>',
     });
@@ -9418,12 +9436,15 @@ function verifierEntretiensUrgents() {
 
   cts.forEach(v => {
     const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
+    const dejaDepasse = j < 0;
     const jStr = j < 0 ? 'Expir\u00e9 depuis ' + Math.abs(j) + ' jours'
       : j === 0 ? 'Expire aujourd\'hui'
       : 'Expire dans ' + j + ' jour' + (j > 1 ? 's' : '');
     items.push({
-      v, type: 'ct', priorite: PRIORITE.planifier,
-      badge: '\u00c0 planifier', badgeCouleur: 'var(--orange)', badgeFond: '#fef5e7',
+      v, type: 'ct', priorite: dejaDepasse ? PRIORITE.retard : PRIORITE.planifier,
+      badge: dejaDepasse ? 'En retard' : '\u00c0 planifier',
+      badgeCouleur: dejaDepasse ? 'var(--rouge)' : 'var(--orange)',
+      badgeFond: dejaDepasse ? 'var(--rouge-clair)' : '#fef5e7',
       titre: v.marque + ' \u2014 ' + v.immat,
       detail: jStr + ' (' + formatDate(v.ct_valid) + ')',
       actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
@@ -10599,7 +10620,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260817.1151';
+const APP_VERSION = '260817.1219';
 
 let _swRegistration = null;
 
