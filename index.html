@@ -1310,7 +1310,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260814.1716</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260817.1151</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2221,11 +2221,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260814.1716</strong><br>
+      Version actuelle de l'app : <strong>v260817.1151</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260814.1716 disponible)
+      📢 Notifier les utilisateurs (v260817.1151 disponible)
     </button>
   </div>
 
@@ -10164,6 +10164,36 @@ async function nettoyerHistorique() {
   }
 }
 
+/* Supprime les photos de plus de 12 mois du localStorage (maintenances + signalements).
+   Les clés des deux stockages sont des timestamps Date.now() — l'âge se calcule
+   directement dessus, sans champ de date séparé à interroger. */
+function nettoyerPhotosAnciennes() {
+  const limiteMs = Date.now() - 365 * 24 * 3600 * 1000; // 12 mois
+
+  [
+    { cle: 'mcr_photos',     label: 'maintenances' },
+    { cle: 'mcr_photos_msg', label: 'signalements' },
+  ].forEach(({ cle, label }) => {
+    try {
+      const photosLS = JSON.parse(localStorage.getItem(cle) || '{}');
+      let nbSupprimees = 0;
+      Object.keys(photosLS).forEach(id => {
+        const ts = parseInt(id, 10);
+        if (!isNaN(ts) && ts < limiteMs) {
+          delete photosLS[id];
+          nbSupprimees++;
+        }
+      });
+      if (nbSupprimees > 0) {
+        localStorage.setItem(cle, JSON.stringify(photosLS));
+        console.log(`Photos ${label} : ${nbSupprimees} entrée(s) supprimée(s) (> 12 mois)`);
+      }
+    } catch(e) {
+      console.warn(`Nettoyage photos ${label} échoué:`, e);
+    }
+  });
+}
+
 async function logAction(action, collection, description, avant = null, apres = null) {
   if (!currentUser) return; // pas connecté → pas de log
   try {
@@ -10569,7 +10599,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260814.1716';
+const APP_VERSION = '260817.1151';
 
 let _swRegistration = null;
 
@@ -10916,6 +10946,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // _entretienUrgentChecked dans _refreshUI, dès que vehicules + rendezvous
     // sont chargés — pas ici, pour éviter un double affichage du modal.
     setTimeout(nettoyerHistorique, 10000); // nettoyage en arrière-plan après 10s
+    setTimeout(nettoyerPhotosAnciennes, 12000); // nettoyage photos > 12 mois
   }
 
   // Attendre Firebase (max 4 secondes, sinon démarrer avec localStorage)
