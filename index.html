@@ -1314,7 +1314,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260817.1836</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260817.1844</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2230,11 +2230,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260817.1836</strong><br>
+      Version actuelle de l'app : <strong>v260817.1844</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260817.1836 disponible)
+      📢 Notifier les utilisateurs (v260817.1844 disponible)
     </button>
   </div>
 
@@ -7325,7 +7325,7 @@ function renderVehicules() {
         <div class="veh-row"><span class="label">Garage attitré</span><span class="val">${v.garage || '—'}${(() => {
           if (!v.garage) return '';
           const tels = getGaragesTel()[v.garage];
-          const tel = tels?.gsm || tels?.principal;
+          const tel = normaliserTelBE(tels?.gsm || tels?.principal);
           return tel ? ` <a href="tel:${tel}" style="font-size:11px;color:var(--bleu);text-decoration:none;white-space:nowrap">📞 ${tel}</a>` : '';
         })()}</span></div>
         <div class="veh-row"><span class="label">Mise en circulation</span><span class="val">${formatDate(v.mise_en_circulation)}</span></div>
@@ -7505,15 +7505,30 @@ function desarchiverVehicule(id) {
   toast('♻️ ' + v.marque + ' ' + v.immat + ' réactivé');
 }
 
-/* Téléphones des garages — stockés en localStorage (clé: nom du garage) */
 /* Téléphones des garages — synchronisés via Firestore (config/garagesTel)
    pour être partagés entre tous les appareils, et mis en cache localStorage
    pour un accès instantané hors-ligne. */
 function getGaragesTel() {
   return garagesTel;
 }
+
+/* Normalise un numéro belge en format national (0...) quel que soit le format
+   saisi (+32..., 0032..., avec ou sans espaces) — certains claviers mobiles
+   (Android notamment) suggèrent automatiquement le format international,
+   alors que le web garde ce qui est tapé. Sans normalisation, le même numéro
+   pouvait s'afficher différemment selon l'appareil ayant fait la saisie. */
+function normaliserTelBE(tel) {
+  if (!tel) return '';
+  let t = tel.trim();
+  t = t.replace(/^\+32\s?/, '0').replace(/^0032\s?/, '0');
+  return t;
+}
+
 async function setGarageTel(garage, principal, gsm) {
-  garagesTel[garage] = { principal: principal || '', gsm: gsm || '' };
+  garagesTel[garage] = {
+    principal: normaliserTelBE(principal),
+    gsm: normaliserTelBE(gsm),
+  };
   localStorage.setItem('mcr_garages_tel', JSON.stringify(garagesTel)); // cache local
   try {
     await db.collection('config').doc('garagesTel').set({ data: garagesTel });
@@ -7534,7 +7549,8 @@ function updateGarageTelDisplay() {
     return;
   }
 
-  const tels = getGaragesTel()[garage] || { principal:'', gsm:'' };
+  const telsBrut = getGaragesTel()[garage] || { principal:'', gsm:'' };
+  const tels = { principal: normaliserTelBE(telsBrut.principal), gsm: normaliserTelBE(telsBrut.gsm) };
 
   display.style.display = 'flex';
   let html = '';
@@ -10634,7 +10650,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260817.1836';
+const APP_VERSION = '260817.1844';
 
 let _swRegistration = null;
 
