@@ -345,6 +345,11 @@
 
   // ── Firebase Auth : observer de connexion ───────────────────
   auth.onAuthStateChanged(async firebaseUser => {
+    // Ignorer les notifications de connexion pendant qu'une inscription est en
+    // cours — sInscrire() gère elle-même son propre cycle connexion/déconnexion,
+    // et lire le rôle ici pourrait tomber sur le document Firestore pas encore
+    // écrit, provoquant une déconnexion silencieuse au lieu de l'écran d'attente.
+    if (window._inscriptionEnCours) return;
     if (firebaseUser) {
       // Déterminer le rôle selon l'email
       const email = firebaseUser.email;
@@ -374,8 +379,12 @@
         }
       }
 
-      // Récupérer le nom depuis Firestore ou email
-      let nom = firebaseUser.displayName || email.split('@')[0];
+      // Récupérer le nom depuis Firestore, ou un nom connu pour les comptes
+      // admin fixes, ou à défaut dérivé de l'email
+      let nom = firebaseUser.displayName
+        || (email === SUPERADMIN_EMAIL ? 'Patrick'
+          : email === ADMIN_EMAIL ? 'Angélique'
+          : email.split('@')[0]);
       try {
         const doc = await db.collection('roles').doc(firebaseUser.uid).get();
         if (doc.exists && doc.data().nom) nom = doc.data().nom;
@@ -1314,7 +1323,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260817.1844</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260819.1150</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2230,11 +2239,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260817.1844</strong><br>
+      Version actuelle de l'app : <strong>v260819.1150</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260817.1844 disponible)
+      📢 Notifier les utilisateurs (v260819.1150 disponible)
     </button>
   </div>
 
@@ -5009,6 +5018,7 @@ async function sInscrire() {
   if (pwd !== pwd2)      { affErr('❌ Les deux mots de passe ne correspondent pas.'); return; }
 
   errEl.style.display = 'none';
+  window._inscriptionEnCours = true;
 
   try {
     // Créer le compte Firebase Auth
@@ -5055,6 +5065,8 @@ async function sInscrire() {
     if (e.code === 'auth/invalid-email')         msg = '❌ Adresse email invalide.';
     if (e.code === 'auth/weak-password')          msg = '❌ Mot de passe trop faible (min. 6 caractères).';
     affErr(msg);
+  } finally {
+    window._inscriptionEnCours = false;
   }
 }
 
@@ -10650,7 +10662,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260817.1844';
+const APP_VERSION = '260819.1150';
 
 let _swRegistration = null;
 
