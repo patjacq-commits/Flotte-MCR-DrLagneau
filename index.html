@@ -365,7 +365,15 @@
             // Compte en attente de validation
             if (data.statut === 'en_attente') {
               await auth.signOut();
+              document.getElementById('app-wrapper').style.display = 'none';
               afficherMessageAttente(data.nom || email);
+              return;
+            }
+            // Compte suspendu par le superadmin
+            if (data.statut === 'suspendu') {
+              await auth.signOut();
+              document.getElementById('app-wrapper').style.display = 'none';
+              afficherMessageSuspendu(data.nom || email);
               return;
             }
             role = data.role || 'chauffeur';
@@ -1323,7 +1331,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.0900</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.0928</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2239,11 +2247,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260820.0900</strong><br>
+      Version actuelle de l'app : <strong>v260820.0928</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260820.0900 disponible)
+      📢 Notifier les utilisateurs (v260820.0928 disponible)
     </button>
   </div>
 
@@ -5033,6 +5041,43 @@ function afficherMessageAttente(nom) {
   document.body.appendChild(div);
 }
 
+/* Écran affiché à un chauffeur dont le compte a été suspendu par le
+   superadmin — évite qu'il se retrouve avec une app "connectée" mais
+   cassée (données bloquées côté serveur sans explication). */
+function afficherMessageSuspendu(nom) {
+  const existing = document.getElementById('ecran-connexion');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'ecran-connexion';
+  div.innerHTML = `
+    <div class="login-card">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:56px;margin-bottom:12px">⏸</div>
+        <h2 style="color:#c0392b;margin:0 0 6px">Compte suspendu</h2>
+        <div style="font-size:14px;color:rgba(255,255,255,0.85);font-weight:600">
+          Bonjour <strong>${nom}</strong>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:14px 16px;margin-bottom:20px">
+        <div style="font-size:13px;color:#fff;line-height:1.8">
+          Votre accès à l'application a été temporairement suspendu par le
+          responsable de flotte.<br><br>
+          Pour toute question, contactez Patrick :<br>
+          <a href="tel:0496224371" style="color:#ffd700;font-weight:700">📱 0496 22 43 71</a>
+        </div>
+      </div>
+
+      <button class="btn-login"
+        onclick="document.getElementById('ecran-connexion').remove();afficherEcranConnexion()"
+        style="background:rgba(255,255,255,0.25);border:2px solid rgba(255,255,255,0.6);
+               font-size:15px;font-weight:700">
+        ← Retour à l'écran de connexion
+      </button>
+    </div>`;
+  document.body.appendChild(div);
+}
+
 function afficherFormulaireInscription() {
   document.getElementById('login-card-connexion').style.display = 'none';
   document.getElementById('login-card-inscription').style.display = '';
@@ -5379,7 +5424,8 @@ async function renderGestionComptes() {
     const comptes = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 
     const enAttente = comptes.filter(c => c.statut === 'en_attente');
-    const actifs    = comptes.filter(c => c.statut !== 'en_attente');
+    const suspendus = comptes.filter(c => c.statut === 'suspendu');
+    const actifs    = comptes.filter(c => c.statut !== 'en_attente' && c.statut !== 'suspendu');
 
     const ROLES_LABELS = { superadmin:'⚙ Super Admin', admin:'👔 Admin', chauffeur:'🚗 Chauffeur' };
 
@@ -5414,6 +5460,26 @@ async function renderGestionComptes() {
       html += '</div>';
     }
 
+    // ── Section comptes suspendus ──────────────────────────────
+    if (suspendus.length) {
+      html += `<div style="background:#f2f2f2;border:1.5px solid #bbb;
+               border-radius:8px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-weight:700;color:#666;margin-bottom:8px">
+          ⏸ Comptes suspendus (${suspendus.length})
+        </div>`;
+      html += suspendus.map(c => `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                  flex-wrap:wrap;gap:8px;padding:8px 0;border-top:0.5px solid #ddd;opacity:0.75">
+          <div>
+            <div style="font-weight:700">${c.nom || '—'}</div>
+            <div style="font-size:12px;color:var(--texte-sec)">${c.email}</div>
+          </div>
+          <button class="btn btn-sm superadmin-only" style="color:var(--vert);border-color:var(--vert)"
+            onclick="reactiverCompte('${c.uid}','${c.nom}')">▶️ Réactiver</button>
+        </div>`).join('');
+      html += '</div>';
+    }
+
     // ── Section comptes actifs ────────────────────────────────
     html += `<div style="font-weight:700;font-size:13px;color:var(--texte-sec);
               margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">
@@ -5436,11 +5502,18 @@ async function renderGestionComptes() {
               </div>
             </div>
             ${c.role === 'chauffeur' ? `
-              <button class="btn btn-sm superadmin-only"
-                style="color:var(--rouge);border-color:var(--rouge-clair)"
-                onclick="if(confirm('Supprimer le compte de ${c.nom} ?')) supprimerCompteChaufeur('${c.uid}')">
-                🗑 Supprimer
-              </button>` : ''}
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-sm superadmin-only"
+                  style="color:#e67e22;border-color:#f0c896"
+                  onclick="if(confirm('Suspendre le compte de ${c.nom} ?\\nIl ne pourra plus se connecter jusqu\\'à réactivation.')) suspendreCompte('${c.uid}','${c.nom}')">
+                  ⏸ Suspendre
+                </button>
+                <button class="btn btn-sm superadmin-only"
+                  style="color:var(--rouge);border-color:var(--rouge-clair)"
+                  onclick="if(confirm('Supprimer le compte de ${c.nom} ?')) supprimerCompteChaufeur('${c.uid}')">
+                  🗑 Supprimer
+                </button>
+              </div>` : ''}
           </div>`;
         }).join('')
       : '<p style="color:var(--texte-sec)">Aucun compte actif.</p>';
@@ -5454,6 +5527,36 @@ async function renderGestionComptes() {
 
   } catch(e) {
     container.innerHTML = `<p style="color:var(--rouge)">Erreur : ${e.message}</p>`;
+  }
+}
+
+/* Suspend un compte chauffeur — il ne peut plus se connecter (bloqué par
+   isApprouve() dans les règles Firestore) tant qu'il n'est pas réactivé.
+   Contrairement à la suppression, son historique est conservé. */
+async function suspendreCompte(uid, nom) {
+  if (!userIsSuperAdmin()) return;
+  try {
+    await db.collection('roles').doc(uid).set({ statut: 'suspendu' }, { merge: true });
+    logCreation('roles', `Compte suspendu : ${nom}`, { uid, nom });
+    toast(`⏸ Compte de ${nom} suspendu`);
+    renderGestionComptes();
+    updateBadgeComptes?.();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+/* Réactive un compte précédemment suspendu */
+async function reactiverCompte(uid, nom) {
+  if (!userIsSuperAdmin()) return;
+  try {
+    await db.collection('roles').doc(uid).set({ statut: 'actif' }, { merge: true });
+    logCreation('roles', `Compte réactivé : ${nom}`, { uid, nom });
+    toast(`▶️ Compte de ${nom} réactivé`);
+    renderGestionComptes();
+    updateBadgeComptes?.();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
   }
 }
 
@@ -10700,7 +10803,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260820.0900';
+const APP_VERSION = '260820.0928';
 
 let _swRegistration = null;
 
