@@ -41,7 +41,7 @@
       dejaSignalees.add(cle);
       compteurErreurs++;
 
-      const horodatage = new Date().toLocaleString('fr-BE');
+      const horodatage = new Date().toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
       const details = `Erreur : ${message}\nFichier : ${source || 'inconnu'}:${ligne||'?'}:${colonne||'?'}\nHeure : ${horodatage}\nPage : ${window.location.href}\nStack : ${(stack||'').slice(0,500)}`;
 
       // Log Firestore best-effort (silencieux si échoue) — visible dans Comptes admin
@@ -1331,7 +1331,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.1403</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.1433</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1813,6 +1813,8 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-garages" class="page">
   <h2 style="margin-bottom:14px">📋 Prendre RV</h2>
 
+  <div id="rv-vehicules-urgents-container"></div>
+
   <!-- Formulaire unique -->
   <div class="form-card">
     <h3>Enregistrer un rendez-vous</h3>
@@ -2255,11 +2257,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260820.1403</strong><br>
+      Version actuelle de l'app : <strong>v260820.1433</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260820.1403 disponible)
+      📢 Notifier les utilisateurs (v260820.1433 disponible)
     </button>
   </div>
 
@@ -3035,19 +3037,30 @@ function parseDate(s) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+const JOURS_COURT_FR = ['dim','lun','mar','mer','jeu','ven','sam'];
+
+/* Formate une date en JJ/MM/AAAA de façon 100% indépendante du navigateur/OS
+   de l'appareil — ne repose jamais sur toLocaleDateString(), dont l'ordre des
+   composants et le cycle horaire peuvent varier selon les données ICU
+   disponibles sur certains navigateurs mobiles (même bug de fond que le
+   fuseau horaire déjà corrigé avec toLocalYMD). */
+function formatDateBE(s) {
+  const d = parseDate(s);
+  if (!d) return '—';
+  const jj = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return jj + '/' + mm + '/' + d.getFullYear();
+}
+
 function formatDate(s) {
   const d = parseDate(s);
   if (!d) return '—';
-  const opts = { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric', timeZone:'Europe/Brussels' };
-  const parts = d.toLocaleDateString('fr-BE', opts);
-  return parts.replace(/\.\s*/, ' ').replace(/^(\w+)\s/, (_, j) => j + ' ');
+  return JOURS_COURT_FR[d.getDay()] + ' ' + formatDateBE(s);
 }
 
 function formatDateCourt(s) {
   // Sans le jour de semaine — ex: 04/07/2026
-  const d = parseDate(s);
-  if (!d) return '—';
-  return d.toLocaleDateString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', timeZone:'Europe/Brussels' });
+  return formatDateBE(s);
 }
 
 function daysUntil(s) {
@@ -3938,7 +3951,7 @@ function renderMessagesChauf() {
     const v       = vehicules.find(x => x.id === m.vehId);
     const vNom    = v ? `${v.marque} — ${v.immat}` : m.vehId;
     const dateStr = new Date(m.date).toLocaleString('fr-BE',
-      { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
     const isNonLu   = !m.statut || m.statut === 'nonlu';
     const isVu      = m.statut === 'vu';
     const isTraite  = m.statut === 'traite' || m.statut === 'lu';
@@ -3949,7 +3962,7 @@ function renderMessagesChauf() {
     // Réponses
     const repHtml = (m.reponses||[]).map(r => {
       const rDate = new Date(r.date).toLocaleString('fr-BE',
-        { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
       return `<div class="msg-reponse">
         <span class="msg-rep-auteur">↩ ${r.auteur}</span>
         <span class="msg-rep-date">${rDate}</span>
@@ -3997,13 +4010,13 @@ function renderMessagesChauf() {
         ? `<div style="font-size:11px;color:var(--vert);margin-top:6px;font-weight:600;
                        background:#eafbea;padding:4px 8px;border-radius:6px;display:inline-block">
              ✅ Traité le ${m.traiteLe ? new Date(m.traiteLe).toLocaleString('fr-BE',
-               {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}
+               {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit', hour12:false}) : ''}
            </div>`
         : isVu && m.vuLe
           ? `<div style="font-size:11px;color:var(--bleu);margin-top:6px;font-weight:600;
                          background:var(--bleu-clair);padding:4px 8px;border-radius:6px;display:inline-block">
                👁 Lu par le responsable le ${new Date(m.vuLe).toLocaleString('fr-BE',
-                 {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+                 {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit', hour12:false})}
              </div>`
           : `<div style="font-size:11px;color:var(--texte-sec);margin-top:6px;
                          background:var(--gris-clair);padding:4px 8px;border-radius:6px;display:inline-block">
@@ -4073,7 +4086,7 @@ function renderMessagesChauf() {
       <div class="msg-body">
         <div style="font-size:13px">${echapperHtml(m.msg)}</div>
         <div class="msg-auteur">— ${echapperHtml(m.auteur)}</div>
-        ${isTraite && m.traiteLe ? `<div style="font-size:11px;color:var(--vert);margin-top:4px">✅ Traité le ${new Date(m.traiteLe).toLocaleString('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+        ${isTraite && m.traiteLe ? `<div style="font-size:11px;color:var(--vert);margin-top:4px">✅ Traité le ${new Date(m.traiteLe).toLocaleString('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit', hour12:false})}</div>` : ''}
         ${vuLeHtml}
         ${photosHtml}
       </div>
@@ -4619,7 +4632,7 @@ async function sendMessageChauf() {
 
   const msgId   = Date.now();
   const dateStr = new Date().toLocaleString('fr-BE',
-    { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
 
   // Backup localStorage
   if (photosCompressees.length) {
@@ -5489,7 +5502,7 @@ async function renderGestionComptes() {
         </div>`;
       html += enAttente.map(c => {
         const dateInsc = c.date_inscription
-          ? new Date(c.date_inscription).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+          ? new Date(c.date_inscription).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false })
           : '—';
         return `<div style="display:flex;align-items:center;justify-content:space-between;
                   flex-wrap:wrap;gap:8px;padding:8px 0;border-top:0.5px solid rgba(230,126,34,0.3)">
@@ -5537,7 +5550,7 @@ async function renderGestionComptes() {
     html += actifs.length
       ? actifs.map(c => {
           const dernConn = c.derniere_connexion
-            ? new Date(c.derniere_connexion).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+            ? new Date(c.derniere_connexion).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false })
             : 'Jamais connecté';
           return `<div class="form-card" style="padding:10px 14px;display:flex;
                     align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
@@ -5647,7 +5660,7 @@ function renderSessionsActives() {
   const ROLE_LABELS = { superadmin:'⚙ Patrick', admin:'⚙ Angélique', chauffeur:'🚗 Chauffeur' };
   const ROLE_COLORS = { superadmin:'var(--orange)', admin:'var(--bleu)', chauffeur:'var(--vert)' };
   const fmtDate = iso => iso
-    ? new Date(iso).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    ? new Date(iso).toLocaleString('fr-BE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false })
     : '—';
 
   _sessionsListener = db.collection('sessions').onSnapshot(snap => {
@@ -5751,7 +5764,7 @@ async function renderHistoriqueLog() {
     container.innerHTML = logs.map(l => {
       const dateStr = new Date(l.date).toLocaleDateString('fr-BE', {
         day:'2-digit', month:'2-digit', year:'numeric',
-        hour:'2-digit', minute:'2-digit'
+        hour:'2-digit', minute:'2-digit', hour12:false
       });
       const icon  = ACTION_ICONS[l.action]  || '•';
       const color = ACTION_COLORS[l.action] || 'var(--texte-sec)';
@@ -5790,7 +5803,7 @@ async function renderErreursApp() {
 
     container.innerHTML = erreurs.map(e => {
       const dateStr = e.date ? new Date(e.date).toLocaleString('fr-BE',
-        { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+        { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false }) : '—';
       return `<div style="border:1px solid var(--gris-bord);border-left:3px solid var(--rouge);
         border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff8f8">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:4px">
@@ -7507,8 +7520,8 @@ function renderVehicules() {
           <div style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:4px;letter-spacing:0.5px;word-break:break-all">${v.chassis || ''}</div>
         </div>
         <div class="veh-badges" style="flex-shrink:0">
-          <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls.toUpperCase()}</span>
-          <span class="badge ${ent.cls}">${ent.cls==='ok'?'ENT OK':ent.cls.toUpperCase()}</span>
+          <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls==='urgent'?'CT':'CT '+ct.cls.toUpperCase()}</span>
+          <span class="badge ${ent.cls}">${ent.cls==='ok'?'ENT OK':ent.cls==='urgent'?'ENT':'ENT '+ent.cls.toUpperCase()}</span>
         </div>
       </div>
       <div class="veh-body">
@@ -9177,8 +9190,56 @@ function enregistrerMotifLibre(motif) {
 }
 
 // ── Peuplement du select véhicules ──────────────────────────
+/* Liste, en haut de "Prendre RV", les véhicules dont le CT ou l'entretien est
+   urgent ET qui n'ont pas encore de RV planifié pour ce motif — cliquer sur
+   une entrée pré-remplit directement le formulaire ci-dessous (véhicule +
+   type). Remplace la pastille "URGENT" qui était affichée sur les cartes de
+   l'onglet Véhicules par une information directement actionnable, là où elle
+   sert concrètement (prendre le RV). */
+function renderVehiculesUrgentsRV() {
+  const container = document.getElementById('rv-vehicules-urgents-container');
+  if (!container) return;
+
+  const todayStr = toLocalYMD(new Date());
+  const items = [];
+
+  vehicules.filter(v => !v.archive).forEach(v => {
+    const ct  = ctStatus(v);
+    const ent = entretienStatus(v);
+    const aRVCT  = rendezvous.some(r => r.vehId === v.id && r.type === 'ct'     && r.statut === 'planifie');
+    const aRVEnt = rendezvous.some(r => r.vehId === v.id && r.type === 'garage' && r.statut === 'planifie');
+
+    if (ct.cls === 'urgent' && !aRVCT) {
+      items.push({ v, type: 'ct', label: '🏥 Contrôle Technique', detail: ct.txt });
+    }
+    if (ent.cls === 'urgent' && !aRVEnt) {
+      items.push({ v, type: 'garage', label: '🔧 Entretien garage', detail: ent.txt });
+    }
+  });
+
+  if (!items.length) { container.innerHTML = ''; return; }
+
+  container.innerHTML = '<div class="form-card" style="border:2px solid var(--rouge);background:var(--rouge-clair);margin-bottom:14px">'
+    + '<h3 style="color:var(--rouge)">🚨 RV urgent à prendre (' + items.length + ')</h3>'
+    + '<p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Touchez une ligne pour pré-remplir le formulaire ci-dessous.</p>'
+    + items.map(it => '<div onclick="openRV(\'' + it.v.id + '\',\'' + it.type + '\')" '
+        + 'style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
+        + 'background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;'
+        + 'border:1px solid var(--rouge-clair)">'
+        + '<div>'
+        + '<div style="font-weight:700;font-size:13px">' + it.v.marque + ' — ' + it.v.immat + '</div>'
+        + '<div style="font-size:12px;color:var(--texte-sec)">' + it.label + '</div>'
+        + '</div>'
+        + '<div style="text-align:right">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--rouge)">' + echapperHtml(it.detail) + '</div>'
+        + '<div style="font-size:11px;color:var(--bleu);font-weight:600">📋 Prendre RV →</div>'
+        + '</div></div>').join('')
+    + '</div>';
+}
+
 function initGarages() {
   chargerTypesRVPerso();
+  renderVehiculesUrgentsRV();
   // Enrichir le select avec les vraies marques depuis Firebase/localStorage
   const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
   const selVeh = document.getElementById('rv-veh');
@@ -10622,7 +10683,7 @@ function importBackupJSON(event) {
       }
 
       const dateExport = new Date(backup._meta.exportDate).toLocaleDateString('fr-BE', {
-        day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+        day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false
       });
 
       if (!confirm(
@@ -10676,7 +10737,7 @@ function updateBackupInfo() {
   if (last) {
     const d = new Date(last).toLocaleDateString('fr-BE', {
       weekday:'long', day:'2-digit', month:'long', year:'numeric',
-      hour:'2-digit', minute:'2-digit'
+      hour:'2-digit', minute:'2-digit', hour12:false
     });
     el.textContent = `Dernier export : ${d}`;
   } else {
@@ -11049,7 +11110,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260820.1403';
+const APP_VERSION = '260820.1433';
 
 let _swRegistration = null;
 
@@ -11143,7 +11204,7 @@ function programmerResumeQuotidien() {
   const delaiMs = delaiJusquaSeptHeures();
   const contenu = construireResumeQuotidien();
   const heureCible = new Date(Date.now() + delaiMs);
-  const heureStr   = heureCible.toLocaleTimeString('fr-BE', { hour:'2-digit', minute:'2-digit' });
+  const heureStr   = heureCible.toLocaleTimeString('fr-BE', { hour:'2-digit', minute:'2-digit', hour12:false });
   const dateStr    = heureCible.toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long' });
 
   navigator.serviceWorker.ready.then(reg => {
@@ -11201,7 +11262,7 @@ async function activerNotifications() {
     programmerResumeQuotidien();
     programmerTousLesRappels();
     const cible   = new Date(Date.now() + delaiJusquaSeptHeures());
-    const heureStr = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit' });
+    const heureStr = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit', hour12:false });
     toast(`✅ Prochain résumé : ${heureStr}`);
   } else {
     toast('❌ Permission refusée.');
@@ -11217,7 +11278,7 @@ function updateStatutNotif() {
   }
   if (Notification.permission === 'granted') {
     const cible  = new Date(Date.now() + delaiJusquaSeptHeures());
-    const heure  = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit' });
+    const heure  = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit', hour12:false });
     el.innerHTML = `<span style="color:var(--vert)">✅ Actif — prochain résumé le <strong>${heure}</strong></span>`;
   } else if (Notification.permission === 'denied') {
     el.innerHTML = '<span style="color:var(--rouge)">❌ Bloqué dans les paramètres du navigateur.</span>';
