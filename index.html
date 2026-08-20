@@ -1323,7 +1323,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260819.1150</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.0824</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2239,11 +2239,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260819.1150</strong><br>
+      Version actuelle de l'app : <strong>v260820.0824</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260819.1150 disponible)
+      📢 Notifier les utilisateurs (v260820.0824 disponible)
     </button>
   </div>
 
@@ -3031,6 +3031,31 @@ function toLocalYMD(d) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const j = String(d.getDate()).padStart(2, '0');
   return y + '-' + m + '-' + j;
+}
+
+/* Normalise une date de maintenance (string, Timestamp Firestore, ou Date) en
+   chaîne YYYY-MM-DD. Remplace les copies locales normD/normDate qui dupliquaient
+   exactement cette logique à deux endroits différents. */
+function normaliserDateMaint(d) {
+  if (!d) return '';
+  if (typeof d === 'string') return d.slice(0,10);
+  if (d?.toDate) return toLocalYMD(d.toDate()); // Firestore Timestamp
+  if (d instanceof Date) return toLocalYMD(d);
+  return String(d).slice(0,10);
+}
+
+/* Échappe les caractères HTML dangereux dans un texte libre saisi par
+   l'utilisateur (messages, remarques, notes) avant insertion dans le DOM via
+   innerHTML — évite qu'un texte contenant <, >, etc. soit interprété comme
+   du HTML/JS actif par le navigateur de la personne qui le consulte. */
+function echapperHtml(texte) {
+  if (texte === null || texte === undefined) return '';
+  return String(texte)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /* Retourne la date du samedi le plus proche du dernier jour du mois M/Y.
@@ -3883,7 +3908,7 @@ function renderMessagesChauf() {
                     background:var(--vert);color:#fff;border-radius:8px;
                     padding:8px 14px;font-size:14px;font-weight:700;
                     text-decoration:none;margin-bottom:8px">
-             📱 Rappeler ${m.auteur} — ${tel}
+             📱 Rappeler ${echapperHtml(m.auteur)} — ${tel}
            </a><br>`
         : `<span style="font-size:12px;color:var(--texte-sec);margin-bottom:8px;display:block">
              📱 Numéro non renseigné par le chauffeur
@@ -3987,8 +4012,8 @@ function renderMessagesChauf() {
         <span class="msg-date">${dateStr}</span>
       </div>
       <div class="msg-body">
-        <div style="font-size:13px">${m.msg}</div>
-        <div class="msg-auteur">— ${m.auteur}</div>
+        <div style="font-size:13px">${echapperHtml(m.msg)}</div>
+        <div class="msg-auteur">— ${echapperHtml(m.auteur)}</div>
         ${isTraite && m.traiteLe ? `<div style="font-size:11px;color:var(--vert);margin-top:4px">✅ Traité le ${new Date(m.traiteLe).toLocaleString('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>` : ''}
         ${vuLeHtml}
         ${photosHtml}
@@ -5438,6 +5463,7 @@ async function refuserChaufeur(uid, nom) {
 }
 
 let _sessionsListener = null;
+let _presenceListener = null; // listener du badge présence sur le tableau de bord (renderAccueil)
 
 function renderSessionsActives() {
   const container = document.getElementById('sessions-liste');
@@ -5731,8 +5757,7 @@ async function publierVersion() {
 function ouvrirModalRapportPDF() {
   const ex = document.getElementById('modal-rapport-pdf');
   if (ex) ex.remove();
-  const normD = d => { if (!d) return ''; if (typeof d === 'string') return d.slice(0,10); if (d?.toDate) return toLocalYMD(d.toDate()); if (d instanceof Date) return toLocalYMD(d); return String(d).slice(0,10); };
-  const datesDispos = [...new Set(maintenances.map(m => normD(m.date)))].filter(Boolean).sort().reverse();
+  const datesDispos = [...new Set(maintenances.map(m => normaliserDateMaint(m.date)))].filter(Boolean).sort().reverse();
   if (!datesDispos.length) { toast('Aucune maintenance enregistree'); return; }
 
   const vehListeHtml = ORDRE_VEHICULES.map(id => {
@@ -5809,16 +5834,7 @@ function _genererPDFAdmin() {
 
   document.getElementById('modal-rapport-pdf')?.remove();
 
-  // Normaliser les dates (string YYYY-MM-DD)
-  const normDate = d => {
-    if (!d) return '';
-    if (typeof d === 'string') return d.slice(0,10);
-    if (d?.toDate) return toLocalYMD(d.toDate()); // Firestore Timestamp
-    if (d instanceof Date) return toLocalYMD(d);
-    return String(d).slice(0,10);
-  };
-
-  let maints = [...maintenances].map(m => ({ ...m, _dateNorm: normDate(m.date) }));
+  let maints = [...maintenances].map(m => ({ ...m, _dateNorm: normaliserDateMaint(m.date) }));
   if (!tousVeh)     maints = maints.filter(m => vehSelectionnes.includes(m.vehId));
   if (!toutesDates) maints = maints.filter(m => datesSelectionnees.includes(m._dateNorm));
 
@@ -6109,7 +6125,8 @@ function renderAccueil() {
 
     // Présence en temps réel sur la carte Comptes
     const SEUIL_MS = 5 * 60 * 1000;
-    db.collection('sessions').onSnapshot(snap => {
+    if (_presenceListener) { _presenceListener(); _presenceListener = null; }
+    _presenceListener = db.collection('sessions').onSnapshot(snap => {
       const now      = Date.now();
       const enligne  = snap.docs.map(d => d.data()).filter(s =>
         s.online && s.derniere_activite &&
@@ -6677,13 +6694,13 @@ function executerRecherche() {
     if(![v?.immat,v?.marque,r.date,r.garage,r.notes].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
     const lbl=CT_TYPE_LABELS?.[r.type]||r.type;
     res.push({section:'📅 Rendez-vous',icon:'📅',titre:`RV ${v?v.immat:r.vehId} — ${lbl}`,
-      detail:`${formatDate(r.date)}${r.heure?' à '+r.heure:''} • ${r.garage||''}`,action:'Modifier',
+      detail:`${formatDate(r.date)}${r.heure?' à '+r.heure:''} • ${echapperHtml(r.garage||'')}`,action:'Modifier',
       fn:()=>{fermerRecherche();showPage('garages',document.querySelectorAll('.tab-btn')[6]);}});
   });
   messagesChauf.forEach(m=>{
     const v=vehicules.find(x=>x.id===m.vehId);
     if(![v?.immat,m.msg,m.auteur].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
-    res.push({section:'🚨 Alertes',icon:'🚨',titre:`${m.auteur} — ${v?v.immat:m.vehId}`,detail:m.msg.substring(0,60),action:'Voir',
+    res.push({section:'🚨 Alertes',icon:'🚨',titre:`${echapperHtml(m.auteur)} — ${v?v.immat:m.vehId}`,detail:echapperHtml(m.msg.substring(0,60)),action:'Voir',
       fn:()=>{fermerRecherche();showPage('chauf',document.querySelectorAll('.tab-btn')[4]);}});
   });
   if(!res.length){document.getElementById('search-results').innerHTML=`<div class="search-empty">🔍 Aucun résultat pour "<strong>${q}</strong>"</div>`;return;}
@@ -7124,7 +7141,7 @@ function renderAlerte(a) {
       <div class="alerte-text" style="flex:1">
         <h4 style="color:#1a6b38">${a.titre}</h4>
         <p>${a.detail}</p>
-        ${r.notes ? `<p style="font-style:italic;margin-top:2px">${r.notes}</p>` : ''}
+        ${r.notes ? `<p style="font-style:italic;margin-top:2px">${echapperHtml(r.notes)}</p>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
         <span class="badge ok" style="font-size:11px">✅ RV confirmé</span>
@@ -9990,7 +10007,7 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
     // Remarques
     const remHtml = m.rem
       ? `<div style="margin-top:6px;padding:6px 10px;background:var(--orange-clair);border-radius:6px;font-size:13px">
-          📝 ${m.rem}
+          📝 ${echapperHtml(m.rem)}
         </div>` : '';
 
     // Photos
@@ -10662,7 +10679,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260819.1150';
+const APP_VERSION = '260820.0824';
 
 let _swRegistration = null;
 

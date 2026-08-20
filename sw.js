@@ -3,8 +3,8 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v260819.1150';
-const CACHE_ASSETS = ['./icon-192.png', './manifest.json'];
+const CACHE_NAME = 'mcr-flotte-v260820.0824';
+const CACHE_ASSETS = ['./icon-192.png', './manifest.json', './index.html'];
 
 let timerResumeQuotidien = null;
 
@@ -30,7 +30,7 @@ self.addEventListener('activate', event => {
         })
       ))
       .then(() => {
-        console.log('SW: activation v260704.1436 — prise de contrôle');
+        console.log('SW: activation ' + CACHE_NAME + ' — prise de contrôle');
         return self.clients.claim();
       })
       .then(() => {
@@ -39,7 +39,7 @@ self.addEventListener('activate', event => {
       })
       .then(clients => {
         clients.forEach(client => {
-          client.postMessage({ type: 'SW_UPDATED', version: '260704.1436' });
+          client.postMessage({ type: 'SW_UPDATED', version: CACHE_NAME });
         });
       })
   );
@@ -53,12 +53,23 @@ self.addEventListener('fetch', event => {
       url.includes('googleapis') || url.includes('gstatic') ||
       url.includes('google.com')) return;
 
-  // HTML principal → toujours réseau, jamais en cache
+  // HTML principal → priorité réseau (toujours la version la plus fraîche),
+  // mais on garde une copie en cache pour pouvoir répondre si le réseau est
+  // totalement indisponible (ouverture de l'app en zone blanche par exemple).
+  // Sans cette mise en cache, le fallback ci-dessous ne trouvait jamais rien
+  // et l'app ne se chargeait pas du tout hors-ligne.
   const isHTML = url.includes('.html') || url.includes('nocache=') ||
                  url.endsWith('/') || url === self.location.origin + '/';
   if (isHTML) {
     event.respondWith(
       fetch(event.request, { cache: 'no-store' })
+        .then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+          }
+          return response;
+        })
         .catch(() => caches.match(event.request))
     );
     return;
