@@ -1331,7 +1331,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.0944</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.1350</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2247,11 +2247,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260820.0944</strong><br>
+      Version actuelle de l'app : <strong>v260820.1350</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260820.0944 disponible)
+      📢 Notifier les utilisateurs (v260820.1350 disponible)
     </button>
   </div>
 
@@ -2444,6 +2444,36 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       <button class="btn" onclick="printReport('entretien')">🖨 Rapport entretiens</button>
       <button class="btn" onclick="exportAllCSV()">📊 Véhicules CSV</button>
       <button class="btn" onclick="exportMaintenancesCSV()">📥 Maintenances CSV</button>
+    </div>
+  </div>
+
+  <!-- Statistiques d'usage de la flotte -->
+  <div class="form-card">
+    <h3>📊 Statistiques d'usage de la flotte</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
+      Kilométrage parcouru et fréquence d'entretien par véhicule, sur la période choisie
+      (calculé à partir des relevés de kilométrage enregistrés lors des maintenances).
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <select id="stats-periode" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px">
+        <option value="6">6 derniers mois</option>
+        <option value="12" selected>12 derniers mois</option>
+      </select>
+      <button class="btn primary" onclick="afficherStatsUsage()">📊 Afficher</button>
+    </div>
+    <div id="stats-usage-container"></div>
+  </div>
+
+  <!-- Rapport annuel simplifié -->
+  <div class="form-card">
+    <h3>📅 Rapport annuel</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
+      Synthèse de l'année : kilométrage total, coûts AdBlue, maintenances effectuées et
+      signalements traités — réutilisable pour un rapport d'activité.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <select id="rapport-annuel-annee" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px"></select>
+      <button class="btn primary" onclick="genererRapportAnnuel()">🖨 Générer le rapport</button>
     </div>
   </div>
 
@@ -7444,6 +7474,11 @@ function renderVehicules() {
 
     return `<div class="veh-card">
       ${pastilleRV}
+      ${v.indisponible ? `<div style="background:var(--rouge);color:#fff;padding:6px 14px;
+        font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px">
+        🔴 Indisponible — ${echapperHtml(v.motifIndisponible || 'Autre')}
+        <span style="font-weight:400;opacity:0.9">depuis le ${formatDateCourt(v.indisponibleDepuis)}</span>
+      </div>` : ''}
       <div class="veh-card-header">
         <div class="veh-icon ${isCamion?'camion':'vsl'}">${isCamion?'🚐':'🚑'}</div>
         <div class="veh-info" style="flex:1;min-width:0">
@@ -7536,6 +7571,9 @@ function renderVehicules() {
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
         ${isAdmin ? `<button class="btn btn-sm primary" onclick="openVehEdit('${v.id}')">✏️ Modifier</button>` : ''}
+        ${isAdmin ? (v.indisponible
+          ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="marquerVehiculeDisponible('${v.id}')">🟢 Marquer disponible</button>`
+          : `<button class="btn btn-sm" style="color:#e67e22;border-color:#f0c896" onclick="ouvrirModalIndisponible('${v.id}')">🔴 Marquer indisponible</button>`) : ''}
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge);font-weight:600" onclick="ouvrirInterventionUrgente('${v.id}')" title="Enregistrer une intervention urgente">🚨 Urgent</button>` : ''}
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule('${v.id}')">🗑</button>` : ''}
       </div>
@@ -8346,6 +8384,69 @@ function sauvegarderNouveauVeh() {
 // ============================================================
 // SUPPRIMER VÉHICULE
 // ============================================================
+
+const MOTIFS_INDISPONIBLE = [
+  'Entretien garage', 'Rappel de la marque', 'Réparation urgente',
+  'Entretien lift (Recht)', 'Réparation carrosserie', 'Autre',
+];
+
+/* Ouvre un petit modal pour choisir le motif d'indisponibilité — pas de date
+   de retour à estimer, juste un statut clair "depuis le [date]" jusqu'à ce
+   qu'on le repasse manuellement disponible. */
+function ouvrirModalIndisponible(vehId) {
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  const ex = document.getElementById('modal-indisponible');
+  if (ex) ex.remove();
+
+  const div = document.createElement('div');
+  div.id = 'modal-indisponible';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🔴 Marquer indisponible</div>'
+    + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">' + v.marque + ' — ' + v.immat + '</div>'
+    + '<div class="form-group" style="margin-bottom:18px"><label>Motif</label>'
+    + '<select id="indispo-motif" style="width:100%">'
+    + MOTIFS_INDISPONIBLE.map(m => '<option value="' + m + '">' + m + '</option>').join('')
+    + '</select></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button class="btn primary" id="btn-confirmer-indispo">Confirmer</button>'
+    + '<button class="btn" id="btn-annuler-indispo">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+  document.getElementById('btn-confirmer-indispo').addEventListener('click', () => marquerVehiculeIndisponible(vehId));
+  document.getElementById('btn-annuler-indispo').addEventListener('click', () => div.remove());
+}
+
+function marquerVehiculeIndisponible(vehId) {
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  const motif = document.getElementById('indispo-motif')?.value || 'Autre';
+  v.indisponible = true;
+  v.motifIndisponible = motif;
+  v.indisponibleDepuis = toLocalYMD(new Date());
+  document.getElementById('modal-indisponible')?.remove();
+  window.vehicules = vehicules;
+  saveAll();
+  renderVehicules();
+  logCreation('vehicules', `${v.marque} ${v.immat} marqué indisponible (${motif})`, { vehId, motif });
+  toast(`🔴 ${v.immat} marqué indisponible`);
+}
+
+function marquerVehiculeDisponible(vehId) {
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  const motifPrecedent = v.motifIndisponible;
+  v.indisponible = false;
+  v.motifIndisponible = '';
+  v.indisponibleDepuis = '';
+  window.vehicules = vehicules;
+  saveAll();
+  renderVehicules();
+  logCreation('vehicules', `${v.marque} ${v.immat} redevenu disponible (était : ${motifPrecedent || '—'})`, { vehId });
+  toast(`🟢 ${v.immat} de nouveau disponible`);
+}
 
 function supprimerVehicule(id) {
   const v = vehicules.find(x => x.id === id);
@@ -10718,6 +10819,123 @@ function ouvrirImpression(htmlContent) {
 function initRapports() {
   updateBackupInfo();
   updateStatutNotif();
+
+  // Peupler le select des années (rapport annuel) une seule fois
+  const selAnnee = document.getElementById('rapport-annuel-annee');
+  if (selAnnee && selAnnee.options.length === 0) {
+    const anneesMaint = maintenances.map(m => (m.date||'').slice(0,4));
+    const anneesAb    = adblues.map(a => (a.date||'').slice(0,4));
+    const anneeActuelle = String(new Date().getFullYear());
+    const annees = [...new Set([...anneesMaint, ...anneesAb, anneeActuelle])]
+      .filter(Boolean).sort().reverse();
+    selAnnee.innerHTML = annees.map(a => '<option value="' + a + '">' + a + '</option>').join('');
+  }
+}
+
+/* Calcule le km parcouru approximatif pour un véhicule sur une période donnée,
+   à partir des relevés de km enregistrés lors des maintenances. Utilise le
+   dernier relevé AVANT le début de la période comme référence, et le relevé
+   le plus récent comme point final — donne une estimation réaliste même si
+   les maintenances ne tombent pas exactement aux bornes de la période. */
+function calculerKmPeriode(vehId, dateDebut, dateFin) {
+  const records = maintenances
+    .filter(m => m.vehId === vehId && m.km && !isNaN(parseInt(m.km)))
+    .map(m => ({ date: m.date, km: parseInt(m.km) }))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  if (!records.length) return { km: null, frequence: 0 };
+
+  const baseline = [...records].reverse().find(r => r.date < dateDebut) || records[0];
+  const dansPeriode = records.filter(r => r.date >= dateDebut && r.date <= dateFin);
+  const fin = dansPeriode.length ? dansPeriode[dansPeriode.length - 1] : null;
+
+  if (!fin) return { km: null, frequence: 0 };
+
+  const km = Math.max(0, fin.km - baseline.km);
+  return { km, frequence: dansPeriode.length };
+}
+
+/* Affiche le tableau des statistiques d'usage (km + fréquence d'entretien) */
+function afficherStatsUsage() {
+  const container = document.getElementById('stats-usage-container');
+  if (!container) return;
+  const mois = parseInt(document.getElementById('stats-periode')?.value || '12');
+
+  const dateFin = toLocalYMD(new Date());
+  const dDebut  = new Date();
+  dDebut.setMonth(dDebut.getMonth() - mois);
+  const dateDebut = toLocalYMD(dDebut);
+
+  const actifs = vehicules.filter(v => !v.archive);
+  const stats = actifs.map(v => {
+    const { km, frequence } = calculerKmPeriode(v.id, dateDebut, dateFin);
+    return { v, km, frequence };
+  }).sort((a,b) => (b.km ?? -1) - (a.km ?? -1));
+
+  container.innerHTML = '<table style="width:100%;border-collapse:collapse;margin-top:8px">'
+    + '<thead><tr style="border-bottom:2px solid var(--gris-bord)">'
+    + '<th style="text-align:left;padding:6px 8px;font-size:12px">Véhicule</th>'
+    + '<th style="text-align:right;padding:6px 8px;font-size:12px">Km parcourus</th>'
+    + '<th style="text-align:right;padding:6px 8px;font-size:12px">Maintenances</th>'
+    + '</tr></thead><tbody>'
+    + stats.map(s => '<tr style="border-bottom:1px solid var(--gris-bord)">'
+      + '<td style="padding:6px 8px;font-size:13px">' + s.v.marque + ' — ' + s.v.immat + '</td>'
+      + '<td style="padding:6px 8px;font-size:13px;text-align:right;font-weight:700">'
+        + (s.km !== null ? s.km.toLocaleString('fr-BE') + ' km' : '<span style="color:var(--texte-sec);font-weight:400">Aucune donnée</span>') + '</td>'
+      + '<td style="padding:6px 8px;font-size:13px;text-align:right">' + s.frequence + '</td>'
+      + '</tr>').join('')
+    + '</tbody></table>'
+    + '<p style="font-size:11px;color:var(--texte-sec);margin-top:8px">'
+    + 'Estimation basée sur les relevés de kilométrage enregistrés lors des maintenances — '
+    + 'pas un compteur en temps réel.</p>';
+}
+
+/* Génère le rapport annuel imprimable : km total, coûts AdBlue,
+   maintenances effectuées, signalements traités. */
+function genererRapportAnnuel() {
+  const annee = document.getElementById('rapport-annuel-annee')?.value || String(new Date().getFullYear());
+  const dateDebut = annee + '-01-01';
+  const dateFin   = annee + '-12-31';
+
+  const actifs = vehicules.filter(v => !v.archive);
+  const statsParVeh = actifs.map(v => {
+    const { km } = calculerKmPeriode(v.id, dateDebut, dateFin);
+    return { v, km: km || 0 };
+  });
+  const kmTotal = statsParVeh.reduce((s, x) => s + x.km, 0);
+
+  const adbluesAnnee = adblues.filter(a => (a.date||'').startsWith(annee));
+  const coutAdblue = adbluesAnnee.reduce((s, a) => s + (parseFloat(a.prixTotal) || 0), 0);
+
+  const nbMaintenances = maintenances.filter(m => (m.date||'').startsWith(annee)).length;
+
+  const nbSignalementsTraites = messagesChauf.filter(m =>
+    m.statut === 'traite' && ((m.traiteLe||'').startsWith(annee) || (!m.traiteLe && (m.date||'').startsWith(annee)))
+  ).length;
+
+  const body = headerRapport('Rapport annuel ' + annee, null) + `
+    <h2>Vue d'ensemble</h2>
+    <table>
+      <tr><td style="font-weight:700">Kilométrage total parcouru (flotte)</td><td>${kmTotal.toLocaleString('fr-BE')} km</td></tr>
+      <tr><td style="font-weight:700">Coût AdBlue</td><td>${coutAdblue.toLocaleString('fr-BE', {minimumFractionDigits:2, maximumFractionDigits:2})} €</td></tr>
+      <tr><td style="font-weight:700">Maintenances effectuées</td><td>${nbMaintenances}</td></tr>
+      <tr><td style="font-weight:700">Signalements traités</td><td>${nbSignalementsTraites}</td></tr>
+    </table>
+
+    <h2>Détail par véhicule — km parcourus</h2>
+    <table>
+      <tr><th>Véhicule</th><th>Km parcourus en ${annee}</th></tr>
+      ${statsParVeh.sort((a,b)=>b.km-a.km).map(s =>
+        `<tr><td>${s.v.marque} — ${s.v.immat}</td><td>${s.km.toLocaleString('fr-BE')} km</td></tr>`
+      ).join('')}
+    </table>
+    <div class="meta" style="margin-top:20px">
+      MCR Opont © ${new Date().getFullYear()} — Rapport généré automatiquement depuis MCR Opont Flotte
+    </div>`;
+
+  ouvrirImpression(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Rapport annuel ${annee}</title>${cssRapport()}</head>
+    <body>${body}</body></html>`);
 }
 
 /* CSS commun pour les rapports imprimés */
@@ -10812,7 +11030,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260820.0944';
+const APP_VERSION = '260820.1350';
 
 let _swRegistration = null;
 
