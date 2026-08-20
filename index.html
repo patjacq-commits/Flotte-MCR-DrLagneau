@@ -1331,7 +1331,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.1350</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.1403</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1472,6 +1472,14 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-chauf" class="page">
   <h2 style="margin-bottom:4px">🚨 Signaler un problème</h2>
   <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">3 taps suffisent.</p>
+
+  <div id="chauf-superadmin-note" class="form-card"
+       style="display:none;background:var(--bleu-clair);border-color:var(--bleu);margin-bottom:14px">
+    <p style="font-size:13px;color:var(--texte);margin:0">
+      ℹ️ En tant que superadmin, vous consultez et répondez aux signalements des chauffeurs
+      ci-dessous — la création d'un signalement est réservée aux chauffeurs (et à l'admin).
+    </p>
+  </div>
 
   <!-- Formulaire signalement 3 taps -->
   <div class="form-card" id="chauf-form-card">
@@ -2247,11 +2255,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260820.1350</strong><br>
+      Version actuelle de l'app : <strong>v260820.1403</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260820.1350 disponible)
+      📢 Notifier les utilisateurs (v260820.1403 disponible)
     </button>
   </div>
 
@@ -4327,6 +4335,17 @@ function initChauf() {
 
   const abCard = document.getElementById('chauf-adblue-card');
   if (abCard) abCard.style.display = 'none';
+
+  // Le superadmin reçoit/consulte/répond aux signalements mais n'en crée pas —
+  // cette fonctionnalité est dédiée aux chauffeurs (et reste disponible pour
+  // l'admin classique, qui peut avoir besoin de signaler depuis le terrain).
+  const formCard = document.getElementById('chauf-form-card');
+  const noteSuperadmin = document.getElementById('chauf-superadmin-note');
+  if (formCard) {
+    const cacherForm = typeof userIsSuperAdmin === 'function' && userIsSuperAdmin();
+    formCard.style.display = cacherForm ? 'none' : '';
+    if (noteSuperadmin) noteSuperadmin.style.display = cacherForm ? '' : 'none';
+  }
 
   renderMessagesChauf();
   renderChaufMaintenances();
@@ -11030,7 +11049,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260820.1350';
+const APP_VERSION = '260820.1403';
 
 let _swRegistration = null;
 
