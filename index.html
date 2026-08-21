@@ -1331,7 +1331,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260820.1726</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.0809</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1521,6 +1521,10 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
         <button class="btn chauf-cat-btn" data-cat="serrure" data-urgence="info"
           onclick="selectionnerCategorie(this)">
           🔑 Serrure / accessoire
+        </button>
+        <button class="btn chauf-cat-btn" data-cat="equipement" data-urgence="info"
+          onclick="selectionnerCategorie(this)">
+          🧤 Équipement manquant
         </button>
         <button class="btn chauf-cat-btn" data-cat="autre" data-urgence="info"
           onclick="selectionnerCategorie(this)">
@@ -2261,11 +2265,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260820.1726</strong><br>
+      Version actuelle de l'app : <strong>v260821.0809</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260820.1726 disponible)
+      📢 Notifier les utilisateurs (v260821.0809 disponible)
     </button>
   </div>
 
@@ -3951,7 +3955,30 @@ function renderMessagesChauf() {
     return;
   }
 
-  list.innerHTML = msgs.map(m => {
+  // Point 4 : rappel doux (non intrusif) si un signalement du chauffeur reste
+  // sans réponse depuis plusieurs jours — un chauffeur ne pense pas toujours
+  // à revenir vérifier de lui-même.
+  let rappelDouxHtml = '';
+  if (!userIsAdmin()) {
+    const SEUIL_JOURS = 3;
+    const maintenant = Date.now();
+    const ancienSansReponse = msgs.find(m => {
+      const nonTraite = !m.statut || m.statut === 'nonlu' || m.statut === 'vu';
+      const sansReponse = !m.reponses || !m.reponses.length;
+      const joursEcoules = (maintenant - new Date(m.date).getTime()) / 86400000;
+      return nonTraite && sansReponse && joursEcoules >= SEUIL_JOURS;
+    });
+    if (ancienSansReponse) {
+      const jours = Math.floor((maintenant - new Date(ancienSansReponse.date).getTime()) / 86400000);
+      rappelDouxHtml = '<div style="background:var(--bleu-clair);border:1px solid var(--bleu);'
+        + 'border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px">'
+        + 'ℹ️ Votre signalement du ' + formatDateCourt(toLocalYMD(new Date(ancienSansReponse.date)))
+        + ' n\'a pas encore de réponse (' + jours + ' jours) — vous pouvez relancer par téléphone si besoin.'
+        + '</div>';
+    }
+  }
+
+  list.innerHTML = rappelDouxHtml + msgs.map(m => {
     const v       = vehicules.find(x => x.id === m.vehId);
     const vNom    = v ? `${v.marque} — ${v.immat}` : m.vehId;
     const dateStr = new Date(m.date).toLocaleString('fr-BE',
@@ -5013,6 +5040,14 @@ function afficherEcranConnexion() {
       </button>
     </div>
 
+    <button onclick="afficherUrgenceSansConnexion()"
+      style="background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.7);
+             color:#fff;font-size:15px;font-weight:700;cursor:pointer;
+             padding:12px 20px;border-radius:10px;width:100%;max-width:360px;
+             display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px">
+      🆘 Numéros d'urgence (sans connexion)
+    </button>
+
     <!-- ÉCRAN INSCRIPTION -->
     <div class="login-card" id="login-card-inscription" style="display:none">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
@@ -5110,6 +5145,35 @@ function afficherMessageAttente(nom) {
 /* Écran affiché à un chauffeur dont le compte a été suspendu par le
    superadmin — évite qu'il se retrouve avec une app "connectée" mais
    cassée (données bloquées côté serveur sans explication). */
+/* Modal accessible SANS connexion — pour un chauffeur en panne/accident qui
+   ne veut/peut pas perdre de temps à chercher son mot de passe. */
+function afficherUrgenceSansConnexion() {
+  const ex = document.getElementById('modal-urgence-sans-connexion');
+  if (ex) ex.remove();
+  const div = document.createElement('div');
+  div.id = 'modal-urgence-sans-connexion';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:24px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3)">'
+    + '<div style="text-align:center;margin-bottom:16px">'
+    + '<div style="font-size:48px;margin-bottom:8px">🆘</div>'
+    + '<h2 style="margin:0;color:var(--rouge)">Numéros d\'urgence</h2>'
+    + '</div>'
+    + '<a href="tel:112" style="display:flex;align-items:center;gap:12px;background:var(--rouge);color:#fff;'
+    + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:10px;font-weight:700">'
+    + '<span style="font-size:24px">🚑</span><div><div style="font-size:15px">Urgence médicale / accident</div>'
+    + '<div style="font-size:13px;opacity:0.9">112</div></div></a>'
+    + '<a href="tel:0496224371" style="display:flex;align-items:center;gap:12px;background:var(--bleu);color:#fff;'
+    + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:16px;font-weight:700">'
+    + '<span style="font-size:24px">📱</span><div><div style="font-size:15px">Patrick (responsable flotte)</div>'
+    + '<div style="font-size:13px;opacity:0.9">0496 22 43 71</div></div></a>'
+    + '<p style="font-size:12px;color:var(--texte-sec);margin-bottom:16px">'
+    + 'Les numéros des garages attitrés par véhicule sont disponibles une fois connecté, dans l\'onglet Véhicules.</p>'
+    + '<button class="btn" style="width:100%" onclick="document.getElementById(\'modal-urgence-sans-connexion\').remove()">Fermer</button>'
+    + '</div>';
+  document.body.appendChild(div);
+}
+
 function afficherMessageSuspendu(nom) {
   const existing = document.getElementById('ecran-connexion');
   if (existing) existing.remove();
@@ -6357,6 +6421,49 @@ function renderAccueil() {
   // ════════════════════════════════════════════════════════════
   const dash = document.getElementById('alertes-dashboard');
 
+  // ── 0. PRIORITÉS DU JOUR (admin uniquement) ──────────────────
+  // Regroupe en un seul coup d'œil ce qui est habituellement dispersé sur
+  // 3 onglets différents : signalements non traités, RV urgents à prendre,
+  // véhicules actuellement indisponibles.
+  let prioritesHtml = '';
+  if (userIsAdmin()) {
+    const nbSignalements = messagesChauf.filter(m => !m.statut || m.statut === 'nonlu' || m.statut === 'vu').length;
+
+    const todayStrPr = toLocalYMD(new Date());
+    let nbRVUrgents = 0;
+    vehicules.filter(v => !v.archive).forEach(v => {
+      const ctP  = ctStatus(v);
+      const entP = entretienStatus(v);
+      const aRVCT  = rendezvous.some(r => r.vehId === v.id && r.type === 'ct'     && r.statut === 'planifie');
+      const aRVEnt = rendezvous.some(r => r.vehId === v.id && r.type === 'garage' && r.statut === 'planifie');
+      if (ctP.cls === 'urgent' && !aRVCT) nbRVUrgents++;
+      if (entP.cls === 'urgent' && !aRVEnt) nbRVUrgents++;
+    });
+
+    const nbIndisponibles = vehicules.filter(v => !v.archive && v.indisponible).length;
+
+    const total = nbSignalements + nbRVUrgents + nbIndisponibles;
+
+    if (total > 0) {
+      const tuile = (nb, icone, label, page) => nb > 0
+        ? `<div onclick="showPage('${page}', document.querySelector('.tab-btn[onclick*=\\'${page}\\']'))"
+             style="flex:1;min-width:110px;background:#fff;border-radius:10px;padding:12px;text-align:center;
+             cursor:pointer;border:1px solid var(--gris-bord)">
+             <div style="font-size:24px;font-weight:700;color:var(--rouge)">${nb}</div>
+             <div style="font-size:12px;color:var(--texte-sec);margin-top:2px">${icone} ${label}</div>
+           </div>` : '';
+
+      prioritesHtml = `<div class="form-card" style="border:2px solid var(--rouge);margin-bottom:16px">
+        <h3 style="color:var(--rouge);margin-bottom:10px">🎯 Priorités du jour (${total})</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${tuile(nbSignalements, '💬', 'signalement' + (nbSignalements>1?'s':'') + ' à traiter', 'chauf')}
+          ${tuile(nbRVUrgents, '📋', 'RV urgent' + (nbRVUrgents>1?'s':'') + ' à prendre', 'garages')}
+          ${tuile(nbIndisponibles, '🔴', 'véhicule' + (nbIndisponibles>1?'s':'') + ' indisponible' + (nbIndisponibles>1?'s':''), 'vehicules')}
+        </div>
+      </div>`;
+    }
+  }
+
   // ── 1. RV URGENTS ────────────────────────────────────────────
   // Alertes urgentes CT/entretien = RV à prendre immédiatement
   // + toutes les autres alertes urgentes (carte rouge, etc.)
@@ -6365,7 +6472,7 @@ function renderAccueil() {
     ? urgentes.map(a => renderAlerte(a)).join('')
     : '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucune alerte urgente ✅</p>';
 
-  dash.innerHTML = `<h3 style="margin-bottom:10px">🚨 RV urgents</h3>
+  dash.innerHTML = prioritesHtml + `<h3 style="margin-bottom:10px">🚨 RV urgents</h3>
     <div class="alertes-list">${htmlUrgentes}</div>`;
 
   // ── Infos spéciales (inchangé) ────────────────────────────────
@@ -7510,11 +7617,17 @@ function renderVehicules() {
 
     return `<div class="veh-card">
       ${pastilleRV}
-      ${v.indisponible ? `<div style="background:var(--rouge);color:#fff;padding:6px 14px;
-        font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px">
-        🔴 Indisponible — ${echapperHtml(v.motifIndisponible || 'Autre')}
-        <span style="font-weight:400;opacity:0.9">depuis le ${formatDateCourt(v.indisponibleDepuis)}</span>
-      </div>` : ''}
+      ${v.indisponible ? (() => {
+        const jInd = Math.round((new Date() - new Date(v.indisponibleDepuis)) / 86400000);
+        const longue = jInd >= 5;
+        return `<div style="background:${longue?'#8b0000':'var(--rouge)'};color:#fff;padding:6px 14px;
+          font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${longue ? '⏰🔴' : '🔴'} Indisponible — ${echapperHtml(v.motifIndisponible || 'Autre')}
+          <span style="font-weight:${longue?'700':'400'};opacity:0.95">
+            depuis le ${formatDateCourt(v.indisponibleDepuis)}${longue ? ' (' + jInd + ' jours !)' : ''}
+          </span>
+        </div>`;
+      })() : ''}
       <div class="veh-card-header">
         <div class="veh-icon ${isCamion?'camion':'vsl'}">${isCamion?'🚐':'🚑'}</div>
         <div class="veh-info" style="flex:1;min-width:0">
@@ -8434,13 +8547,26 @@ function ouvrirModalIndisponible(vehId) {
   const ex = document.getElementById('modal-indisponible');
   if (ex) ex.remove();
 
+  // Point 6 : vérifier si des RV planifiés existent déjà pour ce véhicule —
+  // ils deviennent probablement caducs si le véhicule tombe en panne.
+  const rvPlanifies = rendezvous.filter(r => r.vehId === vehId && r.statut === 'planifie');
+  const alerteRV = rvPlanifies.length
+    ? '<div style="background:var(--orange-clair);border:1px solid var(--orange);border-radius:8px;'
+      + 'padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--texte)">'
+      + '⚠️ <strong>' + rvPlanifies.length + ' RV déjà planifié' + (rvPlanifies.length>1?'s':'') + '</strong> pour ce véhicule :<br>'
+      + rvPlanifies.map(r => '• ' + labelRV(r.type) + ' — ' + formatDate(r.date) + (r.garage ? ' (' + r.garage + ')' : '')).join('<br>')
+      + '<br><span style="color:var(--texte-sec)">Pensez à vérifier s\'ils restent valables une fois le véhicule de nouveau disponible.</span>'
+      + '</div>'
+    : '';
+
   const div = document.createElement('div');
   div.id = 'modal-indisponible';
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
     + 'display:flex;align-items:center;justify-content:center;padding:16px';
-  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto">'
     + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🔴 Marquer indisponible</div>'
     + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">' + v.marque + ' — ' + v.immat + '</div>'
+    + alerteRV
     + '<div class="form-group" style="margin-bottom:18px"><label>Motif</label>'
     + '<select id="indispo-motif" style="width:100%">'
     + MOTIFS_INDISPONIBLE.map(m => '<option value="' + m + '">' + m + '</option>').join('')
@@ -8473,6 +8599,18 @@ function marquerVehiculeDisponible(vehId) {
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
   const motifPrecedent = v.motifIndisponible;
+  const depuisPrecedent = v.indisponibleDepuis;
+
+  // Point 8 : conserver un historique des indisponibilités (motif, période,
+  // durée) — sans ça, l'info disparaît dès que le véhicule redevient
+  // disponible et aucune statistique n'est possible.
+  if (depuisPrecedent) {
+    if (!Array.isArray(v.historiqueIndisponibilites)) v.historiqueIndisponibilites = [];
+    const jusquA = toLocalYMD(new Date());
+    const duree = Math.max(1, Math.round((new Date(jusquA) - new Date(depuisPrecedent)) / 86400000) + 1);
+    v.historiqueIndisponibilites.push({ motif: motifPrecedent, depuis: depuisPrecedent, jusqua: jusquA, dureeJours: duree });
+  }
+
   v.indisponible = false;
   v.motifIndisponible = '';
   v.indisponibleDepuis = '';
@@ -10982,7 +11120,12 @@ function afficherStatsUsage() {
   const actifs = vehicules.filter(v => !v.archive);
   const stats = actifs.map(v => {
     const { km, frequence } = calculerKmPeriode(v.id, dateDebut, dateFin);
-    return { v, km, frequence };
+    // Point 8 : historique des indisponibilités sur la même période
+    const historique = Array.isArray(v.historiqueIndisponibilites) ? v.historiqueIndisponibilites : [];
+    const periodesIndispo = historique.filter(h => h.depuis >= dateDebut && h.depuis <= dateFin);
+    const nbIndispo = periodesIndispo.length;
+    const joursIndispoCumules = periodesIndispo.reduce((s, h) => s + (h.dureeJours || 0), 0);
+    return { v, km, frequence, nbIndispo, joursIndispoCumules };
   }).sort((a,b) => (b.km ?? -1) - (a.km ?? -1));
 
   container.innerHTML = '<table style="width:100%;border-collapse:collapse;margin-top:8px">'
@@ -10990,17 +11133,23 @@ function afficherStatsUsage() {
     + '<th style="text-align:left;padding:6px 8px;font-size:12px">Véhicule</th>'
     + '<th style="text-align:right;padding:6px 8px;font-size:12px">Km parcourus</th>'
     + '<th style="text-align:right;padding:6px 8px;font-size:12px">Maintenances</th>'
+    + '<th style="text-align:right;padding:6px 8px;font-size:12px">Indispo.</th>'
+    + '<th style="text-align:right;padding:6px 8px;font-size:12px">Jours immobilisé</th>'
     + '</tr></thead><tbody>'
-    + stats.map(s => '<tr style="border-bottom:1px solid var(--gris-bord)">'
+    + stats.map(s => '<tr style="border-bottom:1px solid var(--gris-bord)' + (s.joursIndispoCumules >= 10 ? ';background:var(--rouge-clair)' : '') + '">'
       + '<td style="padding:6px 8px;font-size:13px">' + s.v.marque + ' — ' + s.v.immat + '</td>'
       + '<td style="padding:6px 8px;font-size:13px;text-align:right;font-weight:700">'
         + (s.km !== null ? s.km.toLocaleString('fr-BE') + ' km' : '<span style="color:var(--texte-sec);font-weight:400">Aucune donnée</span>') + '</td>'
       + '<td style="padding:6px 8px;font-size:13px;text-align:right">' + s.frequence + '</td>'
+      + '<td style="padding:6px 8px;font-size:13px;text-align:right">' + (s.nbIndispo || '—') + '</td>'
+      + '<td style="padding:6px 8px;font-size:13px;text-align:right;font-weight:' + (s.joursIndispoCumules>=10?'700':'400') + '">'
+        + (s.joursIndispoCumules ? s.joursIndispoCumules + ' j' : '—') + '</td>'
       + '</tr>').join('')
     + '</tbody></table>'
     + '<p style="font-size:11px;color:var(--texte-sec);margin-top:8px">'
     + 'Estimation basée sur les relevés de kilométrage enregistrés lors des maintenances — '
-    + 'pas un compteur en temps réel.</p>';
+    + 'pas un compteur en temps réel. Les lignes en rouge cumulent 10 jours ou plus d\'immobilisation '
+    + 'sur la période — véhicules à surveiller.</p>';
 }
 
 /* Génère le rapport annuel imprimable : km total, coûts AdBlue,
@@ -11143,7 +11292,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260820.1726';
+const APP_VERSION = '260821.0809';
 
 let _swRegistration = null;
 
