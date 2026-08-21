@@ -3,10 +3,8 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v260821.1730';
+const CACHE_NAME = 'mcr-flotte-v260821.2318';
 const CACHE_ASSETS = ['./icon-192.png', './manifest.json', './index.html'];
-
-let timerResumeQuotidien = null;
 
 // ── Installation ──────────────────────────────────────────────
 self.addEventListener('install', event => {

@@ -196,7 +196,11 @@
         batch.set(ref, item);
       });
       await batch.commit();
-    } catch(e) { console.warn('Firebase write error:', colName, e); }
+      return true;
+    } catch(e) {
+      console.warn('Firebase write error:', colName, e);
+      return false;
+    }
   }
 
   async function fbGetCollection(colName) {
@@ -1353,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.1730</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.2318</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2302,11 +2306,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260821.1730</strong><br>
+      Version actuelle de l'app : <strong>v260821.2318</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260821.1730 disponible)
+      📢 Notifier les utilisateurs (v260821.2318 disponible)
     </button>
   </div>
 
@@ -3012,7 +3016,7 @@ async function saveAll() {
   if (window._fb && peutEcrire) {
     const { fbSaveCollection } = window._fb;
     const ensureId = (arr, prefix) => arr.map((x,i) => ({ ...x, id: x.id || `${prefix}_${Date.now()}_${i}` }));
-    await Promise.all([
+    const resultats = await Promise.all([
       fbSaveCollection('maintenances',  ensureId(maintenances.map(m => ({...m, photosData:[]})), 'maint')),
       fbSaveCollection('ctEvents',      ensureId(ctEvents,      'ct')),
       fbSaveCollection('vehicules',     vehicules),
@@ -3035,7 +3039,16 @@ async function saveAll() {
         }
         return m;
       }), 'chauf')),
-    ]).catch(e => console.warn('Firebase saveAll error:', e));
+    ]).catch(e => { console.warn('Firebase saveAll error:', e); return []; });
+
+    // fbSaveCollection ne rejette jamais (elle catch en interne et renvoie
+    // false) — sans cette vérification explicite, un échec réseau en cours
+    // d'écriture passait totalement inaperçu : les données restaient
+    // correctes en local, mais jamais synchronisées vers Firestore, sans
+    // aucun signal pour s'en rendre compte.
+    if (resultats.some(r => r === false)) {
+      toast('⚠️ Sauvegarde locale OK, mais la synchronisation cloud a échoué (réseau ?). Réessayez dans un instant.');
+    }
   }
 }
 
@@ -4283,11 +4296,16 @@ async function chargerTelephones() {
 }
 
 /* Envoie une suggestion/remarque libre à Patrick (chauffeur uniquement) */
+let _verrouSuggestion = false;
 async function envoyerSuggestion() {
+  if (_verrouSuggestion) return; // évite un double envoi si double-tap
   const texteEl = document.getElementById('idee-texte');
   const texte = texteEl?.value?.trim();
   if (!texte) { toast('Écrivez d\'abord votre message.'); return; }
   if (!currentUser?.uid) return;
+
+  _verrouSuggestion = true;
+  setTimeout(() => { _verrouSuggestion = false; }, 2500);
 
   const rec = {
     id: Date.now(),
@@ -5355,6 +5373,10 @@ async function sInscrire() {
 
   if (!nom)              { affErr('❌ Veuillez saisir votre nom et prénom.');  return; }
   if (!email)            { affErr('❌ Veuillez saisir votre adresse email.');   return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    affErr('❌ Adresse email invalide — vérifiez qu\'elle contient bien un "@" et un domaine (ex: nom@exemple.be).');
+    return;
+  }
   if (pwd.length < 6)    { affErr('❌ Le mot de passe doit comporter au moins 6 caractères.'); return; }
   if (pwd !== pwd2)      { affErr('❌ Les deux mots de passe ne correspondent pas.'); return; }
 
@@ -5632,8 +5654,8 @@ function appliquerDroits() {
   if (userIsAdmin()) chargerTelephones();
   verifierMaj();
 
-  // Programmer le résumé quotidien à 7h00
-  setTimeout(() => programmerResumeQuotidien(), 1000);
+  // Vérifier si le résumé du jour doit être envoyé (une fois par jour, après 7h)
+  setTimeout(() => verifierResumeQuotidien(), 1000);
 }
 
 // ── Compatibilité toggleRole (plus utilisé mais peut être appelé) ──
@@ -6072,6 +6094,19 @@ async function supprimerSuggestion(id) {
   } catch(e) {
     toast('❌ Erreur : ' + e.message);
   }
+}
+
+/* Filtre les entrées d'une liste (Boîte à idées, Erreurs techniques) par
+   texte, sans nouvelle requête réseau — masque simplement les enfants
+   directs du conteneur dont le texte ne correspond pas à la recherche. */
+function filtrerListeParTexte(containerId, requete) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const q = requete.trim().toLowerCase();
+  Array.from(container.children).forEach(el => {
+    const correspond = !q || el.textContent.toLowerCase().includes(q);
+    el.style.display = correspond ? '' : 'none';
+  });
 }
 
 async function renderErreursApp() {
@@ -10970,6 +11005,30 @@ async function nettoyerHistorique() {
   }
 }
 
+/* Nettoyage générique par ancienneté — réutilisé pour erreursApp et
+   suggestionsChauf, deux collections sans purge automatique jusqu'ici et
+   qui s'accumuleraient indéfiniment sinon. Réservé au superadmin (seul rôle
+   autorisé à supprimer ces collections côté règles Firestore). */
+async function nettoyerCollectionAncienne(nomCollection, joursConservation, labelLog) {
+  if (!userIsSuperAdmin()) return;
+  try {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - joursConservation);
+    const limiteStr = limite.toISOString();
+    const snap = await db.collection(nomCollection)
+      .where('date', '<', limiteStr)
+      .limit(100)
+      .get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    console.log(`${labelLog} : ${snap.size} entrée(s) supprimée(s) (> ${joursConservation} jours)`);
+  } catch(e) {
+    console.warn(`Nettoyage ${nomCollection} échoué:`, e);
+  }
+}
+
 /* Supprime les photos de plus de 12 mois du localStorage (maintenances + signalements).
    Les clés des deux stockages sont des timestamps Date.now() — l'âge se calcule
    directement dessus, sans champ de date séparé à interroger. */
@@ -11533,7 +11592,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260821.1730';
+const APP_VERSION = '260821.2318';
 
 let _swRegistration = null;
 
@@ -11619,26 +11678,34 @@ function construireResumeQuotidien() {
   };
 }
 
-/* Programme la notification quotidienne à 7h00 via le SW */
-function programmerResumeQuotidien() {
+/* Vérifie, à l'ouverture de l'app, si le résumé du jour a déjà été envoyé.
+   Remplace l'ancien système "programmé via le Service Worker" qui ne
+   fonctionnait pas (le SW ne gérait pas ce message) — même correctif que
+   celui déjà appliqué aux rappels de RV : vérification au chargement plutôt
+   que programmation d'un événement futur, beaucoup plus fiable sur mobile. */
+function verifierResumeQuotidien() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
   if (!('serviceWorker' in navigator)) return;
-  if (Notification.permission !== 'granted') return;
 
-  const delaiMs = delaiJusquaSeptHeures();
+  const maintenant = new Date();
+  if (maintenant.getHours() < 7) return; // pas avant 7h locale
+
+  const aujourdHui = toLocalYMD(maintenant);
+  const dernierEnvoi = localStorage.getItem('mcr_resume_dernier_jour');
+  if (dernierEnvoi === aujourdHui) return; // déjà envoyé aujourd'hui
+
   const contenu = construireResumeQuotidien();
-  const heureCible = new Date(Date.now() + delaiMs);
-  const heureStr   = heureCible.toLocaleTimeString('fr-BE', { hour:'2-digit', minute:'2-digit', hour12:false });
-  const dateStr    = heureCible.toLocaleDateString('fr-BE', { weekday:'long', day:'2-digit', month:'long' });
-
   navigator.serviceWorker.ready.then(reg => {
-    if (reg.active) {
-      reg.active.postMessage({
-        type: 'PROGRAMMER_RESUME_QUOTIDIEN',
-        payload: { contenu, delaiMs }
-      });
-      console.log(`📅 Résumé quotidien programmé pour ${dateStr} à ${heureStr}`);
-    }
+    reg.showNotification(contenu.titre, {
+      body:               contenu.corps,
+      icon:               './icon-192.png',
+      badge:              './icon-192.png',
+      tag:                'resume-quotidien',
+      requireInteraction: false,
+      data:               { url: './', type: 'resume' }
+    });
   });
+  localStorage.setItem('mcr_resume_dernier_jour', aujourdHui);
 }
 
 /* Déclencher immédiatement un résumé (test) */
@@ -11662,9 +11729,6 @@ function envoyerResumeImmediat() {
 
 /* Écouter les messages du SW */
 navigator.serviceWorker?.addEventListener('message', event => {
-  if (event.data?.type === 'RECALCULER_RESUME') {
-    programmerResumeQuotidien();
-  }
   if (event.data?.type === 'NOTIF_RESUME') {
     showPage('accueil', document.querySelectorAll('.tab-btn')[0]);
   }
@@ -11682,11 +11746,9 @@ async function activerNotifications() {
   }
   const perm = await Notification.requestPermission();
   if (perm === 'granted') {
-    programmerResumeQuotidien();
+    verifierResumeQuotidien();
     programmerTousLesRappels();
-    const cible   = new Date(Date.now() + delaiJusquaSeptHeures());
-    const heureStr = cible.toLocaleString('fr-BE', { weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit', hour12:false });
-    toast(`✅ Prochain résumé : ${heureStr}`);
+    toast('✅ Notifications activées — le résumé du jour s\'affichera à la prochaine ouverture de l\'app après 7h.');
   } else {
     toast('❌ Permission refusée.');
   }
@@ -11887,6 +11949,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // sont chargés — pas ici, pour éviter un double affichage du modal.
     setTimeout(nettoyerHistorique, 10000); // nettoyage en arrière-plan après 10s
     setTimeout(nettoyerPhotosAnciennes, 12000); // nettoyage photos > 12 mois
+    setTimeout(() => nettoyerCollectionAncienne('erreursApp', 90, 'Erreurs techniques'), 14000);
+    setTimeout(() => nettoyerCollectionAncienne('suggestionsChauf', 180, 'Boîte à idées'), 16000);
   }
 
   // Attendre Firebase (max 4 secondes, sinon démarrer avec localStorage)
@@ -11973,6 +12037,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">
       Suggestions, remarques ou idées libres envoyées par les chauffeurs depuis leur profil.
     </p>
+    <input type="text" id="suggestions-chauf-recherche" placeholder="🔍 Rechercher (nom, texte…)"
+      oninput="filtrerListeParTexte('suggestions-chauf-container', this.value)"
+      style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;
+             font-size:13px;margin-bottom:10px" />
     <div id="suggestions-chauf-container">
       <p style="color:var(--texte-sec)">Chargement…</p>
     </div>
@@ -11988,6 +12056,10 @@ document.addEventListener('DOMContentLoaded', () => {
       Erreurs JavaScript détectées automatiquement sur les appareils des utilisateurs.
       Si une action semble ne pas s'être enregistrée, vérifiez ici.
     </p>
+    <input type="text" id="erreurs-app-recherche" placeholder="🔍 Rechercher (message, page…)"
+      oninput="filtrerListeParTexte('erreurs-app-container', this.value)"
+      style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;
+             font-size:13px;margin-bottom:10px" />
     <div id="erreurs-app-container">
       <p style="color:var(--texte-sec)">Chargement…</p>
     </div>
