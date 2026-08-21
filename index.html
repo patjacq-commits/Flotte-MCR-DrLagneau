@@ -1353,7 +1353,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.0955</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.1730</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2283,15 +2283,30 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
   </div>
 
+  <!-- Boîte à idées — chauffeur uniquement -->
+  <div class="form-card chauf-only" id="carte-boite-idees" style="max-width:480px;margin-top:14px;display:none">
+    <h3>💡 Boîte à idées</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
+      Une suggestion pour améliorer l'app, une remarque générale, une idée ?
+      Écrivez librement à Patrick ici — pas besoin que ça concerne un véhicule précis.
+    </p>
+    <textarea id="idee-texte" rows="3" placeholder="Une suggestion, une remarque, une idée…"
+      style="width:100%;border:1.5px solid var(--gris-bord);border-radius:8px;padding:10px 12px;
+             font-size:14px;font-family:inherit;resize:vertical;margin-bottom:10px"></textarea>
+    <button class="btn primary" onclick="envoyerSuggestion()">💬 Envoyer</button>
+
+    <div id="mes-suggestions-container" style="margin-top:16px"></div>
+  </div>
+
   <!-- Gestion des versions (superadmin) -->
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260821.0955</strong><br>
+      Version actuelle de l'app : <strong>v260821.1730</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260821.0955 disponible)
+      📢 Notifier les utilisateurs (v260821.1730 disponible)
     </button>
   </div>
 
@@ -4267,6 +4282,74 @@ async function chargerTelephones() {
   } catch(e) {}
 }
 
+/* Envoie une suggestion/remarque libre à Patrick (chauffeur uniquement) */
+async function envoyerSuggestion() {
+  const texteEl = document.getElementById('idee-texte');
+  const texte = texteEl?.value?.trim();
+  if (!texte) { toast('Écrivez d\'abord votre message.'); return; }
+  if (!currentUser?.uid) return;
+
+  const rec = {
+    id: Date.now(),
+    uid: currentUser.uid,
+    auteur: currentUser.nom || 'Chauffeur',
+    texte,
+    date: new Date().toISOString(),
+    statut: 'nonlu',
+    luLe: null,
+    reponses: [],
+  };
+
+  try {
+    await db.collection('suggestionsChauf').doc(String(rec.id)).set(rec);
+    texteEl.value = '';
+    toast('✅ Message envoyé, merci !');
+    renderMesSuggestions();
+  } catch(e) {
+    toast('❌ Erreur lors de l\'envoi : ' + e.message);
+  }
+}
+
+/* Affiche les messages envoyés par CE chauffeur, avec le statut et la
+   réponse de Patrick si elle existe */
+async function renderMesSuggestions() {
+  const container = document.getElementById('mes-suggestions-container');
+  if (!container || !currentUser?.uid) return;
+  container.innerHTML = '<p style="color:var(--texte-sec);font-size:12px">Chargement…</p>';
+
+  try {
+    const snap = await db.collection('suggestionsChauf')
+      .where('uid', '==', currentUser.uid).get();
+    const mesMsg = snap.docs.map(d => d.data()).sort((a,b) => b.date.localeCompare(a.date));
+
+    if (!mesMsg.length) { container.innerHTML = ''; return; }
+
+    container.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--texte-sec);'
+      + 'text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Mes messages précédents</div>'
+      + mesMsg.map(m => {
+        const dateStr = new Date(m.date).toLocaleString('fr-BE',
+          { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
+        const statutHtml = m.statut === 'repondu'
+          ? '<span style="color:var(--vert);font-weight:600">✅ Répondu</span>'
+          : m.statut === 'lu'
+            ? '<span style="color:var(--bleu);font-weight:600">👁 Lu par Patrick</span>'
+            : '<span style="color:var(--texte-sec)">⏳ Envoyé, pas encore lu</span>';
+        const reponseHtml = m.reponses?.length
+          ? m.reponses.map(r => '<div style="margin-top:6px;padding:8px 10px;background:var(--bleu-clair);'
+              + 'border-radius:6px;font-size:13px"><b>↩ Patrick :</b> ' + echapperHtml(r.texte) + '</div>').join('')
+          : '';
+        return '<div style="border:1px solid var(--gris-bord);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
+          + '<div style="font-size:11px;color:var(--texte-sec);margin-bottom:4px">' + dateStr + '</div>'
+          + '<div style="font-size:13px">' + echapperHtml(m.texte) + '</div>'
+          + '<div style="font-size:12px;margin-top:6px">' + statutHtml + '</div>'
+          + reponseHtml
+          + '</div>';
+      }).join('');
+  } catch(e) {
+    container.innerHTML = '';
+  }
+}
+
 function initProfil() {
   if (!currentUser?.uid) return;
   db.collection('roles').doc(currentUser.uid).get().then(doc => {
@@ -4276,6 +4359,8 @@ function initProfil() {
     const warn = document.getElementById('profil-tel-warning');
     if (warn) warn.style.display = tel ? 'none' : '';
   }).catch(() => {});
+
+  if (!userIsAdmin()) renderMesSuggestions();
 }
 
 function repondreMessage(id) {
@@ -4982,6 +5067,7 @@ function showPage(id, btn) {
     renderGestionComptes();
     renderSessionsActives();
     renderHistoriqueLog();
+    renderSuggestionsChauf();
     renderErreursApp();
   } else if (_sessionsListener) {
     // Arrêter le listener temps réel quand on quitte l'onglet Comptes
@@ -5512,6 +5598,10 @@ function appliquerDroits() {
   show(tabRapports,   isAdm);
   show(tabComptes,    isSA);
 
+  // Boîte à idées (Profil) — visible uniquement pour les chauffeurs
+  const carteIdees = document.getElementById('carte-boite-idees');
+  if (carteIdees) carteIdees.style.display = (!isAdm) ? '' : 'none';
+
   // Masquer les filtres admin dans l'historique pour les chauffeurs
   const histFiltresAdmin = document.getElementById('hist-filtres-admin');
   if (histFiltresAdmin) histFiltresAdmin.style.display = isAdm ? '' : 'none';
@@ -5894,6 +5984,96 @@ async function renderHistoriqueLog() {
 }
 
 /* Affiche les erreurs JS signalées automatiquement par le filet de sécurité */
+/* Affiche toutes les suggestions envoyées par les chauffeurs (superadmin) */
+async function renderSuggestionsChauf() {
+  const container = document.getElementById('suggestions-chauf-container');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--texte-sec)">Chargement…</p>';
+
+  try {
+    const snap = await db.collection('suggestionsChauf').get();
+    const msgs = snap.docs.map(d => d.data()).sort((a,b) => b.date.localeCompare(a.date));
+
+    if (!msgs.length) {
+      container.innerHTML = '<p style="color:var(--texte-sec);text-align:center;padding:16px">Aucun message pour l\'instant.</p>';
+      return;
+    }
+
+    container.innerHTML = msgs.map(m => {
+      const dateStr = new Date(m.date).toLocaleString('fr-BE',
+        { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
+      const statutBadge = m.statut === 'repondu'
+        ? '<span class="badge" style="background:var(--vert);color:#fff;font-size:10px">✅ Répondu</span>'
+        : m.statut === 'lu'
+          ? '<span class="badge" style="background:var(--bleu);color:#fff;font-size:10px">👁 Lu</span>'
+          : '<span class="badge" style="background:var(--orange);color:#fff;font-size:10px">🆕 Nouveau</span>';
+      const reponseHtml = m.reponses?.length
+        ? m.reponses.map(r => '<div style="margin-top:6px;padding:8px 10px;background:var(--vert-clair);'
+            + 'border-radius:6px;font-size:13px"><b>↩ Vous :</b> ' + echapperHtml(r.texte) + '</div>').join('')
+        : '';
+      const replyFormHtml = m.statut !== 'repondu'
+        ? '<div style="display:flex;gap:6px;margin-top:8px">'
+          + '<input type="text" id="reponse-idee-' + m.id + '" placeholder="Répondre…"'
+          + ' style="flex:1;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 8px;font-size:13px"'
+          + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();repondreSuggestion(' + m.id + ');}" />'
+          + '<button class="btn btn-sm primary" onclick="repondreSuggestion(' + m.id + ')">↩️ Répondre</button>'
+          + '</div>'
+        : '';
+
+      return '<div style="border:1px solid var(--gris-bord);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px">'
+        + '<div><b style="font-size:13px">' + echapperHtml(m.auteur) + '</b> '
+        + '<span style="font-size:11px;color:var(--texte-sec)">— ' + dateStr + '</span></div>'
+        + statutBadge
+        + '</div>'
+        + '<div style="font-size:13px">' + echapperHtml(m.texte) + '</div>'
+        + reponseHtml
+        + replyFormHtml
+        + '<button class="btn btn-sm" style="margin-top:8px;font-size:11px;padding:3px 8px;'
+        + 'color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerSuggestion(' + m.id + ')">🗑 Supprimer</button>'
+        + '</div>';
+    }).join('');
+
+    // Marquer automatiquement comme "lu" les messages tout juste consultés
+    msgs.filter(m => m.statut === 'nonlu').forEach(m => {
+      db.collection('suggestionsChauf').doc(String(m.id))
+        .set({ statut: 'lu', luLe: new Date().toISOString() }, { merge: true }).catch(() => {});
+    });
+
+  } catch(e) {
+    container.innerHTML = '<p style="color:var(--rouge)">Erreur : ' + e.message + '</p>';
+  }
+}
+
+async function repondreSuggestion(id) {
+  if (!userIsSuperAdmin()) return;
+  const input = document.getElementById('reponse-idee-' + id);
+  const texte = input?.value?.trim();
+  if (!texte) { toast('Réponse vide.'); return; }
+  try {
+    const ref = db.collection('suggestionsChauf').doc(String(id));
+    const doc = await ref.get();
+    const reponses = doc.exists ? (doc.data().reponses || []) : [];
+    reponses.push({ auteur: currentUser?.nom || 'Patrick', texte, date: new Date().toISOString() });
+    await ref.set({ statut: 'repondu', reponses }, { merge: true });
+    toast('✅ Réponse envoyée');
+    renderSuggestionsChauf();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+async function supprimerSuggestion(id) {
+  if (!userIsSuperAdmin()) return;
+  if (!confirm('Supprimer ce message ?')) return;
+  try {
+    await db.collection('suggestionsChauf').doc(String(id)).delete();
+    renderSuggestionsChauf();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
 async function renderErreursApp() {
   const container = document.getElementById('erreurs-app-container');
   if (!container) return;
@@ -6460,6 +6640,20 @@ function renderAccueil() {
   // ════════════════════════════════════════════════════════════
   const dash = document.getElementById('alertes-dashboard');
 
+  // ── Indice "Boîte à idées" (chauffeur uniquement) ────────────
+  // Discret, non intrusif — pointe simplement vers Profil où se trouve
+  // la fonctionnalité, plutôt que de la dupliquer ici.
+  let indiceIdeesHtml = '';
+  if (!userIsAdmin()) {
+    indiceIdeesHtml = `<div onclick="showPage('profil', document.querySelector('.tab-btn[onclick*=\\'profil\\']'))"
+      style="background:var(--bleu-clair);border:1px solid var(--bleu);border-radius:8px;
+      padding:10px 12px;margin-bottom:14px;font-size:13px;cursor:pointer;
+      display:flex;align-items:center;gap:8px">
+      💡 <span>Une idée, une remarque pour améliorer l'app ?
+      <b style="color:var(--bleu)">Rendez-vous dans ⚙️ Profil →</b></span>
+    </div>`;
+  }
+
   // ── 0. PRIORITÉS DU JOUR (admin uniquement) ──────────────────
   // Regroupe en un seul coup d'œil ce qui est habituellement dispersé sur
   // 3 onglets différents : signalements non traités, RV urgents à prendre,
@@ -6517,7 +6711,7 @@ function renderAccueil() {
     dash.innerHTML = prioritesHtml + `<h3 style="margin-bottom:10px">🚨 RV urgents</h3>
       <div class="alertes-list">${htmlUrgentes}</div>`;
   } else {
-    dash.innerHTML = prioritesHtml;
+    dash.innerHTML = indiceIdeesHtml + prioritesHtml;
   }
 
   // ── Infos spéciales (inchangé) ────────────────────────────────
@@ -11339,7 +11533,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260821.0955';
+const APP_VERSION = '260821.1730';
 
 let _swRegistration = null;
 
@@ -11766,6 +11960,20 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
     <div id="hist-log-container">
+      <p style="color:var(--texte-sec)">Chargement…</p>
+    </div>
+  </div>
+
+  <!-- Suggestions et remarques des chauffeurs -->
+  <div class="form-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <h3>💡 Boîte à idées des chauffeurs</h3>
+      <button class="btn btn-sm" onclick="renderSuggestionsChauf()">🔄</button>
+    </div>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">
+      Suggestions, remarques ou idées libres envoyées par les chauffeurs depuis leur profil.
+    </p>
+    <div id="suggestions-chauf-container">
       <p style="color:var(--texte-sec)">Chargement…</p>
     </div>
   </div>

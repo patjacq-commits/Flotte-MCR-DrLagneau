@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isApprouve() {
+      return isAuth()
+          && exists(/databases/$(database)/documents/roles/$(request.auth.uid))
+          && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.statut != 'en_attente'
+          && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.statut != 'suspendu';
+    }
+
+    function isAdmin() {
+      return isApprouve()
+          && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role in ['admin', 'superadmin'];
+    }
+
+    function isSuperAdmin() {
+      return isApprouve()
+          && get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role == 'superadmin';
+    }
+
+    match /vehicules/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /maintenances/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /rendezvous/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /ctEvents/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /adblues/{docId} {
+      allow read: if isApprouve();
+      allow create: if isApprouve();
+      allow update, delete: if isAdmin();
+    }
+
+    match /carwashes/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /messagesChauf/{docId} {
+      allow read: if isApprouve();
+      allow create: if isApprouve();
+      allow update, delete: if isAdmin();
+    }
+
+    match /commandesPneus/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /rechargesCle/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /permutations/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /roles/{userId} {
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuth() && request.auth.uid == userId;
+      allow update: if isSuperAdmin()
+                    || (isAuth() && request.auth.uid == userId
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['telephone', 'lastSeen']));
+      allow delete: if isSuperAdmin();
+    }
+
+    match /sessions/{docId} {
+      allow read, write: if isAuth();
+    }
+
+    match /config/{docId} {
+      allow read: if isApprouve();
+      allow write: if isAdmin();
+    }
+
+    match /historique/{docId} {
+      allow read: if isAdmin();
+      allow create: if isApprouve();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    match /mail/{docId} {
+      allow read: if isAdmin();
+      allow create: if isApprouve();
+      allow update, delete: if isAdmin();
+    }
+
+    match /erreursApp/{docId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAuth();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    match /suggestionsChauf/{docId} {
+      // Un chauffeur ne peut lire que ses propres messages ; le superadmin
+      // voit tout. La création est ouverte à tout utilisateur approuvé
+      // (même logique que messagesChauf) — seule l'interface restreint
+      // l'usage au rôle chauffeur.
+      allow read: if isSuperAdmin() || (isAuth() && resource.data.uid == request.auth.uid);
+      allow create: if isApprouve();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    match /test/{docId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
