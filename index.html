@@ -552,6 +552,13 @@ button { cursor: pointer; }
 .tabs::-webkit-scrollbar-track { background: transparent; }
 .tabs::-webkit-scrollbar-thumb { background: var(--gris-bord); border-radius: 2px; }
 @media (max-width:600px) { .tabs::-webkit-scrollbar { display:none; } }
+
+/* Pour un chauffeur, "Signaler un problème" est l'action la plus fréquente —
+   la remonter juste après le tableau de bord plutôt qu'en position 6 réduit
+   le nombre de taps nécessaires au quotidien. L'ordre DOM ne change pas
+   (donc rien à changer côté admin/superadmin), seul l'affichage visuel
+   bouge via la propriété flex "order". */
+body.role-chauffeur #tab-chauf { order: -1; }
 .tab-btn {
   flex-shrink: 0; padding: 0 18px; height: 44px;
   background: none; border: none; border-bottom: 3px solid transparent;
@@ -890,6 +897,15 @@ td.ok { color: var(--vert); font-weight: 600; }
   background:var(--rouge); color:#fff; border-radius:50%;
   min-width:18px; height:18px; font-size:11px; font-weight:700;
   padding:0 4px; margin-left:4px;
+}
+/* Même famille visuelle que .tab-badge (Signaler un problème) — l'onglet
+   Alertes utilisait un <span> sans aucun style avant, cassant la cohérence
+   entre les deux badges de notification de la barre d'onglets. */
+.tab-badge-alertes {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; font-size:12px;
+  padding:0 3px; margin-left:4px; border-radius:50%;
+  background:rgba(0,0,0,0.06);
 }
 @keyframes tab-msg-pulse {
   0%,100% { color:var(--rouge); background:transparent; }
@@ -1337,7 +1353,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.0854</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.0955</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1358,7 +1374,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button class="tab-btn active" onclick="showPage('accueil',this)">📊 Tableau de bord</button>
   <button class="tab-btn" onclick="showPage('vehicules',this)">🚐 Véhicules</button>
   <button class="tab-btn" onclick="showPage('alertes',this)">🔔 Alertes</button>
-  <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
+  <button class="tab-btn admin-only" onclick="showPage('kilometrage',this)" style="display:none">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Signaler un problème</button>
   <button class="tab-btn chauf-only" onclick="showPage('histmaint',this)" style="display:none">📋 Historique maintenances</button>
@@ -2093,7 +2109,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <!-- Formulaire AdBlue chauffeur (véhicules éligibles, visible pour chauffeurs) -->
   <div class="form-card" id="chauf-adblue-card">
     <h3>💧 Signaler un ajout AdBlue</h3>
-    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Pour les véhicules : 294, 633, 789, 941, 527, 910</p>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Pour les véhicules : <span id="chauf-ab-liste-veh">294, 633, 789, 941, 527, 910</span></p>
     <div class="form-grid">
       <div class="form-group">
         <label>Date</label>
@@ -2271,11 +2287,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260821.0854</strong><br>
+      Version actuelle de l'app : <strong>v260821.0955</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260821.0854 disponible)
+      📢 Notifier les utilisateurs (v260821.0955 disponible)
     </button>
   </div>
 
@@ -4775,6 +4791,11 @@ function initAdBlueOnglet() {
     selChauf.innerHTML = vehAbTries.map(v =>
       `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
   }
+  // Liste des véhicules concernés — plaques complètes, générée depuis la
+  // vraie liste (évite qu'un texte codé en dur se désynchronise un jour).
+  const listeVehAb = document.getElementById('chauf-ab-liste-veh');
+  if (listeVehAb) listeVehAb.textContent = VEHICULES_ADBLUE_CHAUF.join(', ');
+
   const abDate = document.getElementById('chauf-ab-date');
   if (abDate && !abDate.value) abDate.value = toLocalYMD(new Date());
 
@@ -5441,6 +5462,11 @@ function appliquerDroits() {
   const role = currentUser.role;
   const isSA  = role === 'superadmin';
   const isAdm = isSA || role === 'admin';
+
+  // Classe sur <body> pour permettre un réordonnancement visuel des onglets
+  // selon le rôle (ex: remonter "Signaler un problème" pour un chauffeur)
+  // sans changer l'ordre du DOM (qui reste identique pour tout le monde).
+  document.body.classList.toggle('role-chauffeur', role === 'chauffeur');
 
   // Badge et bouton déconnexion
   const badge   = document.getElementById('role-badge');
@@ -6480,13 +6506,19 @@ function renderAccueil() {
   // ── 1. RV URGENTS ────────────────────────────────────────────
   // Alertes urgentes CT/entretien = RV à prendre immédiatement
   // + toutes les autres alertes urgentes (carte rouge, etc.)
-  const urgentes = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
-  const htmlUrgentes = urgentes.length
-    ? urgentes.map(a => renderAlerte(a)).join('')
-    : '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucune alerte urgente ✅</p>';
+  // Réservé à l'admin : un chauffeur dispose déjà de l'onglet "Alertes"
+  // dédié pour ce même contenu — l'afficher aussi ici était redondant.
+  if (isAdmin) {
+    const urgentes = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
+    const htmlUrgentes = urgentes.length
+      ? urgentes.map(a => renderAlerte(a)).join('')
+      : '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucune alerte urgente ✅</p>';
 
-  dash.innerHTML = prioritesHtml + `<h3 style="margin-bottom:10px">🚨 RV urgents</h3>
-    <div class="alertes-list">${htmlUrgentes}</div>`;
+    dash.innerHTML = prioritesHtml + `<h3 style="margin-bottom:10px">🚨 RV urgents</h3>
+      <div class="alertes-list">${htmlUrgentes}</div>`;
+  } else {
+    dash.innerHTML = prioritesHtml;
+  }
 
   // ── Infos spéciales (inchangé) ────────────────────────────────
   const infosActives = getInfosActives();
@@ -6620,7 +6652,9 @@ function renderAccueil() {
 
 
   // ── 3. À SURVEILLER — uniquement les rubriques concernées ───
-  {
+  // Réservé à l'admin, même logique que la section 1 (redondant avec Alertes
+  // pour un chauffeur).
+  if (isAdmin) {
     const surveiller = alertes.filter(a => a.level === 'warn' || a.level === 'rv');
     const CATS = [
       { key:'ct',         label:'🏥 Contrôle Technique' },
@@ -7647,7 +7681,6 @@ function renderVehicules() {
           <h3>${v.marque}</h3>
           <span class="immat">${v.immat}</span>
           ${equipBadge}
-          <div style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:4px;letter-spacing:0.5px;word-break:break-all">${v.chassis || ''}</div>
         </div>
         <div class="veh-badges" style="flex-shrink:0">
           <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls==='urgent'?'CT':'CT '+ct.cls.toUpperCase()}</span>
@@ -7986,6 +8019,7 @@ function openVehDetail(id) {
         : '')
     + '</div>'
     + '<table style="width:100%;border-collapse:collapse">'
+    + dr('Châssis (VIN)', '<span style="font-family:monospace;font-size:12px">' + (v.chassis || '—') + '</span>')
     + '<tr><td colspan="2" style="padding:6px 0 4px;font-weight:700;font-size:13px">📊 Données principales</td></tr>'
     + dr('Kilométrage', v.km ? parseInt(v.km).toLocaleString('fr-BE') + ' km' : '—')
     + dr('CT valable jusqu\'au', formatDate(v.ct_valid), ctA?.cls, ctA?.txt)
@@ -11305,7 +11339,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260821.0854';
+const APP_VERSION = '260821.0955';
 
 let _swRegistration = null;
 
