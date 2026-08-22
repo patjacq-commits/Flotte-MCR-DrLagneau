@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260822.1807</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260822.1823</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1521,49 +1521,52 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
     </div>
 
-    <!-- TAP 2 : Nature du problème -->
+    <!-- TAP 2 : Nature du/des problème(s) — sélection multiple -->
     <div style="margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:var(--texte-sec);
            text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
-        2 · Nature du problème
+        2 · Nature du/des problème(s) <span style="font-weight:400;text-transform:none">(un ou plusieurs)</span>
       </div>
       <div id="chauf-cat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
         <button class="btn chauf-cat-btn" data-cat="panne" data-urgence="urgent"
-          onclick="selectionnerCategorie(this)">
+          onclick="toggleCategorie(this)">
           🔴 Panne / immobilisation
         </button>
         <button class="btn chauf-cat-btn" data-cat="bruit" data-urgence="urgent"
-          onclick="selectionnerCategorie(this)">
+          onclick="toggleCategorie(this)">
           ⚠️ Bruit / anomalie mécanique
         </button>
         <button class="btn chauf-cat-btn" data-cat="voyant" data-urgence="urgent"
-          onclick="selectionnerCategorie(this)">
+          onclick="toggleCategorie(this)">
           💡 Voyant allumé
         </button>
         <button class="btn chauf-cat-btn" data-cat="carrosserie" data-urgence="info"
-          onclick="selectionnerCategorie(this)">
+          onclick="toggleCategorie(this)">
           💥 Carrosserie / vitre
         </button>
         <button class="btn chauf-cat-btn" data-cat="serrure" data-urgence="info"
-          onclick="selectionnerCategorie(this)">
+          onclick="toggleCategorie(this)">
           🔑 Serrure / accessoire
         </button>
         <button class="btn chauf-cat-btn" data-cat="equipement" data-urgence="info"
-          onclick="selectionnerCategorie(this)">
+          onclick="toggleCategorie(this)">
           🧤 Équipement manquant
         </button>
         <button class="btn chauf-cat-btn" data-cat="autre" data-urgence="info"
-          onclick="selectionnerCategorie(this)">
+          onclick="toggleCategorie(this)">
           📝 Autre
         </button>
       </div>
     </div>
 
+    <!-- Un petit champ commentaire par anomalie sélectionnée -->
+    <div id="chauf-anomalies-detail" style="margin-bottom:14px"></div>
+
     <!-- Note optionnelle (visible uniquement si catégorie sélectionnée) -->
     <div id="chauf-note-zone" style="display:none;margin-bottom:14px">
       <div style="font-size:12px;font-weight:700;color:var(--texte-sec);
            text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
-        Note <span style="font-weight:400;text-transform:none">(optionnel)</span>
+        Note générale <span style="font-weight:400;text-transform:none">(optionnel — pour une remarque globale)</span>
       </div>
       <textarea id="chauf-msg" placeholder="Précision supplémentaire…"
         style="width:100%;min-height:60px;border:1.5px solid var(--gris-bord);
@@ -2306,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260822.1807</strong><br>
+      Version actuelle de l'app : <strong>v260822.1823</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260822.1807 disponible)
+      📢 Notifier les utilisateurs (v260822.1823 disponible)
     </button>
   </div>
 
@@ -4165,7 +4168,7 @@ function renderMessagesChauf() {
         <span class="msg-date">${dateStr}</span>
       </div>
       <div class="msg-body">
-        <div style="font-size:13px">${echapperHtml(m.msg)}</div>
+        <div style="font-size:13px;white-space:pre-line">${echapperHtml(m.msg)}</div>
         <div class="msg-auteur">— ${echapperHtml(m.auteur)}</div>
         ${isTraite && m.traiteLe ? `<div style="font-size:11px;color:var(--vert);margin-top:4px">✅ Traité le ${new Date(m.traiteLe).toLocaleString('fr-BE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit', hour12:false})}</div>` : ''}
         ${vuLeHtml}
@@ -4181,8 +4184,7 @@ function renderMessagesChauf() {
 
 // Variables globales formulaire 3 taps
 let _chaufVehId    = '';
-let _chaufCat      = '';
-let _chaufUrgence  = 'info';
+let _chaufAnomalies = []; // [{cat, urgence}] — remplace _chaufCat/_chaufUrgence (sélection unique)
 let _chaufPhotos   = [];
 
 function markChaufLu(id) {
@@ -4619,18 +4621,54 @@ function selectionnerVehicule(btn) {
   mettreAJourRecap();
 }
 
-function selectionnerCategorie(btn) {
-  // Désélectionner l'ancienne
-  document.querySelectorAll('.chauf-cat-btn.selected').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  _chaufCat     = btn.dataset.cat;
-  _chaufUrgence = btn.dataset.urgence || 'info';
+/* Sélection MULTIPLE des catégories — remplace l'ancienne sélection unique.
+   Chaque catégorie cochée ajoute un petit champ commentaire dédié dans
+   #chauf-anomalies-detail. */
+function toggleCategorie(btn) {
+  const cat = btn.dataset.cat;
+  const dejaSelectionne = btn.classList.contains('selected');
 
-  // Afficher note, photo et bouton envoyer
-  document.getElementById('chauf-note-zone').style.display    = '';
-  document.getElementById('chauf-photo-zone').style.display   = '';
-  document.getElementById('chauf-envoyer-zone').style.display = '';
+  if (dejaSelectionne) {
+    btn.classList.remove('selected');
+    _chaufAnomalies = _chaufAnomalies.filter(a => a.cat !== cat);
+  } else {
+    btn.classList.add('selected');
+    _chaufAnomalies.push({ cat, urgence: btn.dataset.urgence || 'info' });
+  }
+
+  renderAnomaliesDetail();
+
+  const auMoinsUne = _chaufAnomalies.length > 0;
+  document.getElementById('chauf-note-zone').style.display    = auMoinsUne ? '' : 'none';
+  document.getElementById('chauf-photo-zone').style.display   = auMoinsUne ? '' : 'none';
+  document.getElementById('chauf-envoyer-zone').style.display = auMoinsUne ? '' : 'none';
   mettreAJourRecap();
+}
+
+/* Reconstruit la liste des petits champs commentaire, un par anomalie
+   sélectionnée — préserve le texte déjà tapé pour celles qui restent
+   cochées (ne réinitialise pas au moindre ajout/retrait). */
+function renderAnomaliesDetail() {
+  const container = document.getElementById('chauf-anomalies-detail');
+  if (!container) return;
+
+  // Sauvegarder les commentaires déjà saisis avant de reconstruire le HTML
+  const commentairesActuels = {};
+  _chaufAnomalies.forEach(a => {
+    const champ = document.getElementById('chauf-anomalie-com-' + a.cat);
+    if (champ) commentairesActuels[a.cat] = champ.value;
+  });
+
+  container.innerHTML = _chaufAnomalies.map(a => {
+    const label = CAT_LABELS[a.cat] || a.cat;
+    const valPrecedente = commentairesActuels[a.cat] || '';
+    return '<div style="margin-bottom:8px">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--texte-sec);margin-bottom:4px">' + label + '</div>'
+      + '<input type="text" id="chauf-anomalie-com-' + a.cat + '" placeholder="Détail pour ce point (optionnel)…" '
+      + 'oninput="mettreAJourRecap()" value="' + valPrecedente.replace(/"/g,'&quot;') + '" '
+      + 'style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;font-size:13px" />'
+      + '</div>';
+  }).join('');
 }
 
 const CAT_LABELS = {
@@ -4639,6 +4677,7 @@ const CAT_LABELS = {
   voyant:      '💡 Voyant allumé',
   carrosserie: '💥 Carrosserie / vitre',
   serrure:     '🔑 Serrure / accessoire',
+  equipement:  '🧤 Équipement manquant',
   autre:       '📝 Autre'
 };
 
@@ -4647,13 +4686,19 @@ function mettreAJourRecap() {
   if (!recap) return;
   const v    = vehicules.find(x => x.id === _chaufVehId);
   const vNom = v ? v.immat + ' — ' + v.marque : '—';
-  const cat  = _chaufCat ? CAT_LABELS[_chaufCat] || _chaufCat : '—';
   const note = document.getElementById('chauf-msg')?.value?.trim() || '';
   const nbP  = _chaufPhotos.filter(Boolean).length;
+
+  const listeAnomalies = _chaufAnomalies.map(a => {
+    const label = CAT_LABELS[a.cat] || a.cat;
+    const com   = document.getElementById('chauf-anomalie-com-' + a.cat)?.value?.trim() || '';
+    return label + (com ? ' — ' + com : '');
+  }).join('<br>');
+
   recap.innerHTML =
     '<strong>Véhicule :</strong> ' + vNom + '<br>' +
-    '<strong>Problème :</strong> ' + cat + '<br>' +
-    (note ? '<strong>Note :</strong> ' + note + '<br>' : '') +
+    '<strong>Problème(s) :</strong><br>' + (listeAnomalies || '—') + '<br>' +
+    (note ? '<strong>Note générale :</strong> ' + note + '<br>' : '') +
     (nbP  ? '<strong>Photos :</strong> ' + nbP + ' jointe(s)' : '');
 }
 
@@ -4706,10 +4751,9 @@ function retirerChaufPhoto(idx) {
 }
 
 function clearChaufForm() {
-  _chaufVehId   = '';
-  _chaufCat     = '';
-  _chaufUrgence = 'info';
-  _chaufPhotos  = [];
+  _chaufVehId    = '';
+  _chaufAnomalies = [];
+  _chaufPhotos   = [];
   document.querySelectorAll('.chauf-veh-btn.selected, .chauf-cat-btn.selected')
     .forEach(b => b.classList.remove('selected'));
   const msg = document.getElementById('chauf-msg'); if (msg) msg.value = '';
@@ -4717,6 +4761,7 @@ function clearChaufForm() {
   const gal = document.getElementById('chauf-galerie'); if (gal) gal.value = '';
   const pre = document.getElementById('chauf-msg-photos-preview'); if (pre) pre.innerHTML = '';
   const recap = document.getElementById('chauf-recap'); if (recap) recap.innerHTML = '';
+  const detail = document.getElementById('chauf-anomalies-detail'); if (detail) detail.innerHTML = '';
   ['chauf-note-zone','chauf-photo-zone','chauf-envoyer-zone'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = 'none';
   });
@@ -4727,15 +4772,23 @@ async function sendMessageChauf() {
   if (_verrouSignalement) return; // évite un double envoi si double-tap
   _verrouSignalement = true;
   setTimeout(() => { _verrouSignalement = false; }, 2500);
-  if (!_chaufVehId)  { toast('Sélectionnez un véhicule.');  return; }
-  if (!_chaufCat)    { toast('Sélectionnez la nature du problème.'); return; }
+  if (!_chaufVehId)          { toast('Sélectionnez un véhicule.');  return; }
+  if (!_chaufAnomalies.length) { toast('Sélectionnez au moins un problème.'); return; }
 
   const v        = vehicules.find(x => x.id === _chaufVehId);
   const vNom     = v ? v.immat + ' — ' + v.marque : _chaufVehId;
   const nom      = currentUser?.nom || 'Chauffeur';
   const note     = document.getElementById('chauf-msg')?.value?.trim() || '';
-  const catLabel = CAT_LABELS[_chaufCat] || _chaufCat;
-  const isUrgentMsg = _chaufUrgence === 'urgent';
+  const isUrgentMsg = _chaufAnomalies.some(a => a.urgence === 'urgent');
+
+  // Construire la liste des anomalies avec leur commentaire individuel
+  const anomalies = _chaufAnomalies.map(a => ({
+    cat: a.cat,
+    label: CAT_LABELS[a.cat] || a.cat,
+    urgence: a.urgence,
+    commentaire: document.getElementById('chauf-anomalie-com-' + a.cat)?.value?.trim() || '',
+  }));
+  const catLabel = anomalies.map(a => a.label).join(', ');
 
   // Confirmation avant envoi
   const confirmed = await new Promise(resolve => {
@@ -4746,12 +4799,13 @@ async function sendMessageChauf() {
     d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
       + 'display:flex;align-items:center;justify-content:center;padding:16px';
     d.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;'
-      + 'box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+      + 'box-shadow:0 8px 32px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto">'
       + '<div style="font-size:16px;font-weight:700;margin-bottom:14px;color:' + (isUrgentMsg?'var(--rouge)':'var(--bleu)') + '">'
       + (isUrgentMsg ? '🚨 Signalement urgent' : '📋 Confirmer le signalement') + '</div>'
       + '<div style="font-size:13px;margin-bottom:8px"><b>Véhicule :</b> ' + vNom + '</div>'
-      + '<div style="font-size:13px;margin-bottom:8px"><b>Problème :</b> ' + catLabel + '</div>'
-      + (note ? '<div style="font-size:13px;margin-bottom:8px"><b>Note :</b> ' + note + '</div>' : '')
+      + '<div style="font-size:13px;margin-bottom:8px"><b>Problème(s) :</b><br>'
+      + anomalies.map(a => '• ' + a.label + (a.commentaire ? ' — ' + a.commentaire : '')).join('<br>') + '</div>'
+      + (note ? '<div style="font-size:13px;margin-bottom:8px"><b>Note générale :</b> ' + note + '</div>' : '')
       + (_chaufPhotos.filter(Boolean).length ? '<div style="font-size:13px;margin-bottom:8px">📷 ' + _chaufPhotos.filter(Boolean).length + ' photo(s) jointe(s)</div>' : '')
       + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:16px">Le responsable sera notifié immédiatement.</div>'
       + '<div style="display:flex;gap:8px">'
@@ -4767,8 +4821,9 @@ async function sendMessageChauf() {
 
   const photos   = _chaufPhotos.filter(Boolean);
   const nbPhotos = photos.length;
-  // Le message = catégorie + note éventuelle
-  const msgText  = catLabel + (note ? ' — ' + note : '');
+  // Le message = liste des problèmes (+ leur commentaire) + note générale éventuelle
+  const msgText  = anomalies.map(a => a.label + (a.commentaire ? ' — ' + a.commentaire : '')).join('\n')
+    + (note ? '\n' + note : '');
 
   // Comprimer les photos (max 600px, qualité 55%)
   const photosCompressees = [];
@@ -4800,9 +4855,9 @@ async function sendMessageChauf() {
   const uid = currentUser?.uid || '';
   const msgRec = {
     id: msgId, vehId: _chaufVehId, auteur: nom, uid,
-    msg: msgText, categorie: _chaufCat,
+    msg: msgText, categorie: anomalies[0]?.cat || '', anomalies,
     date: new Date().toISOString(),
-    priorite: _chaufUrgence, statut: 'nonlu', reponses: [],
+    priorite: isUrgentMsg ? 'urgent' : 'info', statut: 'nonlu', reponses: [],
     nbPhotos: photosCompressees.length,
     photosData: photosCompressees
   };
@@ -4825,20 +4880,20 @@ async function sendMessageChauf() {
     if (typeof isAdmin === 'function' && isAdmin()) saveAll();
   }
   logCreation('messagesChauf',
-    'Signalement ' + _chaufUrgence + ' : ' + nom + ' → ' + vNom + ' — ' + catLabel +
+    'Signalement ' + (isUrgentMsg ? 'urgent' : 'info') + ' : ' + nom + ' → ' + vNom + ' — ' + catLabel +
     (note ? ' — ' + note.slice(0,40) : '') +
     (photosCompressees.length ? ' — ' + photosCompressees.length + ' photo(s)' : ''),
-    { vehId: _chaufVehId, auteur: nom, categorie: _chaufCat, priorite: _chaufUrgence });
+    { vehId: _chaufVehId, auteur: nom, categorie: msgRec.categorie, priorite: msgRec.priorite });
 
   // Firebase Extension mail (silencieux si non installé)
   try {
     db.collection('mail').add({
       to: SUPERADMIN_EMAIL,
       message: {
-        subject: (_chaufUrgence === 'urgent' ? '🚨 [URGENT] ' : '📋 ') + 'Signalement — ' + vNom,
+        subject: (isUrgentMsg ? '🚨 [URGENT] ' : '📋 ') + 'Signalement — ' + vNom,
         html: '<p><strong>De :</strong> ' + nom + '<br>' +
               '<strong>Véhicule :</strong> ' + vNom + '<br>' +
-              '<strong>Problème :</strong> ' + catLabel + '<br>' +
+              '<strong>Problème(s) :</strong> ' + catLabel + '<br>' +
               '<strong>Date :</strong> ' + dateStr + '</p>' +
               (note ? '<p>' + note + '</p>' : '') +
               (photosCompressees.length ? '<p><em>📷 ' + photosCompressees.length + ' photo(s) — voir l\'app</em></p>' : '') +
@@ -4855,14 +4910,14 @@ async function sendMessageChauf() {
   const exConf = document.getElementById('modal-confirm-envoi');
   // Logger l'envoi
   logAction('creation', 'messagesChauf',
-    'Signalement ' + (_chaufUrgence === 'urgent' ? 'URGENT' : '') + ' — ' + vNom + ' — ' + catLabel
+    'Signalement ' + (isUrgentMsg ? 'URGENT' : '') + ' — ' + vNom + ' — ' + catLabel
     + (note ? ' : ' + note.slice(0,60) : ''), null, msgRec);
   if (exConf) exConf.remove();
   const divConf = document.createElement('div');
   divConf.id = 'modal-confirm-envoi';
   divConf.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
     + 'display:flex;align-items:center;justify-content:center;padding:16px';
-  const isUrgent = _chaufUrgence === 'urgent';
+  const isUrgent = isUrgentMsg;
   divConf.innerHTML = '<div style="background:#fff;border-radius:14px;padding:24px;max-width:360px;width:100%;'
     + 'box-shadow:0 8px 32px rgba(0,0,0,0.25);text-align:center">'
     + '<div style="font-size:48px;margin-bottom:12px">' + (isUrgent ? '🚨' : '✅') + '</div>'
@@ -4878,7 +4933,7 @@ async function sendMessageChauf() {
     + 'onclick="document.getElementById(\'modal-confirm-envoi\').remove();'
     + 'const corps=encodeURIComponent((\'' + (isUrgent?'🚨 URGENT — ':'') + 'MCR Opont — ' + vNom.replace(/'/g,"\\'") + '\\n'
     + catLabel.replace(/'/g,"\\'") + (note?' : '+note.slice(0,40).replace(/'/g,"\\'"):'') + '\\nDe : ' + nom.replace(/'/g,"\\'") + '\').replace(/\\\\n/g,\'%0A\'));'
-    + 'window.location.href=\'sms:0496224371?body=\'+corps">📱 Envoyer aussi un SMS</button>'
+    + 'window.location.href=smsHref(\'0496224371\', corps)">📱 Envoyer aussi un SMS</button>'
     + '<button class="btn" onclick="document.getElementById(\'modal-confirm-envoi\').remove()">Fermer</button>'
     + '</div></div>';
   document.body.appendChild(divConf);
@@ -8125,6 +8180,17 @@ function normaliserTelBE(tel) {
   let t = tel.trim();
   t = t.replace(/^\+32\s?/, '0').replace(/^0032\s?/, '0');
   return t;
+}
+
+/* Construit un lien sms: fonctionnel sur Android ET iOS. Les deux
+   plateformes divergent sur le séparateur du paramètre "body" pré-remplissant
+   le message : Android attend "?body=", iOS/Safari attend "&body=" — utiliser
+   systématiquement "?" (comme avant) cassait le pré-remplissage sur iPhone,
+   là où la grande majorité des chauffeurs utilisent l'app. */
+function smsHref(numero, corpsEncode) {
+  if (!corpsEncode) return 'sms:' + numero;
+  const estIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  return 'sms:' + numero + (estIOS ? '&body=' : '?body=') + corpsEncode;
 }
 
 async function setGarageTel(garage, principal, gsm) {
@@ -11581,7 +11647,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260822.1807';
+const APP_VERSION = '260822.1823';
 
 let _swRegistration = null;
 
