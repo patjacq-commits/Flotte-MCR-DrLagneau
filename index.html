@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260821.2318</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260822.1807</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2306,11 +2306,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260821.2318</strong><br>
+      Version actuelle de l'app : <strong>v260822.1807</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260821.2318 disponible)
+      📢 Notifier les utilisateurs (v260822.1807 disponible)
     </button>
   </div>
 
@@ -6548,15 +6548,11 @@ function renderAccueil() {
   const nbRVprog = rendezvous.filter(r => r.statut === 'planifie').length;
 
   // Pastille véhicules — calculée avant l'innerHTML
-  const _immob = vehicules.filter(v => {
-    if (!v.infoSpec || !v.infoSpec.trim()) return false;
-    const dm = v.infoSpec.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
-    if (dm) {
-      const dateExp = new Date(dm[3] + '-' + dm[2].padStart(2,'0') + '-' + dm[1].padStart(2,'0'));
-      if (!isNaN(dateExp.getTime()) && Date.now() > dateExp.getTime() + 12*3600000) return false;
-    }
-    return true;
-  });
+  // Basée sur le vrai statut d'indisponibilité (v.indisponible, activé
+  // volontairement via "🔴 Marquer indisponible"), jamais déduite du
+  // contenu d'une note libre (infoSpec) — c'était la source du bug où une
+  // simple remarque mentionnant une date déclenchait à tort ce badge.
+  const _immob   = vehicules.filter(v => v.indisponible);
   const _nbImm   = _immob.length;
   const _coulVeh = _nbImm > 0 ? 'var(--orange)' : 'var(--bleu)';
   const _lblVeh  = 'Véhicule' + (vehicules.length > 1 ? 's' : '')
@@ -6566,7 +6562,7 @@ function renderAccueil() {
         + v.immat + ' au garage</div>').join('')
     : '';
   const _ttipVeh = _nbImm > 0
-    ? _immob.map(v => v.immat + (v.infoSpec ? ' : ' + v.infoSpec.slice(0,40) : '')).join(' | ')
+    ? _immob.map(v => v.immat + (v.motifIndisponible ? ' : ' + v.motifIndisponible : '')).join(' | ')
     : 'Voir tous les véhicules';
   const _cardVeh = '<div class="summary-card" style="cursor:pointer;border-color:' + _coulVeh + '"'
     + ' onclick="showPage(\'vehicules\', document.querySelectorAll(\'.tab-btn\')[1])"'
@@ -7424,7 +7420,7 @@ function ouvrirInfoVeh(vehId) {
   const v = vehicules.find(x => x.id === vehId);
   const texteActuel = v ? (v.infoSpec || '') : '';
   openEditModal(`ℹ️ Info — ${v ? v.marque + ' ' + v.immat : vehId}`, [
-    { label:'Info / Remarque (ex: immobilisé jusqu\'au 15/06/2026)', type:'text', key:'texte', val: texteActuel }
+    { label:'Info / Remarque libre (ex: souci clé de contact, portière qui grince…)', type:'text', key:'texte', val: texteActuel }
   ], (changes) => {
     const texte = changes.texte || '';
     const veh = vehicules.find(x => x.id === vehId);
@@ -7945,17 +7941,10 @@ function renderVehicules() {
         ${cwRow}
         ${(() => {
           if (!v.infoSpec || !v.infoSpec.trim()) return '';
-          const dateMatch = v.infoSpec.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
-          if (dateMatch) {
-            const dateExp = new Date(`${dateMatch[3]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[1].padStart(2,'0')}`);
-            if (!isNaN(dateExp.getTime()) && Date.now() > dateExp.getTime() + 12*3600000) return '';
-            const jRestants = Math.ceil((dateExp - Date.now()) / 86400000);
-            const duree = jRestants <= 0 ? "Fin aujourd\'hui" : jRestants === 1 ? "Encore 1 jour" : `Encore ${jRestants} jours`;
-            return `<div class="veh-row" style="background:var(--rouge-clair);border-radius:6px;padding:6px 10px;margin-top:5px;border-left:3px solid var(--rouge)">
-              <div style="font-size:12px;font-weight:700;color:var(--rouge)">🔴 Immobilisé — ${duree}</div>
-              <div style="font-size:12px">${v.infoSpec}</div>
-            </div>`;
-          }
+          // Note informative libre — jamais transformée en statut "Immobilisé".
+          // L'indisponibilité réelle est gérée séparément et volontairement via
+          // le bouton "🔴 Marquer indisponible" (bandeau en haut de la carte),
+          // pas déduite du contenu de ce texte libre.
           return `<div class="veh-row info-veh-row" style="background:var(--bleu-clair);border-radius:6px;padding:6px 10px;margin-top:5px;border-left:3px solid var(--bleu);animation:pulse-info 2s ease infinite">
             <span style="font-size:13px;color:var(--bleu);font-weight:700">ℹ️ ${v.infoSpec}</span>
           </div>`;
@@ -11592,7 +11581,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260821.2318';
+const APP_VERSION = '260822.1807';
 
 let _swRegistration = null;
 
