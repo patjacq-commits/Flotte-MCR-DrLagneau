@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260826.1651</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260826.1700</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260826.1651</strong><br>
+      Version actuelle de l'app : <strong>v260826.1700</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260826.1651 disponible)
+      📢 Notifier les utilisateurs (v260826.1700 disponible)
     </button>
   </div>
 
@@ -7886,8 +7886,18 @@ function renderVehicules() {
     const ent = entretienStatus(v);
     const isCamion = v.type === 'Camionnette';
 
-    // Dernière maintenance enregistrée pour ce véhicule
-    const lastM = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+    // Dernière maintenance enregistrée pour ce véhicule — comparer avec
+    // "dernier_entretien_date/km" (modifiable via le bouton "✏️ Modifier" de
+    // la fiche véhicule) et garder la source la plus récente. Avant cette
+    // correction, la carte n'utilisait QUE l'historique du formulaire
+    // Maintenance : modifier "Dernier entretien" via la fiche véhicule
+    // n'avait alors aucun effet visible sur cette ligne.
+    const lastMHist = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+    let lastM = lastMHist;
+    if (v.dernier_entretien_date && v.dernier_entretien_km &&
+        (!lastMHist || v.dernier_entretien_date > lastMHist.date)) {
+      lastM = { date: v.dernier_entretien_date, km: v.dernier_entretien_km };
+    }
 
     // Kilométrage = celui relevé à la dernière maintenance (sinon celui du véhicule)
     const kmAffiche = (lastM && lastM.km) ? lastM.km : v.km;
@@ -11694,7 +11704,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260826.1651';
+const APP_VERSION = '260826.1700';
 
 let _swRegistration = null;
 
