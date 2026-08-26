@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260822.1823</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260826.1519</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260822.1823</strong><br>
+      Version actuelle de l'app : <strong>v260826.1519</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260822.1823 disponible)
+      📢 Notifier les utilisateurs (v260826.1519 disponible)
     </button>
   </div>
 
@@ -10858,18 +10858,48 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
 function deleteHistItem(srcType, srcId) {
   if (!confirm('Supprimer cette entrée ?')) return;
   const id = Number(srcId);
-  if (srcType === 'maintenance')  maintenances  = maintenances.filter(x => x.id !== id);
+  let vehIdConcerne = null;
+  if (srcType === 'maintenance') {
+    const m = maintenances.find(x => x.id === id);
+    vehIdConcerne = m ? m.vehId : null;
+    maintenances  = maintenances.filter(x => x.id !== id);
+  }
   if (srcType === 'ct')           ctEvents      = ctEvents.filter(x => x.id !== id);
   if (srcType === 'rv')           rendezvous    = rendezvous.filter(x => x.id !== id);
   if (srcType === 'adblue')       adblues       = adblues.filter(x => x.id !== id);
   if (srcType === 'carwash')      carwashes     = carwashes.filter(x => x.id !== id);
   if (srcType === 'message')      messagesChauf = messagesChauf.filter(x => x.id !== id);
+  if (vehIdConcerne) recalculerKmVehicule(vehIdConcerne);
   saveAll(); renderHistorique();
+  if (vehIdConcerne) { renderMaintTable(); renderVehicules(); renderAccueil(); }
   if (srcType === 'message') updateTabChauf();
   toast('Entrée supprimée');
 }
 
 /* Ouvre le modal d'édition selon le type */
+/* Recalcule v.km à partir de la maintenance la plus RÉCENTE réellement
+   existante pour ce véhicule. Nécessaire après modification ou suppression
+   d'une maintenance : v.km n'était mis à jour qu'à la CRÉATION d'une nouvelle
+   maintenance (saveMaintenance), jamais lors d'une édition ou suppression
+   ultérieure — un véhicule pouvait donc garder un kilométrage obsolète (et
+   tous les calculs qui en dépendent : prochain entretien, alertes, onglet
+   Kilométrage) même après correction ou suppression de l'entrée concernée. */
+function recalculerKmVehicule(vehId) {
+  const veh = vehicules.find(v => v.id === vehId);
+  if (!veh) return;
+  const historiqueVeh = maintenances
+    .filter(m => m.vehId === vehId && m.km && !isNaN(parseInt(m.km)))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  if (historiqueVeh.length) {
+    veh.km = parseInt(historiqueVeh[0].km);
+    const vRef = VEHICULES_DATA.find(r => r.id === vehId);
+    if (vRef) vRef.km = veh.km;
+  }
+  // Si plus aucune maintenance avec km pour ce véhicule, on laisse v.km tel
+  // quel plutôt que de le remettre à zéro — mieux vaut une valeur ancienne
+  // que perdue.
+}
+
 function editHistItem(srcType, srcId) {
   const id = Number(srcId);
   if (srcType === 'maintenance') {
@@ -10897,7 +10927,8 @@ function editHistItem(srcType, srcId) {
       if (changes.cwMontant) changes.cwMontant = parseFloat(changes.cwMontant);
       if (changes.adblue)    changes.adblue    = String(changes.adblue);
       Object.assign(m, changes);
-      saveAll(); renderHistorique(); renderMaintTable(); toast('Maintenance modifiée ✅');
+      recalculerKmVehicule(m.vehId);
+      saveAll(); renderHistorique(); renderMaintTable(); renderVehicules(); renderAccueil(); toast('Maintenance modifiée ✅');
     });
   } else if (srcType === 'rv') {
     const r = rendezvous.find(x => x.id === id);
@@ -11647,7 +11678,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260822.1823';
+const APP_VERSION = '260826.1519';
 
 let _swRegistration = null;
 
