@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260826.1519</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260826.1651</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260826.1519</strong><br>
+      Version actuelle de l'app : <strong>v260826.1651</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260826.1519 disponible)
+      📢 Notifier les utilisateurs (v260826.1651 disponible)
     </button>
   </div>
 
@@ -9321,10 +9321,20 @@ async function saveMaintenance() {
   maintenances.unshift(rec);
   if (veh && km > 0) {
     veh.km = km;
+    // Recalcule automatiquement le seuil du prochain entretien à partir du
+    // relevé actuel + l'intervalle propre à ce véhicule (20 000 km pour la
+    // plupart, 15 000 pour 1RER037) — ce recalcul n'existait nulle part
+    // dans le code jusqu'ici, le seuil restait figé à sa valeur initiale.
+    if (veh.interval_entretien_km) {
+      veh.prochain_entretien_km = km + veh.interval_entretien_km;
+    }
     window.vehicules = vehicules; // sync immédiat
     // Mettre à jour VEHICULES_DATA en mémoire pour cohérence
     const vRef = VEHICULES_DATA.find(r => r.id === vehId);
-    if (vRef) vRef.km = km;
+    if (vRef) {
+      vRef.km = km;
+      if (veh.interval_entretien_km) vRef.prochain_entretien_km = veh.prochain_entretien_km;
+    }
   }
 
   // Sauvegarder photos en localStorage uniquement (éviter dépassement 1MB Firestore)
@@ -10892,8 +10902,14 @@ function recalculerKmVehicule(vehId) {
     .sort((a, b) => b.date.localeCompare(a.date));
   if (historiqueVeh.length) {
     veh.km = parseInt(historiqueVeh[0].km);
+    if (veh.interval_entretien_km) {
+      veh.prochain_entretien_km = veh.km + veh.interval_entretien_km;
+    }
     const vRef = VEHICULES_DATA.find(r => r.id === vehId);
-    if (vRef) vRef.km = veh.km;
+    if (vRef) {
+      vRef.km = veh.km;
+      if (veh.interval_entretien_km) vRef.prochain_entretien_km = veh.prochain_entretien_km;
+    }
   }
   // Si plus aucune maintenance avec km pour ce véhicule, on laisse v.km tel
   // quel plutôt que de le remettre à zéro — mieux vaut une valeur ancienne
@@ -11678,7 +11694,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260826.1519';
+const APP_VERSION = '260826.1651';
 
 let _swRegistration = null;
 
