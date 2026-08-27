@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0807</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0819</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.0807</strong><br>
+      Version actuelle de l'app : <strong>v260827.0819</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.0807 disponible)
+      📢 Notifier les utilisateurs (v260827.0819 disponible)
     </button>
   </div>
 
@@ -10047,15 +10047,12 @@ function confirmerEntretienEffectue(id) {
   r.statut = 'effectue';
   if (window.db) {
     window.db.collection('rendezvous').doc(String(id)).update({ statut: 'effectue' }).catch(() => {});
-    // Mettre à jour le véhicule dans Firestore
-    if (v) {
-      window.db.collection('vehicules').doc(String(r.vehId)).update({
-        km:                    km,
-        dernier_entretien_km:   km,
-        dernier_entretien_date: today,
-        prochain_entretien_km:  prochainKm,
-      }).catch(() => {});
-    }
+    // Le véhicule (km, dernier/prochain entretien) est écrit juste après via
+    // saveAll() — qui réécrit l'intégralité de la collection à partir de
+    // l'état déjà mis à jour en mémoire, et signale désormais un échec réel
+    // au lieu de l'avaler silencieusement (contrairement à un .update()
+    // individuel séparé, retiré ici pour éviter toute double-écriture
+    // concurrente sur le même document).
   }
 
   window.rendezvous = rendezvous;
@@ -11755,7 +11752,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.0807';
+const APP_VERSION = '260827.0819';
 
 let _swRegistration = null;
 
