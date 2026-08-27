@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0743</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0753</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.0743</strong><br>
+      Version actuelle de l'app : <strong>v260827.0753</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.0743 disponible)
+      📢 Notifier les utilisateurs (v260827.0753 disponible)
     </button>
   </div>
 
@@ -8416,17 +8416,19 @@ function openVehEdit(id) {
 
   document.getElementById('modal-veh-edit-title').textContent = '✏️ Modifier — ' + v.marque + ' ' + v.immat;
 
+  // Les champs ne sauvegardent plus individuellement au blur (onchange) —
+  // ce comportement dépendait du timing exact des événements du navigateur
+  // et pouvait manquer le dernier champ modifié avant fermeture du modal.
+  // Ils sont maintenant tous collectés ensemble au clic sur "💾 Sauvegarder",
+  // même principe déjà utilisé pour l'historique (saveEditHist).
   function field(label, type, key, val, placeholder) {
     placeholder = placeholder || '';
-    const onch = (type === 'number')
-      ? 'updateVehField(\'' + id + '\',\'' + key + '\',parseInt(this.value)||null)'
-      : 'updateVehField(\'' + id + '\',\'' + key + '\',this.value)';
     return '<div class="form-group"><label style="font-size:13px">' + label + '</label>'
-      + '<input type="' + type + '" value="' + (val || '') + '" placeholder="' + placeholder + '" onchange="' + onch + '"'
+      + '<input type="' + type + '" data-key="' + key + '" value="' + (val ?? '') + '" placeholder="' + placeholder + '"'
       + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" /></div>';
   }
 
-  let body = '<div class="form-grid">'
+  let body = '<div id="veh-edit-fields" class="form-grid">'
     + field('CT valable jusqu\'au',           'date',  'ct_valid',            v.ct_valid)
     + field('🔴 Carte rouge CT jusqu\'au',   'date',  'ct_carte_rouge',       v.ct_carte_rouge,    'Laisser vide si aucune')
     + field('Prochain entretien à (km)',     'number','prochain_entretien_km',v.prochain_entretien_km)
@@ -8440,20 +8442,14 @@ function openVehEdit(id) {
     + field('Vignette SPW jusqu\'au',         'date',  'spw_valid',            v.spw_valid)
     + '<div class="form-group"><label style="font-size:13px">Extincteur jusqu\'au</label>'
     + '<div style="display:flex;gap:6px;align-items:center">'
-    + '<input type="date" id="edit-extincteur-date" value="' + (v.extincteur_valid && v.extincteur_valid !== 'manquant' ? v.extincteur_valid : '') + '"'
-    + ' onchange="updateVehField(\'' + id + '\',\'extincteur_valid\',this.value||null)"'
+    + '<input type="date" id="edit-extincteur-date" data-key="extincteur_valid" value="' + (v.extincteur_valid && v.extincteur_valid !== 'manquant' ? v.extincteur_valid : '') + '"'
     + ' style="flex:1;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" />'
     + '<label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;cursor:pointer">'
     + '<input type="checkbox" id="edit-extincteur-manquant"'
     + (v.extincteur_valid === 'manquant' ? ' checked' : '')
     + ' onchange="'
-    + 'if(this.checked){'
-    + 'document.getElementById(\'edit-extincteur-date\').value=\'\';'
-    + 'updateVehField(\'' + id + '\',\'extincteur_valid\',\'manquant\');'
-    + '}else{'
-    + 'const d=document.getElementById(\'edit-extincteur-date\').value;'
-    + 'updateVehField(\'' + id + '\',\'extincteur_valid\',d||null);'
-    + '}"'
+    + 'const dEl=document.getElementById(\'edit-extincteur-date\');'
+    + 'if(this.checked){dEl.value=\'\';dEl.disabled=true;}else{dEl.disabled=false;}"'
     + ' style="width:16px;height:16px;cursor:pointer" />'
     + ' Manquant</label>'
     + '</div></div>'
@@ -8472,43 +8468,64 @@ function openVehEdit(id) {
   }
 
   body += '</div>'
-    + '<div style="margin-top:16px;display:flex;gap:10px">'
-    + '<button class="btn primary" onclick="closeModal(\'modal-veh-edit\');openVehDetail(\'' + id + '\')">'
-    + '✅ Fermer et voir le détail</button>'
-    + '</div>';
+    + '<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">'
+    + '<button class="btn primary" style="font-weight:700" onclick="saveVehEdit(\'' + id + '\')">'
+    + '💾 Sauvegarder</button>'
+    + '<button class="btn" onclick="closeModal(\'modal-veh-edit\')">Annuler</button>'
+    + '</div>'
+    + '<div id="veh-edit-confirm" style="display:none;margin-top:10px;padding:8px 12px;'
+    + 'background:var(--vert-clair);color:var(--vert);border-radius:6px;font-size:13px;font-weight:600">'
+    + '✅ Enregistré</div>';
 
   document.getElementById('modal-veh-edit-body').innerHTML = body;
+  if (v.extincteur_valid === 'manquant') {
+    const dEl = document.getElementById('edit-extincteur-date');
+    if (dEl) dEl.disabled = true;
+  }
   modal.classList.add('open');
 }
 
-/* Met à jour un champ d'un véhicule en mémoire et sauvegarde */
-function updateVehField(vehId, field, value) {
+/* Collecte tous les champs du formulaire véhicule d'un coup et sauvegarde —
+   remplace l'ancienne sauvegarde champ par champ (au blur), qui dépendait du
+   timing exact des événements du navigateur et pouvait manquer le dernier
+   champ modifié juste avant la fermeture du modal. */
+function saveVehEdit(vehId) {
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
-  v[field] = value;
 
-  // Si on modifie le "Dernier entretien" (date ou km), recalculer
-  // automatiquement le seuil du "Prochain entretien à (km)" — ce champ est
-  // éditable séparément dans ce même formulaire, mais rien ne le mettait à
-  // jour automatiquement jusqu'ici quand on renseignait juste le dernier
-  // entretien effectué.
-  if ((field === 'dernier_entretien_km' || field === 'dernier_entretien_date')
-      && v.dernier_entretien_km && v.interval_entretien_km) {
-    v.prochain_entretien_km = v.dernier_entretien_km + v.interval_entretien_km;
-    // Refléter la nouvelle valeur dans le champ du formulaire, s'il est
-    // encore ouvert pour ce véhicule (sinon elle ne s'afficherait qu'à la
-    // réouverture du popup).
-    const champProchain = document.querySelector(
-      '#modal-veh-edit-body input[onchange*="prochain_entretien_km"]');
-    if (champProchain) champProchain.value = v.prochain_entretien_km;
-  }
+  const fields = document.querySelectorAll('#veh-edit-fields input[data-key]');
+  fields.forEach(f => {
+    const key = f.dataset.key;
+    const val = f.value.trim();
+    if (f.type === 'number') {
+      v[key] = val === '' ? null : parseInt(val);
+    } else {
+      v[key] = val === '' ? null : val;
+    }
+  });
+
+  // Champ extincteur (checkbox "Manquant" prioritaire sur la date)
+  const manquant = document.getElementById('edit-extincteur-manquant')?.checked;
+  v.extincteur_valid = manquant ? 'manquant' : (document.getElementById('edit-extincteur-date')?.value || null);
+
+  // Recalcul automatique du seuil "Prochain entretien à (km)" à partir du
+  // dernier entretien renseigné (dès que ces deux infos sont disponibles).
+  // Sans "dernier entretien" renseigné, on respecte la saisie manuelle du
+  // champ "Prochain entretien à (km)" telle quelle.
+  const prochainCalcule = (v.dernier_entretien_km && v.interval_entretien_km)
+    ? v.dernier_entretien_km + v.interval_entretien_km : null;
+  if (prochainCalcule) v.prochain_entretien_km = prochainCalcule;
 
   saveAll();
-  // Rafraîchir la grille véhicules si l'onglet est actif
-  if (document.getElementById('page-vehicules')?.classList.contains('active'))
-    renderVehicules();
+  renderVehicules();
   renderAccueil();
-  toast(field.replace(/_/g,' ') + ' mis à jour ✅');
+
+  const confirm = document.getElementById('veh-edit-confirm');
+  if (confirm) {
+    confirm.style.display = '';
+    setTimeout(() => { confirm.style.display = 'none'; }, 2000);
+  }
+  toast('✅ Véhicule mis à jour');
 }
 
 function closeModal(id) {
@@ -11722,7 +11739,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.0743';
+const APP_VERSION = '260827.0753';
 
 let _swRegistration = null;
 
