@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260826.1700</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0743</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260826.1700</strong><br>
+      Version actuelle de l'app : <strong>v260827.0743</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260826.1700 disponible)
+      📢 Notifier les utilisateurs (v260827.0743 disponible)
     </button>
   </div>
 
@@ -8486,10 +8486,28 @@ function updateVehField(vehId, field, value) {
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
   v[field] = value;
+
+  // Si on modifie le "Dernier entretien" (date ou km), recalculer
+  // automatiquement le seuil du "Prochain entretien à (km)" — ce champ est
+  // éditable séparément dans ce même formulaire, mais rien ne le mettait à
+  // jour automatiquement jusqu'ici quand on renseignait juste le dernier
+  // entretien effectué.
+  if ((field === 'dernier_entretien_km' || field === 'dernier_entretien_date')
+      && v.dernier_entretien_km && v.interval_entretien_km) {
+    v.prochain_entretien_km = v.dernier_entretien_km + v.interval_entretien_km;
+    // Refléter la nouvelle valeur dans le champ du formulaire, s'il est
+    // encore ouvert pour ce véhicule (sinon elle ne s'afficherait qu'à la
+    // réouverture du popup).
+    const champProchain = document.querySelector(
+      '#modal-veh-edit-body input[onchange*="prochain_entretien_km"]');
+    if (champProchain) champProchain.value = v.prochain_entretien_km;
+  }
+
   saveAll();
   // Rafraîchir la grille véhicules si l'onglet est actif
   if (document.getElementById('page-vehicules')?.classList.contains('active'))
     renderVehicules();
+  renderAccueil();
   toast(field.replace(/_/g,' ') + ' mis à jour ✅');
 }
 
@@ -11704,7 +11722,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260826.1700';
+const APP_VERSION = '260827.0743';
 
 let _swRegistration = null;
 
