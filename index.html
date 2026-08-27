@@ -853,7 +853,7 @@ td.ok { color: var(--vert); font-weight: 600; }
   0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.55); }
   50%      { box-shadow: 0 0 0 9px rgba(192,57,43,0); }
 }
-.veh-card.indisponible-clignote { animation: pulse-indisponible 1.6s ease infinite; }
+.indisponible-clignote { animation: pulse-indisponible 1.6s ease infinite; }
 .summary-card { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
 .summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.14); }
 
@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1840</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.2005</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2312,11 +2312,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.1840</strong><br>
+      Version actuelle de l'app : <strong>v260827.2005</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.1840 disponible)
+      📢 Notifier les utilisateurs (v260827.2005 disponible)
     </button>
   </div>
 
@@ -6762,41 +6762,46 @@ function renderAccueil() {
     const total = nbSignalements + nbRVUrgents + nbIndisponibles;
 
     if (total > 0) {
-      const tuile = (nb, icone, label, page) => nb > 0
+      // Puces compactes en ligne (au lieu de grandes tuiles) — icône + nombre
+      // + libellé court, tout tient sur une seule ligne de hauteur réduite.
+      const puce = (nb, icone, label, page) => nb > 0
         ? `<div onclick="showPage('${page}', document.querySelector('.tab-btn[onclick*=\\'${page}\\']'))"
-             style="flex:1;min-width:110px;background:#fff;border-radius:10px;padding:12px;text-align:center;
-             cursor:pointer;border:1px solid var(--gris-bord)">
-             <div style="font-size:24px;font-weight:700;color:var(--rouge)">${nb}</div>
-             <div style="font-size:12px;color:var(--texte-sec);margin-top:2px">${icone} ${label}</div>
+             style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--gris-bord);
+             border-radius:20px;padding:4px 11px;cursor:pointer;font-size:12px;white-space:nowrap">
+             <b style="color:var(--rouge)">${nb}</b> ${icone} ${label}
            </div>` : '';
 
-      // Détail des véhicules indisponibles — plaque, motif et durée estimée
-      // directement visibles ici, sans avoir à cliquer pour aller les
-      // chercher sur la fiche de chaque véhicule.
+      // Détail des véhicules indisponibles — condensé sur UNE seule ligne
+      // par véhicule (plaque, motif et durée), plus de bloc à deux lignes.
       const vehiculesIndispo = vehicules.filter(v => !v.archive && v.indisponible);
       const detailIndispo = vehiculesIndispo.length
-        ? `<div style="margin-top:10px">
+        ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
             ${vehiculesIndispo.map(v => `<div onclick="showPage('vehicules', document.querySelector('.tab-btn[onclick*=\\'vehicules\\']'))"
               style="display:flex;justify-content:space-between;align-items:center;gap:8px;
-              background:var(--rouge-clair);border-radius:8px;padding:8px 12px;margin-bottom:6px;
-              cursor:pointer;font-size:13px">
-              <div>
-                <b>${v.immat}</b> <span style="color:var(--texte-sec)">— ${v.marque}</span><br>
-                <span style="color:var(--rouge)">${echapperHtml(v.motifIndisponible || 'Motif non précisé')}</span>
-              </div>
-              <div style="text-align:right;font-size:12px;color:var(--texte-sec);white-space:nowrap">
-                ${v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : 'Durée inconnue'}
-              </div>
+              background:var(--rouge-clair);border-radius:6px;padding:4px 10px;
+              cursor:pointer;font-size:12px;overflow:hidden">
+              <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                🔴 <b>${v.immat}</b> — ${echapperHtml(v.motifIndisponible || 'Motif non précisé')}
+              </span>
+              <span style="color:var(--texte-sec);white-space:nowrap;flex-shrink:0">
+                ${v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : 'durée inconnue'}
+              </span>
             </div>`).join('')}
           </div>`
         : '';
 
-      prioritesHtml = `<div class="form-card" style="border:2px solid var(--rouge);margin-bottom:16px">
-        <h3 style="color:var(--rouge);margin-bottom:10px">🎯 Priorités du jour (${total})</h3>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${tuile(nbSignalements, '💬', 'signalement' + (nbSignalements>1?'s':'') + ' à traiter', 'chauf')}
-          ${tuile(nbRVUrgents, '📋', 'RV urgent' + (nbRVUrgents>1?'s':'') + ' à prendre', 'garages')}
-          ${tuile(nbIndisponibles, '🔴', 'véhicule' + (nbIndisponibles>1?'s':'') + ' indisponible' + (nbIndisponibles>1?'s':''), 'vehicules')}
+      // Pulsation continue et discrète du liseré (réutilise l'animation déjà
+      // définie pour les cartes véhicules indisponibles) — garde ce cadre
+      // visible en permanence sans avoir besoin d'être grand.
+      prioritesHtml = `<div class="form-card indisponible-clignote" style="border:2px solid var(--rouge);
+        margin-bottom:16px;padding:10px 14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          <span style="color:var(--rouge);font-weight:700;font-size:13px">🎯 Priorités du jour (${total})</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${puce(nbSignalements, '💬', 'signalement' + (nbSignalements>1?'s':''), 'chauf')}
+          ${puce(nbRVUrgents, '📋', 'RV urgent' + (nbRVUrgents>1?'s':''), 'garages')}
+          ${puce(nbIndisponibles, '🔴', 'indisponible' + (nbIndisponibles>1?'s':''), 'vehicules')}
         </div>
         ${detailIndispo}
       </div>`;
@@ -11830,7 +11835,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.1840';
+const APP_VERSION = '260827.2005';
 
 let _swRegistration = null;
 
