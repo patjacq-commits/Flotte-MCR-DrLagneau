@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1430</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1840</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2312,11 +2312,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.1430</strong><br>
+      Version actuelle de l'app : <strong>v260827.1840</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.1430 disponible)
+      📢 Notifier les utilisateurs (v260827.1840 disponible)
     </button>
   </div>
 
@@ -6770,6 +6770,27 @@ function renderAccueil() {
              <div style="font-size:12px;color:var(--texte-sec);margin-top:2px">${icone} ${label}</div>
            </div>` : '';
 
+      // Détail des véhicules indisponibles — plaque, motif et durée estimée
+      // directement visibles ici, sans avoir à cliquer pour aller les
+      // chercher sur la fiche de chaque véhicule.
+      const vehiculesIndispo = vehicules.filter(v => !v.archive && v.indisponible);
+      const detailIndispo = vehiculesIndispo.length
+        ? `<div style="margin-top:10px">
+            ${vehiculesIndispo.map(v => `<div onclick="showPage('vehicules', document.querySelector('.tab-btn[onclick*=\\'vehicules\\']'))"
+              style="display:flex;justify-content:space-between;align-items:center;gap:8px;
+              background:var(--rouge-clair);border-radius:8px;padding:8px 12px;margin-bottom:6px;
+              cursor:pointer;font-size:13px">
+              <div>
+                <b>${v.immat}</b> <span style="color:var(--texte-sec)">— ${v.marque}</span><br>
+                <span style="color:var(--rouge)">${echapperHtml(v.motifIndisponible || 'Motif non précisé')}</span>
+              </div>
+              <div style="text-align:right;font-size:12px;color:var(--texte-sec);white-space:nowrap">
+                ${v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : 'Durée inconnue'}
+              </div>
+            </div>`).join('')}
+          </div>`
+        : '';
+
       prioritesHtml = `<div class="form-card" style="border:2px solid var(--rouge);margin-bottom:16px">
         <h3 style="color:var(--rouge);margin-bottom:10px">🎯 Priorités du jour (${total})</h3>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -6777,6 +6798,7 @@ function renderAccueil() {
           ${tuile(nbRVUrgents, '📋', 'RV urgent' + (nbRVUrgents>1?'s':'') + ' à prendre', 'garages')}
           ${tuile(nbIndisponibles, '🔴', 'véhicule' + (nbIndisponibles>1?'s':'') + ' indisponible' + (nbIndisponibles>1?'s':''), 'vehicules')}
         </div>
+        ${detailIndispo}
       </div>`;
     }
   }
@@ -7969,6 +7991,7 @@ function renderVehicules() {
           ${longue ? '⏰🔴' : '🔴'} Indisponible — ${echapperHtml(v.motifIndisponible || 'Autre')}
           <span style="font-weight:${longue?'700':'400'};opacity:0.95">
             depuis le ${formatDateCourt(v.indisponibleDepuis)}${longue ? ' (' + jInd + ' jours !)' : ''}
+            ${v.dureeEstimeeIndisponible ? ' — durée estimée : ' + echapperHtml(v.dureeEstimeeIndisponible) : ''}
           </span>
         </div>`;
       })() : ''}
@@ -8997,10 +9020,14 @@ function ouvrirModalIndisponible(vehId) {
     + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🔴 Marquer indisponible</div>'
     + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">' + v.marque + ' — ' + v.immat + '</div>'
     + alerteRV
-    + '<div class="form-group" style="margin-bottom:18px"><label>Motif</label>'
+    + '<div class="form-group" style="margin-bottom:14px"><label>Motif</label>'
     + '<select id="indispo-motif" style="width:100%">'
     + MOTIFS_INDISPONIBLE.map(m => '<option value="' + m + '">' + m + '</option>').join('')
     + '</select></div>'
+    + '<div class="form-group" style="margin-bottom:18px"><label>Durée estimée '
+    + '<span style="font-weight:400;color:var(--texte-sec)">(optionnel)</span></label>'
+    + '<input type="text" id="indispo-duree" placeholder="ex: 2-3 jours, 1 semaine, indéterminé…"'
+    + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" /></div>'
     + '<div style="display:flex;gap:8px">'
     + '<button class="btn primary" id="btn-confirmer-indispo">Confirmer</button>'
     + '<button class="btn" id="btn-annuler-indispo">Annuler</button>'
@@ -9014,14 +9041,17 @@ function marquerVehiculeIndisponible(vehId) {
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
   const motif = document.getElementById('indispo-motif')?.value || 'Autre';
+  const duree = document.getElementById('indispo-duree')?.value?.trim() || '';
   v.indisponible = true;
   v.motifIndisponible = motif;
+  v.dureeEstimeeIndisponible = duree;
   v.indisponibleDepuis = toLocalYMD(new Date());
   document.getElementById('modal-indisponible')?.remove();
   window.vehicules = vehicules;
   saveAll();
   renderVehicules();
-  logCreation('vehicules', `${v.marque} ${v.immat} marqué indisponible (${motif})`, { vehId, motif });
+  renderAccueil();
+  logCreation('vehicules', `${v.marque} ${v.immat} marqué indisponible (${motif}${duree ? ' — ' + duree : ''})`, { vehId, motif, duree });
   toast(`🔴 ${v.immat} marqué indisponible`);
 }
 
@@ -9038,15 +9068,20 @@ function marquerVehiculeDisponible(vehId) {
     if (!Array.isArray(v.historiqueIndisponibilites)) v.historiqueIndisponibilites = [];
     const jusquA = toLocalYMD(new Date());
     const duree = Math.max(1, Math.round((new Date(jusquA) - new Date(depuisPrecedent)) / 86400000) + 1);
-    v.historiqueIndisponibilites.push({ motif: motifPrecedent, depuis: depuisPrecedent, jusqua: jusquA, dureeJours: duree });
+    v.historiqueIndisponibilites.push({
+      motif: motifPrecedent, depuis: depuisPrecedent, jusqua: jusquA, dureeJours: duree,
+      dureeEstimee: v.dureeEstimeeIndisponible || '',
+    });
   }
 
   v.indisponible = false;
   v.motifIndisponible = '';
+  v.dureeEstimeeIndisponible = '';
   v.indisponibleDepuis = '';
   window.vehicules = vehicules;
   saveAll();
   renderVehicules();
+  renderAccueil();
   logCreation('vehicules', `${v.marque} ${v.immat} redevenu disponible (était : ${motifPrecedent || '—'})`, { vehId });
   toast(`🟢 ${v.immat} de nouveau disponible`);
 }
@@ -11795,7 +11830,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.1430';
+const APP_VERSION = '260827.1840';
 
 let _swRegistration = null;
 
