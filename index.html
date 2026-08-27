@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0837</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1325</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.0837</strong><br>
+      Version actuelle de l'app : <strong>v260827.1325</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.0837 disponible)
+      📢 Notifier les utilisateurs (v260827.1325 disponible)
     </button>
   </div>
 
@@ -7886,29 +7886,22 @@ function renderVehicules() {
     const ent = entretienStatus(v);
     const isCamion = v.type === 'Camionnette';
 
-    // ── Kilométrage ENTRETIEN — pour le calcul du seuil "Prochain entretien"
-    // uniquement. Basé strictement sur la maintenance (formulaire complet ou
-    // "Dernier entretien" saisi sur la fiche véhicule) — jamais sur un plein
-    // AdBlue, puisque c'est l'échéance de service réelle qui doit être suivie
-    // ici, pas un relevé occasionnel.
-    const lastMHist = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
-    let dernierEntretien = lastMHist;
-    if (v.dernier_entretien_date && v.dernier_entretien_km &&
-        (!lastMHist || v.dernier_entretien_date > lastMHist.date)) {
-      dernierEntretien = { date: v.dernier_entretien_date, km: v.dernier_entretien_km };
-    }
-
     // ── Kilométrage VÉHICULE (relevé courant) — affiché sur la carte.
-    // C'est une donnée DISTINCTE du kilométrage entretien : le relevé le
-    // plus récent connu, toutes sources confondues. Un plein AdBlue avec
-    // kilométrage renseigné par le chauffeur est en général plus fréquent
-    // qu'un entretien complet et peut donc être plus à jour — avant cette
-    // correction, ces relevés AdBlue n'étaient jamais pris en compte ici.
+    // Basé UNIQUEMENT sur de vrais relevés terrain : historique du
+    // formulaire Maintenance complet, un entretien garage marqué "effectué",
+    // ou un plein AdBlue avec kilométrage renseigné par le chauffeur.
+    // Le champ rapide "Dernier entretien à (km)" du popup "✏️ Modifier"
+    // N'INTERVIENT PAS ici — il sert uniquement d'entrée pour calculer le
+    // seuil "Prochain entretien" (voir plus bas), pas à mettre à jour ce
+    // relevé courant. Sans cette distinction, taper une date/km dans ce
+    // champ rapide écrasait à tort l'affichage du dernier relevé réel.
+    const lastMHist = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
+
     const dernierAdBlue = adblues
       .filter(a => a.vehId === v.id && a.km && a.date)
       .sort((a,b) => b.date.localeCompare(a.date))[0] || null;
 
-    let dernierReleve = dernierEntretien;
+    let dernierReleve = lastMHist;
     let sourceReleve  = 'maint';
     if (dernierAdBlue && (!dernierReleve || dernierAdBlue.date > dernierReleve.date)) {
       dernierReleve = dernierAdBlue;
@@ -8532,43 +8525,58 @@ function openVehEdit(id) {
    remplace l'ancienne sauvegarde champ par champ (au blur), qui dépendait du
    timing exact des événements du navigateur et pouvait manquer le dernier
    champ modifié juste avant la fermeture du modal. */
-function saveVehEdit(vehId) {
+async function saveVehEdit(vehId) {
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
 
-  const fields = document.querySelectorAll('#veh-edit-fields input[data-key]');
-  fields.forEach(f => {
-    const key = f.dataset.key;
-    const val = f.value.trim();
-    if (f.type === 'number') {
-      v[key] = val === '' ? null : parseInt(val);
-    } else {
-      v[key] = val === '' ? null : val;
+  try {
+    const fields = document.querySelectorAll('#veh-edit-fields input[data-key]');
+    fields.forEach(f => {
+      const key = f.dataset.key;
+      const val = f.value.trim();
+      if (f.type === 'number') {
+        v[key] = val === '' ? null : parseInt(val);
+      } else {
+        v[key] = val === '' ? null : val;
+      }
+    });
+
+    // Champ extincteur (checkbox "Manquant" prioritaire sur la date)
+    const manquant = document.getElementById('edit-extincteur-manquant')?.checked;
+    v.extincteur_valid = manquant ? 'manquant' : (document.getElementById('edit-extincteur-date')?.value || null);
+
+    // Recalcul automatique et faisant autorité du seuil "Prochain entretien à
+    // (km)" à partir du dernier entretien renseigné — le champ correspondant
+    // est désormais en lecture seule dans le formulaire (aperçu en direct),
+    // ce recalcul ici est ce qui fixe réellement la valeur enregistrée.
+    const prochainCalcule = (v.dernier_entretien_km && v.interval_entretien_km)
+      ? v.dernier_entretien_km + v.interval_entretien_km : null;
+    if (prochainCalcule) v.prochain_entretien_km = prochainCalcule;
+
+    // Attendre réellement la fin de saveAll() (async) avant de confirmer —
+    // sans ce "await", le message "✅ Véhicule mis à jour" s'affichait
+    // immédiatement, avant même de savoir si l'écriture Firestore avait
+    // réussi. saveAll() avertit désormais explicitement en cas d'échec
+    // réseau réel (voir son propre code), mais il fallait l'attendre pour
+    // que cet avertissement ait une chance d'être vu au bon moment.
+    await saveAll();
+    renderVehicules();
+    renderAccueil();
+
+    const confirm = document.getElementById('veh-edit-confirm');
+    if (confirm) {
+      confirm.style.display = '';
+      setTimeout(() => { confirm.style.display = 'none'; }, 2000);
     }
-  });
+    toast('✅ Véhicule mis à jour');
 
-  // Champ extincteur (checkbox "Manquant" prioritaire sur la date)
-  const manquant = document.getElementById('edit-extincteur-manquant')?.checked;
-  v.extincteur_valid = manquant ? 'manquant' : (document.getElementById('edit-extincteur-date')?.value || null);
-
-  // Recalcul automatique et faisant autorité du seuil "Prochain entretien à
-  // (km)" à partir du dernier entretien renseigné — le champ correspondant
-  // est désormais en lecture seule dans le formulaire (aperçu en direct),
-  // ce recalcul ici est ce qui fixe réellement la valeur enregistrée.
-  const prochainCalcule = (v.dernier_entretien_km && v.interval_entretien_km)
-    ? v.dernier_entretien_km + v.interval_entretien_km : null;
-  if (prochainCalcule) v.prochain_entretien_km = prochainCalcule;
-
-  saveAll();
-  renderVehicules();
-  renderAccueil();
-
-  const confirm = document.getElementById('veh-edit-confirm');
-  if (confirm) {
-    confirm.style.display = '';
-    setTimeout(() => { confirm.style.display = 'none'; }, 2000);
+  } catch(e) {
+    // Toute erreur inattendue (champ manquant, valeur invalide, etc.) est
+    // désormais visible au lieu d'interrompre silencieusement la sauvegarde
+    // avant même d'atteindre saveAll().
+    console.error('Erreur saveVehEdit:', e);
+    toast('❌ Erreur lors de l\'enregistrement : ' + e.message);
   }
-  toast('✅ Véhicule mis à jour');
 }
 
 function closeModal(id) {
@@ -11779,7 +11787,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.0837';
+const APP_VERSION = '260827.1325';
 
 let _swRegistration = null;
 
@@ -12060,21 +12068,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Migration : corriger les données obsolètes depuis VEHICULES_DATA ──
-    let migrated = false;
-    VEHICULES_DATA.forEach(ref => {
-      const v = vehicules.find(x => x.id === ref.id);
-      if (!v) return;
-      // Champs toujours synchronisés depuis VEHICULES_DATA (source de vérité)
-      const champs = ['garage','assurance_valid','pression_av','pression_ar',
-                      'interval_entretien_km','dernier_entretien_km',
-                      'dernier_entretien_date','prochain_entretien_km'];
-      champs.forEach(c => {
-        if (ref[c] !== undefined && v[c] !== ref[c]) {
-          v[c] = ref[c]; migrated = true;
-        }
+    // À USAGE UNIQUE — vérifié via un drapeau Firestore avant exécution.
+    // Sans ce drapeau, ce bloc s'exécutait à CHAQUE ouverture de l'app et
+    // écrasait indéfiniment toute modification de "Dernier entretien" /
+    // "Prochain entretien" faite depuis la fiche véhicule, en la remplaçant
+    // par la valeur figée dans le code au moment où VEHICULES_DATA a été
+    // écrit — c'était la cause du bug où les modifications semblaient ne
+    // jamais persister après fermeture/réouverture de l'app.
+    const executerMigrationVehicules = () => {
+      let migrated = false;
+      VEHICULES_DATA.forEach(ref => {
+        const v = vehicules.find(x => x.id === ref.id);
+        if (!v) return;
+        const champs = ['garage','assurance_valid','pression_av','pression_ar',
+                        'interval_entretien_km','dernier_entretien_km',
+                        'dernier_entretien_date','prochain_entretien_km'];
+        champs.forEach(c => {
+          if (ref[c] !== undefined && v[c] !== ref[c]) {
+            v[c] = ref[c]; migrated = true;
+          }
+        });
       });
-    });
-    if (migrated) saveAll();
+      if (migrated) saveAll();
+      db.collection('config').doc('migration').set({ veh_fields_done: true }, { merge: true }).catch(()=>{});
+    };
+    db.collection('config').doc('migration').get()
+      .then(flagDoc => {
+        if (!flagDoc.exists || flagDoc.data().veh_fields_done !== true) executerMigrationVehicules();
+      })
+      .catch(() => {}); // Si Firestore indisponible, ne PAS migrer (évite d'écraser des données locales à tort)
 
     appliquerDroits();
     updateNavbarMaint();
@@ -12116,7 +12138,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const idsApres = new Set(rendezvous.map(r => String(r.id)));
       const tousPresents = ctSource.every(c => c.id && idsApres.has(String(c.id)));
       if (tousPresents) {
-        db.collection('config').doc('migration').set({ rv_done: true }).catch(()=>{});
+        db.collection('config').doc('migration').set({ rv_done: true }, { merge: true }).catch(()=>{});
       } else {
         console.warn('Migration incomplète — flag non posé, sera retentée au prochain démarrage');
       }
