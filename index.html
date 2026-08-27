@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1415</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1430</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2312,11 +2312,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.1415</strong><br>
+      Version actuelle de l'app : <strong>v260827.1430</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.1415 disponible)
+      📢 Notifier les utilisateurs (v260827.1430 disponible)
     </button>
   </div>
 
@@ -9991,8 +9991,7 @@ function marquerRVEffectue(id) {
   if (r.type === 'garage' && userIsAdmin()) {
     const v = vehicules.find(x => x.id === r.vehId);
     const vNom = v ? v.marque + ' ' + v.immat : r.vehId;
-    const ref  = VEHICULES_DATA.find(x => x.id === r.vehId);
-    const kmActuel = ref?.km || v?.km || '';
+    const kmActuel = v?.km || '';
 
     const ex = document.getElementById('modal-entretien-effectue');
     if (ex) ex.remove();
@@ -10015,7 +10014,7 @@ function marquerRVEffectue(id) {
       + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:16px;'
       + 'background:var(--bleu-clair);padding:10px;border-radius:8px">'
       + '📋 Le prochain entretien sera calculé automatiquement '
-      + '(+ ' + ((ref?.interval_entretien_km || v?.interval_entretien_km || 20000)/1000).toFixed(0) + ' 000 km)</div>'
+      + '(+ ' + ((v?.interval_entretien_km || 20000)/1000).toFixed(0) + ' 000 km)</div>'
       + '<div style="display:flex;flex-direction:column;gap:8px">'
       + '<button class="btn primary" onclick="confirmerEntretienEffectue(\'' + id + '\')">'
       + '💾 Mettre à jour l\'entretien</button>'
@@ -10060,8 +10059,7 @@ function confirmerEntretienEffectue(id) {
   document.getElementById('modal-entretien-effectue')?.remove();
 
   const v   = vehicules.find(x => x.id === r.vehId);
-  const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
-  const intervalle = ref?.interval_entretien_km || v?.interval_entretien_km || 20000;
+  const intervalle = v?.interval_entretien_km || 20000;
   const prochainKm = km + intervalle;
   const today      = dat || toLocalYMD(new Date());
 
@@ -10073,7 +10071,11 @@ function confirmerEntretienEffectue(id) {
     v.prochain_entretien_km  = prochainKm;
   }
 
-  // Mettre à jour VEHICULES_DATA (source de vérité)
+  // Mettre à jour VEHICULES_DATA en mémoire pour cohérence (écriture dans le
+  // sens live → VEHICULES_DATA, jamais l'inverse — voir les commentaires
+  // plus haut sur pourquoi lire depuis VEHICULES_DATA causait des rappels
+  // obsolètes malgré un entretien à jour).
+  const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
   if (ref) {
     ref.km                   = km;
     ref.dernier_entretien_km   = km;
@@ -10318,12 +10320,16 @@ function verifierEntretiensUrgents() {
     return msRV > now && msRV - now <= h48;
   });
 
-  // \u2500\u2500 Entretiens garage (sans RV planifi\u00e9) \u2500\u2500
+  // ── Entretiens garage (sans RV planifié) ──
+  // Basé UNIQUEMENT sur les données live du véhicule (v.km / v.prochain_entretien_km)
+  // — jamais sur VEHICULES_DATA, qui ne contient que le relevé initial figé
+  // au moment où le code a été écrit. Utiliser VEHICULES_DATA ici faisait
+  // réapparaître un rappel "à planifier" même après un entretien marqué
+  // effectué et une fiche véhicule à jour, puisque le calcul ignorait
+  // totalement la mise à jour réelle.
   const entretiens = vehicules.filter(v => {
-    const ref = VEHICULES_DATA.find(r => r.id === v.id);
-    const kmRef = ref?.km ? parseInt(ref.km) : (v.km ? parseInt(v.km) : null);
-    const prochainKm = ref?.prochain_entretien_km ? parseInt(ref.prochain_entretien_km)
-                     : (v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null);
+    const kmRef      = v.km ? parseInt(v.km) : null;
+    const prochainKm = v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null;
     if (!prochainKm || !kmRef) return false;
     const reste = prochainKm - kmRef;
     if (reste > seuilWarn) return false;
@@ -10377,9 +10383,8 @@ function verifierEntretiensUrgents() {
   });
 
   entretiens.forEach(v => {
-    const ref = VEHICULES_DATA.find(r => r.id === v.id);
-    const kmRef = ref?.km ? parseInt(ref.km) : parseInt(v.km);
-    const prochainKm = ref?.prochain_entretien_km ? parseInt(ref.prochain_entretien_km) : parseInt(v.prochain_entretien_km);
+    const kmRef      = parseInt(v.km);
+    const prochainKm = parseInt(v.prochain_entretien_km);
     const reste = prochainKm - kmRef;
     const dejaDepasse = reste < 0;
     items.push({
@@ -11790,7 +11795,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.1415';
+const APP_VERSION = '260827.1430';
 
 let _swRegistration = null;
 
