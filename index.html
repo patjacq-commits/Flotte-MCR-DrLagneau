@@ -265,17 +265,12 @@
       ctEvents:      d => { if(d&&d.length){ window.ctEvents        = d; } window._refreshUI?.(); },
       vehicules:     d => {
         if (d && d.length) {
-          // Appliquer immédiatement les valeurs d'entretien depuis VEHICULES_DATA
-          if (typeof VEHICULES_DATA !== 'undefined') {
-            d.forEach(v => {
-              const ref = VEHICULES_DATA.find(r => r.id === v.id);
-              if (!ref) return;
-              ['km','dernier_entretien_km','dernier_entretien_date',
-               'prochain_entretien_km','interval_entretien_km'].forEach(c => {
-                if (ref[c] !== undefined) v[c] = ref[c];
-              });
-            });
-          }
+          // Ancien code retiré ici : réappliquait à chaque mise à jour temps
+          // réel (donc y compris juste après votre PROPRE sauvegarde) les
+          // valeurs figées dans VEHICULES_DATA pour km/dernier_entretien/
+          // prochain_entretien — écrasant systématiquement toute
+          // modification faite depuis la fiche véhicule, presque
+          // immédiatement après l'enregistrement.
           window.vehicules = d;
         }
         window._refreshUI?.();
@@ -1365,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1401</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1415</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2317,11 +2312,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.1401</strong><br>
+      Version actuelle de l'app : <strong>v260827.1415</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.1401 disponible)
+      📢 Notifier les utilisateurs (v260827.1415 disponible)
     </button>
   </div>
 
@@ -2937,17 +2932,10 @@ window._refreshUI = function() {
 
   if (window.vehicules && window.vehicules.length > 0) {
     vehicules = window.vehicules;
-    // Réappliquer les valeurs d'entretien depuis VEHICULES_DATA (source de vérité)
-    if (typeof VEHICULES_DATA !== 'undefined') {
-      VEHICULES_DATA.forEach(ref => {
-        const v = vehicules.find(x => x.id === ref.id);
-        if (!v) return;
-        ['km','dernier_entretien_km','dernier_entretien_date',
-         'prochain_entretien_km','interval_entretien_km'].forEach(c => {
-          if (ref[c] !== undefined) v[c] = ref[c];
-        });
-      });
-    }
+    // Ancien code retiré ici : même logique reverting que dans le listener
+    // COLS.vehicules ci-dessus (voir ce commentaire) — un troisième
+    // mécanisme identique, tout aussi actif à chaque rafraîchissement,
+    // contribuait au même écrasement des modifications utilisateur.
   }
 
   // Charger commandesPneus depuis Firebase si disponible
@@ -11802,7 +11790,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.1401';
+const APP_VERSION = '260827.1415';
 
 let _swRegistration = null;
 
@@ -12082,36 +12070,16 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem('mcr_garages_tel', JSON.stringify(garagesTel));
     }
 
-    // ── Migration : corriger les données obsolètes depuis VEHICULES_DATA ──
-    // À USAGE UNIQUE — vérifié via un drapeau Firestore avant exécution.
-    // Sans ce drapeau, ce bloc s'exécutait à CHAQUE ouverture de l'app et
-    // écrasait indéfiniment toute modification de "Dernier entretien" /
-    // "Prochain entretien" faite depuis la fiche véhicule, en la remplaçant
-    // par la valeur figée dans le code au moment où VEHICULES_DATA a été
-    // écrit — c'était la cause du bug où les modifications semblaient ne
-    // jamais persister après fermeture/réouverture de l'app.
-    const executerMigrationVehicules = () => {
-      let migrated = false;
-      VEHICULES_DATA.forEach(ref => {
-        const v = vehicules.find(x => x.id === ref.id);
-        if (!v) return;
-        const champs = ['garage','assurance_valid','pression_av','pression_ar',
-                        'interval_entretien_km','dernier_entretien_km',
-                        'dernier_entretien_date','prochain_entretien_km'];
-        champs.forEach(c => {
-          if (ref[c] !== undefined && v[c] !== ref[c]) {
-            v[c] = ref[c]; migrated = true;
-          }
-        });
-      });
-      if (migrated) saveAll();
-      db.collection('config').doc('migration').set({ veh_fields_done: true }, { merge: true }).catch(()=>{});
-    };
-    db.collection('config').doc('migration').get()
-      .then(flagDoc => {
-        if (!flagDoc.exists || flagDoc.data().veh_fields_done !== true) executerMigrationVehicules();
-      })
-      .catch(() => {}); // Si Firestore indisponible, ne PAS migrer (évite d'écraser des données locales à tort)
+    // La migration "corriger les données obsolètes depuis VEHICULES_DATA"
+    // qui se trouvait ici a été entièrement retirée. Malgré un drapeau
+    // Firestore censé la rendre à usage unique, elle continuait à écraser
+    // par intermittence les modifications de "Dernier entretien" / "Prochain
+    // entretien" faites depuis la fiche véhicule (cause exacte non
+    // définitivement identifiée — probable échec silencieux de l'écriture du
+    // drapeau, ou concurrence entre plusieurs appareils). Elle n'avait de
+    // toute façon plus d'utilité légitime : tout véhicule sans données en
+    // Firestore repart déjà des valeurs par défaut de VEHICULES_DATA via la
+    // déclaration initiale de `vehicules` un peu plus haut dans ce fichier.
 
     appliquerDroits();
     updateNavbarMaint();
