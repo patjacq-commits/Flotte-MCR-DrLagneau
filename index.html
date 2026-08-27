@@ -844,6 +844,7 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .rv-blink { animation: pulse-rv-urgent 1.4s ease infinite; }
 @keyframes rv-blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+@keyframes pulse-rouge {
   0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.5); }
   50% { box-shadow: 0 0 0 8px rgba(192,57,43,0); }
 }
@@ -851,6 +852,13 @@ td.ok { color: var(--vert); font-weight: 600; }
   animation: pulse-rouge 1.6s ease infinite;
   border-width: 3px;
 }
+/* Véhicule marqué indisponible — toute la fiche pulse doucement en rouge
+   pour attirer l'attention, sans clignotement brutal (accessibilité). */
+@keyframes pulse-indisponible {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.55); }
+  50%      { box-shadow: 0 0 0 9px rgba(192,57,43,0); }
+}
+.veh-card.indisponible-clignote { animation: pulse-indisponible 1.6s ease infinite; }
 .summary-card { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
 .summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.14); }
 
@@ -1357,7 +1365,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1325</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.1401</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2317,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.1325</strong><br>
+      Version actuelle de l'app : <strong>v260827.1401</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.1325 disponible)
+      📢 Notifier les utilisateurs (v260827.1401 disponible)
     </button>
   </div>
 
@@ -5687,9 +5695,11 @@ function appliquerDroits() {
   const tabChaufHist = document.getElementById('tab-chauf-hist');
   if (tabChaufHist) tabChaufHist.style.display = 'none';
 
-  // Formulaire saisie maintenance : superadmin uniquement
+  // Formulaire saisie maintenance : ouvert à tout admin (superadmin ET admin,
+  // donc Angélique aussi) — auparavant réservé au seul superadmin, ce qui
+  // l'empêchait de saisir un relevé d'entretien.
   const formSaisie = document.getElementById('maint-form-saisie');
-  if (formSaisie) formSaisie.style.display = isSA ? '' : 'none';
+  if (formSaisie) formSaisie.style.display = isAdm ? '' : 'none';
 
   // Bouton imprimer maintenance visible pour tous (admin et chauffeurs)
   const btnPrintMaint = document.getElementById('btn-print-maint');
@@ -7961,7 +7971,7 @@ function renderVehicules() {
       ? `<div class="rv-pastille" title="${nbRV} RV planifié${nbRV>1?'s':''}">${nbRV}</div>`
       : '';
 
-    return `<div class="veh-card">
+    return `<div class="veh-card${v.indisponible ? ' indisponible-clignote' : ''}">
       ${pastilleRV}
       ${v.indisponible ? (() => {
         const jInd = Math.round((new Date() - new Date(v.indisponibleDepuis)) / 86400000);
@@ -7998,8 +8008,13 @@ function renderVehicules() {
         <div class="veh-row">
           <span class="label">Prochain entretien</span>
           <span class="val ${ent.cls}">${v.prochain_entretien_km.toLocaleString('fr-BE')} km${(() => {
-            const reste2 = v.prochain_entretien_km - v.km;
-            if (!v.km || isNaN(reste2)) return '';
+            // La parenthèse doit refléter la MÊME donnée que la ligne
+            // "Kilométrage" ci-dessus (dernier relevé de maintenance
+            // réellement enregistré) — pas un champ interne séparé (v.km)
+            // qui pouvait diverger de ce qui est affiché.
+            const kmRef = lastMHist ? lastMHist.km : v.km;
+            const reste2 = v.prochain_entretien_km - kmRef;
+            if (!kmRef || isNaN(reste2)) return '';
             const c = reste2 <= 0 ? 'var(--rouge)' : reste2 <= 2500 ? 'var(--rouge)' : reste2 <= 4500 ? 'var(--orange)' : 'var(--vert)';
             return ` <span style="color:${c};font-weight:700;font-size:11px">(${reste2 <= 0 ? '⚠️ dépassé' : '~' + reste2.toLocaleString('fr-BE') + ' km'})</span>`;
           })()}${dateEntretienStr}</span>
@@ -11787,7 +11802,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.1325';
+const APP_VERSION = '260827.1401';
 
 let _swRegistration = null;
 
