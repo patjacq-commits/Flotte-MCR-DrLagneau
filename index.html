@@ -1357,7 +1357,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0819</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260827.0837</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2309,11 +2309,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260827.0819</strong><br>
+      Version actuelle de l'app : <strong>v260827.0837</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260827.0819 disponible)
+      📢 Notifier les utilisateurs (v260827.0837 disponible)
     </button>
   </div>
 
@@ -8444,10 +8444,23 @@ function openVehEdit(id) {
       + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" /></div>';
   }
 
+  // "Prochain entretien à (km)" est entièrement calculé à partir de
+  // "Dernier entretien à (km)" + l'intervalle du véhicule — non modifiable
+  // directement, pour éviter toute valeur manuelle qui se désynchroniserait
+  // du dernier entretien réel. Un aperçu se met à jour en direct pendant la
+  // saisie (avant même d'enregistrer), via l'écouteur ajouté plus bas.
+  function fieldProchainKm(val) {
+    return '<div class="form-group"><label style="font-size:13px">Prochain entretien à (km) '
+      + '<span style="font-weight:400;color:var(--texte-sec)">(calculé automatiquement)</span></label>'
+      + '<input type="number" id="veh-edit-prochain-preview" data-key="prochain_entretien_km" value="' + (val ?? '') + '" readonly'
+      + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;'
+      + 'font-size:14px;background:var(--gris-clair);color:var(--texte-sec);cursor:not-allowed" /></div>';
+  }
+
   let body = '<div id="veh-edit-fields" class="form-grid">'
     + field('CT valable jusqu\'au',           'date',  'ct_valid',            v.ct_valid)
     + field('🔴 Carte rouge CT jusqu\'au',   'date',  'ct_carte_rouge',       v.ct_carte_rouge,    'Laisser vide si aucune')
-    + field('Prochain entretien à (km)',     'number','prochain_entretien_km',v.prochain_entretien_km)
+    + fieldProchainKm(v.prochain_entretien_km)
     + field('Dernier entretien le',          'date',  'dernier_entretien_date',v.dernier_entretien_date)
     + field('Dernier entretien à (km)',      'number','dernier_entretien_km', v.dernier_entretien_km)
     + field('🛡 Assurance jusqu\'au',         'date',  'assurance_valid',      v.assurance_valid)
@@ -8498,6 +8511,20 @@ function openVehEdit(id) {
     const dEl = document.getElementById('edit-extincteur-date');
     if (dEl) dEl.disabled = true;
   }
+
+  // Aperçu en direct : dès qu'on tape un nouveau kilométrage de dernier
+  // entretien, le champ "Prochain entretien" (lecture seule) se met à jour
+  // immédiatement — sans attendre l'enregistrement — pour montrer visuellement
+  // que ce champ est bien calculé automatiquement, pas saisi à la main.
+  const champDernierKm = document.querySelector('#veh-edit-fields input[data-key="dernier_entretien_km"]');
+  const champProchainPreview = document.getElementById('veh-edit-prochain-preview');
+  if (champDernierKm && champProchainPreview && v.interval_entretien_km) {
+    champDernierKm.addEventListener('input', () => {
+      const saisie = parseInt(champDernierKm.value);
+      champProchainPreview.value = saisie > 0 ? saisie + v.interval_entretien_km : '';
+    });
+  }
+
   modal.classList.add('open');
 }
 
@@ -8524,10 +8551,10 @@ function saveVehEdit(vehId) {
   const manquant = document.getElementById('edit-extincteur-manquant')?.checked;
   v.extincteur_valid = manquant ? 'manquant' : (document.getElementById('edit-extincteur-date')?.value || null);
 
-  // Recalcul automatique du seuil "Prochain entretien à (km)" à partir du
-  // dernier entretien renseigné (dès que ces deux infos sont disponibles).
-  // Sans "dernier entretien" renseigné, on respecte la saisie manuelle du
-  // champ "Prochain entretien à (km)" telle quelle.
+  // Recalcul automatique et faisant autorité du seuil "Prochain entretien à
+  // (km)" à partir du dernier entretien renseigné — le champ correspondant
+  // est désormais en lecture seule dans le formulaire (aperçu en direct),
+  // ce recalcul ici est ce qui fixe réellement la valeur enregistrée.
   const prochainCalcule = (v.dernier_entretien_km && v.interval_entretien_km)
     ? v.dernier_entretien_km + v.interval_entretien_km : null;
   if (prochainCalcule) v.prochain_entretien_km = prochainCalcule;
@@ -11752,7 +11779,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260827.0819';
+const APP_VERSION = '260827.0837';
 
 let _swRegistration = null;
 
