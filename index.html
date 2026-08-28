@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260828.1603</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260828.1609</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1639,7 +1639,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-histmaint" class="page">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <h2 style="margin:0">📋 Historique maintenances</h2>
-    <button class="btn" onclick="genererRapportPDFChauf()" style="font-size:13px">📄 PDF</button>
+    <button class="btn" onclick="ouvrirModalRapportPDF()" style="font-size:13px">📄 PDF</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
     <select id="chauf-maint-veh" onchange="renderChaufMaintenances()"
@@ -2312,11 +2312,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260828.1603</strong><br>
+      Version actuelle de l'app : <strong>v260828.1609</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260828.1603 disponible)
+      📢 Notifier les utilisateurs (v260828.1609 disponible)
     </button>
   </div>
 
@@ -6421,43 +6421,6 @@ function _genererPDFAdmin() {
 }
 
 function genererRapportPDF() { ouvrirModalRapportPDF(); }
-
-function genererRapportPDFChauf() {
-  const datesDispos = [...new Set(maintenances.map(m => m.date?.slice(0,10)))].filter(Boolean).sort().reverse();
-  if (!datesDispos.length) { toast('Aucune maintenance disponible'); return; }
-  const filterVeh = document.getElementById('chauf-maint-veh')?.value || '';
-  const ex = document.getElementById('modal-rapport-pdf-chauf');
-  if (ex) ex.remove();
-  const vLabel = filterVeh ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh : 'Tous les vehicules';
-  const div = document.createElement('div');
-  div.id = 'modal-rapport-pdf-chauf';
-  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
-    + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">Rapport PDF</div>'
-    + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:14px">' + vLabel + '</div>'
-    + '<div class="form-group" style="margin-bottom:16px"><label>Date du relevé</label><select id="rapport-date-chauf" style="width:100%">'
-    + datesDispos.map(d => '<option value="' + d + '">' + formatDateCourt(d) + '</option>').join('')
-    + '</select></div>'
-    + '<div style="display:flex;gap:8px"><button class="btn primary" onclick="_genererPDFChauf(\'' + filterVeh + '\')">Generer PDF</button>'
-    + '<button class="btn" onclick="document.getElementById(\'modal-rapport-pdf-chauf\').remove()">Annuler</button></div></div>';
-  document.body.appendChild(div);
-}
-
-function _genererPDFChauf(filterVeh) {
-  const dateSel = document.getElementById('rapport-date-chauf')?.value;
-  if (!dateSel) return;
-  document.getElementById('modal-rapport-pdf-chauf')?.remove();
-  let maints = maintenances.filter(m => m.date === dateSel);
-  if (filterVeh) maints = maints.filter(m => m.vehId === filterVeh);
-  if (!maints.length) { toast('Aucune maintenance pour cette date'); return; }
-  maints.sort((a,b) => {
-    const ia = ORDRE_VEHICULES.indexOf(a.vehId);
-    const ib = ORDRE_VEHICULES.indexOf(b.vehId);
-    return ia - ib;
-  });
-  const vLabel = filterVeh ? (vehicules.find(x=>x.id===filterVeh)?.marque||'') + ' ' + filterVeh : 'Tous les vehicules';
-  _construirePDF(maints, vLabel, formatDateCourt(dateSel));
-}
 
 function _construirePDF(maints, vLabel, labelPeriode) {
   const LABELS = { lg:'Lave-glace', hm:'Huile moteur', hf:'Huile frein', lr:'Liquide refroid.', ecl:'Eclairage', pneus:'Pneus', ext:'Extincteur' };
@@ -11848,7 +11811,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260828.1603';
+const APP_VERSION = '260828.1609';
 
 let _swRegistration = null;
 
