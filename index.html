@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260828.1413</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260828.1420</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2312,11 +2312,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260828.1413</strong><br>
+      Version actuelle de l'app : <strong>v260828.1420</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260828.1413 disponible)
+      📢 Notifier les utilisateurs (v260828.1420 disponible)
     </button>
   </div>
 
@@ -10050,9 +10050,8 @@ function marquerRVEffectue(id) {
       + '<input type="date" id="entretien-date-input" value="' + toLocalYMD(new Date()) + '" /></div>'
       + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:16px;'
       + 'background:var(--bleu-clair);padding:10px;border-radius:8px">'
-      + 'ℹ️ Met à jour le kilométrage courant du véhicule et l\'historique. '
-      + 'Le seuil "Prochain entretien" n\'est modifié qu\'en passant par '
-      + '"✏️ Modifier" sur la fiche véhicule.</div>'
+      + '📋 Le prochain entretien sera calculé automatiquement '
+      + '(+ ' + ((v?.interval_entretien_km || 20000)/1000).toFixed(0) + ' 000 km)</div>'
       + '<div style="display:flex;flex-direction:column;gap:8px">'
       + '<button class="btn primary" onclick="confirmerEntretienEffectue(\'' + id + '\')">'
       + '💾 Mettre à jour l\'entretien</button>'
@@ -10099,15 +10098,23 @@ function confirmerEntretienEffectue(id) {
   const v     = vehicules.find(x => x.id === r.vehId);
   const today = dat || toLocalYMD(new Date());
 
-  // Met à jour le relevé kilométrique courant du véhicule (concept
-  // différent de "Prochain entretien") — ce dernier n'est piloté QUE par
-  // "Dernier entretien à (km)" saisi dans le popup "✏️ Modifier" (voir
-  // saveVehEdit), jamais recalculé ici. Marquer un entretien garage
-  // effectué reste une trace d'intervention utile pour l'historique et le
-  // kilométrage courant, mais ne doit pas pouvoir déplacer, même par
-  // inadvertance (ex: test, saisie d'un kilométrage approximatif), le seuil
-  // volontairement défini par l'admin sur la fiche véhicule.
-  if (v) v.km = km;
+  // Marquer un "Entretien garage" effectué EST, par définition, "le dernier
+  // entretien effectué" — le seuil "Prochain entretien" se recalcule donc
+  // automatiquement ici (relevé + intervalle propre au véhicule : 20 000 km
+  // pour la plupart, 15 000 km pour 1RER037). Seul le formulaire Maintenance
+  // routinier (relevé mensuel, sans lien direct avec l'échéance officielle
+  // d'entretien) reste volontairement exclu de ce recalcul — voir
+  // saveMaintenance. Ce champ reste par ailleurs toujours modifiable/
+  // corrigeable manuellement via "✏️ Modifier" si besoin.
+  const intervalle = v?.interval_entretien_km || 20000;
+  const prochainKm = km + intervalle;
+
+  if (v) {
+    v.km                    = km;
+    v.dernier_entretien_km   = km;
+    v.dernier_entretien_date = today;
+    v.prochain_entretien_km  = prochainKm;
+  }
 
   // Créer une vraie entrée dans l'historique des maintenances, pour que la
   // ligne "Kilométrage" de la fiche véhicule (basée sur cet historique)
@@ -10122,7 +10129,12 @@ function confirmerEntretienEffectue(id) {
   // Mettre à jour VEHICULES_DATA en mémoire pour cohérence (écriture dans le
   // sens live → VEHICULES_DATA, jamais l'inverse).
   const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
-  if (ref) ref.km = km;
+  if (ref) {
+    ref.km                    = km;
+    ref.dernier_entretien_km   = km;
+    ref.dernier_entretien_date = today;
+    ref.prochain_entretien_km  = prochainKm;
+  }
 
   // Marquer le RV effectué
   r.statut = 'effectue';
@@ -10143,7 +10155,7 @@ function confirmerEntretienEffectue(id) {
   renderVehicules();
   if (typeof verifierEntretiensUrgents === 'function') verifierEntretiensUrgents();
 
-  toast('✅ Entretien enregistré — kilométrage mis à jour (' + km.toLocaleString('fr-BE') + ' km)');
+  toast('✅ Entretien enregistré — prochain à ' + prochainKm.toLocaleString('fr-BE') + ' km');
 }
 
 // ── Annuler un RV ─────────────────────────────────────────────
@@ -11835,7 +11847,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260828.1413';
+const APP_VERSION = '260828.1420';
 
 let _swRegistration = null;
 
