@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260828.1609</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260828.1712</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2312,11 +2312,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260828.1609</strong><br>
+      Version actuelle de l'app : <strong>v260828.1712</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260828.1609 disponible)
+      📢 Notifier les utilisateurs (v260828.1712 disponible)
     </button>
   </div>
 
@@ -3189,20 +3189,25 @@ function echapperHtml(texte) {
 
 /* Retourne la date du samedi le plus proche du dernier jour du mois M/Y.
    Si cette date est déjà passée, passe au mois suivant. */
-function prochainSamediFinDeMois() {
-  function samediPlusProcheFinMois(annee, mois) {
-    // Dernier jour du mois
-    const dernier = new Date(annee, mois + 1, 0); // jour 0 du mois+1 = dernier du mois
-    dernier.setHours(0,0,0,0);
-    const jourSemaine = dernier.getDay(); // 0=dim, 6=sam
-    // Décalage pour aller au samedi le plus proche (avant ou après)
-    let delta = 6 - jourSemaine; // jours jusqu'au prochain samedi
-    if (delta > 3) delta -= 7;   // préférer le samedi précédent si plus proche
-    const sam = new Date(dernier);
-    sam.setDate(dernier.getDate() + delta);
-    return sam;
-  }
+/* Calcule le samedi le plus proche de la fin d'un mois donné (dernier jour
+   du mois, ou le samedi juste avant/après si le dernier jour n'est pas un
+   samedi). Extraite en fonction indépendante pour être réutilisée à la fois
+   par le badge de la barre de navigation (compte à rebours vers la
+   PROCHAINE échéance) et par le formulaire Maintenance (qui doit lui rester
+   sur la date déjà passée pendant quelques jours — voir
+   dateFormulaireMaintenanceParDefaut). */
+function samediPlusProcheFinMois(annee, mois) {
+  const dernier = new Date(annee, mois + 1, 0); // jour 0 du mois+1 = dernier du mois
+  dernier.setHours(0,0,0,0);
+  const jourSemaine = dernier.getDay(); // 0=dim, 6=sam
+  let delta = 6 - jourSemaine; // jours jusqu'au prochain samedi
+  if (delta > 3) delta -= 7;   // préférer le samedi précédent si plus proche
+  const sam = new Date(dernier);
+  sam.setDate(dernier.getDate() + delta);
+  return sam;
+}
 
+function prochainSamediFinDeMois() {
   const now = new Date(); now.setHours(0,0,0,0);
   let sam = samediPlusProcheFinMois(now.getFullYear(), now.getMonth());
   // Si le samedi calculé est déjà passé, prendre le mois suivant
@@ -3212,6 +3217,31 @@ function prochainSamediFinDeMois() {
     sam = samediPlusProcheFinMois(nextY, nextM);
   }
   return sam;
+}
+
+/* Date par défaut du formulaire Maintenance — reste sur la date du samedi
+   de fin de mois pendant 5 jours après celle-ci (le temps de faire le tour
+   des 9 véhicules, qui ne se fait pas toujours en une seule journée), avant
+   de basculer sur l'échéance du mois suivant. Volontairement distincte de
+   prochainSamediFinDeMois() (utilisée par le badge de la barre de
+   navigation), qui doit continuer à annoncer la PROCHAINE échéance dès que
+   la précédente est passée. */
+function dateFormulaireMaintenanceParDefaut() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const samCeMois = samediPlusProcheFinMois(now.getFullYear(), now.getMonth());
+  // Vérifier aussi le samedi du mois PRÉCÉDENT — sans ça, dès le passage au
+  // mois suivant (ex: 1er septembre), le calcul recalculait directement le
+  // samedi de septembre au lieu de vérifier si on était encore dans la
+  // fenêtre des 5 jours suivant celui d'août.
+  const moisPrec   = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const anneePrec  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const samMoisPrecedent = samediPlusProcheFinMois(anneePrec, moisPrec);
+
+  for (const sam of [samCeMois, samMoisPrecedent]) {
+    const joursDepuis = Math.round((now - sam) / 86400000);
+    if (joursDepuis >= 0 && joursDepuis <= 5) return sam;
+  }
+  return prochainSamediFinDeMois();
 }
 
 // ============================================================
@@ -6735,9 +6765,24 @@ function renderAccueil() {
              <b style="color:var(--rouge)">${nb}</b> ${icone} ${label}
            </div>` : '';
 
+      const vehiculesIndispo = vehicules.filter(v => !v.archive && v.indisponible);
+
+      // Puce "indisponible" spécifique : la durée probable apparaît
+      // directement dans la puce, juste après le libellé — sur PC, la liste
+      // détaillée en dessous n'est pas toujours visible au premier coup
+      // d'œil, alors que cette puce, elle, l'est toujours.
+      const puceIndispo = nbIndisponibles > 0
+        ? `<div onclick="showPage('vehicules', document.querySelector('.tab-btn[onclick*=\\'vehicules\\']'))"
+             style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--gris-bord);
+             border-radius:20px;padding:4px 11px;cursor:pointer;font-size:12px;white-space:nowrap">
+             <b style="color:var(--rouge)">${nbIndisponibles}</b> 🔴 indisponible${nbIndisponibles>1?'s':''}
+             <span style="color:var(--texte-sec)">(${vehiculesIndispo.map(v =>
+               v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : '?'
+             ).join(', ')})</span>
+           </div>` : '';
+
       // Détail des véhicules indisponibles — condensé sur UNE seule ligne
       // par véhicule (plaque, motif et durée), plus de bloc à deux lignes.
-      const vehiculesIndispo = vehicules.filter(v => !v.archive && v.indisponible);
       const detailIndispo = vehiculesIndispo.length
         ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
             ${vehiculesIndispo.map(v => `<div onclick="showPage('vehicules', document.querySelector('.tab-btn[onclick*=\\'vehicules\\']'))"
@@ -6765,7 +6810,7 @@ function renderAccueil() {
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${puce(nbSignalements, '💬', 'signalement' + (nbSignalements>1?'s':''), 'chauf')}
           ${puce(nbRVUrgents, '📋', 'RV urgent' + (nbRVUrgents>1?'s':''), 'garages')}
-          ${puce(nbIndisponibles, '🔴', 'indisponible' + (nbIndisponibles>1?'s':''), 'vehicules')}
+          ${puceIndispo}
         </div>
         ${detailIndispo}
       </div>`;
@@ -8652,7 +8697,7 @@ function chargerDraftVehicule(vehId) {
   let data = null;
   if (raw) { try { data = JSON.parse(raw); } catch(e) { data = null; } }
 
-  const samediStr = toLocalYMD(prochainSamediFinDeMois());
+  const samediStr = toLocalYMD(dateFormulaireMaintenanceParDefaut());
   const today      = toLocalYMD(new Date());
   // Le brouillon n'est considéré "du jour" que s'il a été modifié aujourd'hui même —
   // sinon la date de relevé doit toujours repartir sur la date calculée automatiquement
@@ -11811,7 +11856,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260828.1609';
+const APP_VERSION = '260828.1712';
 
 let _swRegistration = null;
 
