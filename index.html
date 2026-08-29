@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260828.1712</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.1409</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1788,6 +1788,22 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
           </select>
           <input type="text" id="maint-ext-custom" placeholder="préciser" style="display:none;flex:1" />
         </div>
+      </div>
+    </div>
+
+    <!-- Nettoyage -->
+    <div class="form-grid" style="margin-top:12px">
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="maint-mouches" style="width:18px;height:18px;cursor:pointer" />
+          🪰 Nettoyé mouches
+        </label>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="maint-moteur" style="width:18px;height:18px;cursor:pointer" />
+          🔧 Nettoyé moteur
+        </label>
       </div>
     </div>
 
@@ -2312,11 +2328,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260828.1712</strong><br>
+      Version actuelle de l'app : <strong>v260829.1409</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260828.1712 disponible)
+      📢 Notifier les utilisateurs (v260829.1409 disponible)
     </button>
   </div>
 
@@ -8661,7 +8677,7 @@ const LAST_VEH_MAINT_KEY = 'mcr_maint_last_veh';
 const CHAMPS_MAINT = [
   'maint-date','maint-km',
   'maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus',
-  'maint-ext','maint-rem',
+  'maint-ext','maint-mouches','maint-moteur','maint-rem',
   'maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom',
   'maint-ecl-custom','maint-pneus-custom','maint-ext-custom',
 ];
@@ -8682,7 +8698,8 @@ function sauvegarderBrouillon() {
   const data = {};
   CHAMPS_MAINT.forEach(id => {
     const el = document.getElementById(id);
-    if (el) data[id] = el.value;
+    if (!el) return;
+    data[id] = el.type === 'checkbox' ? el.checked : el.value;
   });
   data['_photos'] = _photosEnCours.map(p => ({ name: p.name, data: p.data }));
   data['_ts'] = Date.now();
@@ -8709,8 +8726,12 @@ function chargerDraftVehicule(vehId) {
       if (id === 'maint-date') return; // gérée séparément ci-dessous
       const el = document.getElementById(id);
       if (!el) return;
-      el.value = data[id] || '';
-      if (id.endsWith('-custom') && data[id]) el.style.display = '';
+      if (el.type === 'checkbox') {
+        el.checked = !!data[id];
+      } else {
+        el.value = data[id] || '';
+        if (id.endsWith('-custom') && data[id]) el.style.display = '';
+      }
     });
     _photosEnCours = data['_photos'] || [];
     rafraichirPreviewPhotos();
@@ -8728,6 +8749,10 @@ function chargerDraftVehicule(vehId) {
       if (el) { el.value = ''; el.style.display = 'none'; }
     });
     const remEl = document.getElementById('maint-rem'); if (remEl) remEl.value = '';
+    ['maint-mouches','maint-moteur'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = false;
+    });
     _photosEnCours = [];
     rafraichirPreviewPhotos();
   }
@@ -8749,7 +8774,8 @@ function changerVehiculeMaint() {
     const data = {};
     CHAMPS_MAINT.forEach(id => {
       const el = document.getElementById(id);
-      if (el) data[id] = el.value;
+      if (!el) return;
+      data[id] = el.type === 'checkbox' ? el.checked : el.value;
     });
     data['_photos'] = _photosEnCours.map(p => ({ name: p.name, data: p.data }));
     data['_ts'] = Date.now();
@@ -9441,15 +9467,6 @@ async function saveMaintenance() {
   const photos = await encodePhotos();
   let photoUrls = photos.map(p => ({ name: p.name, url: p.data, path: null }));
 
-  // Stocker en localStorage pour persistance hors-ligne
-  if (photos.length) {
-    try {
-      const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
-      photosLS[Date.now()] = photos;
-      localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
-    } catch(e) { console.warn('Photos localStorage:', e); }
-  }
-
   const rec = {
     id: Date.now(),
     date, vehId, km,
@@ -9460,6 +9477,8 @@ async function saveMaintenance() {
     ecl:    getSelectVal('maint-ecl',   'maint-ecl-custom'),
     pneus:  getSelectVal('maint-pneus', 'maint-pneus-custom'),
     ext:    getSelectVal('maint-ext',   'maint-ext-custom'),
+    mouches: document.getElementById('maint-mouches')?.checked || false,
+    moteur:  document.getElementById('maint-moteur')?.checked || false,
     photosData: photoUrls,
     rem: document.getElementById('maint-rem').value
   };
@@ -10985,6 +11004,16 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
           <span style="font-weight:500">Oui — ${m.cwLieu||''}${m.cwMontant ? ' — ' + Number(m.cwMontant).toFixed(2) + ' €' : ''}</span>
         </div>` : '';
 
+    // Nettoyage (mouches / moteur)
+    const nettoyageParts = [];
+    if (m.mouches) nettoyageParts.push('🪰 Mouches');
+    if (m.moteur)  nettoyageParts.push('🔧 Moteur');
+    const nettoyageHtml = nettoyageParts.length
+      ? `<div style="display:flex;gap:6px;padding:4px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px">
+          <span style="min-width:130px;color:var(--texte-sec)">🧽 Nettoyage</span>
+          <span style="font-weight:500">${nettoyageParts.join(' + ')}</span>
+        </div>` : '';
+
     // AdBlue
     const abHtml = m.adblue
       ? `<div style="display:flex;gap:6px;padding:4px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px">
@@ -10999,10 +11028,10 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
         </div>` : '';
 
     // Photos
-    const photos = photosLS[m.id] || m.photos || [];
+    const photos = photosLS[m.id] || m.photosData || [];
     const photosHtml = photos.length
       ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(p =>
-          `<img src="${p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="voirPhoto('${p.url||p.data}','${p.name}')" />`).join('')}</div>`
+          `<img src="${p.url||p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="voirPhoto('${p.url||p.data}','${p.name}')" />`).join('')}</div>`
       : '';
 
     const adminBtns = isAdmin
@@ -11019,7 +11048,7 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
         </div>
         <span class="badge info" style="font-size:11px">Maintenance</span>
       </div>
-      ${champsHtml}${cwHtml}${abHtml}
+      ${champsHtml}${nettoyageHtml}${cwHtml}${abHtml}
       ${remHtml}${photosHtml}
       ${adminBtns}
     </div>`;
@@ -11856,7 +11885,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260828.1712';
+const APP_VERSION = '260829.1409';
 
 let _swRegistration = null;
 
