@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.1929</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2106</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2371,11 +2371,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260829.1929</strong><br>
+      Version actuelle de l'app : <strong>v260829.2106</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260829.1929 disponible)
+      📢 Notifier les utilisateurs (v260829.2106 disponible)
     </button>
   </div>
 
@@ -10535,11 +10535,43 @@ function categorieTypeRV(type) {
   return { key:'autre', label:'\ud83d\udcdd Autre' };
 }
 
+/* Calcule un seuil de rappel "prochain entretien" personnalisé par véhicule,
+   basé sur son rythme kilométrique réel (moyenne entre le premier et le
+   dernier relevé de maintenance disponible), avec une marge de sécurité
+   couvrant le délai habituel d'obtention d'un RV (~3 semaines + 30%). Si
+   l'historique est insuffisant (véhicule neuf : moins de 2 relevés, ou
+   moins d'une semaine d'écart entre eux), retombe sur le seuil fixe de
+   5000 km utilisé jusqu'ici — cette valeur s'est avérée, sur les données
+   réelles de la flotte (calcul du 29/08/2026), largement suffisante même
+   pour le véhicule le plus sollicité (~1000 km/semaine en pointe). */
+const SEUIL_RAPPEL_PAR_DEFAUT = 5000;
+function calculerSeuilRappelDynamique(vehId) {
+  const hist = maintenances
+    .filter(m => m.vehId === vehId && m.km && m.date)
+    .sort((a,b) => a.date.localeCompare(b.date)); // ordre chronologique croissant
+
+  if (hist.length < 2) return SEUIL_RAPPEL_PAR_DEFAUT; // véhicule neuf : pas assez de données
+
+  const premiere  = hist[0];
+  const derniere  = hist[hist.length - 1];
+  const joursDiff = Math.round((new Date(derniere.date) - new Date(premiere.date)) / 86400000);
+  const kmDiff    = derniere.km - premiere.km;
+
+  if (joursDiff < 7 || kmDiff <= 0) return SEUIL_RAPPEL_PAR_DEFAUT; // historique trop court ou incohérent
+
+  const kmParSemaine = kmDiff / joursDiff * 7;
+  const seuil = Math.round(kmParSemaine * 3 * 1.3); // 3 semaines de délai RV + 30% de marge
+
+  // Garde-fou : jamais sous 2000 km (éviter un seuil trop agressif pour un
+  // véhicule très peu utilisé) ni au-dessus de 6000 km (le pire cas observé
+  // sur la flotte réelle reste sous ce plafond).
+  return Math.min(6000, Math.max(2000, seuil));
+}
+
 function verifierEntretiensUrgents() {
   if (!userIsAdmin()) return;
 
   const seuilUrgent = 2500;
-  const seuilWarn   = 5000;
   const today       = toLocalYMD(new Date());
   const now         = Date.now();
   const h48         = 48 * 3600 * 1000;
@@ -10576,7 +10608,7 @@ function verifierEntretiensUrgents() {
     const prochainKm = v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null;
     if (!prochainKm || !kmRef) return false;
     const reste = prochainKm - kmRef;
-    if (reste > seuilWarn) return false;
+    if (reste > calculerSeuilRappelDynamique(v.id)) return false;
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'garage' && r.statut === 'planifie');
   });
 
@@ -10631,15 +10663,19 @@ function verifierEntretiensUrgents() {
     const prochainKm = parseInt(v.prochain_entretien_km);
     const reste = prochainKm - kmRef;
     const dejaDepasse = reste < 0;
+    const seuilAppliqueVeh = calculerSeuilRappelDynamique(v.id);
+    const seuilInfo = seuilAppliqueVeh !== SEUIL_RAPPEL_PAR_DEFAUT
+      ? ` <span style="opacity:0.7;font-size:11px">(seuil perso ${seuilAppliqueVeh.toLocaleString('fr-BE')} km, selon rythme)</span>`
+      : '';
     items.push({
       v, type: 'garage', priorite: dejaDepasse ? PRIORITE.retard : PRIORITE.planifier,
       badge: dejaDepasse ? 'En retard' : '\u00c0 planifier',
       badgeCouleur: dejaDepasse ? 'var(--rouge)' : 'var(--orange)',
       badgeFond: dejaDepasse ? 'var(--rouge-clair)' : '#fef5e7',
       titre: v.marque + ' \u2014 ' + v.immat,
-      detail: dejaDepasse
+      detail: (dejaDepasse
         ? ('D\u00e9pass\u00e9 de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km')
-        : (reste.toLocaleString('fr-BE') + ' km restants'),
+        : (reste.toLocaleString('fr-BE') + ' km restants')) + seuilInfo,
       actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
         + ' onclick="document.getElementById(\'modal-entretien-urgent\').remove();allerAuxRV()">\ud83d\udccb Prendre RV</button>',
     });
@@ -12049,7 +12085,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260829.1929';
+const APP_VERSION = '260829.2106';
 
 let _swRegistration = null;
 
