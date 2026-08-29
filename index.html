@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.1455</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.1929</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2371,11 +2371,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260829.1455</strong><br>
+      Version actuelle de l'app : <strong>v260829.1929</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260829.1455 disponible)
+      📢 Notifier les utilisateurs (v260829.1929 disponible)
     </button>
   </div>
 
@@ -3529,8 +3529,16 @@ function renderCWKTable() {
 // PNEUS — fonctions
 // ============================================================
 
-// Véhicules concernés par la permutation (tous sauf 1RER037)
-const VEHICULES_PNEUS = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM941','TLAN527','TLAN910'];
+// Véhicules concernés par la permutation (tous les VSL — les camionnettes
+// comme 1RER037 sont "4 saisons", donc exclues). Calculée dynamiquement à
+// partir du champ "type" plutôt que listée à la main : un nouveau véhicule
+// ajouté via "➕ Ajouter un véhicule" y apparaît automatiquement (ou en est
+// exclu) selon son type, sans case à cocher supplémentaire ni liste à tenir
+// à jour manuellement — même critère que celui déjà utilisé ailleurs pour
+// exclure 1RER037 des statistiques et du contrôle technique à +2 ans.
+function getVehiculesPneus() {
+  return vehicules.filter(v => v.type !== 'Camionnette' && !v.archive).map(v => v.id);
+}
 
 // ── COMMANDES PNEUS ──────────────────────────────────────────
 let commandesPneus = JSON.parse(localStorage.getItem('mcr_cmd_pneus') || '[]');
@@ -3689,16 +3697,17 @@ function supprimerCommandePneu(id) {
 
 function initPneus() {
   renderCommandesPneus();
+  const vehiculesPneus = getVehiculesPneus();
   const selVeh = document.getElementById('pneu-veh');
   if (selVeh && selVeh.options.length <= 0) {
-    selVeh.innerHTML = VEHICULES_PNEUS.map(id => {
+    selVeh.innerHTML = vehiculesPneus.map(id => {
       const v = vehicules.find(x => x.id === id);
       return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
     }).join('');
   }
   const selFilt = document.getElementById('pneu-filter-veh');
   if (selFilt && selFilt.options.length <= 1) {
-    VEHICULES_PNEUS.forEach(id => {
+    vehiculesPneus.forEach(id => {
       const v = vehicules.find(x => x.id === id);
       if (!v) return;
       const opt = document.createElement('option');
@@ -3758,7 +3767,7 @@ function deletePermutation(id) {
 function renderPneuRecap() {
   const tbody = document.getElementById('pneu-recap-tbody');
   if (!tbody) return;
-  tbody.innerHTML = VEHICULES_PNEUS.map(id => {
+  tbody.innerHTML = getVehiculesPneus().map(id => {
     const v = vehicules.find(x => x.id === id);
     if (!v) return '';
     // Dernière permutation de chaque type (depuis le tableau permutations ou les données véhicule)
@@ -4029,7 +4038,12 @@ function afficherDetailJour(dateStr) {
 // MESSAGES CHAUFFEUR — bidirectionnels + AdBlue chauffeur
 // ============================================================
 
-const VEHICULES_ADBLUE_CHAUF = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
+// L'ancienne liste séparée VEHICULES_ADBLUE_CHAUF a été retirée : elle
+// dupliquait VEHICULES_ADBLUE (déjà mise à jour automatiquement par
+// sauvegarderNouveauVeh() via la case "AdBlue activé") sans jamais être
+// synchronisée avec elle — un véhicule éligible AdBlue apparaissait côté
+// admin mais jamais dans le formulaire AdBlue du chauffeur. Les deux usages
+// pointent maintenant directement vers VEHICULES_ADBLUE.
 
 function renderMessagesChauf() {
   window.renderMessagesChauf = renderMessagesChauf;
@@ -4582,7 +4596,7 @@ function initChauf() {
   // Peupler AdBlue (onglet adblue)
   const selAb = document.getElementById('chauf-ab-veh');
   if (selAb && selAb.options.length === 0) {
-    const vehAbTries = VEHICULES_ADBLUE_CHAUF
+    const vehAbTries = VEHICULES_ADBLUE
       .map(id => vehicules.find(x => x.id === id)).filter(Boolean)
       .sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
     selAb.innerHTML = vehAbTries.map(v =>
@@ -5028,7 +5042,7 @@ function initAdBlueOnglet() {
   // Bloc AdBlue chauffeur (visible pour tous dans cet onglet)
   const selChauf = document.getElementById('chauf-ab-veh');
   if (selChauf && selChauf.options.length === 0) {
-    const vehAbTries = VEHICULES_ADBLUE_CHAUF
+    const vehAbTries = VEHICULES_ADBLUE
       .map(id => vehicules.find(x => x.id === id)).filter(Boolean)
       .sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
     selChauf.innerHTML = vehAbTries.map(v =>
@@ -5037,7 +5051,7 @@ function initAdBlueOnglet() {
   // Liste des véhicules concernés — plaques complètes, générée depuis la
   // vraie liste (évite qu'un texte codé en dur se désynchronise un jour).
   const listeVehAb = document.getElementById('chauf-ab-liste-veh');
-  if (listeVehAb) listeVehAb.textContent = VEHICULES_ADBLUE_CHAUF.join(', ');
+  if (listeVehAb) listeVehAb.textContent = VEHICULES_ADBLUE.join(', ');
 
   const abDate = document.getElementById('chauf-ab-date');
   if (abDate && !abDate.value) abDate.value = toLocalYMD(new Date());
@@ -12035,7 +12049,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260829.1455';
+const APP_VERSION = '260829.1929';
 
 let _swRegistration = null;
 
