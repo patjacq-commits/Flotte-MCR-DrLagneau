@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2115</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2123</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2371,11 +2371,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260829.2115</strong><br>
+      Version actuelle de l'app : <strong>v260829.2123</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260829.2115 disponible)
+      📢 Notifier les utilisateurs (v260829.2123 disponible)
     </button>
   </div>
 
@@ -10609,12 +10609,31 @@ function verifierEntretiensUrgents() {
   // réapparaître un rappel "à planifier" même après un entretien marqué
   // effectué et une fiche véhicule à jour, puisque le calcul ignorait
   // totalement la mise à jour réelle.
+  //
+  // Déclenche sur LE KILOMÉTRAGE **OU** LA DATE (échéance à 1 an pour les
+  // VSL, 2 ans pour les camionnettes) — exactement la logique "et/ou" déjà
+  // affichée sur la carte véhicule elle-même. Avant cette correction, seul
+  // le kilométrage était vérifié : un véhicule peu roulant pouvait dépasser
+  // largement l'échéance annuelle sans jamais déclencher de rappel, tant
+  // que son compteur kilométrique restait sage.
   const entretiens = vehicules.filter(v => {
     const kmRef      = v.km ? parseInt(v.km) : null;
     const prochainKm = v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null;
-    if (!prochainKm || !kmRef) return false;
-    const reste = prochainKm - kmRef;
-    if (reste > calculerSeuilRappelDynamique(v.id)) return false;
+    const kmOk       = kmRef && prochainKm && (prochainKm - kmRef) <= calculerSeuilRappelDynamique(v.id);
+
+    let dateOk = false;
+    if (v.dernier_entretien_date) {
+      const d = parseDate(v.dernier_entretien_date);
+      if (d) {
+        const isCamion = v.type === 'Camionnette';
+        const limite = new Date(d);
+        limite.setFullYear(limite.getFullYear() + (isCamion ? 2 : 1));
+        const jLimite = Math.round((limite - new Date(today)) / 86400000);
+        dateOk = jLimite <= 60; // même fenêtre que le Contrôle Technique
+      }
+    }
+
+    if (!kmOk && !dateOk) return false;
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'garage' && r.statut === 'planifie');
   });
 
@@ -10671,23 +10690,50 @@ function verifierEntretiensUrgents() {
   });
 
   entretiens.forEach(v => {
-    const kmRef      = parseInt(v.km);
-    const prochainKm = parseInt(v.prochain_entretien_km);
-    const reste = prochainKm - kmRef;
-    const dejaDepasse = reste < 0;
+    const kmRef      = v.km ? parseInt(v.km) : null;
+    const prochainKm = v.prochain_entretien_km ? parseInt(v.prochain_entretien_km) : null;
+    const reste      = (kmRef && prochainKm) ? prochainKm - kmRef : null;
+    const kmDepasse  = reste !== null && reste < 0;
+
+    let jLimite = null, dateDepassee = false;
+    if (v.dernier_entretien_date) {
+      const d = parseDate(v.dernier_entretien_date);
+      if (d) {
+        const isCamion = v.type === 'Camionnette';
+        const limite = new Date(d);
+        limite.setFullYear(limite.getFullYear() + (isCamion ? 2 : 1));
+        jLimite = Math.round((limite - new Date(today)) / 86400000);
+        dateDepassee = jLimite < 0;
+      }
+    }
+
+    const dejaDepasse = kmDepasse || dateDepassee;
     const seuilAppliqueVeh = calculerSeuilRappelDynamique(v.id);
     const seuilInfo = seuilAppliqueVeh !== SEUIL_RAPPEL_PAR_DEFAUT
-      ? ` <span style="opacity:0.7;font-size:11px">(seuil perso ${seuilAppliqueVeh.toLocaleString('fr-BE')} km, selon rythme)</span>`
-      : '';
+      ? ` (seuil perso ${seuilAppliqueVeh.toLocaleString('fr-BE')} km)` : '';
+
+    // Détail combiné — kilométrage ET/OU date, selon ce qui est disponible,
+    // pour que la raison exacte du rappel (l'un, l'autre, ou les deux) soit
+    // toujours visible plutôt que masquée derrière un seul chiffre.
+    const partiesDetail = [];
+    if (reste !== null) {
+      partiesDetail.push((kmDepasse
+        ? 'D\u00e9pass\u00e9 de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km'
+        : reste.toLocaleString('fr-BE') + ' km restants') + seuilInfo);
+    }
+    if (jLimite !== null) {
+      partiesDetail.push(dateDepassee
+        ? '\u00e9ch\u00e9ance 1 an d\u00e9pass\u00e9e de ' + Math.abs(jLimite) + ' j'
+        : '\u00e9ch\u00e9ance dans ' + jLimite + ' j');
+    }
+
     items.push({
       v, type: 'garage', priorite: dejaDepasse ? PRIORITE.retard : PRIORITE.planifier,
       badge: dejaDepasse ? 'En retard' : '\u00c0 planifier',
       badgeCouleur: dejaDepasse ? 'var(--rouge)' : 'var(--orange)',
       badgeFond: dejaDepasse ? 'var(--rouge-clair)' : '#fef5e7',
       titre: v.marque + ' \u2014 ' + v.immat,
-      detail: (dejaDepasse
-        ? ('D\u00e9pass\u00e9 de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km')
-        : (reste.toLocaleString('fr-BE') + ' km restants')) + seuilInfo,
+      detail: partiesDetail.join(' \u2014 '),
       actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
         + ' onclick="document.getElementById(\'modal-entretien-urgent\').remove();allerAuxRV()">\ud83d\udccb Prendre RV</button>',
     });
@@ -12109,7 +12155,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260829.2115';
+const APP_VERSION = '260829.2123';
 
 let _swRegistration = null;
 
