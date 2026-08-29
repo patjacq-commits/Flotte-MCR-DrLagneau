@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2106</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2111</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2371,11 +2371,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260829.2106</strong><br>
+      Version actuelle de l'app : <strong>v260829.2111</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260829.2106 disponible)
+      📢 Notifier les utilisateurs (v260829.2111 disponible)
     </button>
   </div>
 
@@ -10612,11 +10612,17 @@ function verifierEntretiensUrgents() {
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'garage' && r.statut === 'planifie');
   });
 
-  // \u2500\u2500 Contr\u00f4les techniques (sans RV planifi\u00e9) \u2500\u2500
+  // ── Contrôles techniques (sans RV planifié) ──
+  // Fenêtre volontairement plus large que pour l'entretien garage (60 jours
+  // contre un seuil kilométrique équivalent à ~3 semaines) : un CT expiré
+  // est un problème légal et bloquant — le véhicule ne peut plus rouler du
+  // tout — contrairement à un léger dépassement du seuil d'entretien, qui
+  // reste roulant sans risque immédiat. D'autant plus critique ici que ces
+  // véhicules transportent des personnes vers des rendez-vous médicaux.
   const cts = vehicules.filter(v => {
     if (!v.ct_valid) return false;
     const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
-    if (j > 35) return false;
+    if (j > 60) return false;
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'ct' && r.statut === 'planifie');
   });
 
@@ -10708,9 +10714,21 @@ function verifierEntretiensUrgents() {
     groupes[cat.key].prioriteMin = Math.min(groupes[cat.key].prioriteMin, item.priorite);
   });
 
-  // Trier les items de chaque groupe par urgence, puis les groupes par urgence min
+  // Trier les items de chaque groupe par urgence, puis les groupes par
+  // urgence min. À égalité de priorité (ex: deux groupes "à planifier"), le
+  // Contrôle Technique passe toujours en premier — un CT expiré est un
+  // problème légal et bloquant (le véhicule ne peut plus rouler), alors
+  // qu'un léger dépassement du seuil d'entretien garage reste sans risque
+  // immédiat. D'autant plus important que ces véhicules transportent des
+  // personnes vers des rendez-vous médicaux.
   Object.values(groupes).forEach(g => g.items.sort((a,b) => a.priorite - b.priorite));
-  const groupesOrdonnes = Object.values(groupes).sort((a,b) => a.prioriteMin - b.prioriteMin);
+  const ORDRE_TYPE_A_EGALITE = { ct: 0, garage: 1 };
+  const groupesOrdonnes = Object.values(groupes).sort((a,b) => {
+    if (a.prioriteMin !== b.prioriteMin) return a.prioriteMin - b.prioriteMin;
+    const typeA = a.items[0]?.type;
+    const typeB = b.items[0]?.type;
+    return (ORDRE_TYPE_A_EGALITE[typeA] ?? 2) - (ORDRE_TYPE_A_EGALITE[typeB] ?? 2);
+  });
 
   const existing = document.getElementById('modal-entretien-urgent');
   if (existing) existing.remove();
@@ -12085,7 +12103,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260829.2106';
+const APP_VERSION = '260829.2111';
 
 let _swRegistration = null;
 
