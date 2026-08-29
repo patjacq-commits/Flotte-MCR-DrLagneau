@@ -122,6 +122,15 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
+    match /commentairesGarage/{docId} {
+      // Notes libres sur les 3 dépôts (Curfoz, Bouillon, Opont) —
+      // indépendantes des véhicules. Consultation ouverte à tous les
+      // utilisateurs approuvés (chauffeurs compris), gestion réservée aux
+      // admins.
+      allow read: if isApprouve();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /test/{docId} {
       allow read, write: if isSuperAdmin();
     }

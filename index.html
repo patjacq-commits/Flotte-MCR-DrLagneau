@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.1409</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.1435</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2328,11 +2328,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260829.1409</strong><br>
+      Version actuelle de l'app : <strong>v260829.1435</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260829.1409 disponible)
+      📢 Notifier les utilisateurs (v260829.1435 disponible)
     </button>
   </div>
 
@@ -2459,6 +2459,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       <option value="effectue">✅ Effectués</option>
       <option value="annule">❌ Annulés</option>
       <option value="maintenance">🔧 Maintenances</option>
+      <option value="commentaires-garage">🏭 Commentaires garage</option>
     </select>
     <button id="hist-export-csv" class="btn admin-only" style="display:none" onclick="exportCSV()">⬇ Export CSV</button>
   </div>
@@ -2479,6 +2480,18 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
     </div>
     <div id="hist-maint-cards"></div>
+  </div>
+
+  <!-- Vue commentaires garage (Curfoz / Bouillon / Opont) — indépendante des véhicules -->
+  <div id="hist-garage-detail" style="display:none">
+    <div class="form-card" style="padding:12px 16px;margin-bottom:12px">
+      <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">
+        Notes libres concernant les dépôts (dépôt de fournitures, dégât constaté, etc.) —
+        sans lien avec un véhicule ni une date de maintenance précise.
+      </p>
+      <button class="btn primary admin-only" style="display:none" onclick="ouvrirModalCommentaireGarage()">➕ Ajouter un commentaire</button>
+    </div>
+    <div id="hist-garage-cards"></div>
   </div>
 
   <!-- Vue tableau standard (tous les autres types) -->
@@ -6107,6 +6120,103 @@ async function renderHistoriqueLog() {
 
 /* Affiche les erreurs JS signalées automatiquement par le filet de sécurité */
 /* Affiche toutes les suggestions envoyées par les chauffeurs (superadmin) */
+const GARAGES_COMMENTAIRE = ['Curfoz', 'Bouillon', 'Opont'];
+
+/* Affiche les commentaires libres liés aux 3 dépôts (Curfoz, Bouillon,
+   Opont) — totalement indépendants des véhicules et des maintenances,
+   consultables par tous, gérables par les admins uniquement. */
+async function renderCommentairesGarage() {
+  const container = document.getElementById('hist-garage-cards');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--texte-sec)">Chargement…</p>';
+
+  try {
+    const snap = await db.collection('commentairesGarage').get();
+    const items = snap.docs.map(d => d.data()).sort((a,b) => b.date.localeCompare(a.date));
+
+    if (!items.length) {
+      container.innerHTML = '<p style="color:var(--texte-sec);text-align:center;padding:16px">Aucun commentaire pour l\'instant.</p>';
+      return;
+    }
+
+    container.innerHTML = items.map(c => {
+      const adminBtns = isAdmin
+        ? `<button class="btn btn-sm" style="margin-top:8px;font-size:11px;padding:3px 8px;
+           color:var(--rouge);border-color:var(--rouge-clair)"
+           onclick="supprimerCommentaireGarage(${c.id})">🗑 Supprimer</button>`
+        : '';
+      return `<div class="form-card" style="padding:10px 14px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px">
+          <span class="badge info" style="font-size:11px">🏭 ${echapperHtml(c.garage)}</span>
+          <span style="font-size:11px;color:var(--texte-sec);white-space:nowrap">${formatDateCourt(c.date)}</span>
+        </div>
+        <div style="font-size:13px">${echapperHtml(c.texte)}</div>
+        <div style="font-size:11px;color:var(--texte-sec);margin-top:4px">— ${echapperHtml(c.auteur || '')}</div>
+        ${adminBtns}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = '<p style="color:var(--rouge)">Erreur : ' + e.message + '</p>';
+  }
+}
+
+function ouvrirModalCommentaireGarage() {
+  if (!userIsAdmin()) return;
+  const ex = document.getElementById('modal-commentaire-garage');
+  if (ex) ex.remove();
+  const div = document.createElement('div');
+  div.id = 'modal-commentaire-garage';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;'
+    + 'box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:14px">🏭 Nouveau commentaire</div>'
+    + '<div class="form-group" style="margin-bottom:12px"><label>Dépôt</label>'
+    + '<select id="cg-garage" style="width:100%">'
+    + GARAGES_COMMENTAIRE.map(g => '<option value="' + g + '">' + g + '</option>').join('')
+    + '</select></div>'
+    + '<div class="form-group" style="margin-bottom:12px"><label>Date</label>'
+    + '<input type="date" id="cg-date" value="' + toLocalYMD(new Date()) + '" style="width:100%" /></div>'
+    + '<div class="form-group" style="margin-bottom:16px"><label>Commentaire</label>'
+    + '<textarea id="cg-texte" rows="3" placeholder="ex: déposé 1L d\'huile moteur…"'
+    + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;'
+    + 'font-size:14px;resize:vertical"></textarea></div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<button class="btn primary" onclick="ajouterCommentaireGarage()">Enregistrer</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-commentaire-garage\').remove()">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+async function ajouterCommentaireGarage() {
+  if (!userIsAdmin()) return;
+  const garage = document.getElementById('cg-garage')?.value;
+  const date   = document.getElementById('cg-date')?.value;
+  const texte  = document.getElementById('cg-texte')?.value?.trim();
+  if (!garage || !date || !texte) { toast('Veuillez remplir tous les champs.'); return; }
+
+  const rec = { id: Date.now(), garage, date, texte, auteur: currentUser?.nom || '' };
+  try {
+    await db.collection('commentairesGarage').doc(String(rec.id)).set(rec);
+    document.getElementById('modal-commentaire-garage')?.remove();
+    toast('✅ Commentaire ajouté');
+    renderCommentairesGarage();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+async function supprimerCommentaireGarage(id) {
+  if (!userIsAdmin()) return;
+  if (!confirm('Supprimer ce commentaire ?')) return;
+  try {
+    await db.collection('commentairesGarage').doc(String(id)).delete();
+    renderCommentairesGarage();
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
 async function renderSuggestionsChauf() {
   const container = document.getElementById('suggestions-chauf-container');
   if (!container) return;
@@ -10883,17 +10993,28 @@ function renderHistorique() {
     });
   }
 
-  // Basculer entre la vue tableau RV et la vue détaillée maintenance
-  const maintDetail = document.getElementById('hist-maint-detail');
-  const tableView   = document.getElementById('hist-table-view');
+  // Basculer entre la vue tableau RV, la vue détaillée maintenance et la
+  // vue commentaires garage
+  const maintDetail  = document.getElementById('hist-maint-detail');
+  const garageDetail = document.getElementById('hist-garage-detail');
+  const tableView    = document.getElementById('hist-table-view');
   if (filterType === 'maintenance') {
-    if (maintDetail) maintDetail.style.display = '';
-    if (tableView)   tableView.style.display   = 'none';
+    if (maintDetail)  maintDetail.style.display  = '';
+    if (garageDetail) garageDetail.style.display = 'none';
+    if (tableView)    tableView.style.display    = 'none';
     renderHistMaintDetail(filterVeh, dateDebut, dateFin);
     return;
   }
-  if (maintDetail) maintDetail.style.display = 'none';
-  if (tableView)   tableView.style.display   = '';
+  if (filterType === 'commentaires-garage') {
+    if (maintDetail)  maintDetail.style.display  = 'none';
+    if (garageDetail) garageDetail.style.display = '';
+    if (tableView)    tableView.style.display    = 'none';
+    renderCommentairesGarage();
+    return;
+  }
+  if (maintDetail)  maintDetail.style.display  = 'none';
+  if (garageDetail) garageDetail.style.display = 'none';
+  if (tableView)    tableView.style.display    = '';
 
   // ── Source : rendezvous + ctEvents (fallback) ─────────────────
   const idsRV = new Set(rendezvous.map(r => String(r.id)));
@@ -11885,7 +12006,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260829.1409';
+const APP_VERSION = '260829.1435';
 
 let _swRegistration = null;
 
