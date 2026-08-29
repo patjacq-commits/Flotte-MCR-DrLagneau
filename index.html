@@ -1360,7 +1360,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2111</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2115</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2371,11 +2371,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260829.2111</strong><br>
+      Version actuelle de l'app : <strong>v260829.2115</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260829.2111 disponible)
+      📢 Notifier les utilisateurs (v260829.2115 disponible)
     </button>
   </div>
 
@@ -3003,10 +3003,16 @@ window._refreshUI = function() {
     localStorage.setItem('mcr_cmd_pneus', JSON.stringify(commandesPneus));
   }
 
-  // Afficher modal rappels — une seule fois par session/ouverture
+  // Afficher modal rappels — une seule fois par session/ouverture.
+  // Ne dépend QUE de vehicules (donnée indispensable au calcul) — exiger
+  // aussi "rendezvous?.length" empêchait à tort le rappel de se déclencher
+  // dès que la base ne contenait ACTUELLEMENT aucun RV (0 est une valeur
+  // parfaitement légitime, pas un signe que les données ne sont pas encore
+  // chargées) : un véhicule pouvait avoir un CT expiré ou un entretien en
+  // retard sans jamais recevoir de rappel au démarrage, précisément dans le
+  // cas où il n'y avait encore aucun RV pris pour corriger ça.
   if (!window._entretienUrgentChecked
-      && window.vehicules?.length
-      && rendezvous?.length) {
+      && window.vehicules?.length) {
     window._entretienUrgentChecked = true;
     setTimeout(function() {
       if (typeof verifierEntretiensUrgents === 'function') verifierEntretiensUrgents();
@@ -12103,7 +12109,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260829.2111';
+const APP_VERSION = '260829.2115';
 
 let _swRegistration = null;
 
