@@ -499,6 +499,20 @@
 #ecran-connexion .login-error {
   color:#c0392b;font-size:13px;margin-top:8px;display:none;
 }
+
+/* ===== IMPRESSION — Graphique mensuel & totaux km (onglet Kilométrage) =====
+   N'affecte que l'impression : sur écran, .print-only reste invisible et
+   .no-print reste visible normalement (comportement par défaut, aucune
+   règle @media print n'agit hors impression). */
+.print-only { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  #km-print-zone, #km-print-zone * { visibility: visible; }
+  #km-print-zone { position: absolute; left: 0; top: 0; width: 100%; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  #km-graphique svg { max-width: 100%; height: auto; }
+}
 </style>
 
 <div id="app-wrapper" style="display:none">
@@ -1360,7 +1374,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260829.2126</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260831.1952</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1446,20 +1460,32 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </select>
   </div>
 
-  <!-- Graphique SVG -->
-  <div class="form-card" style="padding:16px;margin-bottom:14px;overflow-x:auto">
-    <h3 style="margin-bottom:12px">Graphique mensuel</h3>
-    <div id="km-graphique"></div>
-  </div>
+  <!-- Zone imprimable : graphique mensuel + tableau croisé (totaux) -->
+  <div id="km-print-zone">
+    <!-- En-tête visible uniquement à l'impression -->
+    <div id="km-print-header" class="print-only" style="display:none">
+      <h2 style="margin-bottom:2px">📈 Kilométrage flotte MCR Opont</h2>
+      <p id="km-print-soustitre" style="font-size:13px;color:#555;margin-bottom:16px"></p>
+    </div>
 
-  <!-- Tableau croisé -->
-  <div class="form-card" style="padding:0;overflow-x:auto">
-    <div class="table-wrap">
-      <table id="km-table" style="min-width:700px">
-        <thead id="km-thead"></thead>
-        <tbody id="km-tbody"></tbody>
-        <tfoot id="km-tfoot"></tfoot>
-      </table>
+    <!-- Graphique SVG -->
+    <div class="form-card" style="padding:16px;margin-bottom:14px;overflow-x:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <h3 style="margin:0">Graphique mensuel</h3>
+        <button class="btn btn-sm no-print" onclick="imprimerGraphiqueKm()">🖨 Imprimer</button>
+      </div>
+      <div id="km-graphique"></div>
+    </div>
+
+    <!-- Tableau croisé -->
+    <div class="form-card" style="padding:0;overflow-x:auto">
+      <div class="table-wrap">
+        <table id="km-table" style="min-width:700px">
+          <thead id="km-thead"></thead>
+          <tbody id="km-tbody"></tbody>
+          <tfoot id="km-tfoot"></tfoot>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -2371,11 +2397,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260829.2126</strong><br>
+      Version actuelle de l'app : <strong>v260831.1952</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260829.2126 disponible)
+      📢 Notifier les utilisateurs (v260831.1952 disponible)
     </button>
   </div>
 
@@ -7407,6 +7433,13 @@ function renderKilometrage() {
   const totauxVeh = matrice.map(row => row.kms.reduce((s,k) => s+(k||0), 0));
   const grandTotal = matrice.reduce((s,row) => row.veh.id === '1RER037' ? s : s+row.kms.reduce((t,k) => t+(k||0), 0), 0);
 
+  // Mémoriser le contexte pour l'en-tête d'impression (imprimerGraphiqueKm) —
+  // évite de recalculer/re-scraper le total depuis le DOM au moment d'imprimer.
+  window._dernierKmContexte = {
+    annee, grandTotal,
+    filtreLabel: filtVeh ? (vehicules.find(v => v.id === filtVeh)?.immat || filtVeh) : 'Toute la flotte (hors 1RER037)',
+  };
+
   const thS  = 'padding:7px 8px;text-align:right;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);white-space:nowrap;font-size:11px';
   const thVS = 'padding:7px 8px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);font-size:11px';
   const tdS  = 'padding:5px 8px;text-align:right;font-size:11px;border-bottom:0.5px solid #f0f0f0';
@@ -7475,6 +7508,24 @@ function renderKilometrage() {
     `<div style="overflow-x:auto"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="display:block">` +
     `${gridLines}${barsSvg}${colLabels}</svg></div>` +
     `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.min(vehList.length*110+20,900)}" height="22" style="margin-top:4px;display:block;overflow:visible">${legendItems}</svg>`;
+}
+
+/* Imprime le graphique mensuel + le tableau des totaux de l'onglet
+   Kilométrage — réutilise directement le SVG déjà affiché à l'écran (net à
+   l'impression, aucune conversion nécessaire) via l'impression native du
+   navigateur, avec une mise en page dédiée qui masque le reste de l'app
+   (voir la règle @media print). */
+function imprimerGraphiqueKm() {
+  const ctx = window._dernierKmContexte;
+  const sousTitre = document.getElementById('km-print-soustitre');
+  if (sousTitre) {
+    const dateImpression = new Date().toLocaleDateString('fr-BE',
+      { day:'2-digit', month:'long', year:'numeric' });
+    sousTitre.textContent = ctx
+      ? `Année ${ctx.annee} — ${ctx.filtreLabel} — Total : ${ctx.grandTotal.toLocaleString('fr-BE')} km — Imprimé le ${dateImpression}`
+      : `Imprimé le ${dateImpression}`;
+  }
+  window.print();
 }
 // ============================================================
 // RECHERCHE GLOBALE INTELLIGENTE
@@ -12160,7 +12211,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260829.2126';
+const APP_VERSION = '260831.1952';
 
 let _swRegistration = null;
 
