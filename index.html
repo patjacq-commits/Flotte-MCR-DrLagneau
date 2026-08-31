@@ -507,8 +507,13 @@
 .print-only { display: none; }
 @media print {
   body * { visibility: hidden; }
-  #km-print-zone, #km-print-zone * { visibility: visible; }
-  #km-print-zone { position: absolute; left: 0; top: 0; width: 100%; }
+  #km-print-zone, #km-print-zone *,
+  #apercu-km-print-zone, #apercu-km-print-zone * { visibility: visible; }
+  #km-print-zone, #apercu-km-print-zone { position: absolute; left: 0; top: 0; width: 100%; }
+  #modal-apercu-km, #modal-apercu-km .modal {
+    position: static !important; overflow: visible !important;
+    max-height: none !important; height: auto !important; padding: 0 !important;
+  }
   .no-print { display: none !important; }
   .print-only { display: block !important; }
   #km-graphique svg { max-width: 100%; height: auto; }
@@ -1374,7 +1379,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260831.1952</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260831.2011</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1458,6 +1463,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <select id="km-filtre-veh" onchange="renderKilometrage()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 10px;font-size:14px">
       <option value="">Tous les véhicules</option>
     </select>
+    <button class="btn btn-sm" style="margin-left:auto" onclick="ouvrirApercuKmComplet()">📊 Vue d'ensemble</button>
   </div>
 
   <!-- Zone imprimable : graphique mensuel + tableau croisé (totaux) -->
@@ -2397,11 +2403,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260831.1952</strong><br>
+      Version actuelle de l'app : <strong>v260831.2011</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260831.1952 disponible)
+      📢 Notifier les utilisateurs (v260831.2011 disponible)
     </button>
   </div>
 
@@ -2671,6 +2677,35 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
         <button class="search-shortcut" onclick="rechercheRaccourci('historique')">📋 Historique</button>
         <button class="search-shortcut" onclick="rechercheRaccourci('vehicules')">🚐 Véhicules</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VUE D'ENSEMBLE KM (plein écran) -->
+<div class="modal-overlay" id="modal-apercu-km" style="z-index:1000">
+  <div class="modal" style="max-width:100%;width:100%;height:100%;max-height:100%;
+    border-radius:0;overflow-y:auto;padding:20px">
+    <button class="modal-close no-print" onclick="closeModal('modal-apercu-km')">✕</button>
+
+    <div id="apercu-km-print-zone">
+      <div class="no-print" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <h2 style="margin:0">📊 Vue d'ensemble — Km parcourus</h2>
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" data-gran="mois" onclick="changerGranulariteApercu('mois')">Mois</button>
+          <button class="btn btn-sm" data-gran="trimestre" onclick="changerGranulariteApercu('trimestre')">Trimestre</button>
+          <button class="btn btn-sm" data-gran="semestre" onclick="changerGranulariteApercu('semestre')">Semestre</button>
+          <button class="btn btn-sm" data-gran="annee" onclick="changerGranulariteApercu('annee')">Année</button>
+          <button class="btn primary btn-sm" onclick="imprimerApercuKmComplet()">🖨 Imprimer</button>
+        </div>
+      </div>
+
+      <!-- En-tête visible uniquement à l'impression -->
+      <div id="apercu-km-print-header" class="print-only" style="display:none">
+        <h2 style="margin-bottom:2px">📊 Kilométrage flotte MCR Opont — Vue d'ensemble</h2>
+        <p id="apercu-km-print-soustitre" style="font-size:13px;color:#555;margin-bottom:16px"></p>
+      </div>
+
+      <div id="apercu-km-contenu"></div>
     </div>
   </div>
 </div>
@@ -7527,6 +7562,187 @@ function imprimerGraphiqueKm() {
   }
   window.print();
 }
+
+// ============================================================
+// VUE D'ENSEMBLE KM — regroupement mois/trimestre/semestre/année
+// ============================================================
+
+/* Renvoie tous les intervalles de km entre deux maintenances consécutives
+   pour un véhicule, à partir d'une date minimale donnée (incluse, sur la
+   date de fin de l'intervalle). Fonction indépendante de renderKilometrage()
+   — même logique de calcul (intervalle = maintenance à maintenance réelle),
+   mais sans la contrainte "une seule année civile" pour pouvoir couvrir
+   toute la période depuis le début de l'année en cours. */
+function getIntervallesVehiculeDepuis(vehId, dateDebutMin) {
+  const mList = maintenances
+    .filter(m => m.vehId === vehId && m.km && m.date)
+    .map(m => ({ date: m.date, km: parseInt(m.km) }))
+    .filter(m => !isNaN(m.km))
+    .sort((a,b) => a.date.localeCompare(b.date));
+  if (mList.length < 2) return [];
+  const result = [];
+  for (let i = 1; i < mList.length; i++) {
+    const debut = mList[i-1], fin = mList[i];
+    if (fin.date < dateDebutMin) continue;
+    const delta = fin.km - debut.km;
+    if (delta <= 0) continue;
+    result.push({ km: delta, dateDebut: debut.date, dateFin: fin.date });
+  }
+  return result;
+}
+
+/* Clé de tri numérique pour une période, selon la granularité — garantit un
+   tri chronologique correct (le tri alphabétique des libellés type "Août
+   2026" / "Janvier 2026" serait faux). */
+function clePeriode(dateStr, granularite) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const a = d.getFullYear(), m = d.getMonth();
+  if (granularite === 'mois')      return a * 100 + m;
+  if (granularite === 'trimestre') return a * 10 + Math.floor(m / 3);
+  if (granularite === 'semestre')  return a * 10 + (m < 6 ? 0 : 1);
+  return a; // année
+}
+
+/* Libellé affiché pour une période, selon la granularité. */
+function labelPeriode(dateStr, granularite) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const a = d.getFullYear(), m = d.getMonth();
+  if (granularite === 'mois')      return d.toLocaleDateString('fr-BE', { month:'long', year:'numeric' });
+  if (granularite === 'trimestre') return `T${Math.floor(m/3)+1} ${a}`;
+  if (granularite === 'semestre')  return `S${m<6?1:2} ${a}`;
+  return String(a); // année
+}
+
+/* Calcule la vue d'ensemble agrégée : pour chaque véhicule, les km
+   parcourus regroupés par période (mois/trimestre/semestre/année), depuis
+   le 1er janvier de l'année de la dernière maintenance connue jusqu'à
+   celle-ci. La borne de fin se déduit automatiquement de la donnée la plus
+   récente disponible — grandit seule à mesure que de nouvelles maintenances
+   sont encodées chaque mois, sans aucune reconfiguration nécessaire. */
+function calculerApercuKmGroupe(granularite) {
+  const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(v => v && !v.archive);
+
+  const toutesDates = maintenances.filter(m => m.km && m.date).map(m => m.date);
+  if (!toutesDates.length) {
+    return { colonnes: [], lignes: [], totauxCol: [], grandTotal: 0, dateDebutLabel: null, dateFinLabel: null };
+  }
+  const dateFinMax   = toutesDates.sort().reverse()[0];
+  const anneeRef     = new Date(dateFinMax + 'T12:00:00').getFullYear();
+  const dateDebutMin = anneeRef + '-01-01';
+
+  const intervallesParVeh = {};
+  vehOrdre.forEach(v => { intervallesParVeh[v.id] = getIntervallesVehiculeDepuis(v.id, dateDebutMin); });
+
+  // Colonnes = toutes les périodes uniques rencontrées, triées chronologiquement
+  const colMap = new Map(); // clé -> libellé
+  Object.values(intervallesParVeh).forEach(intervs => intervs.forEach(iv => {
+    const cle = clePeriode(iv.dateFin, granularite);
+    if (!colMap.has(cle)) colMap.set(cle, labelPeriode(iv.dateFin, granularite));
+  }));
+  const colonnesTriees = [...colMap.entries()].sort((a,b) => a[0] - b[0]);
+
+  const lignes = vehOrdre.map(v => {
+    const kms = colonnesTriees.map(([cle]) =>
+      intervallesParVeh[v.id]
+        .filter(iv => clePeriode(iv.dateFin, granularite) === cle)
+        .reduce((s,iv) => s + iv.km, 0)
+    );
+    return { veh: v, kms, total: kms.reduce((s,k) => s+k, 0) };
+  });
+
+  const totauxCol = colonnesTriees.map((_,ci) =>
+    lignes.reduce((s,l) => l.veh.id === '1RER037' ? s : s + (l.kms[ci]||0), 0));
+  const grandTotal = lignes.reduce((s,l) => l.veh.id === '1RER037' ? s : s + l.total, 0);
+
+  return {
+    colonnes: colonnesTriees.map(([,lbl]) => lbl),
+    lignes, totauxCol, grandTotal,
+    dateDebutLabel: formatDateCourt(dateDebutMin),
+    dateFinLabel:   formatDateCourt(dateFinMax),
+  };
+}
+
+let _apercuKmGranulariteActuelle = 'mois';
+
+function ouvrirApercuKmComplet() {
+  _apercuKmGranulariteActuelle = 'mois';
+  document.getElementById('modal-apercu-km').classList.add('open');
+  renderApercuKmComplet();
+}
+
+function changerGranulariteApercu(g) {
+  _apercuKmGranulariteActuelle = g;
+  renderApercuKmComplet();
+}
+
+function renderApercuKmComplet() {
+  const g = _apercuKmGranulariteActuelle;
+  document.querySelectorAll('#modal-apercu-km [data-gran]').forEach(b => {
+    b.classList.toggle('primary', b.dataset.gran === g);
+  });
+
+  const data = calculerApercuKmGroupe(g);
+  const cont = document.getElementById('apercu-km-contenu');
+
+  if (!data.colonnes.length) {
+    cont.innerHTML = '<p style="color:var(--texte-sec);text-align:center;padding:40px">'
+      + 'Aucune donnée de maintenance disponible.</p>';
+    window._dernierApercuKmContexte = null;
+    return;
+  }
+
+  const thS  = 'padding:8px 10px;text-align:right;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);white-space:nowrap;font-size:12px';
+  const thVS = 'padding:8px 10px;text-align:left;font-weight:600;color:var(--texte-sec);border-bottom:1.5px solid var(--gris-bord);font-size:12px';
+  const tdS  = 'padding:6px 10px;text-align:right;font-size:12px;border-bottom:0.5px solid #f0f0f0';
+  const tdVS = 'padding:6px 10px;text-align:left;font-size:12px;border-bottom:0.5px solid #f0f0f0';
+
+  const theadHtml = '<tr><th style="' + thVS + '">Véhicule</th>'
+    + data.colonnes.map(c => '<th style="' + thS + '">' + c + '</th>').join('')
+    + '<th style="' + thS + ';color:var(--bleu)">Total</th></tr>';
+
+  const tbodyHtml = data.lignes.map(l => {
+    const estRER = l.veh.id === '1RER037';
+    return '<tr' + (estRER ? ' style="opacity:0.6;font-style:italic"' : '') + '>'
+      + '<td style="' + tdVS + '"><b>' + l.veh.marque + '</b> — ' + l.veh.immat + (estRER ? ' (hors total)' : '') + '</td>'
+      + l.kms.map(k => '<td style="' + tdS + '">' + (k ? k.toLocaleString('fr-BE') : '—') + '</td>').join('')
+      + '<td style="' + tdS + ';font-weight:700">' + l.total.toLocaleString('fr-BE') + '</td>'
+      + '</tr>';
+  }).join('');
+
+  const tfootHtml = '<tr style="background:var(--gris-clair);font-weight:700">'
+    + '<td style="' + tdVS + '">Total flotte (hors 1RER037)</td>'
+    + data.totauxCol.map(t => '<td style="' + tdS + '">' + t.toLocaleString('fr-BE') + '</td>').join('')
+    + '<td style="' + tdS + ';color:var(--bleu)">' + data.grandTotal.toLocaleString('fr-BE') + '</td>'
+    + '</tr>';
+
+  cont.innerHTML =
+    '<div style="background:linear-gradient(135deg,#2980b9,#1a5276);border-radius:10px;padding:14px 20px;color:#fff;margin-bottom:16px">'
+    + '<div style="font-size:11px;opacity:0.85;text-transform:uppercase;letter-spacing:0.5px">'
+    + 'Depuis le ' + data.dateDebutLabel + ' — derni\u00e8re maintenance le ' + data.dateFinLabel + '</div>'
+    + '<div style="font-size:28px;font-weight:800">' + data.grandTotal.toLocaleString('fr-BE') + ' km</div>'
+    + '<div style="font-size:11px;opacity:0.75">Total flotte (hors 1RER037)</div>'
+    + '</div>'
+    + '<div class="table-wrap"><table style="width:100%;border-collapse:collapse">'
+    + '<thead>' + theadHtml + '</thead><tbody>' + tbodyHtml + '</tbody><tfoot>' + tfootHtml + '</tfoot>'
+    + '</table></div>';
+
+  window._dernierApercuKmContexte = { granularite: g, ...data };
+}
+
+function imprimerApercuKmComplet() {
+  const ctx = window._dernierApercuKmContexte;
+  const sousTitre = document.getElementById('apercu-km-print-soustitre');
+  const labelsGran = { mois:'Mensuelle', trimestre:'Trimestrielle', semestre:'Semestrielle', annee:'Annuelle' };
+  if (sousTitre && ctx) {
+    const dateImpression = new Date().toLocaleDateString('fr-BE',
+      { day:'2-digit', month:'long', year:'numeric' });
+    sousTitre.textContent = 'Vue ' + (labelsGran[ctx.granularite] || '') + ' — du ' + ctx.dateDebutLabel
+      + ' au ' + ctx.dateFinLabel + ' — Total : ' + ctx.grandTotal.toLocaleString('fr-BE')
+      + ' km — Imprim\u00e9 le ' + dateImpression;
+  }
+  window.print();
+}
+
 // ============================================================
 // RECHERCHE GLOBALE INTELLIGENTE
 // ============================================================
@@ -12211,7 +12427,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260831.1952';
+const APP_VERSION = '260831.2011';
 
 let _swRegistration = null;
 
