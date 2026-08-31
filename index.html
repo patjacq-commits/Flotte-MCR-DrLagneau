@@ -506,6 +506,8 @@
    règle @media print n'agit hors impression). */
 .print-only { display: none; }
 @media print {
+  @page { size: A4 landscape; margin: 8mm; }
+
   body * { visibility: hidden; }
   #km-print-zone, #km-print-zone *,
   #apercu-km-print-zone, #apercu-km-print-zone * { visibility: visible; }
@@ -516,7 +518,34 @@
   }
   .no-print { display: none !important; }
   .print-only { display: block !important; }
-  #km-graphique svg { max-width: 100%; height: auto; }
+
+  /* Mise en page compacte — pense à tenir l'ensemble (km entre
+     maintenances + graphique + tableau) sur une seule page, même quand le
+     nombre de colonnes mensuelles augmente au fil de l'année. */
+  #km-print-zone, #apercu-km-print-zone { font-size: 10px; }
+  #km-print-zone .form-card, #apercu-km-print-zone .form-card {
+    padding: 6px 8px !important; margin-bottom: 6px !important;
+    box-shadow: none !important; border: 1px solid #ddd;
+  }
+  #km-print-zone h2, #apercu-km-print-zone h2 { font-size: 15px; margin-bottom: 2px; }
+  #km-print-zone h3, #apercu-km-print-zone h3,
+  #km-print-zone h4, #apercu-km-print-zone h4 { font-size: 11px; margin-bottom: 4px; }
+  #km-print-zone table, #apercu-km-print-zone table { font-size: 9px; }
+  #km-print-zone th, #km-print-zone td,
+  #apercu-km-print-zone th, #apercu-km-print-zone td { padding: 2px 5px !important; }
+  #km-print-zone .table-wrap, #apercu-km-print-zone .table-wrap { overflow: visible !important; }
+  #km-print-zone table, #apercu-km-print-zone table { min-width: 0 !important; width: 100% !important; }
+
+  /* Le graphique SVG doit tenir dans la largeur disponible, quelle que soit
+     sa largeur calculée à l'écran (qui peut dépasser une page, avec défilement
+     horizontal, une fois plusieurs mois de colonnes accumulés). */
+  #km-graphique { overflow: visible !important; }
+  #km-graphique > div { overflow: visible !important; }
+  #km-graphique svg { max-width: 100% !important; width: 100% !important; height: auto !important; }
+
+  /* Éviter qu'une carte soit coupée à cheval sur deux pages si jamais le
+     contenu venait à dépasser malgré tout la première page. */
+  #km-print-zone .form-card, #apercu-km-print-zone .form-card { page-break-inside: avoid; }
 }
 </style>
 
@@ -1379,7 +1408,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260831.2011</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260831.2025</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1449,9 +1478,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <h2 style="margin-bottom:4px">📈 Kilométrage</h2>
   <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Km effectués par véhicule, calculés à partir des relevés de maintenance.</p>
 
-  <!-- Section km entre maintenances (injectée par renderKilometrage) -->
-  <div id="km-maint-section"></div>
-
   <!-- Sélecteur d'année -->
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <label style="font-weight:600;font-size:14px">Année :</label>
@@ -1466,13 +1492,16 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <button class="btn btn-sm" style="margin-left:auto" onclick="ouvrirApercuKmComplet()">📊 Vue d'ensemble</button>
   </div>
 
-  <!-- Zone imprimable : graphique mensuel + tableau croisé (totaux) -->
+  <!-- Zone imprimable : km entre maintenances + graphique mensuel + tableau croisé -->
   <div id="km-print-zone">
     <!-- En-tête visible uniquement à l'impression -->
     <div id="km-print-header" class="print-only" style="display:none">
       <h2 style="margin-bottom:2px">📈 Kilométrage flotte MCR Opont</h2>
       <p id="km-print-soustitre" style="font-size:13px;color:#555;margin-bottom:16px"></p>
     </div>
+
+    <!-- Section km entre maintenances (injectée par renderKilometrage) -->
+    <div id="km-maint-section"></div>
 
     <!-- Graphique SVG -->
     <div class="form-card" style="padding:16px;margin-bottom:14px;overflow-x:auto">
@@ -2403,11 +2432,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260831.2011</strong><br>
+      Version actuelle de l'app : <strong>v260831.2025</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260831.2011 disponible)
+      📢 Notifier les utilisateurs (v260831.2025 disponible)
     </button>
   </div>
 
@@ -12427,7 +12456,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260831.2011';
+const APP_VERSION = '260831.2025';
 
 let _swRegistration = null;
 
