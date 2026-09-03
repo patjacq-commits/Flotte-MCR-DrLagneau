@@ -20,6 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
   // ══════════════════════════════════════════════════════════
   // FILET DE SÉCURITÉ — capture les erreurs JS non gérées
@@ -1408,7 +1409,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260903.0817</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260903.0901</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1451,6 +1452,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-accueil" class="page active">
   <div class="summary-grid" id="summary-grid"></div>
   <div id="alertes-dashboard"></div>
+  <div id="export-excel-rappel"></div>
   <div id="rv-dashboard-panel" style="display:none;margin-top:14px"></div>
 </div>
 
@@ -2526,11 +2528,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260903.0817</strong><br>
+      Version actuelle de l'app : <strong>v260903.0901</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260903.0817 disponible)
+      📢 Notifier les utilisateurs (v260903.0901 disponible)
     </button>
   </div>
 
@@ -2713,6 +2715,23 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </label>
     </div>
     <div id="backup-last-export" style="font-size:11px;color:var(--texte-sec);margin-top:8px"></div>
+  </div>
+
+  <!-- Export Excel — solution de secours si l'app venait à ne plus être
+       maintenue : toutes les données utiles dans un classeur exploitable
+       sans dépendre de l'app. -->
+  <div class="form-card" style="border:2px solid var(--vert);background:var(--vert-clair)">
+    <h3 style="color:var(--vert-fonce, #1e7e34)">📤 Export Excel (solution de secours)</h3>
+    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:10px">
+      Génère un classeur Excel avec toutes les données de la flotte — véhicules, maintenances,
+      signalements, rendez-vous, chauffeurs, pneus. Utile pour continuer la gestion sans l'app
+      si nécessaire un jour.
+    </p>
+    <div id="export-excel-badge" style="margin-bottom:10px"></div>
+    <button class="btn primary" onclick="exporterExcel()" style="background:#1e7e34;border-color:#1e7e34">
+      📤 Exporter en Excel
+    </button>
+    <div id="export-excel-last" style="font-size:11px;color:var(--texte-sec);margin-top:8px"></div>
   </div>
 
   <!-- Autres rapports -->
@@ -3214,6 +3233,15 @@ window._refreshUI = function() {
     }, 1000);
   }
 
+  // Rappel export Excel (solution de secours) — une seule vérification par
+  // session, même principe que le rappel entretien ci-dessus.
+  if (!window._exportExcelChecked && window.vehicules?.length) {
+    window._exportExcelChecked = true;
+    setTimeout(function() {
+      if (typeof verifierRappelExportExcel === 'function') verifierRappelExportExcel();
+    }, 700);
+  }
+
   // Réinitialiser le flag quand l'app revient au premier plan
   // → le modal se réaffiche à chaque ouverture tant qu'il y a des RV dépassés
   if (!window._visibilityListenerAdded) {
@@ -3222,6 +3250,7 @@ window._refreshUI = function() {
       if (document.visibilityState === 'visible') {
         window._entretienUrgentChecked = false;
         window._rappelsRVChecked = false;
+        window._exportExcelChecked = false;
       }
     });
   }
@@ -5661,7 +5690,7 @@ function showPage(id, btn) {
   const tabAlertes = document.querySelectorAll('.tab-btn')[2];
   if (id === 'alertes' && tabAlertes) tabAlertes.classList.remove('tab-urgent');
 
-  if (id === 'accueil')     renderAccueil();
+  if (id === 'accueil')     { renderAccueil(); verifierRappelExportExcel(); }
   if (id === 'vehicules')   renderVehicules();
   if (id === 'alertes')     renderAlertesFull();
   if (id === 'kilometrage') initKilometrage();
@@ -12280,6 +12309,15 @@ async function logAction(action, collection, description, avant = null, apres = 
     if (avant  !== null) entry.avant  = avant;
     if (apres  !== null) entry.apres  = apres;
     await db.collection('historique').doc(String(entry.id)).set(entry);
+
+    // Marquer qu'un changement existe depuis le dernier export Excel — sauf
+    // si l'action EST elle-même l'export (évite de se marquer soi-même comme
+    // "changement non exporté" juste après avoir exporté).
+    if (collection !== 'exportExcel') {
+      db.collection('config').doc('exportExcel')
+        .set({ dernierChangementDate: entry.date }, { merge: true })
+        .catch(() => {});
+    }
   } catch(e) {
     console.warn('logAction error:', e);
   }
@@ -12291,6 +12329,209 @@ const logModification = (col, desc, avant, apres) => logAction('modification',  
 const logSuppression  = (col, desc, avant)        => logAction('suppression',   col, desc, avant);
 const logExport       = (desc)                    => logAction('export',        'backup', desc);
 const logRestauration = (desc)                    => logAction('restauration',  'backup', desc);
+
+// ============================================================
+// EXPORT EXCEL — solution de secours si l'app n'est plus maintenue
+// ============================================================
+
+/* Récupère l'état du suivi d'export (dernier changement / dernier export)
+   depuis Firestore. Renvoie null si indisponible (pas encore de changement
+   enregistré, ou erreur réseau) — traité comme "rien en attente". */
+async function getStatutExportExcel() {
+  try {
+    const doc = await db.collection('config').doc('exportExcel').get();
+    return doc.exists ? doc.data() : null;
+  } catch(e) {
+    console.warn('Erreur lecture statut export Excel:', e);
+    return null;
+  }
+}
+
+/* Badge discret sur la page Rapports — affiché à chaque visite, sans
+   interrompre le travail en cours (contrairement à un rappel plein écran
+   après chaque sauvegarde individuelle, jugé trop intrusif). */
+async function rafraichirBadgeExportExcel() {
+  const badgeEl = document.getElementById('export-excel-badge');
+  const lastEl  = document.getElementById('export-excel-last');
+  if (!badgeEl) return;
+
+  const statut = await getStatutExportExcel();
+  const dChangement = statut?.dernierChangementDate ? new Date(statut.dernierChangementDate) : null;
+  const dExport      = statut?.dernierExportDate     ? new Date(statut.dernierExportDate)     : null;
+  const enAttente = dChangement && (!dExport || dChangement > dExport);
+
+  badgeEl.innerHTML = enAttente
+    ? '<span class="badge" style="background:var(--orange-clair);color:var(--orange);font-size:12px">'
+      + '🟠 Des modifications ont été faites depuis le dernier export</span>'
+    : '<span class="badge" style="background:var(--vert-clair);color:var(--vert);font-size:12px">'
+      + '✅ Export à jour</span>';
+
+  if (lastEl) {
+    lastEl.textContent = dExport
+      ? 'Dernier export : ' + dExport.toLocaleDateString('fr-BE', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })
+      : 'Aucun export effectué pour l\'instant.';
+  }
+}
+
+/* Rappel visible sur le tableau de bord si des changements restent non
+   exportés depuis 7 jours ou plus — volontairement moins fréquent qu'un
+   pop-up après chaque sauvegarde, pour ne pas devenir intrusif au point
+   d'être systématiquement ignoré. */
+async function verifierRappelExportExcel() {
+  if (!userIsAdmin()) return;
+  const cont = document.getElementById('export-excel-rappel');
+  if (!cont) return;
+
+  const statut = await getStatutExportExcel();
+  const dChangement = statut?.dernierChangementDate ? new Date(statut.dernierChangementDate) : null;
+  const dExport      = statut?.dernierExportDate     ? new Date(statut.dernierExportDate)     : null;
+  if (!dChangement) { cont.innerHTML = ''; return; }
+
+  const enAttente = !dExport || dChangement > dExport;
+  if (!enAttente) { cont.innerHTML = ''; return; }
+
+  // Référence : depuis quand ça traîne — le dernier export s'il existe,
+  // sinon le tout premier changement jamais enregistré.
+  const reference = dExport || dChangement;
+  const jours = Math.floor((new Date() - reference) / 86400000);
+  if (jours < 7) { cont.innerHTML = ''; return; }
+
+  cont.innerHTML = `<div class="form-card" style="border:2px solid var(--orange);background:#fef5e7;margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <b style="color:var(--orange)">📤 Export Excel en retard</b>
+        <div style="font-size:12px;color:var(--texte-sec);margin-top:2px">
+          Des données ont changé depuis ${jours} jours sans export — pensez à en générer un
+          (solution de secours en cas d'arrêt de l'app).
+        </div>
+      </div>
+      <button class="btn primary btn-sm" onclick="showPage('rapports', document.querySelector('.tab-btn[onclick*=\\'rapports\\']')); exporterExcel();"
+        style="background:var(--orange);border-color:var(--orange)">📤 Exporter maintenant</button>
+    </div>
+  </div>`;
+}
+
+/* Génère le classeur Excel de secours — 6 feuilles reprenant toutes les
+   données utiles de la flotte, à jour au moment de l'export. Certaines
+   collections (rôles, remplacements pneus, commentaires garage) ne sont
+   pas systématiquement chargées en mémoire selon les pages déjà visitées
+   cette session : récupérées fraîchement ici pour garantir un export
+   complet quel que soit le parcours de navigation avant le clic. */
+async function exporterExcel() {
+  if (!userIsAdmin()) return;
+  if (typeof XLSX === 'undefined') { toast('❌ Librairie Excel indisponible — vérifiez la connexion internet.'); return; }
+
+  toast('⏳ Génération du fichier Excel…');
+
+  try {
+    const wb = XLSX.utils.book_new();
+
+    // ── Feuille 1 : Véhicules ──
+    const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(v => v && !v.archive);
+    const wsVeh = XLSX.utils.aoa_to_sheet([
+      ['Immat','Marque','Type','Km actuel','Dernier entretien (date)','Dernier entretien (km)',
+       'Prochain entretien (km)','Intervalle (km)','CT valable jusqu\'au','Garage attitré',
+       'Pneus été (dim)','Pneus été (marque)','Pneus hiver (dim)','Pneus hiver (marque)',
+       'Dernière permut. H→É (date)','Dernière permut. H→É (km)','Dernière permut. É→H (date)','Dernière permut. É→H (km)',
+       'Statut','Motif indisponibilité','Durée estimée','Mise en circulation','Équipement'],
+      ...vehOrdre.map(v => [
+        v.immat, v.marque, v.type, v.km || '', v.dernier_entretien_date || '', v.dernier_entretien_km || '',
+        v.prochain_entretien_km || '', v.interval_entretien_km || '', v.ct_valid || '', v.garage || '',
+        v.dim_ete || '', v.pneus_ete || '', v.dim_hiver || '', v.pneus_hiver || '',
+        v.permut_hiver_ete_date || '', v.permut_hiver_ete_km || '', v.permut_ete_hiver_date || '', v.permut_ete_hiver_km || '',
+        v.indisponible ? 'Indisponible' : 'Disponible', v.motifIndisponible || '', v.dureeEstimeeIndisponible || '',
+        v.mise_circulation || '', v.equipement || '',
+      ]),
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsVeh, 'Véhicules');
+
+    // ── Feuille 2 : Historique maintenances ──
+    const wsMaint = XLSX.utils.aoa_to_sheet([
+      ['Date','Véhicule','Km','Lave-glace','Huile moteur','Huile frein','Refroidissement',
+       'Éclairage','Pneus','Extérieur','Mouches nettoyées','Moteur nettoyé','Remarques'],
+      ...[...maintenances].sort((a,b) => b.date.localeCompare(a.date)).map(m => {
+        const v = vehicules.find(x => x.id === m.vehId);
+        return [m.date || '', v ? v.immat : m.vehId, m.km || '', m.lg || '', m.hm || '', m.hf || '',
+          m.lr || '', m.ecl || '', m.pneus || '', m.ext || '', m.mouches ? 'Oui' : '', m.moteur ? 'Oui' : '', m.rem || ''];
+      }),
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsMaint, 'Historique maintenances');
+
+    // ── Feuille 3 : Signalements chauffeurs ──
+    const wsSignal = XLSX.utils.aoa_to_sheet([
+      ['Date','Véhicule','Chauffeur','Catégories','Urgence','Statut','Message','Réponse'],
+      ...[...messagesChauf].sort((a,b) => (b.date||'').localeCompare(a.date||'')).map(m => {
+        const v = vehicules.find(x => x.id === m.vehId);
+        const cats = Array.isArray(m.anomalies) ? m.anomalies.map(a => a.cat).join(', ') : (m.categorie || '');
+        return [m.date || '', v ? v.immat : (m.vehId || ''), m.chauffeurNom || m.nom || '', cats,
+          m.urgent ? 'Urgent' : 'Normal', m.lu ? 'Lu' : 'Non lu', m.msg || m.message || '', m.reponse || ''];
+      }),
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsSignal, 'Signalements chauffeurs');
+
+    // ── Feuille 4 : Rendez-vous ──
+    const wsRV = XLSX.utils.aoa_to_sheet([
+      ['Date','Véhicule','Type','Garage','Statut','Notes'],
+      ...[...rendezvous].sort((a,b) => (b.date||'').localeCompare(a.date||'')).map(r => {
+        const v = vehicules.find(x => x.id === r.vehId);
+        return [r.date || '', v ? v.immat : r.vehId, r.type || '', r.garage || '', r.statut || '', r.notes || r.rem || ''];
+      }),
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsRV, 'Rendez-vous');
+
+    // ── Feuille 5 : Chauffeurs actifs (récupérés fraîchement) ──
+    let rolesSnap = { docs: [] };
+    try { rolesSnap = await db.collection('roles').get(); } catch(e) { console.warn('Erreur lecture roles:', e); }
+    const wsChauf = XLSX.utils.aoa_to_sheet([
+      ['Nom','Email','Rôle','Statut'],
+      ...rolesSnap.docs.map(d => {
+        const r = d.data();
+        return [r.nom || '', r.email || '', r.role || '', r.statut || ''];
+      }).filter(row => row[2] === 'chauffeur'),
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsChauf, 'Chauffeurs actifs');
+
+    // ── Feuille 6 : Pneus & Garages (récupérés fraîchement si besoin) ──
+    let remplacementsSnap = { docs: [] }, commentairesSnap = { docs: [] };
+    try { remplacementsSnap = await db.collection('remplacementsPneu').get(); } catch(e) { console.warn(e); }
+    try { commentairesSnap  = await db.collection('commentairesGarage').get(); } catch(e) { console.warn(e); }
+
+    const wsPneusGarages = XLSX.utils.aoa_to_sheet([
+      ['— Remplacements ponctuels de pneus —'],
+      ['Date','Véhicule','Saison','Position','Marque','Dimensions','Motif','Km','Lieu'],
+      ...remplacementsSnap.docs.map(d => {
+        const r = d.data();
+        const v = vehicules.find(x => x.id === r.vehId);
+        return [r.date || '', v ? v.immat : r.vehId, r.saison || '', r.position || '',
+          r.marque || '', r.dimensions || '', MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif || '', r.km || '', r.lieu || ''];
+      }),
+      [],
+      ['— Commentaires garages (Curfoz / Bouillon / Opont) —'],
+      ['Date','Dépôt','Commentaire','Auteur'],
+      ...commentairesSnap.docs.map(d => {
+        const c = d.data();
+        return [c.date || '', c.garage || '', c.texte || '', c.auteur || ''];
+      }),
+    ]);
+    XLSX.utils.book_append_sheet(wb, wsPneusGarages, 'Pneus & Garages');
+
+    // ── Génération et téléchargement ──
+    const dateStr = toLocalYMD(new Date()).split('-').reverse().join('-');
+    XLSX.writeFile(wb, `MCR_Opont_Flotte_Export_${dateStr}.xlsx`);
+
+    // Marquer l'export comme fait — referme la boucle de détection
+    const nowIso = new Date().toISOString();
+    await db.collection('config').doc('exportExcel').set({ dernierExportDate: nowIso }, { merge: true });
+    logAction('export', 'exportExcel', 'Export Excel de secours généré');
+
+    rafraichirBadgeExportExcel();
+    document.getElementById('export-excel-rappel').innerHTML = '';
+    toast('✅ Export Excel généré');
+  } catch(e) {
+    console.error('Erreur export Excel:', e);
+    toast('❌ Erreur lors de l\'export : ' + e.message);
+  }
+}
 
 function exportBackupJSON() {
   const now     = new Date();
@@ -12575,6 +12816,7 @@ function ouvrirImpression(htmlContent) {
 function initRapports() {
   updateBackupInfo();
   updateStatutNotif();
+  rafraichirBadgeExportExcel();
 
   // Peupler le select des années (rapport annuel) une seule fois
   const selAnnee = document.getElementById('rapport-annuel-annee');
@@ -12797,7 +13039,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260903.0817';
+const APP_VERSION = '260903.0901';
 
 let _swRegistration = null;
 
