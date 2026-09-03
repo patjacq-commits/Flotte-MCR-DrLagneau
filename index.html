@@ -1408,7 +1408,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260831.2048</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260902.1801</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2182,6 +2182,70 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
   </div>
 
+  <!-- Remplacement ponctuel d'UN SEUL pneu — distinct d'une permutation
+       complète du train, ne touche à aucun compteur/rappel existant. -->
+  <div class="form-card">
+    <h3>🔧 Remplacement ponctuel d'un pneu</h3>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">
+      Un seul pneu remplacé (éventré, crevaison, accident) — pas le train complet.
+      N'affecte pas le suivi des permutations saisonnières ci-dessus.
+    </p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="rp-date" />
+      </div>
+      <div class="form-group">
+        <label>Véhicule</label>
+        <select id="rp-veh"></select>
+      </div>
+      <div class="form-group">
+        <label>Saison du pneu</label>
+        <select id="rp-saison">
+          <option value="ete">☀ Été</option>
+          <option value="hiver">❄ Hiver</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Position</label>
+        <select id="rp-position">
+          <option value="AVG">AVG — Avant gauche</option>
+          <option value="AVD">AVD — Avant droite</option>
+          <option value="ARG">ARG — Arrière gauche</option>
+          <option value="ARD">ARD — Arrière droite</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Motif</label>
+        <div style="display:flex;gap:6px">
+          <select id="rp-motif" style="flex:1" onchange="handleSelectOther(this,'rp-motif-custom')">
+            <option value="eventre">Pneu éventré</option>
+            <option value="crevaison">Crevaison</option>
+            <option value="accident">Accident</option>
+            <option value="__other__">Autre…</option>
+          </select>
+          <input type="text" id="rp-motif-custom" placeholder="préciser" style="display:none;flex:1" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Kilométrage</label>
+        <input type="number" id="rp-km" placeholder="km au compteur" />
+      </div>
+      <div class="form-group">
+        <label>Lieu</label>
+        <input type="text" id="rp-lieu" placeholder="ex: Culot pneus" value="Culot pneus" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Remarques</label>
+      <textarea id="rp-rem" placeholder="précisions éventuelles…" style="min-height:50px"></textarea>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px">
+      <button class="btn primary" onclick="saveRemplacementPneu()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearRemplacementPneuForm()">✕ Effacer</button>
+    </div>
+  </div>
+
   <!-- Tableau récapitulatif par véhicule -->
   <div class="form-card">
     <h3>État des pneus par véhicule</h3>
@@ -2220,6 +2284,22 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       <table>
         <thead><tr><th>Date</th><th>Véhicule</th><th>Type</th><th>Km</th><th>Lieu</th><th>Remarques</th><th>Action</th></tr></thead>
         <tbody id="pneu-hist-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Historique des remplacements ponctuels -->
+  <div class="form-card">
+    <h3>🔧 Historique des remplacements ponctuels</h3>
+    <div class="export-bar" style="margin-bottom:10px">
+      <select id="rp-filter-veh" onchange="renderRemplacementsPneu()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="">Tous les véhicules</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Saison</th><th>Position</th><th>Motif</th><th>Km</th><th>Lieu</th><th>Action</th></tr></thead>
+        <tbody id="rp-hist-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -2436,11 +2516,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260831.2048</strong><br>
+      Version actuelle de l'app : <strong>v260902.1801</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260831.2048 disponible)
+      📢 Notifier les utilisateurs (v260902.1801 disponible)
     </button>
   </div>
 
@@ -3816,8 +3896,31 @@ function initPneus() {
     });
   }
   document.getElementById('pneu-date').value = toLocalYMD(new Date());
+
+  // Remplacement ponctuel d'un pneu — mêmes véhicules éligibles
+  const selVehRp = document.getElementById('rp-veh');
+  if (selVehRp && selVehRp.options.length <= 0) {
+    selVehRp.innerHTML = vehiculesPneus.map(id => {
+      const v = vehicules.find(x => x.id === id);
+      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+    }).join('');
+  }
+  const selFiltRp = document.getElementById('rp-filter-veh');
+  if (selFiltRp && selFiltRp.options.length <= 1) {
+    vehiculesPneus.forEach(id => {
+      const v = vehicules.find(x => x.id === id);
+      if (!v) return;
+      const opt = document.createElement('option');
+      opt.value = v.id; opt.textContent = v.marque + ' — ' + v.immat;
+      selFiltRp.appendChild(opt);
+    });
+  }
+  const dateRp = document.getElementById('rp-date');
+  if (dateRp) dateRp.value = toLocalYMD(new Date());
+
   renderPneuRecap();
   renderPneuHistorique();
+  chargerRemplacementsPneu();
 }
 
 function savePermutation() {
@@ -3864,6 +3967,119 @@ function deletePermutation(id) {
   saveAll(); renderPneuRecap(); renderPneuHistorique(); toast('Supprimé');
 }
 
+// ── Remplacement ponctuel d'un seul pneu ────────────────────────
+// Collection Firestore séparée, chargée à la demande — ne touche jamais aux
+// champs de permutation (permut_hiver_ete_*/permut_ete_hiver_*) ni à la
+// collection "permutations", qui ne désignent que le changement complet du
+// train été/hiver.
+let _remplacementsPneu = [];
+
+const MOTIFS_REMPLACEMENT_PNEU = {
+  eventre: 'Pneu éventré', crevaison: 'Crevaison', accident: 'Accident',
+};
+
+async function chargerRemplacementsPneu() {
+  try {
+    const snap = await db.collection('remplacementsPneu').get();
+    _remplacementsPneu = snap.docs.map(d => d.data());
+  } catch(e) {
+    console.warn('Erreur chargement remplacementsPneu:', e);
+    _remplacementsPneu = [];
+  }
+  renderRemplacementsPneu();
+  renderPneuRecap(); // pour rafraîchir l'icône d'alerte une fois les données chargées
+}
+
+async function saveRemplacementPneu() {
+  if (!userIsAdmin()) return;
+  const date     = document.getElementById('rp-date')?.value;
+  const vehId    = document.getElementById('rp-veh')?.value;
+  const saison   = document.getElementById('rp-saison')?.value;
+  const position = document.getElementById('rp-position')?.value;
+  const motif    = getSelectVal('rp-motif', 'rp-motif-custom');
+  const km       = document.getElementById('rp-km')?.value;
+  const lieu     = document.getElementById('rp-lieu')?.value;
+  const rem      = document.getElementById('rp-rem')?.value;
+
+  if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
+  if (!motif) { toast('Veuillez préciser le motif.'); return; }
+
+  const rec = {
+    id: Date.now(), date, vehId, saison, position, motif,
+    km: km ? parseInt(km) : null, lieu, rem, auteur: currentUser?.nom || '',
+  };
+
+  try {
+    await db.collection('remplacementsPneu').doc(String(rec.id)).set(rec);
+    _remplacementsPneu.unshift(rec);
+    const v = vehicules.find(x => x.id === vehId);
+    logCreation('remplacementsPneu',
+      `Remplacement pneu ${position} (${saison}) : ${v ? v.immat : vehId} — ${MOTIFS_REMPLACEMENT_PNEU[motif] || motif} — ${formatDate(date)}`,
+      { vehId, date, saison, position, motif });
+    clearRemplacementPneuForm();
+    renderRemplacementsPneu();
+    renderPneuRecap();
+    toast('✅ Remplacement enregistré');
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+function clearRemplacementPneuForm() {
+  ['rp-km','rp-rem'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const dateEl = document.getElementById('rp-date'); if (dateEl) dateEl.value = toLocalYMD(new Date());
+  const lieuEl = document.getElementById('rp-lieu'); if (lieuEl) lieuEl.value = 'Culot pneus';
+  const motifCustom = document.getElementById('rp-motif-custom');
+  if (motifCustom) { motifCustom.value = ''; motifCustom.style.display = 'none'; }
+  const motifSel = document.getElementById('rp-motif'); if (motifSel) motifSel.value = 'eventre';
+}
+
+function renderRemplacementsPneu() {
+  const tbody = document.getElementById('rp-hist-tbody');
+  if (!tbody) return;
+  const filterVeh = document.getElementById('rp-filter-veh')?.value || '';
+  const rows = _remplacementsPneu
+    .filter(r => !filterVeh || r.vehId === filterVeh)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--texte-sec);padding:16px">Aucun remplacement ponctuel enregistré.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const v = vehicules.find(x => x.id === r.vehId);
+    const motifLabel = MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif;
+    const saisonLabel = r.saison === 'ete' ? '☀ Été' : '❄ Hiver';
+    const delBtn = userIsAdmin()
+      ? `<button class="btn btn-sm" style="color:var(--rouge)" onclick="deleteRemplacementPneu(${r.id})">🗑</button>` : '';
+    return `<tr>
+      <td>${formatDateCourt(r.date)}</td>
+      <td>${v ? v.marque + ' — ' + v.immat : r.vehId}</td>
+      <td>${saisonLabel}</td>
+      <td><b>${r.position}</b></td>
+      <td>${echapperHtml(motifLabel)}</td>
+      <td>${r.km ? r.km.toLocaleString('fr-BE') + ' km' : '—'}</td>
+      <td>${echapperHtml(r.lieu || '')}</td>
+      <td>${delBtn}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function deleteRemplacementPneu(id) {
+  if (!userIsAdmin()) return;
+  if (!confirm('Supprimer ce remplacement ?')) return;
+  try {
+    await db.collection('remplacementsPneu').doc(String(id)).delete();
+    _remplacementsPneu = _remplacementsPneu.filter(r => r.id !== id);
+    renderRemplacementsPneu();
+    renderPneuRecap();
+    toast('Supprimé');
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
 function renderPneuRecap() {
   const tbody = document.getElementById('pneu-recap-tbody');
   if (!tbody) return;
@@ -3877,8 +4093,22 @@ function renderPneuRecap() {
     const kmHE   = lastHE ? lastHE.km   : v.permut_hiver_ete_km;
     const dateEH = lastEH ? lastEH.date : v.permut_ete_hiver_date;
     const kmEH   = lastEH ? lastEH.km   : v.permut_ete_hiver_km;
+
+    // Icône discrète si un remplacement ponctuel récent (< 90 jours) existe
+    // pour ce véhicule — signale une asymétrie possible entre les 4 pneus,
+    // sans toucher aux colonnes de permutation ci-dessus.
+    const dernierRemplacement = _remplacementsPneu
+      .filter(r => r.vehId === id).sort((a,b) => b.date.localeCompare(a.date))[0];
+    let iconeRemplacement = '';
+    if (dernierRemplacement) {
+      const jours = Math.round((new Date() - new Date(dernierRemplacement.date)) / 86400000);
+      if (jours <= 90) {
+        iconeRemplacement = ` <span title="${dernierRemplacement.position} remplacé le ${formatDateCourt(dernierRemplacement.date)}" style="cursor:help">🔧</span>`;
+      }
+    }
+
     return `<tr>
-      <td style="font-weight:500">${v.marque}<br><span class="immat" style="font-size:10px">${v.immat}</span></td>
+      <td style="font-weight:500">${v.marque}${iconeRemplacement}<br><span class="immat" style="font-size:10px">${v.immat}</span></td>
       <td style="font-size:12px">${v.pneus_ete ? `<b>${v.dim_ete || ''}</b><br><span style="color:var(--texte-sec)">${v.pneus_ete}</span>` : '—'}</td>
       <td style="font-size:12px">${v.pneus_hiver ? `<b>${v.dim_hiver || ''}</b><br><span style="color:var(--texte-sec)">${v.pneus_hiver}</span>` : '—'}</td>
       <td style="font-size:12px">${formatDate(dateHE)}</td>
@@ -12460,7 +12690,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260831.2048';
+const APP_VERSION = '260902.1801';
 
 let _swRegistration = null;
 
