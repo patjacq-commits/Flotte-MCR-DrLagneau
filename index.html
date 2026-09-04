@@ -1417,7 +1417,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260904.1028</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260904.1946</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2536,11 +2536,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260904.1028</strong><br>
+      Version actuelle de l'app : <strong>v260904.1946</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260904.1028 disponible)
+      📢 Notifier les utilisateurs (v260904.1946 disponible)
     </button>
   </div>
 
@@ -11215,6 +11215,24 @@ function categorieTypeRV(type) {
   return { key:'autre', label:'\ud83d\udcdd Autre' };
 }
 
+/* Rythme kilométrique réel d'un véhicule (km/semaine), calculé entre le
+   premier et le dernier relevé de maintenance disponible. Renvoie null si
+   l'historique est insuffisant (véhicule neuf, ou moins d'une semaine entre
+   les deux relevés) — extrait de calculerSeuilRappelDynamique() pour être
+   réutilisé aussi par le tri chronologique des rappels (estimation d'une
+   date probable d'échéance quand seul le kilométrage est connu). */
+function getKmParSemaineVehicule(vehId) {
+  const hist = maintenances
+    .filter(m => m.vehId === vehId && m.km && m.date)
+    .sort((a,b) => a.date.localeCompare(b.date));
+  if (hist.length < 2) return null;
+  const premiere = hist[0], derniere = hist[hist.length - 1];
+  const joursDiff = Math.round((new Date(derniere.date) - new Date(premiere.date)) / 86400000);
+  const kmDiff = derniere.km - premiere.km;
+  if (joursDiff < 7 || kmDiff <= 0) return null;
+  return kmDiff / joursDiff * 7;
+}
+
 /* Calcule un seuil de rappel "prochain entretien" personnalisé par véhicule,
    basé sur son rythme kilométrique réel (moyenne entre le premier et le
    dernier relevé de maintenance disponible), avec une marge de sécurité
@@ -11226,22 +11244,9 @@ function categorieTypeRV(type) {
    pour le véhicule le plus sollicité (~1000 km/semaine en pointe). */
 const SEUIL_RAPPEL_PAR_DEFAUT = 5000;
 function calculerSeuilRappelDynamique(vehId) {
-  const hist = maintenances
-    .filter(m => m.vehId === vehId && m.km && m.date)
-    .sort((a,b) => a.date.localeCompare(b.date)); // ordre chronologique croissant
-
-  if (hist.length < 2) return SEUIL_RAPPEL_PAR_DEFAUT; // véhicule neuf : pas assez de données
-
-  const premiere  = hist[0];
-  const derniere  = hist[hist.length - 1];
-  const joursDiff = Math.round((new Date(derniere.date) - new Date(premiere.date)) / 86400000);
-  const kmDiff    = derniere.km - premiere.km;
-
-  if (joursDiff < 7 || kmDiff <= 0) return SEUIL_RAPPEL_PAR_DEFAUT; // historique trop court ou incohérent
-
-  const kmParSemaine = kmDiff / joursDiff * 7;
+  const kmParSemaine = getKmParSemaineVehicule(vehId);
+  if (kmParSemaine === null) return SEUIL_RAPPEL_PAR_DEFAUT;
   const seuil = Math.round(kmParSemaine * 3 * 1.3); // 3 semaines de délai RV + 30% de marge
-
   // Garde-fou : jamais sous 2000 km (éviter un seuil trop agressif pour un
   // véhicule très peu utilisé) ni au-dessus de 6000 km (le pire cas observé
   // sur la flotte réelle reste sous ce plafond).
@@ -11335,6 +11340,8 @@ function verifierEntretiensUrgents() {
     const v = vehicules.find(x => x.id === r.vehId);
     items.push({
       v, type: r.type, priorite: PRIORITE.retard,
+      _dateRef: new Date(r.date + 'T' + (r.heure || '00:00')),
+      _icone: r.type === 'ct' ? '\ud83c\udfe5' : '\ud83d\udccb',
       badge: 'En retard', badgeCouleur: 'var(--rouge)', badgeFond: 'var(--rouge-clair)',
       titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId),
       detail: formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : '') + (r.garage ? ' \u2014 ' + r.garage : ''),
@@ -11355,6 +11362,8 @@ function verifierEntretiensUrgents() {
     const heuresRestantes = Math.round((new Date(dateHeure).getTime() - now) / 3600000);
     items.push({
       v, type: r.type, priorite: PRIORITE.h48,
+      _dateRef: new Date(dateHeure),
+      _icone: r.type === 'ct' ? '\ud83c\udfe5' : '\ud83d\udccb',
       badge: '48h', badgeCouleur: 'var(--bleu)', badgeFond: 'var(--bleu-clair)',
       titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId),
       detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ~' + heuresRestantes + 'h'
@@ -11370,15 +11379,30 @@ function verifierEntretiensUrgents() {
     const kmDepasse  = reste !== null && reste < 0;
 
     const isCamion = v.type === 'Camionnette';
-    let jLimite = null, dateDepassee = false;
+    let jLimite = null, dateDepassee = false, limite = null;
     if (v.dernier_entretien_date) {
       const d = parseDate(v.dernier_entretien_date);
       if (d) {
-        const limite = new Date(d);
+        limite = new Date(d);
         limite.setFullYear(limite.getFullYear() + (isCamion ? 2 : 1));
         jLimite = Math.round((limite - new Date(today)) / 86400000);
         dateDepassee = jLimite < 0;
       }
+    }
+
+    // Date de référence pour le tri chronologique global des rappels :
+    // priorité à la vraie échéance calendaire (limite) si connue. À défaut
+    // (seul le kilométrage est renseigné), on estime une date probable à
+    // partir du rythme kilométrique réel du véhicule (déjà calculé pour le
+    // seuil de rappel dynamique) — plutôt que de laisser ces cas sans date
+    // du tout, ce qui les aurait exclus de tout tri chronologique cohérent
+    // avec les autres rappels (CT, RV) qui ont tous une vraie date.
+    let dateRefEntretien = limite;
+    if (!dateRefEntretien && reste !== null) {
+      const kmParSemaine = getKmParSemaineVehicule(v.id);
+      const semaines = kmParSemaine ? (reste / kmParSemaine) : (reste <= 0 ? 0 : 13); // ~90j si rythme inconnu
+      dateRefEntretien = new Date();
+      dateRefEntretien.setDate(dateRefEntretien.getDate() + Math.round(semaines * 7));
     }
 
     const dejaDepasse = kmDepasse || dateDepassee;
@@ -11408,6 +11432,8 @@ function verifierEntretiensUrgents() {
 
     items.push({
       v, type: 'garage', priorite: dejaDepasse ? PRIORITE.retard : PRIORITE.planifier,
+      _dateRef: dateRefEntretien,
+      _icone: '\ud83d\udd27',
       badge: dejaDepasse ? 'En retard' : '\u00c0 planifier',
       badgeCouleur: dejaDepasse ? 'var(--rouge)' : 'var(--orange)',
       badgeFond: dejaDepasse ? 'var(--rouge-clair)' : '#fef5e7',
@@ -11427,6 +11453,8 @@ function verifierEntretiensUrgents() {
       : 'Expire dans <span class="chiffre-urgent-clignote">' + j + ' jour' + (j > 1 ? 's' : '') + '</span>';
     items.push({
       v, type: 'ct', priorite: dejaDepasse ? PRIORITE.retard : PRIORITE.planifier,
+      _dateRef: new Date(v.ct_valid),
+      _icone: '\ud83c\udfe5',
       badge: dejaDepasse ? 'En retard' : '\u00c0 planifier',
       badgeCouleur: dejaDepasse ? 'var(--rouge)' : 'var(--orange)',
       badgeFond: dejaDepasse ? 'var(--rouge-clair)' : '#fef5e7',
@@ -11437,52 +11465,30 @@ function verifierEntretiensUrgents() {
     });
   });
 
-  // \u2500\u2500 Regrouper par cat\u00e9gorie de type \u2500\u2500
-  const groupes = {};
-  items.forEach(item => {
-    const cat = categorieTypeRV(item.type);
-    if (!groupes[cat.key]) groupes[cat.key] = { label: cat.label, items: [], prioriteMin: 99 };
-    groupes[cat.key].items.push(item);
-    groupes[cat.key].prioriteMin = Math.min(groupes[cat.key].prioriteMin, item.priorite);
-  });
-
-  // Trier les items de chaque groupe par urgence, puis les groupes par
-  // urgence min. À égalité de priorité (ex: deux groupes "à planifier"), le
-  // Contrôle Technique passe toujours en premier — un CT expiré est un
-  // problème légal et bloquant (le véhicule ne peut plus rouler), alors
-  // qu'un léger dépassement du seuil d'entretien garage reste sans risque
-  // immédiat. D'autant plus important que ces véhicules transportent des
-  // personnes vers des rendez-vous médicaux.
-  Object.values(groupes).forEach(g => g.items.sort((a,b) => a.priorite - b.priorite));
-  const ORDRE_TYPE_A_EGALITE = { ct: 0, garage: 1 };
-  const groupesOrdonnes = Object.values(groupes).sort((a,b) => {
-    if (a.prioriteMin !== b.prioriteMin) return a.prioriteMin - b.prioriteMin;
-    const typeA = a.items[0]?.type;
-    const typeB = b.items[0]?.type;
-    return (ORDRE_TYPE_A_EGALITE[typeA] ?? 2) - (ORDRE_TYPE_A_EGALITE[typeB] ?? 2);
-  });
+  // ── Tri chronologique global ──
+  // Tous les rappels (CT, entretien garage, RV) triés ensemble par leur
+  // vraie date d'échéance (_dateRef), du plus urgent/dépassé au plus
+  // lointain — plutôt qu'un regroupement par catégorie qui mélangeait
+  // l'ordre "type de rappel" et l'ordre "urgence réelle". Chaque ligne
+  // garde une icône indiquant son type, pour ne pas perdre ce repère.
+  items.sort((a, b) => (a._dateRef?.getTime() || 0) - (b._dateRef?.getTime() || 0));
 
   const existing = document.getElementById('modal-entretien-urgent');
   if (existing) existing.remove();
 
-  const corpsHtml = groupesOrdonnes.map(g => {
-    const lignesHtml = g.items.map(item =>
-      '<div style="padding:10px 16px;border-top:0.5px solid var(--gris-bord)">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
-      + '<div>'
-      + '<div style="font-size:13px;font-weight:700">' + item.titre + '</div>'
-      + '<div style="font-size:12px;color:var(--texte-sec)">' + item.detail + '</div>'
-      + '</div>'
-      + '<div style="font-size:11px;font-weight:700;color:' + item.badgeCouleur + ';background:' + item.badgeFond + ';'
-      + 'padding:2px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0">' + item.badge + '</div>'
-      + '</div>'
-      + item.actionsHtml
-      + '</div>'
-    ).join('');
-    return '<div style="padding:8px 16px;font-size:11px;font-weight:700;text-transform:uppercase;'
-      + 'letter-spacing:0.5px;color:var(--texte-sec);background:var(--gris-clair)">'
-      + g.label + ' (' + g.items.length + ')</div>' + lignesHtml;
-  }).join('');
+  const corpsHtml = items.map(item =>
+    '<div style="padding:10px 16px;border-top:0.5px solid var(--gris-bord)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+    + '<div>'
+    + '<div style="font-size:13px;font-weight:700">' + item._icone + ' ' + item.titre + '</div>'
+    + '<div style="font-size:12px;color:var(--texte-sec)">' + item.detail + '</div>'
+    + '</div>'
+    + '<div style="font-size:11px;font-weight:700;color:' + item.badgeCouleur + ';background:' + item.badgeFond + ';'
+    + 'padding:2px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0">' + item.badge + '</div>'
+    + '</div>'
+    + item.actionsHtml
+    + '</div>'
+  ).join('');
 
   const nbTotal = items.length;
   const div = document.createElement('div');
@@ -13048,7 +13054,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260904.1028';
+const APP_VERSION = '260904.1946';
 
 let _swRegistration = null;
 
