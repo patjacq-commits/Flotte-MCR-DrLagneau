@@ -903,6 +903,14 @@ td.ok { color: var(--vert); font-weight: 600; }
   50%      { box-shadow: 0 0 0 9px rgba(192,57,43,0); }
 }
 .indisponible-clignote { animation: pulse-indisponible 1.6s ease infinite; }
+
+/* Chiffres clés des rappels au démarrage (jours restants CT, km/jours
+   entretien) — rouge, gras, clignotant, pour qu'ils ressortent nettement
+   même quand plusieurs rappels s'affichent en même temps. Vitesse modérée
+   (1s) pour rester lisible sans être agressif. */
+@keyframes clignote-texte { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.chiffre-urgent-clignote { color: var(--rouge); font-weight: 800; animation: clignote-texte 1s ease-in-out infinite; }
+
 .summary-card { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
 .summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.14); }
 
@@ -1409,7 +1417,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260903.0901</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260904.1028</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2528,11 +2536,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260903.0901</strong><br>
+      Version actuelle de l'app : <strong>v260904.1028</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260903.0901 disponible)
+      📢 Notifier les utilisateurs (v260904.1028 disponible)
     </button>
   </div>
 
@@ -11389,13 +11397,13 @@ function verifierEntretiensUrgents() {
     const partiesDetail = [];
     if (reste !== null) {
       partiesDetail.push((kmDepasse
-        ? 'D\u00e9pass\u00e9 de ' + Math.abs(reste).toLocaleString('fr-BE') + ' km'
-        : reste.toLocaleString('fr-BE') + ' km restants') + seuilInfo);
+        ? 'D\u00e9pass\u00e9 de <span class="chiffre-urgent-clignote">' + Math.abs(reste).toLocaleString('fr-BE') + ' km</span>'
+        : '<span class="chiffre-urgent-clignote">' + reste.toLocaleString('fr-BE') + ' km</span> restants') + seuilInfo);
     }
     if (jLimite !== null) {
       partiesDetail.push(dateDepassee
-        ? '\u00e9ch\u00e9ance ' + dureeLabel + ' d\u00e9pass\u00e9e de ' + Math.abs(jLimite) + ' j'
-        : '\u00e9ch\u00e9ance dans ' + jLimite + ' j');
+        ? '\u00e9ch\u00e9ance ' + dureeLabel + ' d\u00e9pass\u00e9e de <span class="chiffre-urgent-clignote">' + Math.abs(jLimite) + ' j</span>'
+        : '\u00e9ch\u00e9ance dans <span class="chiffre-urgent-clignote">' + jLimite + ' j</span>');
     }
 
     items.push({
@@ -11413,9 +11421,10 @@ function verifierEntretiensUrgents() {
   cts.forEach(v => {
     const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
     const dejaDepasse = j < 0;
-    const jStr = j < 0 ? 'Expir\u00e9 depuis ' + Math.abs(j) + ' jours'
-      : j === 0 ? 'Expire aujourd\'hui'
-      : 'Expire dans ' + j + ' jour' + (j > 1 ? 's' : '');
+    const jStr = j < 0
+      ? 'Expir\u00e9 depuis <span class="chiffre-urgent-clignote">' + Math.abs(j) + ' jour' + (Math.abs(j) > 1 ? 's' : '') + '</span>'
+      : j === 0 ? '<span class="chiffre-urgent-clignote">Expire aujourd\'hui</span>'
+      : 'Expire dans <span class="chiffre-urgent-clignote">' + j + ' jour' + (j > 1 ? 's' : '') + '</span>';
     items.push({
       v, type: 'ct', priorite: dejaDepasse ? PRIORITE.retard : PRIORITE.planifier,
       badge: dejaDepasse ? 'En retard' : '\u00c0 planifier',
@@ -13039,7 +13048,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260903.0901';
+const APP_VERSION = '260904.1028';
 
 let _swRegistration = null;
 
