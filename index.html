@@ -911,6 +911,16 @@ td.ok { color: var(--vert); font-weight: 600; }
 @keyframes clignote-texte { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 .chiffre-urgent-clignote { color: var(--rouge); font-weight: 800; animation: clignote-texte 1s ease-in-out infinite; }
 
+/* Ligne entière d'un rappel RV imminent (<24h) — fond qui pulse doucement
+   en rouge, en plus du chiffre clignotant, pour que ce cas précis (le plus
+   urgent des rappels) ressorte immédiatement même au milieu d'une longue
+   liste de rappels. */
+@keyframes pulse-ligne-urgente {
+  0%, 100% { background: #fff; }
+  50%      { background: var(--rouge-clair); }
+}
+.ligne-rv-imminent { animation: pulse-ligne-urgente 1.4s ease infinite; }
+
 .summary-card { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
 .summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.14); }
 
@@ -1417,7 +1427,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260904.1946</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260907.1916</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2536,11 +2546,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260904.1946</strong><br>
+      Version actuelle de l'app : <strong>v260907.1916</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260904.1946 disponible)
+      📢 Notifier les utilisateurs (v260907.1916 disponible)
     </button>
   </div>
 
@@ -11360,13 +11370,27 @@ function verifierEntretiensUrgents() {
     const v = vehicules.find(x => x.id === r.vehId);
     const dateHeure = r.heure ? r.date + 'T' + r.heure : r.date + 'T00:00';
     const heuresRestantes = Math.round((new Date(dateHeure).getTime() - now) / 3600000);
+
+    // Sous-24h : traitement le plus visible (rouge, ligne entière qui
+    // pulse, chiffre clignotant) — le RV est imminent. Entre 24h et 48h :
+    // mise en évidence plus douce (orange, chiffre en gras coloré, sans
+    // clignotement) — suffisamment visible sans être aussi alarmant qu'un
+    // RV réellement sur le point d'arriver.
+    const sous24h = heuresRestantes <= 24;
+    const heureHtml = sous24h
+      ? '<span class="chiffre-urgent-clignote">~' + heuresRestantes + 'h</span>'
+      : '<span style="color:var(--orange);font-weight:800">~' + heuresRestantes + 'h</span>';
+
     items.push({
       v, type: r.type, priorite: PRIORITE.h48,
       _dateRef: new Date(dateHeure),
       _icone: r.type === 'ct' ? '\ud83c\udfe5' : '\ud83d\udccb',
-      badge: '48h', badgeCouleur: 'var(--bleu)', badgeFond: 'var(--bleu-clair)',
+      _ligneClignote: sous24h,
+      badge: sous24h ? '\ud83d\udd34 <24h' : '48h',
+      badgeCouleur: sous24h ? 'var(--rouge)' : 'var(--orange)',
+      badgeFond: sous24h ? 'var(--rouge-clair)' : '#fef5e7',
       titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId),
-      detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ~' + heuresRestantes + 'h'
+      detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ' + heureHtml
         + (r.garage ? ' \u2014 ' + r.garage : ''),
       actionsHtml: '',
     });
@@ -11477,7 +11501,7 @@ function verifierEntretiensUrgents() {
   if (existing) existing.remove();
 
   const corpsHtml = items.map(item =>
-    '<div style="padding:10px 16px;border-top:0.5px solid var(--gris-bord)">'
+    '<div class="' + (item._ligneClignote ? 'ligne-rv-imminent' : '') + '" style="padding:10px 16px;border-top:0.5px solid var(--gris-bord)">'
     + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
     + '<div>'
     + '<div style="font-size:13px;font-weight:700">' + item._icone + ' ' + item.titre + '</div>'
@@ -13054,7 +13078,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260904.1946';
+const APP_VERSION = '260907.1916';
 
 let _swRegistration = null;
 
