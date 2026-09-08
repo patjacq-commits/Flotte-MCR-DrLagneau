@@ -1427,7 +1427,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260907.1916</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260908.1633</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2546,11 +2546,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260907.1916</strong><br>
+      Version actuelle de l'app : <strong>v260908.1633</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260907.1916 disponible)
+      📢 Notifier les utilisateurs (v260908.1633 disponible)
     </button>
   </div>
 
@@ -8791,30 +8791,22 @@ function renderVehicules() {
     const isCamion = v.type === 'Camionnette';
 
     // ── Kilométrage VÉHICULE (relevé courant) — affiché sur la carte.
-    // Basé UNIQUEMENT sur de vrais relevés terrain : historique du
-    // formulaire Maintenance complet, un entretien garage marqué "effectué",
-    // ou un plein AdBlue avec kilométrage renseigné par le chauffeur.
-    // Le champ rapide "Dernier entretien à (km)" du popup "✏️ Modifier"
-    // N'INTERVIENT PAS ici — il sert uniquement d'entrée pour calculer le
-    // seuil "Prochain entretien" (voir plus bas), pas à mettre à jour ce
-    // relevé courant. Sans cette distinction, taper une date/km dans ce
-    // champ rapide écrasait à tort l'affichage du dernier relevé réel.
+    // Basé UNIQUEMENT sur de vrais relevés de maintenance — jamais sur un
+    // plein AdBlue. Un plein AdBlue avait été ajouté comme source
+    // alternative si plus récent qu'une maintenance, mais ça créait une
+    // incohérence avec la parenthèse "Prochain entretien" juste en dessous
+    // (qui, elle, s'est toujours basée strictement sur la maintenance) :
+    // ajouter un plein AdBlue faisait "disparaître" le vrai relevé de
+    // maintenance de cette ligne, remplacé par la date/km du plein — source
+    // de confusion, corrigé ici pour rester cohérent avec le reste de la
+    // fiche. Le plein AdBlue reste bien sûr visible, mais uniquement dans
+    // son propre encadré "💧 AdBlue" plus bas, pas ici.
     const lastMHist = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
 
-    const dernierAdBlue = adblues
-      .filter(a => a.vehId === v.id && a.km && a.date)
-      .sort((a,b) => b.date.localeCompare(a.date))[0] || null;
-
-    let dernierReleve = lastMHist;
-    let sourceReleve  = 'maint';
-    if (dernierAdBlue && (!dernierReleve || dernierAdBlue.date > dernierReleve.date)) {
-      dernierReleve = dernierAdBlue;
-      sourceReleve  = 'adblue';
-    }
-
+    const dernierReleve = lastMHist;
     const kmAffiche = (dernierReleve && dernierReleve.km) ? dernierReleve.km : v.km;
     const lastMStr  = dernierReleve
-      ? ` <span style="color:var(--texte-sec);font-size:11px;font-weight:400">— ${sourceReleve === 'adblue' ? '💧 AdBlue' : 'maint.'} ${formatDate(dernierReleve.date)}</span>`
+      ? ` <span style="color:var(--texte-sec);font-size:11px;font-weight:400">— maint. ${formatDate(dernierReleve.date)}</span>`
       : '';
 
     // Date limite entretien — reste basée strictement sur le dernier
@@ -13078,7 +13070,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260907.1916';
+const APP_VERSION = '260908.1633';
 
 let _swRegistration = null;
 
