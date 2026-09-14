@@ -1437,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1136</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1212</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2565,11 +2565,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.1136</strong><br>
+      Version actuelle de l'app : <strong>v260914.1212</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.1136 disponible)
+      📢 Notifier les utilisateurs (v260914.1212 disponible)
     </button>
   </div>
 
@@ -2901,7 +2901,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-sm" data-cat="" onclick="changerFiltreRecapVeh('')">Tout</button>
           <button class="btn btn-sm" data-cat="rv" onclick="changerFiltreRecapVeh('rv')">RV</button>
-          <button class="btn btn-sm" data-cat="maintenance" onclick="changerFiltreRecapVeh('maintenance')">Maintenance</button>
           <button class="btn btn-sm" data-cat="pneus" onclick="changerFiltreRecapVeh('pneus')">Pneus</button>
           <button class="btn btn-sm" data-cat="adblue" onclick="changerFiltreRecapVeh('adblue')">AdBlue</button>
           <button class="btn btn-sm" data-cat="carwash" onclick="changerFiltreRecapVeh('carwash')">Car Wash</button>
@@ -8250,29 +8249,11 @@ function collecterEvenementsVehicule(vehId) {
     });
   });
 
-  // Maintenances (relevés complets / checklist)
-  maintenances.filter(m => m.vehId === vehId).forEach(m => {
-    const items = [];
-    if (m.lg)  items.push('Lave-glace : ' + m.lg);
-    if (m.hm)  items.push('Huile moteur : ' + m.hm);
-    if (m.hf)  items.push('Huile frein : ' + m.hf);
-    if (m.lr)  items.push('Refroidissement : ' + m.lr);
-    if (m.ecl) items.push('\u00c9clairage : ' + m.ecl);
-    if (m.pneus) items.push('Pneus : ' + m.pneus);
-    if (m.ext) items.push('Ext\u00e9rieur : ' + m.ext);
-    if (m.mouches) items.push('Mouches nettoy\u00e9es');
-    if (m.moteur)  items.push('Moteur nettoy\u00e9');
-    evenements.push({
-      date: m.date, categorie: 'maintenance', icone: '\ud83d\udd29',
-      titre: 'Relev\u00e9 de maintenance',
-      detail: [
-        'Date : ' + formatDateCourt(m.date),
-        'Km : ' + (m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '\u2014'),
-        items.length ? items.join(', ') : '',
-        m.rem ? 'Remarques : ' + m.rem : '',
-      ].filter(Boolean).join(' \u2014 '),
-    });
-  });
+  // Les relevés de maintenance (checklist mensuelle) sont volontairement
+  // exclus de ce récapitulatif : trop fréquents (chaque mois), ils
+  // alourdissaient inutilement le document — déjà imprimables séparément
+  // depuis l'onglet "🔧 Maintenance" (bouton "🖨 Imprimer" de la fiche
+  // "Maintenances enregistrées").
 
   // Permutations saisonnières de pneus
   permutations.filter(p => p.vehId === vehId).forEach(p => {
@@ -13448,7 +13429,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.1136';
+const APP_VERSION = '260914.1212';
 
 let _swRegistration = null;
 
