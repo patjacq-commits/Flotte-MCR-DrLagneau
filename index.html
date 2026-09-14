@@ -1437,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.2002</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.2014</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1471,7 +1471,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button class="tab-btn admin-only" onclick="showPage('kilometrage',this)" style="display:none">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Signaler un problème</button>
-  <button class="tab-btn" onclick="showPage('accident',this)">📚 Infos à découvrir</button>
+  <button class="tab-btn" onclick="showPage('accident',this)">💡 Bon à savoir…</button>
   <button class="tab-btn chauf-only" onclick="showPage('histmaint',this)" style="display:none">📋 Historique maintenances</button>
   <button class="tab-btn" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 Prendre RV</button>
@@ -1742,7 +1742,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 
 <!-- PAGE EN CAS D'ACCIDENT (tous utilisateurs) -->
 <div id="page-accident" class="page">
-  <h2 style="margin-bottom:4px">📚 Infos à découvrir</h2>
+  <h2 style="margin-bottom:4px">💡 Bon à savoir…</h2>
   <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
     Cliquez sur un thème pour le déplier.
   </p>
@@ -2780,11 +2780,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.2002</strong><br>
+      Version actuelle de l'app : <strong>v260914.2014</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.2002 disponible)
+      📢 Notifier les utilisateurs (v260914.2014 disponible)
     </button>
   </div>
 
@@ -5965,7 +5965,7 @@ function entretienDateAlert(veh) {
 // ============================================================
 // NAVIGATION
 // ============================================================
-/* Déplie/replie une section accordéon de la page "Infos à découvrir" */
+/* Déplie/replie une section accordéon de la page "Bon à savoir…" */
 function toggleInfoSection(bodyId, chevronId) {
   const body = document.getElementById(bodyId);
   const chevron = document.getElementById(chevronId);
@@ -13654,7 +13654,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.2002';
+const APP_VERSION = '260914.2014';
 
 let _swRegistration = null;
 
