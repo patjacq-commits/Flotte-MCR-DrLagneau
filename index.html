@@ -1099,6 +1099,11 @@ td.ok { color: var(--vert); font-weight: 600; }
 }
 .navbar-maint-urgent { animation:flash-maint 1.4s ease infinite; }
 
+/* Badge export Excel de la barre de navigation — pulsation légère adaptée
+   à un fond plein (contrairement à flash-maint, pensée pour un fond
+   translucide comme navbar-maint). */
+@keyframes pulse-navbar-export { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
 /* ===== RECHERCHE GLOBALE ===== */
 .search-modal-overlay {
   display:none; position:fixed; inset:0; z-index:300;
@@ -1427,7 +1432,17 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1027</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1047</div>
+
+  <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
+       changements restent non exportés depuis 7 jours (voir
+       verifierRappelExportExcel). Dans la barre de navigation plutôt que
+       seulement sur le tableau de bord : visible sur toutes les pages, pas
+       seulement en arrivant sur l'accueil. -->
+  <button id="navbar-export-excel" title="Export Excel en retard — cliquer pour exporter"
+    onclick="showPage('rapports',document.querySelector('.tab-btn[onclick*=rapports]'));exporterExcel();"
+    style="display:none;background:var(--orange);border:none;color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0;animation:pulse-navbar-export 1.6s ease infinite">📤</button>
+
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2545,11 +2560,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.1027</strong><br>
+      Version actuelle de l'app : <strong>v260914.1047</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.1027 disponible)
+      📢 Notifier les utilisateurs (v260914.1047 disponible)
     </button>
   </div>
 
@@ -12473,11 +12488,11 @@ async function rafraichirBadgeExportExcel() {
    indisponibles). */
 async function verifierRappelExportExcel() {
   if (!userIsAdmin()) return;
+  const navbarBadge = document.getElementById('navbar-export-excel');
   const carte = document.getElementById('priorites-jour-card');
   const cont  = document.getElementById('export-excel-inline');
-  if (!carte || !cont) return;
 
-  const autresPrioritesPresentes = carte.dataset.total && parseInt(carte.dataset.total, 10) > 0;
+  const autresPrioritesPresentes = carte?.dataset.total && parseInt(carte.dataset.total, 10) > 0;
 
   const statut = await getStatutExportExcel();
   const dChangement = statut?.dernierChangementDate ? new Date(statut.dernierChangementDate) : null;
@@ -12493,6 +12508,23 @@ async function verifierRappelExportExcel() {
       enAttenteDepuis7j = jours >= 7;
     }
   }
+
+  // Badge de la barre de navigation \u2014 visible sur TOUTES les pages, pas
+  // seulement en arrivant sur le tableau de bord. Élément HTML statique
+  // toujours présent, donc géré indépendamment de la bannière ci-dessous
+  // (qui, elle, n'existe qu'une fois renderAccueil() ex\u00e9cut\u00e9 au moins
+  // une fois).
+  if (navbarBadge) {
+    navbarBadge.style.display = enAttenteDepuis7j ? '' : 'none';
+    navbarBadge.title = enAttenteDepuis7j
+      ? 'Export Excel en retard (' + jours + ' j) \u2014 cliquer pour exporter'
+      : 'Export Excel en retard \u2014 cliquer pour exporter';
+  }
+
+  // Banni\u00e8re du tableau de bord (\u00e9ventuellement absente si renderAccueil()
+  // n'a pas encore tourn\u00e9 cette session \u2014 le badge navbar ci-dessus
+  // fonctionne d\u00e9j\u00e0 dans ce cas, donc rien de perdu).
+  if (!carte || !cont) return;
 
   if (!enAttenteDepuis7j) {
     cont.innerHTML = '';
@@ -13147,7 +13179,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.1027';
+const APP_VERSION = '260914.1047';
 
 let _swRegistration = null;
 
