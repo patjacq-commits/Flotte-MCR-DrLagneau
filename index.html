@@ -1437,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1212</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1842</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1471,6 +1471,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button class="tab-btn admin-only" onclick="showPage('kilometrage',this)" style="display:none">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Signaler un problème</button>
+  <button class="tab-btn" onclick="showPage('accident',this)">🚑 En cas d'accident</button>
   <button class="tab-btn chauf-only" onclick="showPage('histmaint',this)" style="display:none">📋 Historique maintenances</button>
   <button class="tab-btn" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 Prendre RV</button>
@@ -1736,6 +1737,143 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
     </div>
     <div id="chauf-msg-list" class="msg-list"></div>
+  </div>
+</div>
+
+<!-- PAGE EN CAS D'ACCIDENT (tous utilisateurs) -->
+<div id="page-accident" class="page">
+  <h2 style="margin-bottom:4px">🚑 En cas d'accident</h2>
+  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
+    Que faire sur place, puis comment déclarer le sinistre — dans l'ordre.
+  </p>
+
+  <!-- Bloc contact toujours visible en premier - l'info la plus urgente -->
+  <div class="form-card" style="background:var(--rouge-clair);border:2px solid var(--rouge);margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div>
+        <b style="color:var(--rouge-fonce);font-size:15px">🆘 Ethias Assistance</b>
+        <div style="font-size:13px;color:var(--texte);margin-top:2px">Dépannage & assistance véhicule</div>
+      </div>
+      <a href="tel:0422030040" style="font-size:20px;font-weight:800;color:var(--rouge-fonce);text-decoration:none">
+        04/220.30.40
+      </a>
+    </div>
+    <div style="font-size:12px;color:var(--texte-sec);margin-top:6px">N° contrat : 45411399</div>
+  </div>
+
+  <!-- Section 1 : sur les lieux -->
+  <div class="form-card" style="margin-bottom:14px">
+    <h3 style="margin-bottom:10px">📍 Sur les lieux de l'accident</h3>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>1. Sécurisez les lieux</b><br>
+      Véhicule en sécurité sur le bas-côté de la route. Mettez votre gilet fluorescent et placez le triangle de signalisation.</p>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>2. Des blessés ? Formez le 112</b></p>
+
+    <p style="font-size:14px;margin-bottom:6px"><b>3. Quand appeler la police (112) ?</b></p>
+    <ul style="font-size:14px;margin:0 0 10px 20px;padding:0">
+      <li>Il y a des blessés</li>
+      <li>Une discussion s'engage concernant les circonstances de l'accident</li>
+      <li>L'autre partie est ivre</li>
+      <li>L'autre partie commet un délit de fuite</li>
+    </ul>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>4. Remplissez le constat d'accident sur place</b><br>
+      Complétez le recto du constat avec l'autre partie. Même en cas de délit de fuite ou s'il n'y a pas
+      d'autre partie (si vous avez heurté un poteau par exemple). Demandez le numéro du procès-verbal
+      d'audition du policier. Intégralement, lisiblement, avec précision et exactitude.<br>
+      Ne le signez que si vous êtes totalement d'accord avec les données qui y figurent. Sinon, ne le
+      signez pas et remplissez votre propre constat. Vous n'êtes pas obligé(e) de signer un constat
+      d'accident, même s'il a été rempli par un agent de police.</p>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>5. Prenez les coordonnées des témoins</b></p>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>6. Prenez des photos</b><br>
+      Mauvaise visibilité, travaux routiers, une signalisation temporaire ou des panneaux provisoires ?
+      Montrez l'emplacement (nom de rue visible, numéro de maison). Photographiez les véhicules concernés
+      avec les panneaux de signalisation et les marquages au sol.</p>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>7. Prévenez le responsable de votre MCR</b></p>
+
+    <p style="font-size:14px;margin-bottom:0"><b>8. Le véhicule est immobilisé ?</b><br>
+      Contactez Ethias Dépannage au 04/220.30.40.</p>
+  </div>
+
+  <!-- Section 2 : déclaration de sinistre -->
+  <div class="form-card" style="margin-bottom:14px">
+    <h3 style="margin-bottom:10px">📝 Déclaration de sinistre auto (véhicule Croix-Rouge)</h3>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>1. Sur place</b><br>
+      Remplissez le constat d'accident automobile <b>recto</b> et faites-le signer par l'autre partie et
+      les témoins éventuels. <b>Écriture lisible et en majuscules.</b></p>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>2. Chez vous, au calme</b><br>
+      Complétez le <b>verso</b> et le document « Complément à joindre à la déclaration d'accident »,
+      ainsi que le formulaire accompagnant le constat d'accident :</p>
+    <ul style="font-size:14px;margin:0 0 10px 20px;padding:0">
+      <li>Les circonstances détaillées du sinistre et une estimation de votre degré de responsabilité</li>
+      <li>Les coordonnées du garage où seront réalisées les réparations (veillez à ce qu'il soit agréé Ethias)</li>
+      <li>Votre numéro de compte pour un éventuel remboursement Ethias</li>
+      <li>Copie ou numéro du PV de police, le cas échéant</li>
+    </ul>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>3. Envoyez le constat</b><br>
+      Un scan ou une photo <b>lisible</b> du constat, à :
+      <a href="mailto:fleet@croix-rouge.be">fleet@croix-rouge.be</a>
+      (copie : <a href="mailto:vsl.cplux@croix-rouge.be">vsl.cplux@croix-rouge.be</a>)</p>
+
+    <div style="background:#fef5e7;border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <p style="font-size:13px;margin:0"><b>Faut-il introduire une déclaration de sinistre chez Ethias ?</b><br>
+        Si seul(e) en cause et si le véhicule est toujours sous Full Omnium, évaluez si la réparation est
+        inférieure ou supérieure à la franchise de <b>1.500,00 €</b>. Quelle que soit la valeur des
+        réparations, remplissez le constat d'accident et prévenez le Fleet.</p>
+    </div>
+
+    <p style="font-size:14px;margin-bottom:6px"><b>4. Ouverture d'un dossier Sinistre</b><br>
+      Chez Ethias, par le Fleet — un numéro de dossier est attribué.</p>
+    <ul style="font-size:14px;margin:0 0 10px 20px;padding:0">
+      <li>4.1 Désignation d'un bureau d'expertise par Ethias</li>
+      <li>4.2 La MCR contacte le bureau d'expertise désigné pour expertiser le véhicule</li>
+      <li>4.3 Fleet ou Assurance transmet les infos demandées (facture véhicule…)</li>
+      <li>4.4 L'expert rend son avis</li>
+    </ul>
+    <p style="font-size:13px;color:var(--texte-sec);font-style:italic;margin-bottom:10px">— ou —</p>
+
+    <p style="font-size:14px;margin-bottom:10px"><b>5. Prenez RDV pour la réparation</b><br>
+      Dans le garage agréé Ethias communiqué lors de la déclaration de sinistre.
+      Veillez à ce que tous les documents de bord soient dans le véhicule.</p>
+
+    <p style="font-size:14px;margin-bottom:0"><b>6. Clôture du dossier</b><br>
+      Ethias transmet, à la fin du sinistre, un courrier reprenant les débours et confirmant le
+      classement du dossier. Le Service Assurances suit l'évolution du dossier auprès d'Ethias et
+      tient la MCR informée à chaque étape.</p>
+  </div>
+
+  <!-- FAQ -->
+  <div class="form-card">
+    <h3 style="margin-bottom:10px">❓ Questions fréquentes</h3>
+
+    <p style="font-size:14px;margin-bottom:4px"><b>Où trouver la liste des garages agréés Ethias ?</b></p>
+    <p style="font-size:14px;margin-bottom:10px">
+      <a href="https://www.ethias.be/reparateurs" target="_blank" rel="noopener">www.ethias.be/reparateurs</a></p>
+
+    <p style="font-size:14px;margin-bottom:4px"><b>Quelles références la MCR communique-t-elle au garage pour le RDV ?</b></p>
+    <p style="font-size:14px;margin-bottom:10px">Le numéro de plaque et la référence du sinistre.</p>
+
+    <p style="font-size:14px;margin-bottom:4px"><b>Quid de la facturation en cas de couverture Omnium ?</b></p>
+    <p style="font-size:14px;margin-bottom:10px">
+      Une fois les réparations effectuées, si Omnium, Ethias se charge de régler les frais, avec déduction
+      de la franchise qui est réclamée par le garage à la MCR.</p>
+
+    <p style="font-size:14px;margin-bottom:4px"><b>Et si le véhicule n'est plus assuré Full Omnium ?</b></p>
+    <p style="font-size:14px;margin-bottom:10px">
+      Les frais sont à payer par la MCR directement, ou par facture à la Croix-Rouge, imputée ensuite à la
+      MCR par la comptabilité.</p>
+
+    <p style="font-size:14px;margin-bottom:4px"><b>Vous roulez avec votre véhicule privé dans le cadre d'une mission CRB ?</b></p>
+    <p style="font-size:14px;margin-bottom:0">
+      Cette procédure ne s'applique pas. Complétez la déclaration de sinistre Omnium Mission et envoyez le
+      constat d'accident à votre propre assureur si des personnes transportées sont blessées.</p>
   </div>
 </div>
 
@@ -2565,11 +2703,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.1212</strong><br>
+      Version actuelle de l'app : <strong>v260914.1842</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.1212 disponible)
+      📢 Notifier les utilisateurs (v260914.1842 disponible)
     </button>
   </div>
 
@@ -13429,7 +13567,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.1212';
+const APP_VERSION = '260914.1842';
 
 let _swRegistration = null;
 
