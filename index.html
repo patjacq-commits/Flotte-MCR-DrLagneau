@@ -1427,7 +1427,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.0943</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1005</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -1470,7 +1470,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-accueil" class="page active">
   <div class="summary-grid" id="summary-grid"></div>
   <div id="alertes-dashboard"></div>
-  <div id="export-excel-rappel"></div>
   <div id="rv-dashboard-panel" style="display:none;margin-top:14px"></div>
 </div>
 
@@ -2546,11 +2545,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.0943</strong><br>
+      Version actuelle de l'app : <strong>v260914.1005</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.0943 disponible)
+      📢 Notifier les utilisateurs (v260914.1005 disponible)
     </button>
   </div>
 
@@ -7419,7 +7418,7 @@ function renderAccueil() {
 
     const total = nbSignalements + nbRVUrgents + nbIndisponibles;
 
-    if (total > 0) {
+    {
       // Puces compactes en ligne (au lieu de grandes tuiles) — icône + nombre
       // + libellé court, tout tient sur une seule ligne de hauteur réduite.
       const puce = (nb, icone, label, page) => nb > 0
@@ -7466,10 +7465,16 @@ function renderAccueil() {
       // Pulsation continue et discrète du liseré (réutilise l'animation déjà
       // définie pour les cartes véhicules indisponibles) — garde ce cadre
       // visible en permanence sans avoir besoin d'être grand.
-      prioritesHtml = `<div class="form-card indisponible-clignote" style="border:2px solid var(--rouge);
-        margin-bottom:16px;padding:10px 14px">
+      //
+      // La bannière est toujours générée (même sans priorité du jour), mais
+      // cachée par défaut si total=0 — sert de cible stable pour le rappel
+      // Export Excel (voir verifierRappelExportExcel), injecté dedans plutôt
+      // que dans son propre encart séparé en bas de page, où il passait
+      // inaperçu.
+      prioritesHtml = `<div id="priorites-jour-card" data-total="${total}" class="form-card indisponible-clignote" style="border:2px solid var(--rouge);
+        margin-bottom:16px;padding:10px 14px;${total > 0 ? '' : 'display:none'}">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
-          <span style="color:var(--rouge);font-weight:700;font-size:13px">🎯 Priorités du jour (${total})</span>
+          <span id="priorites-jour-titre" style="color:var(--rouge);font-weight:700;font-size:13px">🎯 Priorit\u00e9s du jour${total > 0 ? ' (' + total + ')' : ''}</span>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${puce(nbSignalements, '💬', 'signalement' + (nbSignalements>1?'s':''), 'chauf')}
@@ -7477,6 +7482,7 @@ function renderAccueil() {
           ${puceIndispo}
         </div>
         ${detailIndispo}
+        <div id="export-excel-inline"></div>
       </div>`;
     }
   }
@@ -8689,8 +8695,14 @@ function renderAlerte(a) {
     </div>`;
   }
 
-  // Alerte normale
-  const btnRV = (isAdmin && a.vehId)
+  // Alerte normale — le bouton "Prendre RV" n'a de sens que pour les
+  // alertes réellement liées à un rendez-vous (CT ou entretien garage,
+  // typeRV renseigné) — pas pour un extincteur manquant, des pneus à
+  // commander, une assurance ou une carte total expirée, qui n'ont rien à
+  // voir avec un RV et n'affichaient ce bouton que par erreur (il se basait
+  // à tort sur la simple présence d'un véhicule, vehId, plutôt que sur le
+  // type réel de l'alerte).
+  const btnRV = (isAdmin && (a.typeRV === 'ct' || a.typeRV === 'garage'))
     ? `<button class="alerte-rv-btn" onclick="allerAuxRV()">📋 Prendre RV</button>`
     : '';
   const pulseClass = a.ctAPrendre ? 'alerte-ct-pulse' : a.level;
@@ -12407,38 +12419,63 @@ async function rafraichirBadgeExportExcel() {
    exportés depuis 7 jours ou plus — volontairement moins fréquent qu'un
    pop-up après chaque sauvegarde, pour ne pas devenir intrusif au point
    d'être systématiquement ignoré. */
+/* Rappel visible sur le tableau de bord si des changements restent non
+   exportés depuis 7 jours ou plus — volontairement moins fréquent qu'un
+   pop-up après chaque sauvegarde, pour ne pas devenir intrusif au point
+   d'être systématiquement ignoré.
+   Injecté DANS la bannière rouge "🎯 Priorités du jour" (pas dans son
+   propre encart séparé en bas de page, où il passait facilement inaperçu,
+   surtout tout en bas d'une page qui peut être longue). Cette bannière
+   existe toujours en DOM (même masquée si aucune autre priorité), ce qui
+   permet de la faire réapparaître ici même quand elle ne l'aurait pas été
+   pour les autres raisons habituelles (signalements, RV urgents, véhicules
+   indisponibles). */
 async function verifierRappelExportExcel() {
   if (!userIsAdmin()) return;
-  const cont = document.getElementById('export-excel-rappel');
-  if (!cont) return;
+  const carte = document.getElementById('priorites-jour-card');
+  const cont  = document.getElementById('export-excel-inline');
+  if (!carte || !cont) return;
+
+  const autresPrioritesPresentes = carte.dataset.total && parseInt(carte.dataset.total, 10) > 0;
 
   const statut = await getStatutExportExcel();
   const dChangement = statut?.dernierChangementDate ? new Date(statut.dernierChangementDate) : null;
   const dExport      = statut?.dernierExportDate     ? new Date(statut.dernierExportDate)     : null;
-  if (!dChangement) { cont.innerHTML = ''; return; }
 
-  const enAttente = !dExport || dChangement > dExport;
-  if (!enAttente) { cont.innerHTML = ''; return; }
+  let enAttenteDepuis7j = false;
+  let jours = 0;
+  if (dChangement) {
+    const enAttente = !dExport || dChangement > dExport;
+    if (enAttente) {
+      const reference = dExport || dChangement;
+      jours = Math.floor((new Date() - reference) / 86400000);
+      enAttenteDepuis7j = jours >= 7;
+    }
+  }
 
-  // Référence : depuis quand ça traîne — le dernier export s'il existe,
-  // sinon le tout premier changement jamais enregistré.
-  const reference = dExport || dChangement;
-  const jours = Math.floor((new Date() - reference) / 86400000);
-  if (jours < 7) { cont.innerHTML = ''; return; }
+  if (!enAttenteDepuis7j) {
+    cont.innerHTML = '';
+    // Si aucune autre priorité ne justifie d'afficher la bannière, la
+    // recacher — sinon la laisser telle quelle (elle l'était déjà).
+    if (!autresPrioritesPresentes) carte.style.display = 'none';
+    return;
+  }
 
-  cont.innerHTML = `<div class="form-card" style="border:2px solid var(--orange);background:#fef5e7;margin-top:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-      <div>
-        <b style="color:var(--orange)">📤 Export Excel en retard</b>
-        <div style="font-size:12px;color:var(--texte-sec);margin-top:2px">
-          Des données ont changé depuis ${jours} jours sans export — pensez à en générer un
-          (solution de secours en cas d'arrêt de l'app).
-        </div>
+  cont.innerHTML = `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--gris-bord);
+      display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <b style="color:var(--orange)">📤 Export Excel en retard</b>
+      <div style="font-size:12px;color:var(--texte-sec);margin-top:2px">
+        Des données ont chang\u00e9 depuis ${jours} jours sans export \u2014 pensez \u00e0 en g\u00e9n\u00e9rer un
+        (solution de secours en cas d'arr\u00eat de l'app).
       </div>
-      <button class="btn primary btn-sm" onclick="showPage('rapports', document.querySelector('.tab-btn[onclick*=\\'rapports\\']')); exporterExcel();"
-        style="background:var(--orange);border-color:var(--orange)">📤 Exporter maintenant</button>
     </div>
+    <button class="btn primary btn-sm" onclick="showPage('rapports', document.querySelector('.tab-btn[onclick*=\\'rapports\\']')); exporterExcel();"
+      style="background:var(--orange);border-color:var(--orange)">\ud83d\udce4 Exporter maintenant</button>
   </div>`;
+
+  // Rendre la bannière visible même si aucune autre priorité ne l'exigeait.
+  carte.style.display = '';
 }
 
 /* Génère le classeur Excel de secours — 6 feuilles reprenant toutes les
@@ -12555,7 +12592,7 @@ async function exporterExcel() {
     logAction('export', 'exportExcel', 'Export Excel de secours généré');
 
     rafraichirBadgeExportExcel();
-    document.getElementById('export-excel-rappel').innerHTML = '';
+    verifierRappelExportExcel();
     toast('✅ Export Excel généré');
   } catch(e) {
     console.error('Erreur export Excel:', e);
@@ -13069,7 +13106,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.0943';
+const APP_VERSION = '260914.1005';
 
 let _swRegistration = null;
 
