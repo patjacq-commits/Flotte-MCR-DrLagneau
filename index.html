@@ -511,9 +511,11 @@
 
   body * { visibility: hidden; }
   #km-print-zone, #km-print-zone *,
-  #apercu-km-print-zone, #apercu-km-print-zone * { visibility: visible; }
-  #km-print-zone, #apercu-km-print-zone { position: absolute; left: 0; top: 0; width: 100%; }
-  #modal-apercu-km, #modal-apercu-km .modal {
+  #apercu-km-print-zone, #apercu-km-print-zone *,
+  #recap-veh-print-zone, #recap-veh-print-zone * { visibility: visible; }
+  #km-print-zone, #apercu-km-print-zone, #recap-veh-print-zone { position: absolute; left: 0; top: 0; width: 100%; }
+  #modal-apercu-km, #modal-apercu-km .modal,
+  #modal-recap-veh, #modal-recap-veh .modal {
     position: static !important; overflow: visible !important;
     max-height: none !important; height: auto !important; padding: 0 !important;
   }
@@ -523,19 +525,22 @@
   /* Mise en page compacte — pense à tenir l'ensemble (km entre
      maintenances + graphique + tableau) sur une seule page, même quand le
      nombre de colonnes mensuelles augmente au fil de l'année. */
-  #km-print-zone, #apercu-km-print-zone { font-size: 10px; }
-  #km-print-zone .form-card, #apercu-km-print-zone .form-card {
+  #km-print-zone, #apercu-km-print-zone, #recap-veh-print-zone { font-size: 10px; }
+  #km-print-zone .form-card, #apercu-km-print-zone .form-card, #recap-veh-print-zone .form-card {
     padding: 6px 8px !important; margin-bottom: 6px !important;
     box-shadow: none !important; border: 1px solid #ddd;
   }
-  #km-print-zone h2, #apercu-km-print-zone h2 { font-size: 15px; margin-bottom: 2px; }
-  #km-print-zone h3, #apercu-km-print-zone h3,
-  #km-print-zone h4, #apercu-km-print-zone h4 { font-size: 11px; margin-bottom: 4px; }
-  #km-print-zone table, #apercu-km-print-zone table { font-size: 9px; }
+  #km-print-zone h2, #apercu-km-print-zone h2, #recap-veh-print-zone h2 { font-size: 15px; margin-bottom: 2px; }
+  #km-print-zone h3, #apercu-km-print-zone h3, #recap-veh-print-zone h3,
+  #km-print-zone h4, #apercu-km-print-zone h4, #recap-veh-print-zone h4 { font-size: 11px; margin-bottom: 4px; }
+  #km-print-zone table, #apercu-km-print-zone table, #recap-veh-print-zone table { font-size: 9px; }
   #km-print-zone th, #km-print-zone td,
-  #apercu-km-print-zone th, #apercu-km-print-zone td { padding: 2px 5px !important; }
-  #km-print-zone .table-wrap, #apercu-km-print-zone .table-wrap { overflow: visible !important; }
-  #km-print-zone table, #apercu-km-print-zone table { min-width: 0 !important; width: 100% !important; }
+  #apercu-km-print-zone th, #apercu-km-print-zone td,
+  #recap-veh-print-zone th, #recap-veh-print-zone td { padding: 2px 5px !important; }
+  #km-print-zone .table-wrap, #apercu-km-print-zone .table-wrap, #recap-veh-print-zone .table-wrap { overflow: visible !important; }
+  #km-print-zone table, #apercu-km-print-zone table, #recap-veh-print-zone table { min-width: 0 !important; width: 100% !important; }
+  /* Éviter qu'une entrée de l'historique soit coupée entre deux pages */
+  #recap-veh-print-zone .recap-item { page-break-inside: avoid; }
 
   /* Le graphique SVG doit tenir dans la largeur disponible, quelle que soit
      sa largeur calculée à l'écran (qui peut dépasser une page, avec défilement
@@ -1432,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1047</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1136</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2560,11 +2565,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.1047</strong><br>
+      Version actuelle de l'app : <strong>v260914.1136</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.1047 disponible)
+      📢 Notifier les utilisateurs (v260914.1136 disponible)
     </button>
   </div>
 
@@ -2880,6 +2885,39 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
 
       <div id="apercu-km-contenu"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RÉCAPITULATIF VÉHICULE (plein écran) -->
+<div class="modal-overlay" id="modal-recap-veh" style="z-index:1000">
+  <div class="modal" style="max-width:100%;width:100%;height:100%;max-height:100%;
+    border-radius:0;overflow-y:auto;padding:20px">
+    <button class="modal-close no-print" onclick="closeModal('modal-recap-veh')">✕</button>
+
+    <div id="recap-veh-print-zone">
+      <div class="no-print" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <h2 id="recap-veh-titre" style="margin:0">🗂 Récapitulatif</h2>
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" data-cat="" onclick="changerFiltreRecapVeh('')">Tout</button>
+          <button class="btn btn-sm" data-cat="rv" onclick="changerFiltreRecapVeh('rv')">RV</button>
+          <button class="btn btn-sm" data-cat="maintenance" onclick="changerFiltreRecapVeh('maintenance')">Maintenance</button>
+          <button class="btn btn-sm" data-cat="pneus" onclick="changerFiltreRecapVeh('pneus')">Pneus</button>
+          <button class="btn btn-sm" data-cat="adblue" onclick="changerFiltreRecapVeh('adblue')">AdBlue</button>
+          <button class="btn btn-sm" data-cat="carwash" onclick="changerFiltreRecapVeh('carwash')">Car Wash</button>
+          <button class="btn btn-sm" data-cat="signalement" onclick="changerFiltreRecapVeh('signalement')">Signalements</button>
+          <button class="btn btn-sm" data-cat="indispo" onclick="changerFiltreRecapVeh('indispo')">Indisponibilités</button>
+          <button class="btn primary btn-sm" onclick="imprimerRecapVehicule()">🖨 Imprimer</button>
+        </div>
+      </div>
+
+      <!-- En-tête visible uniquement à l'impression -->
+      <div id="recap-veh-print-header" class="print-only" style="display:none">
+        <h2 id="recap-veh-print-titre" style="margin-bottom:2px"></h2>
+        <p id="recap-veh-print-soustitre" style="font-size:13px;color:#555;margin-bottom:16px"></p>
+      </div>
+
+      <div id="recap-veh-contenu"></div>
     </div>
   </div>
 </div>
@@ -8183,6 +8221,236 @@ function imprimerApercuKmComplet() {
 }
 
 // ============================================================
+// RÉCAPITULATIF VÉHICULE — historique complet, toutes sources
+// ============================================================
+
+const RECAP_STATUTS_RV = { planifie: 'Planifi\u00e9', effectue: 'Effectu\u00e9', annule: 'Annul\u00e9' };
+
+/* Rassemble tous les événements connus pour un véhicule, toutes sources
+   confondues, sous un format commun {date, categorie, icone, titre, detail}.
+   Conçue pour être étendue facilement : ajouter une future source de
+   données se résume à ajouter un nouveau bloc suivant le même schéma,
+   sans toucher au reste (tri, filtrage, rendu, impression restent
+   inchangés). */
+function collecterEvenementsVehicule(vehId) {
+  const evenements = [];
+  const v = vehicules.find(x => x.id === vehId);
+
+  // Rendez-vous (CT et garage), tous statuts
+  rendezvous.filter(r => r.vehId === vehId).forEach(r => {
+    evenements.push({
+      date: r.date, categorie: 'rv', icone: r.type === 'ct' ? '\ud83c\udfe5' : '\ud83d\udd27',
+      titre: (r.type === 'ct' ? 'RV Contr\u00f4le Technique' : 'RV Entretien garage')
+        + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
+      detail: [
+        'Date : ' + formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : ''),
+        r.garage ? 'Garage : ' + r.garage : '',
+        r.notes ? 'Notes : ' + r.notes : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  // Maintenances (relevés complets / checklist)
+  maintenances.filter(m => m.vehId === vehId).forEach(m => {
+    const items = [];
+    if (m.lg)  items.push('Lave-glace : ' + m.lg);
+    if (m.hm)  items.push('Huile moteur : ' + m.hm);
+    if (m.hf)  items.push('Huile frein : ' + m.hf);
+    if (m.lr)  items.push('Refroidissement : ' + m.lr);
+    if (m.ecl) items.push('\u00c9clairage : ' + m.ecl);
+    if (m.pneus) items.push('Pneus : ' + m.pneus);
+    if (m.ext) items.push('Ext\u00e9rieur : ' + m.ext);
+    if (m.mouches) items.push('Mouches nettoy\u00e9es');
+    if (m.moteur)  items.push('Moteur nettoy\u00e9');
+    evenements.push({
+      date: m.date, categorie: 'maintenance', icone: '\ud83d\udd29',
+      titre: 'Relev\u00e9 de maintenance',
+      detail: [
+        'Date : ' + formatDateCourt(m.date),
+        'Km : ' + (m.km ? parseInt(m.km).toLocaleString('fr-BE') + ' km' : '\u2014'),
+        items.length ? items.join(', ') : '',
+        m.rem ? 'Remarques : ' + m.rem : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  // Permutations saisonnières de pneus
+  permutations.filter(p => p.vehId === vehId).forEach(p => {
+    evenements.push({
+      date: p.date, categorie: 'pneus', icone: '\ud83d\udee1',
+      titre: 'Permutation pneus (' + (p.type === 'hiver-ete' ? 'Hiver \u2192 \u00c9t\u00e9' : '\u00c9t\u00e9 \u2192 Hiver') + ')',
+      detail: [
+        'Date : ' + formatDateCourt(p.date),
+        p.km ? 'Km : ' + parseInt(p.km).toLocaleString('fr-BE') + ' km' : '',
+        p.lieu ? 'Lieu : ' + p.lieu : '',
+        p.rem ? p.rem : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  // Remplacements ponctuels de pneus (chargés fraîchement à l'ouverture,
+  // voir ouvrirRecapVehicule — cette collection n'est pas systématiquement
+  // en mémoire selon les pages déjà visitées cette session)
+  (window._remplacementsPneuRecap || _remplacementsPneu || []).filter(r => r.vehId === vehId).forEach(r => {
+    evenements.push({
+      date: r.date, categorie: 'pneus', icone: '\ud83d\udd27',
+      titre: 'Remplacement pneu ' + r.position + ' (' + (r.saison === 'ete' ? '\u00c9t\u00e9' : 'Hiver') + ')',
+      detail: [
+        'Date : ' + formatDateCourt(r.date),
+        r.km ? 'Km : ' + parseInt(r.km).toLocaleString('fr-BE') + ' km' : '',
+        r.marque ? 'Marque : ' + r.marque : '',
+        r.dimensions ? 'Dim. : ' + r.dimensions : '',
+        'Motif : ' + (MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif),
+        r.lieu ? 'Lieu : ' + r.lieu : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  // Pleins AdBlue
+  adblues.filter(a => a.vehId === vehId).forEach(a => {
+    evenements.push({
+      date: a.date, categorie: 'adblue', icone: '\ud83d\udca7',
+      titre: 'Plein AdBlue',
+      detail: [
+        'Date : ' + formatDateCourt(a.date),
+        a.litre ? a.litre.toFixed(2) + ' L' : '',
+        a.km ? 'Km : ' + parseInt(a.km).toLocaleString('fr-BE') + ' km' : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  // Car Wash
+  carwashes.filter(c => c.vehId === vehId).forEach(c => {
+    evenements.push({
+      date: c.date, categorie: 'carwash', icone: '\ud83d\udea1',
+      titre: 'Car Wash',
+      detail: [
+        'Date : ' + formatDateCourt(c.date),
+        c.lieu ? 'Lieu : ' + c.lieu : '',
+        c.montant ? Number(c.montant).toFixed(2) + ' \u20ac' : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  // Signalements chauffeur (anomalies remontées pour ce véhicule)
+  messagesChauf.filter(m => m.vehId === vehId).forEach(m => {
+    const dateSeule = (m.date || '').slice(0, 10);
+    const cats = Array.isArray(m.anomalies) && m.anomalies.length
+      ? m.anomalies.map(a => a.cat).join(', ')
+      : (m.categorie || '');
+    const derniereReponse = m.reponses?.length ? m.reponses[m.reponses.length - 1] : null;
+    evenements.push({
+      date: dateSeule, categorie: 'signalement', icone: '\ud83d\udcac',
+      titre: 'Signalement' + (m.priorite === 'urgent' ? ' (Urgent)' : '') + ' \u2014 ' + (m.auteur || ''),
+      detail: [
+        'Date : ' + formatDateCourt(dateSeule),
+        cats ? 'Cat\u00e9gorie(s) : ' + cats : '',
+        m.msg ? 'Message : ' + m.msg : '',
+        derniereReponse ? 'R\u00e9ponse (' + derniereReponse.auteur + ') : ' + derniereReponse.texte : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  // Périodes d'indisponibilité passées
+  (v?.historiqueIndisponibilites || []).forEach(h => {
+    evenements.push({
+      date: h.jusqua || h.depuis, categorie: 'indispo', icone: '\ud83d\udd34',
+      titre: 'P\u00e9riode d\'indisponibilit\u00e9',
+      detail: [
+        'Du ' + formatDateCourt(h.depuis) + ' au ' + formatDateCourt(h.jusqua) + (h.dureeJours ? ' (' + h.dureeJours + ' j)' : ''),
+        h.motif ? 'Motif : ' + h.motif : '',
+        h.dureeEstimee ? 'Dur\u00e9e estim\u00e9e annonc\u00e9e : ' + h.dureeEstimee : '',
+      ].filter(Boolean).join(' \u2014 '),
+    });
+  });
+
+  return evenements.filter(e => e.date).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+}
+
+let _recapVehId = null;
+let _recapVehFiltre = '';
+
+async function ouvrirRecapVehicule(vehId) {
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  _recapVehId = vehId;
+  _recapVehFiltre = '';
+
+  document.getElementById('recap-veh-titre').textContent = '\ud83d\uddc2 R\u00e9capitulatif \u2014 ' + v.marque + ' \u2014 ' + v.immat;
+  document.getElementById('modal-recap-veh').classList.add('open');
+
+  // S'assurer que remplacementsPneu est disponible même si l'onglet Pneus
+  // n'a jamais été visité cette session — sans ça, l'historique serait
+  // incomplet pour un véhicule ayant eu un remplacement ponctuel.
+  try {
+    const snap = await db.collection('remplacementsPneu').get();
+    window._remplacementsPneuRecap = snap.docs.map(d => d.data());
+  } catch(e) {
+    console.warn('Erreur chargement remplacementsPneu pour le récapitulatif:', e);
+    window._remplacementsPneuRecap = window._remplacementsPneuRecap || [];
+  }
+
+  renderRecapVehicule();
+}
+
+function changerFiltreRecapVeh(cat) {
+  _recapVehFiltre = cat;
+  renderRecapVehicule();
+}
+
+function renderRecapVehicule() {
+  if (!_recapVehId) return;
+  const v = vehicules.find(x => x.id === _recapVehId);
+  if (!v) return;
+
+  document.querySelectorAll('#modal-recap-veh [data-cat]').forEach(b => {
+    b.classList.toggle('primary', b.dataset.cat === _recapVehFiltre);
+  });
+
+  const tousEvenements = collecterEvenementsVehicule(_recapVehId);
+  const evenements = _recapVehFiltre
+    ? tousEvenements.filter(e => e.categorie === _recapVehFiltre)
+    : tousEvenements;
+
+  const cont = document.getElementById('recap-veh-contenu');
+
+  if (!evenements.length) {
+    cont.innerHTML = '<p style="color:var(--texte-sec);text-align:center;padding:40px">'
+      + 'Aucun événement enregistré' + (_recapVehFiltre ? ' pour cette catégorie' : '') + '.</p>';
+    window._dernierRecapVehContexte = { v, nbTotal: 0, nbAffiches: 0 };
+    return;
+  }
+
+  cont.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">'
+    + evenements.map(e =>
+      '<div class="recap-item form-card" style="padding:8px 12px">'
+      + '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+      + '<span style="font-size:15px">' + e.icone + '</span>'
+      + '<b style="font-size:13px">' + e.titre + '</b>'
+      + '<span style="font-size:11px;color:var(--texte-sec);margin-left:auto">' + formatDateCourt(e.date) + '</span>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--texte-sec);margin-top:2px">' + e.detail + '</div>'
+      + '</div>'
+    ).join('')
+    + '</div>';
+
+  window._dernierRecapVehContexte = { v, nbTotal: tousEvenements.length, nbAffiches: evenements.length, filtre: _recapVehFiltre };
+}
+
+function imprimerRecapVehicule() {
+  const ctx = window._dernierRecapVehContexte;
+  const titre = document.getElementById('recap-veh-print-titre');
+  const sousTitre = document.getElementById('recap-veh-print-soustitre');
+  if (titre && ctx) titre.textContent = '\ud83d\uddc2 R\u00e9capitulatif \u2014 ' + ctx.v.marque + ' \u2014 ' + ctx.v.immat;
+  if (sousTitre && ctx) {
+    const dateImpression = new Date().toLocaleDateString('fr-BE', { day:'2-digit', month:'long', year:'numeric' });
+    sousTitre.textContent = ctx.nbAffiches + ' \u00e9v\u00e9nement' + (ctx.nbAffiches > 1 ? 's' : '')
+      + (ctx.filtre ? ' (filtr\u00e9)' : ' (tous types confondus)') + ' \u2014 Imprim\u00e9 le ' + dateImpression;
+  }
+  window.print();
+}
+
+// ============================================================
 // RECHERCHE GLOBALE INTELLIGENTE
 // ============================================================
 
@@ -8986,6 +9254,7 @@ function renderVehicules() {
       </div>
       <div class="veh-actions">
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
+        <button class="btn btn-sm" onclick="ouvrirRecapVehicule('${v.id}')">🗂 Récapitulatif</button>
         ${isAdmin ? `<button class="btn btn-sm primary" onclick="openVehEdit('${v.id}')">✏️ Modifier</button>` : ''}
         ${isAdmin ? (v.indisponible
           ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="marquerVehiculeDisponible('${v.id}')">🟢 Marquer disponible</button>`
@@ -13179,7 +13448,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.1047';
+const APP_VERSION = '260914.1136';
 
 let _swRegistration = null;
 
