@@ -1427,7 +1427,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1005</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.1027</div>
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
     style="font-size:13px;flex-shrink:0;cursor:default;transition:opacity 0.3s">🟢</div>
@@ -2545,11 +2545,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.1005</strong><br>
+      Version actuelle de l'app : <strong>v260914.1027</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.1005 disponible)
+      📢 Notifier les utilisateurs (v260914.1027 disponible)
     </button>
   </div>
 
@@ -3811,7 +3811,7 @@ function renderCommandesPneus() {
       + (c.jantes ? ' — <b>sur jantes</b>' : '')
       + ' — ' + dim + '</div>'
       + '<div style="font-size:12px;color:' + couleur + ';font-weight:600">📅 ' + c.periode
-      + (c.commande ? ' — ✅ Commandé' : '') + '</div>'
+      + (c.commande ? ' — ✅ Command\u00e9' + (c.dateCommande ? ' le ' + formatDateCourt(c.dateCommande) : '') : '') + '</div>'
       + (c.notes ? '<div style="font-size:11px;color:var(--texte-sec)">' + c.notes + '</div>' : '')
       + '</div>'
       + '<div style="display:flex;gap:6px;flex-shrink:0">'
@@ -3919,6 +3919,7 @@ function marquerCommandePneu(id) {
   const c = commandesPneus.find(x => String(x.id) === String(id));
   if (!c) return;
   c.commande = true;
+  c.dateCommande = toLocalYMD(new Date());
   sauvegarderCommandesPneus();
   renderCommandesPneus();
   toast('✅ Pneus commandés');
@@ -11492,6 +11493,46 @@ function verifierEntretiensUrgents() {
     });
   });
 
+  // ── Pneus à commander (même fenêtre de déclenchement que le tableau de
+  //    bord : dès septembre pour une échéance octobre, mars-mai pour une
+  //    échéance avril) — lié à la rubrique "Commandes pneus à prévoir" de
+  //    l'onglet Pneus, pas une liste séparée : même donnée, juste signalée
+  //    aussi ici au démarrage, sur le même principe que CT/entretien.
+  if (typeof commandesPneus !== 'undefined') {
+    const moisActuel  = new Date().getMonth() + 1; // 1-12
+    const anneeActuelle = new Date().getFullYear();
+    const alerterOct = moisActuel >= 9;               // à partir de septembre
+    const alerterAvr = moisActuel >= 3 && moisActuel <= 5; // mars-mai
+
+    commandesPneus.filter(c => !c.commande).forEach(c => {
+      const [mNom, y] = c.periode.split(' ');
+      const mNum = mNom === 'octobre' ? 10 : 4;
+      const yNum = parseInt(y);
+      const aAlerter = (mNum === 10 && alerterOct && yNum === anneeActuelle)
+                     || (mNum === 4  && alerterAvr && yNum === anneeActuelle + 1);
+      if (!aAlerter) return;
+
+      const v    = vehicules.find(x => x.id === c.vehId);
+      const vNom = v ? v.marque + ' \u2014 ' + v.immat : c.vehId;
+      const dim  = c.dim || (c.type === 'hiver' ? v?.dim_hiver : v?.dim_ete) || '\u2014';
+      const saisonLabel = mNum === 10 ? 'neige/hiver' : '\u00e9t\u00e9';
+
+      items.push({
+        v, type: 'pneus', priorite: PRIORITE.planifier,
+        _dateRef: new Date(yNum, mNum - 1, 1), // 1er du mois cible, pour le tri chronologique
+        _icone: '\ud83d\udee1',
+        badge: '\u00c0 planifier', badgeCouleur: 'var(--orange)', badgeFond: '#fef5e7',
+        titre: 'Pneus ' + saisonLabel + ' \u00e0 commander \u2014 ' + vNom,
+        detail: c.qte + ' \u00d7 pneu' + (c.qte > 1 ? 's' : '') + (c.position ? ' ' + c.position : '')
+          + ' \u2014 ' + dim + ' \u2014 pr\u00e9vu ' + c.periode,
+        actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
+          + ' onclick="document.getElementById(\'modal-entretien-urgent\').remove();'
+          + 'showPage(\'pneus\',document.querySelector(\'.tab-btn[onclick*=\\\'pneus\\\']\'))">'
+          + '\ud83d\udee1 Voir dans Commandes pneus</button>',
+      });
+    });
+  }
+
   // ── Tri chronologique global ──
   // Tous les rappels (CT, entretien garage, RV) triés ensemble par leur
   // vraie date d'échéance (_dateRef), du plus urgent/dépassé au plus
@@ -13106,7 +13147,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.1005';
+const APP_VERSION = '260914.1027';
 
 let _swRegistration = null;
 
