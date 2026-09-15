@@ -1437,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1000</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1011</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1956,6 +1956,35 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
           <a href="mailto:fleet@croix-rouge.be">fleet@croix-rouge.be</a></p>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Section accordéon : Codes cartes Total -->
+  <div class="form-card" style="margin-bottom:14px;padding:0;overflow:hidden">
+    <div onclick="toggleInfoSection('info-total-body','chevron-total')"
+         style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer">
+      <h3 style="margin:0">🔑 Codes cartes Total</h3>
+      <span id="chevron-total" style="font-size:14px;color:var(--texte-sec)">▼</span>
+    </div>
+    <div id="info-total-body" style="display:none;padding:0 16px 16px">
+      <div class="form-card">
+        <div class="table-wrap">
+          <table style="width:100%">
+            <thead><tr><th>Véhicule</th><th>Code</th></tr></thead>
+            <tbody>
+              <tr><td>TLAM294</td><td><b>3113</b></td></tr>
+              <tr><td>TLAN633</td><td><b>0633</b></td></tr>
+              <tr><td>TLAJ108</td><td><b>7912</b></td></tr>
+              <tr><td>TLAJ109</td><td><b>0109</b></td></tr>
+              <tr><td>TLAM789</td><td><b>6004</b></td></tr>
+              <tr><td>TLAM941</td><td><b>0895</b></td></tr>
+              <tr><td>TLAN527</td><td><b>0527</b></td></tr>
+              <tr><td>TLAN910</td><td><b>0910</b></td></tr>
+              <tr><td>1RER037</td><td><b>3302</b></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2791,11 +2820,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260915.1000</strong><br>
+      Version actuelle de l'app : <strong>v260915.1011</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260915.1000 disponible)
+      📢 Notifier les utilisateurs (v260915.1011 disponible)
     </button>
   </div>
 
@@ -13937,7 +13966,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260915.1000';
+const APP_VERSION = '260915.1011';
 
 let _swRegistration = null;
 
