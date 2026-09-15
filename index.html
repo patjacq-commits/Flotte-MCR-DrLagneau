@@ -1437,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.0924</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.0941</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2785,11 +2785,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260915.0924</strong><br>
+      Version actuelle de l'app : <strong>v260915.0941</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260915.0924 disponible)
+      📢 Notifier les utilisateurs (v260915.0941 disponible)
     </button>
   </div>
 
@@ -9185,7 +9185,8 @@ function buildAlertes() {
     const now   = new Date();
     const mois  = now.getMonth() + 1; // 1-12
     const annee = now.getFullYear();
-    // Alerter en septembre pour octobre, en mars pour avril
+    // Alerter en septembre pour octobre, en mars pour avril — même année
+    // cible dans les deux cas (symétrique), pas un an à l'avance pour avril.
     const alerterOct = mois >= 9;  // à partir de septembre
     const alerterAvr = mois >= 3 && mois <= 5; // mars-mai pour avril
     commandesPneus.filter(c => !c.commande).forEach(c => {
@@ -9193,7 +9194,7 @@ function buildAlertes() {
       const mNum  = mNom === 'octobre' ? 10 : 4;
       const yNum  = parseInt(y);
       const aAlerter = (mNum === 10 && alerterOct && yNum === annee)
-                    || (mNum === 4  && alerterAvr && yNum === annee + 1);
+                    || (mNum === 4  && alerterAvr && yNum === annee);
       if (!aAlerter) return;
       const v    = vehicules.find(x => x.id === c.vehId);
       const vNom = v ? v.marque + ' ' + v.immat : c.vehId;
@@ -11889,8 +11890,6 @@ function verifierEntretiensUrgents() {
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'ct' && r.statut === 'planifie');
   });
 
-  if (!rv48.length && !rvDepasses.length && !entretiens.length && !cts.length) return;
-
   // \u2500\u2500 Construire une liste plate d'items avec urgence \u2500\u2500
   const PRIORITE = { retard: 0, h48: 1, planifier: 2 };
   const items = [];
@@ -12046,6 +12045,8 @@ function verifierEntretiensUrgents() {
   if (typeof commandesPneus !== 'undefined') {
     const moisActuel  = new Date().getMonth() + 1; // 1-12
     const anneeActuelle = new Date().getFullYear();
+    // Alerter en septembre pour octobre, en mars pour avril — même année
+    // cible dans les deux cas (symétrique), pas un an à l'avance pour avril.
     const alerterOct = moisActuel >= 9;               // à partir de septembre
     const alerterAvr = moisActuel >= 3 && moisActuel <= 5; // mars-mai
 
@@ -12054,7 +12055,7 @@ function verifierEntretiensUrgents() {
       const mNum = mNom === 'octobre' ? 10 : 4;
       const yNum = parseInt(y);
       const aAlerter = (mNum === 10 && alerterOct && yNum === anneeActuelle)
-                     || (mNum === 4  && alerterAvr && yNum === anneeActuelle + 1);
+                     || (mNum === 4  && alerterAvr && yNum === anneeActuelle);
       if (!aAlerter) return;
 
       const v    = vehicules.find(x => x.id === c.vehId);
@@ -12077,6 +12078,13 @@ function verifierEntretiensUrgents() {
       });
     });
   }
+
+  // Sortie si vraiment aucun item, toutes cat\u00e9gories confondues (y compris
+  // les pneus \u00e0 commander) \u2014 d\u00e9plac\u00e9e ici, apr\u00e8s le calcul complet, pour
+  // ne plus ignorer un rappel pneus qui serait le SEUL \u00e9l\u00e9ment en attente :
+  // l'ancienne garde, plac\u00e9e avant l'ajout des pneus au popup, coupait la
+  // fonction court dans ce cas pr\u00e9cis et rendait le rappel invisible.
+  if (!items.length) return;
 
   // ── Tri chronologique global ──
   // Tous les rappels (CT, entretien garage, RV) triés ensemble par leur
@@ -13709,7 +13717,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260915.0924';
+const APP_VERSION = '260915.0941';
 
 let _swRegistration = null;
 
