@@ -1431,19 +1431,20 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <!-- Urgence — accessible même une fois connecté (utile en priorité aux
-       chauffeurs sur la route ; la confirmation avant appel évite tout
-       déclenchement accidentel du 112). -->
-  <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
-    style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
-
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1011</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1842</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
        verifierRappelExportExcel). Dans la barre de navigation plutôt que
        seulement sur le tableau de bord : visible sur toutes les pages, pas
        seulement en arrivant sur l'accueil. -->
+  <!-- Total AdBlue de l'année civile en cours, toute la flotte — toujours
+       visible, recalculé automatiquement après chaque ajout (voir
+       rafraichirBadgeAdBlueNavbar). -->
+  <button id="navbar-adblue-total" title="Total AdBlue de l'année — cliquer pour voir le détail"
+    onclick="showPage('adblue',document.querySelector('.tab-btn[onclick*=adblue]'))"
+    style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0;white-space:nowrap">💧 — L</button>
+
   <button id="navbar-export-excel" title="Export Excel en retard — cliquer pour exporter"
     onclick="showPage('rapports',document.querySelector('.tab-btn[onclick*=rapports]'));exporterExcel();"
     style="display:none;background:var(--orange);border:none;color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0;animation:pulse-navbar-export 1.6s ease infinite">📤</button>
@@ -1984,6 +1985,39 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section accordéon : Numéros d'urgence -->
+  <div class="form-card" style="margin-bottom:14px;padding:0;overflow:hidden">
+    <div onclick="toggleInfoSection('info-urgence-body','chevron-urgence')"
+         style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer">
+      <h3 style="margin:0">🆘 Numéros d'urgence (Belgique)</h3>
+      <span id="chevron-urgence" style="font-size:14px;color:var(--texte-sec)">▼</span>
+    </div>
+    <div id="info-urgence-body" style="display:none;padding:0 16px 16px">
+      <div class="form-card">
+        <div class="table-wrap">
+          <table style="width:100%">
+            <thead><tr><th>Service</th><th>Numéro</th></tr></thead>
+            <tbody>
+              <tr><td>🚨 Urgence européenne (police, pompiers, ambulance)</td><td><a href="tel:112"><b>112</b></a></td></tr>
+              <tr><td>👮 Police (non urgent)</td><td><a href="tel:101"><b>101</b></a></td></tr>
+              <tr><td>🚒 Pompiers / ambulance (ancien numéro, actif)</td><td><a href="tel:100"><b>100</b></a></td></tr>
+              <tr><td>🌊 Pompiers — intervention non urgente (tempête, inondation)</td><td><a href="tel:1722"><b>1722</b></a></td></tr>
+              <tr><td>☠️ Centre Antipoisons</td><td><a href="tel:0032702452450"><b>070 245 245</b></a></td></tr>
+              <tr><td>🧒 Child Focus (enfant disparu / exploité)</td><td><a href="tel:116000"><b>116 000</b></a></td></tr>
+              <tr><td>☎️ Écoute-Enfants</td><td><a href="tel:103"><b>103</b></a></td></tr>
+              <tr><td>💬 Centre de Prévention du Suicide</td><td><a href="tel:0032800321230"><b>0800 32 123</b></a></td></tr>
+              <tr><td>🏥 Croix-Rouge — aide et intervention sinistres</td><td><a href="tel:105"><b>105</b></a></td></tr>
+              <tr><td>🗣️ Télé-Accueil</td><td><a href="tel:107"><b>107</b></a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:11px;color:var(--texte-sec);margin:10px 0 0">
+          Source : police.be et 112.be — vérifié le 15/09/2026.
+        </p>
       </div>
     </div>
   </div>
@@ -2697,6 +2731,24 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
   </div>
 
+  <!-- Récapitulatif annuel AdBlue — par véhicule et pour toute la flotte -->
+  <div class="form-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <h3 style="margin:0">📊 Récapitulatif annuel</h3>
+      <select id="ab-recap-annee" onchange="renderAdBlueTable()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="2025">2025</option>
+        <option value="2026" selected>2026</option>
+        <option value="2027">2027</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Véhicule</th><th>Total litres</th></tr></thead>
+        <tbody id="ab-recap-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Historique AdBlue -->
   <div class="form-card">
     <h3>Historique AdBlue</h3>
@@ -2820,11 +2872,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260915.1011</strong><br>
+      Version actuelle de l'app : <strong>v260915.1842</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260915.1011 disponible)
+      📢 Notifier les utilisateurs (v260915.1842 disponible)
     </button>
   </div>
 
@@ -3563,6 +3615,11 @@ window._refreshUI = function() {
     // COLS.vehicules ci-dessus (voir ce commentaire) — un troisième
     // mécanisme identique, tout aussi actif à chaque rafraîchissement,
     // contribuait au même écrasement des modifications utilisateur.
+
+    // Badge AdBlue de la navbar — inconditionnel à chaque rafraîchissement
+    // (pas seulement à la visite de l'onglet AdBlue), pour rester exact dès
+    // le démarrage même si l'utilisateur ne va jamais sur cet onglet.
+    if (typeof rafraichirBadgeAdBlueNavbar === 'function') rafraichirBadgeAdBlueNavbar();
   }
 
   // Charger commandesPneus depuis Firebase si disponible
@@ -6177,7 +6234,58 @@ function renderAdBlueTable() {
     : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée enregistrée</td></tr>';
   const totalEl = document.getElementById('ab-total');
   if (totalEl) totalEl.textContent = rows.length ? `Total : ${total.toFixed(2)} L` : '';
+
+  renderRecapAnnuelAdBlue();
+  rafraichirBadgeAdBlueNavbar();
 }
+
+/* Récapitulatif annuel AdBlue — par véhicule éligible + total flotte, pour
+   l'année choisie dans le sélecteur. Basé sur VEHICULES_ADBLUE (les 6
+   véhicules éligibles), pas les 9 de la flotte — cohérent avec le reste de
+   l'app pour l'AdBlue (TLAJ108, TLAJ109 et 1RER037 n'en consomment pas). */
+function renderRecapAnnuelAdBlue() {
+  const tbody = document.getElementById('ab-recap-tbody');
+  if (!tbody) return;
+  const annee = document.getElementById('ab-recap-annee')?.value || String(new Date().getFullYear());
+
+  const totauxParVeh = {};
+  VEHICULES_ADBLUE.forEach(id => { totauxParVeh[id] = 0; });
+  let totalFlotte = 0;
+  adblues.forEach(a => {
+    if (!a.date || a.date.slice(0,4) !== annee) return;
+    if (!(a.vehId in totauxParVeh)) return; // véhicule non éligible AdBlue, ignoré
+    totauxParVeh[a.vehId] += a.litre;
+    totalFlotte += a.litre;
+  });
+
+  const vehOrdre = ORDRE_VEHICULES.filter(id => VEHICULES_ADBLUE.includes(id));
+  tbody.innerHTML = vehOrdre.map(id => {
+    const v = vehicules.find(x => x.id === id);
+    return `<tr>
+      <td>${v ? v.marque + ' — ' + v.immat : id}</td>
+      <td style="color:var(--bleu);font-weight:700">${totauxParVeh[id].toFixed(2)} L</td>
+    </tr>`;
+  }).join('') + `<tr style="background:var(--gris-clair);font-weight:700">
+      <td>Total flotte</td>
+      <td style="color:var(--bleu)">${totalFlotte.toFixed(2)} L</td>
+    </tr>`;
+}
+
+/* Total AdBlue de l'année civile en cours, toute la flotte — badge
+   permanent dans la barre de navigation, recalculé à chaque appel de
+   renderAdBlueTable() (donc après chaque ajout/suppression) et au
+   démarrage de l'app (voir le déclencheur dans _refreshUI). */
+function rafraichirBadgeAdBlueNavbar() {
+  const badge = document.getElementById('navbar-adblue-total');
+  if (!badge) return;
+  const anneeActuelle = String(new Date().getFullYear());
+  const total = adblues
+    .filter(a => a.date && a.date.slice(0,4) === anneeActuelle && VEHICULES_ADBLUE.includes(a.vehId))
+    .reduce((s,a) => s + (a.litre || 0), 0);
+  badge.textContent = '\ud83d\udca7 ' + total.toLocaleString('fr-BE', { minimumFractionDigits:0, maximumFractionDigits:0 }) + ' L';
+  badge.title = 'Total AdBlue ' + anneeActuelle + ' (flotte) \u2014 cliquer pour voir le d\u00e9tail';
+}
+
 
 function ctStatus(veh) {
   const j = daysUntil(veh.ct_valid);
@@ -13966,7 +14074,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260915.1011';
+const APP_VERSION = '260915.1842';
 
 let _swRegistration = null;
 
