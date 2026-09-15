@@ -1437,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260914.2014</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.0924</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2533,8 +2533,13 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 
   <!-- Historique des permutations -->
   <div class="form-card">
-    <h3>Historique des permutations</h3>
-    <div class="export-bar" style="margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0">Historique des permutations</h3>
+      <button class="btn btn-sm admin-only" style="display:none" onclick="backfillPermutationsManquantes()">
+        🔧 Récupérer les dates manquantes
+      </button>
+    </div>
+    <div class="export-bar" style="margin-bottom:10px;margin-top:10px">
       <select id="pneu-filter-veh" onchange="renderPneuHistorique()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
         <option value="">Tous les véhicules</option>
       </select>
@@ -2780,11 +2785,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260914.2014</strong><br>
+      Version actuelle de l'app : <strong>v260915.0924</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260914.2014 disponible)
+      📢 Notifier les utilisateurs (v260915.0924 disponible)
     </button>
   </div>
 
@@ -4564,6 +4569,56 @@ function renderPneuHistorique() {
         </tr>`;
       }).join('')
     : '<tr><td colspan="7" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune permutation enregistrée</td></tr>';
+}
+
+/* Détecte les véhicules dont la fiche (popup "✏️ Modifier") contient une
+   date de permutation (permut_hiver_ete_date / permut_ete_hiver_date) sans
+   qu'aucune entrée correspondante n'existe dans la vraie collection
+   "permutations" — cas typique de dates saisies historiquement en
+   raccourci sur la fiche véhicule, jamais via "Enregistrer une
+   permutation". Le tableau récapitulatif s'y replie silencieusement (d'où
+   les dates visibles là-haut), mais "Historique des permutations", qui ne
+   lit QUE la vraie collection, les ignore — d'où l'écran vide constaté.
+   Demande confirmation avant toute création, avec le détail exact de ce
+   qui va être ajouté. */
+function backfillPermutationsManquantes() {
+  if (!userIsAdmin()) return;
+  const candidats = [];
+  vehicules.filter(v => !v.archive).forEach(v => {
+    if (v.permut_hiver_ete_date && !permutations.some(p => p.vehId === v.id && p.type === 'hiver-ete')) {
+      candidats.push({ vehId: v.id, type: 'hiver-ete', date: v.permut_hiver_ete_date, km: v.permut_hiver_ete_km || null });
+    }
+    if (v.permut_ete_hiver_date && !permutations.some(p => p.vehId === v.id && p.type === 'ete-hiver')) {
+      candidats.push({ vehId: v.id, type: 'ete-hiver', date: v.permut_ete_hiver_date, km: v.permut_ete_hiver_km || null });
+    }
+  });
+
+  if (!candidats.length) {
+    toast('✅ Rien à récupérer — tout est déjà cohérent.');
+    return;
+  }
+
+  const liste = candidats.map(c => {
+    const v = vehicules.find(x => x.id === c.vehId);
+    return (v ? v.immat : c.vehId) + ' — ' + (c.type === 'hiver-ete' ? 'Hiver → Été' : 'Été → Hiver')
+      + ' — ' + formatDateCourt(c.date) + (c.km ? ' (' + parseInt(c.km).toLocaleString('fr-BE') + ' km)' : '');
+  }).join('\n');
+
+  const confirmMsg = candidats.length + ' permutation(s) manquante(s) d\u00e9tect\u00e9e(s) \u2014 '
+    + 'ces dates existent sur la fiche v\u00e9hicule mais pas dans l\'historique d\u00e9taill\u00e9 :\n\n'
+    + liste + '\n\nLes ajouter \u00e0 l\'historique maintenant ?';
+  if (!confirm(confirmMsg)) return;
+
+  candidats.forEach(c => {
+    permutations.unshift({
+      id: Date.now() + Math.random(), date: c.date, vehId: c.vehId, type: c.type,
+      km: c.km, lieu: '', rem: 'R\u00e9cup\u00e9r\u00e9 automatiquement depuis la fiche v\u00e9hicule',
+    });
+  });
+  saveAll();
+  renderPneuHistorique();
+  renderPneuRecap();
+  toast('✅ ' + candidats.length + ' permutation(s) ajout\u00e9e(s) \u00e0 l\'historique');
 }
 
 // ============================================================
@@ -13654,7 +13709,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260914.2014';
+const APP_VERSION = '260915.0924';
 
 let _swRegistration = null;
 
