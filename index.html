@@ -1431,7 +1431,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1842</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1947</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1444,6 +1444,13 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button id="navbar-adblue-total" title="Total AdBlue de l'année — cliquer pour voir le détail"
     onclick="showPage('adblue',document.querySelector('.tab-btn[onclick*=adblue]'))"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0;white-space:nowrap">💧 — L</button>
+
+  <!-- Nombre de lavages Car Wash de l'année civile en cours, toute la
+       flotte — même principe que le badge AdBlue ci-dessus (voir
+       rafraichirBadgeCarWashNavbar). -->
+  <button id="navbar-carwash-total" title="Nombre de lavages de l'année — cliquer pour voir le détail"
+    onclick="showPage('carwash',document.querySelector('.tab-btn[onclick*=carwash]'))"
+    style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0;white-space:nowrap">🚿 —</button>
 
   <button id="navbar-export-excel" title="Export Excel en retard — cliquer pour exporter"
     onclick="showPage('rapports',document.querySelector('.tab-btn[onclick*=rapports]'));exporterExcel();"
@@ -2872,11 +2879,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260915.1842</strong><br>
+      Version actuelle de l'app : <strong>v260915.1947</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260915.1842 disponible)
+      📢 Notifier les utilisateurs (v260915.1947 disponible)
     </button>
   </div>
 
@@ -2954,6 +2961,24 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <div style="margin-top:12px;display:flex;gap:10px;">
       <button class="btn primary" onclick="saveRechargeKey()">💾 Enregistrer</button>
       <button class="btn" onclick="clearCWKForm()">✕ Effacer</button>
+    </div>
+  </div>
+
+  <!-- Récapitulatif annuel Car Wash — par véhicule et pour toute la flotte -->
+  <div class="form-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <h3 style="margin:0">📊 Récapitulatif annuel</h3>
+      <select id="cw-recap-annee" onchange="renderCWTable()" style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="2025">2025</option>
+        <option value="2026" selected>2026</option>
+        <option value="2027">2027</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Véhicule</th><th>Nb lavages</th><th>Montant total</th></tr></thead>
+        <tbody id="cw-recap-tbody"></tbody>
+      </table>
     </div>
   </div>
 
@@ -3620,6 +3645,7 @@ window._refreshUI = function() {
     // (pas seulement à la visite de l'onglet AdBlue), pour rester exact dès
     // le démarrage même si l'utilisateur ne va jamais sur cet onglet.
     if (typeof rafraichirBadgeAdBlueNavbar === 'function') rafraichirBadgeAdBlueNavbar();
+    if (typeof rafraichirBadgeCarWashNavbar === 'function') rafraichirBadgeCarWashNavbar();
   }
 
   // Charger commandesPneus depuis Firebase si disponible
@@ -4113,6 +4139,57 @@ function renderCWTable() {
     : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun lavage enregistré</td></tr>';
   const totalEl = document.getElementById('cw-total');
   if (totalEl) totalEl.textContent = rows.length ? `Total : ${total.toFixed(2)} €` : '';
+
+  renderRecapAnnuelCarWash();
+  rafraichirBadgeCarWashNavbar();
+}
+
+/* Récapitulatif annuel Car Wash — par véhicule + total flotte, pour
+   l'année choisie. Contrairement à l'AdBlue, tous les véhicules de la
+   flotte sont éligibles au lavage (pas de restriction équivalente à
+   VEHICULES_ADBLUE). */
+function renderRecapAnnuelCarWash() {
+  const tbody = document.getElementById('cw-recap-tbody');
+  if (!tbody) return;
+  const annee = document.getElementById('cw-recap-annee')?.value || String(new Date().getFullYear());
+
+  const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(v => v && !v.archive);
+  const nbParVeh = {}, montantParVeh = {};
+  vehOrdre.forEach(v => { nbParVeh[v.id] = 0; montantParVeh[v.id] = 0; });
+  let nbFlotte = 0, montantFlotte = 0;
+
+  carwashes.forEach(c => {
+    if (!c.date || c.date.slice(0,4) !== annee) return;
+    if (!(c.vehId in nbParVeh)) return;
+    nbParVeh[c.vehId]++;
+    nbFlotte++;
+    if (c.montant) { montantParVeh[c.vehId] += c.montant; montantFlotte += c.montant; }
+  });
+
+  tbody.innerHTML = vehOrdre.map(v => `<tr>
+      <td>${v.marque} — ${v.immat}</td>
+      <td style="color:var(--bleu);font-weight:700">${nbParVeh[v.id]}</td>
+      <td>${montantParVeh[v.id].toFixed(2)} €</td>
+    </tr>`).join('') + `<tr style="background:var(--gris-clair);font-weight:700">
+      <td>Total flotte</td>
+      <td style="color:var(--bleu)">${nbFlotte}</td>
+      <td>${montantFlotte.toFixed(2)} €</td>
+    </tr>`;
+}
+
+/* Nombre de lavages de l'année civile en cours, toute la flotte — badge
+   permanent dans la barre de navigation, même principe que le badge
+   AdBlue (voir rafraichirBadgeAdBlueNavbar). Basé sur le NOMBRE de
+   lavages plutôt que le montant : le montant est un champ optionnel côté
+   saisie, un total en € pourrait donc être incomplet, alors que le
+   comptage, lui, reste toujours exact. */
+function rafraichirBadgeCarWashNavbar() {
+  const badge = document.getElementById('navbar-carwash-total');
+  if (!badge) return;
+  const anneeActuelle = String(new Date().getFullYear());
+  const nb = carwashes.filter(c => c.date && c.date.slice(0,4) === anneeActuelle).length;
+  badge.textContent = '\ud83d\udebf ' + nb;
+  badge.title = 'Nombre de lavages ' + anneeActuelle + ' (flotte) \u2014 cliquer pour voir le d\u00e9tail';
 }
 
 // ── Recharge clé Car Wash ─────────────────────────────────────
@@ -14074,7 +14151,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260915.1842';
+const APP_VERSION = '260915.1947';
 
 let _swRegistration = null;
 
