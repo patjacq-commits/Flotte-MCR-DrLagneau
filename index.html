@@ -1431,7 +1431,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1947</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1953</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1445,10 +1445,10 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     onclick="showPage('adblue',document.querySelector('.tab-btn[onclick*=adblue]'))"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0;white-space:nowrap">💧 — L</button>
 
-  <!-- Nombre de lavages Car Wash de l'année civile en cours, toute la
-       flotte — même principe que le badge AdBlue ci-dessus (voir
+  <!-- Montant total Car Wash de l'année civile en cours, toute la flotte
+       — même principe que le badge AdBlue ci-dessus (voir
        rafraichirBadgeCarWashNavbar). -->
-  <button id="navbar-carwash-total" title="Nombre de lavages de l'année — cliquer pour voir le détail"
+  <button id="navbar-carwash-total" title="Montant total Car Wash de l'année — cliquer pour voir le détail"
     onclick="showPage('carwash',document.querySelector('.tab-btn[onclick*=carwash]'))"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0;white-space:nowrap">🚿 —</button>
 
@@ -2879,11 +2879,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260915.1947</strong><br>
+      Version actuelle de l'app : <strong>v260915.1953</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260915.1947 disponible)
+      📢 Notifier les utilisateurs (v260915.1953 disponible)
     </button>
   </div>
 
@@ -4177,19 +4177,20 @@ function renderRecapAnnuelCarWash() {
     </tr>`;
 }
 
-/* Nombre de lavages de l'année civile en cours, toute la flotte — badge
-   permanent dans la barre de navigation, même principe que le badge
-   AdBlue (voir rafraichirBadgeAdBlueNavbar). Basé sur le NOMBRE de
-   lavages plutôt que le montant : le montant est un champ optionnel côté
-   saisie, un total en € pourrait donc être incomplet, alors que le
-   comptage, lui, reste toujours exact. */
+/* Montant total Car Wash de l'année civile en cours, toute la flotte —
+   badge permanent dans la barre de navigation, même principe que le badge
+   AdBlue (voir rafraichirBadgeAdBlueNavbar). Les entrées sans montant
+   renseigné (champ optionnel) sont simplement ignorées dans la somme,
+   comme pour le total affiché en bas de l'historique des lavages. */
 function rafraichirBadgeCarWashNavbar() {
   const badge = document.getElementById('navbar-carwash-total');
   if (!badge) return;
   const anneeActuelle = String(new Date().getFullYear());
-  const nb = carwashes.filter(c => c.date && c.date.slice(0,4) === anneeActuelle).length;
-  badge.textContent = '\ud83d\udebf ' + nb;
-  badge.title = 'Nombre de lavages ' + anneeActuelle + ' (flotte) \u2014 cliquer pour voir le d\u00e9tail';
+  const total = carwashes
+    .filter(c => c.date && c.date.slice(0,4) === anneeActuelle && c.montant)
+    .reduce((s,c) => s + c.montant, 0);
+  badge.textContent = '\ud83d\udebf ' + total.toFixed(2) + ' \u20ac';
+  badge.title = 'Montant total Car Wash ' + anneeActuelle + ' (flotte) \u2014 cliquer pour voir le d\u00e9tail';
 }
 
 // ── Recharge clé Car Wash ─────────────────────────────────────
@@ -14151,7 +14152,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260915.1947';
+const APP_VERSION = '260915.1953';
 
 let _swRegistration = null;
 
