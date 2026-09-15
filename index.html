@@ -1437,7 +1437,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherUrgenceSansConnexion()" title="Numéros d'urgence"
     style="background:#fff;border:none;color:var(--rouge);font-size:16px;font-weight:700;cursor:pointer;padding:4px 9px;border-radius:8px;flex-shrink:0">🆘</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.0941</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1000</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1447,6 +1447,12 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button id="navbar-export-excel" title="Export Excel en retard — cliquer pour exporter"
     onclick="showPage('rapports',document.querySelector('.tab-btn[onclick*=rapports]'));exporterExcel();"
     style="display:none;background:var(--orange);border:none;color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0;animation:pulse-navbar-export 1.6s ease infinite">📤</button>
+
+  <!-- Création rapide d'un rappel personnel — accessible depuis n'importe
+       quelle page, pas seulement Rapports, pour noter une pensée au moment
+       où elle survient. -->
+  <button class="admin-only" style="display:none;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0"
+    title="Créer un rappel personnel" onclick="ouvrirCreationRappelPerso()">📌</button>
 
   <div class="navbar-role" id="role-badge">Chauffeur</div>
   <div id="sync-indicator" title="En ligne — synchronisé avec le cloud"
@@ -2785,11 +2791,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260915.0941</strong><br>
+      Version actuelle de l'app : <strong>v260915.1000</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260915.0941 disponible)
+      📢 Notifier les utilisateurs (v260915.1000 disponible)
     </button>
   </div>
 
@@ -2991,6 +2997,16 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <div id="export-excel-last" style="font-size:11px;color:var(--texte-sec);margin-top:8px"></div>
   </div>
 
+  <!-- Mes rappels — rappels personnels libres, liés ou non à un véhicule,
+       intégrés au popup de démarrage une fois leur date atteinte. -->
+  <div class="form-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <h3 style="margin:0">📌 Mes rappels</h3>
+      <button class="btn btn-sm primary" onclick="ouvrirCreationRappelPerso()">➕ Nouveau rappel</button>
+    </div>
+    <div id="rappels-perso-liste"></div>
+  </div>
+
   <!-- Autres rapports -->
   <div class="form-card">
     <h3>📋 Autres rapports</h3>
@@ -3137,6 +3153,37 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
 
       <div id="recap-veh-contenu"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CRÉATION RAPPEL PERSONNEL -->
+<div class="modal-overlay" id="modal-rappel-perso">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-rappel-perso')">✕</button>
+    <h2>📌 Nouveau rappel</h2>
+
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Titre</label>
+      <input type="text" id="rp-perso-titre" placeholder="ex: RV garage Albert" />
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Afficher à partir du</label>
+      <input type="date" id="rp-perso-date" />
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Véhicule concerné (optionnel)</label>
+      <select id="rp-perso-veh"><option value="">— Aucun véhicule en particulier —</option></select>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Description</label>
+      <textarea id="rp-perso-desc" placeholder="ex: prendre RV avant le 08/11 pour remplacement bougie de préchauffage sous garantie et plaquettes de frein à l'AV" style="min-height:80px"></textarea>
+    </div>
+
+    <input type="hidden" id="rp-perso-edit-id" value="" />
+    <div style="display:flex;gap:10px">
+      <button class="btn primary" style="flex:1" id="rp-perso-btn-save" onclick="enregistrerRappelPerso()">💾 Enregistrer</button>
+      <button class="btn" onclick="closeModal('modal-rappel-perso')">Annuler</button>
     </div>
   </div>
 </div>
@@ -3531,6 +3578,18 @@ window._refreshUI = function() {
     }, 700);
   }
 
+  // Rappels personnels — chargés tôt (avant le popup CT/entretien) pour
+  // qu'ils puissent y figurer dès le premier affichage. chargerRappelsPerso
+  // re-déclenche elle-même verifierEntretiensUrgents() une fois les
+  // données disponibles, donc l'ordre exact avec le setTimeout(500) du
+  // popup CT/entretien n'est pas critique.
+  if (!window._rappelsPersoChecked && window.vehicules?.length) {
+    window._rappelsPersoChecked = true;
+    setTimeout(function() {
+      if (typeof chargerRappelsPerso === 'function') chargerRappelsPerso();
+    }, 300);
+  }
+
   // Réinitialiser le flag quand l'app revient au premier plan
   // → le modal se réaffiche à chaque ouverture tant qu'il y a des RV dépassés
   if (!window._visibilityListenerAdded) {
@@ -3540,6 +3599,7 @@ window._refreshUI = function() {
         window._entretienUrgentChecked = false;
         window._rappelsRVChecked = false;
         window._exportExcelChecked = false;
+        window._rappelsPersoChecked = false;
       }
     });
   }
@@ -4619,6 +4679,148 @@ function backfillPermutationsManquantes() {
   renderPneuHistorique();
   renderPneuRecap();
   toast('✅ ' + candidats.length + ' permutation(s) ajout\u00e9e(s) \u00e0 l\'historique');
+}
+
+// ============================================================
+// RAPPELS PERSONNELS — libres, liés ou non à un véhicule
+// ============================================================
+
+window._rappelsPerso = [];
+
+/* Charge les rappels personnels depuis Firestore, met à jour le cache
+   local, rafraîchit la liste "Mes rappels" si affichée, et re-déclenche
+   verifierEntretiensUrgents() : au tout premier passage au démarrage, le
+   popup CT/entretien a pu s'exécuter avant la fin de ce chargement réseau
+   — cette seconde vérification garantit qu'un rappel personnel dû ne soit
+   pas manqué dans ce cas. */
+async function chargerRappelsPerso() {
+  try {
+    const snap = await db.collection('rappelsPerso').get();
+    window._rappelsPerso = snap.docs.map(d => d.data());
+  } catch(e) {
+    console.warn('Erreur chargement rappelsPerso:', e);
+  }
+  renderRappelsPersoListe();
+  if (typeof verifierEntretiensUrgents === 'function') verifierEntretiensUrgents();
+}
+
+/* Ouvre le modal de création/édition. Sans argument : nouveau rappel.
+   Avec un id existant : pré-remplit pour modification. */
+function ouvrirCreationRappelPerso(id) {
+  if (!userIsAdmin()) return;
+  const vehOrdre = ORDRE_VEHICULES.map(vid => vehicules.find(v => v.id === vid)).filter(v => v && !v.archive);
+  const selVeh = document.getElementById('rp-perso-veh');
+  selVeh.innerHTML = '<option value="">— Aucun véhicule en particulier —</option>'
+    + vehOrdre.map(v => '<option value="' + v.id + '">' + v.marque + ' — ' + v.immat + '</option>').join('');
+
+  const existant = id ? window._rappelsPerso.find(r => String(r.id) === String(id)) : null;
+  document.getElementById('rp-perso-edit-id').value = existant ? existant.id : '';
+  document.getElementById('rp-perso-titre').value = existant ? existant.titre : '';
+  document.getElementById('rp-perso-date').value = existant ? existant.datePrevue : toLocalYMD(new Date());
+  document.getElementById('rp-perso-veh').value = existant ? (existant.vehId || '') : '';
+  document.getElementById('rp-perso-desc').value = existant ? (existant.description || '') : '';
+  document.getElementById('rp-perso-btn-save').textContent = existant ? '💾 Mettre à jour' : '💾 Enregistrer';
+
+  document.getElementById('modal-rappel-perso').classList.add('open');
+}
+
+async function enregistrerRappelPerso() {
+  if (!userIsAdmin()) return;
+  const editId = document.getElementById('rp-perso-edit-id')?.value;
+  const titre  = document.getElementById('rp-perso-titre')?.value?.trim();
+  const date   = document.getElementById('rp-perso-date')?.value;
+  const vehId  = document.getElementById('rp-perso-veh')?.value || null;
+  const desc   = document.getElementById('rp-perso-desc')?.value?.trim() || '';
+
+  if (!titre || !date) { toast('Veuillez indiquer un titre et une date.'); return; }
+
+  const rec = {
+    id: editId ? Number(editId) : Date.now(),
+    titre, datePrevue: date, vehId, description: desc,
+    traite: editId ? (window._rappelsPerso.find(r => String(r.id) === editId)?.traite || false) : false,
+    dateTraite: editId ? (window._rappelsPerso.find(r => String(r.id) === editId)?.dateTraite || null) : null,
+    auteur: currentUser?.nom || '',
+  };
+
+  try {
+    await db.collection('rappelsPerso').doc(String(rec.id)).set(rec);
+    if (editId) {
+      const idx = window._rappelsPerso.findIndex(r => String(r.id) === editId);
+      if (idx > -1) window._rappelsPerso[idx] = rec; else window._rappelsPerso.unshift(rec);
+    } else {
+      window._rappelsPerso.unshift(rec);
+    }
+    const desc2 = 'Rappel personnel ' + (editId ? 'modifi\u00e9' : 'cr\u00e9\u00e9') + ' : ' + titre + ' \u2014 ' + formatDate(date);
+    if (editId) logModification('rappelsPerso', desc2, null, { titre, date });
+    else logCreation('rappelsPerso', desc2, { titre, date });
+    closeModal('modal-rappel-perso');
+    renderRappelsPersoListe();
+    toast(editId ? '✅ Rappel mis à jour' : '✅ Rappel créé');
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+async function marquerRappelPersoTraite(id) {
+  if (!userIsAdmin()) return;
+  const r = window._rappelsPerso.find(x => String(x.id) === String(id));
+  if (!r) return;
+  r.traite = true;
+  r.dateTraite = toLocalYMD(new Date());
+  try {
+    await db.collection('rappelsPerso').doc(String(id)).set(r);
+    renderRappelsPersoListe();
+    const modal = document.getElementById('modal-entretien-urgent');
+    if (modal) verifierEntretiensUrgents(); // rafraîchit le popup, ce rappel doit en disparaître
+    toast('✅ Rappel marqué traité');
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+async function supprimerRappelPerso(id) {
+  if (!userIsAdmin()) return;
+  if (!confirm('Supprimer ce rappel ?')) return;
+  try {
+    await db.collection('rappelsPerso').doc(String(id)).delete();
+    window._rappelsPerso = window._rappelsPerso.filter(r => String(r.id) !== String(id));
+    renderRappelsPersoListe();
+    toast('Supprimé');
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  }
+}
+
+function renderRappelsPersoListe() {
+  const cont = document.getElementById('rappels-perso-liste');
+  if (!cont) return;
+  const rappels = [...window._rappelsPerso].sort((a,b) => (a.traite === b.traite ? 0 : a.traite ? 1 : -1) || a.datePrevue.localeCompare(b.datePrevue));
+
+  if (!rappels.length) {
+    cont.innerHTML = '<p style="color:var(--texte-sec);font-size:13px">Aucun rappel personnel pour l\'instant.</p>';
+    return;
+  }
+
+  cont.innerHTML = rappels.map(r => {
+    const v = r.vehId ? vehicules.find(x => x.id === r.vehId) : null;
+    const couleur = r.traite ? 'var(--texte-sec)' : 'var(--bleu)';
+    return '<div class="form-card" style="padding:10px 12px;margin-bottom:8px;' + (r.traite ? 'opacity:0.6' : '') + '">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+      + '<div>'
+      + '<b style="font-size:13px">📌 ' + echapperHtml(r.titre) + '</b>'
+      + (v ? ' <span style="font-size:11px;color:var(--texte-sec)">(' + v.marque + ' — ' + v.immat + ')</span>' : '')
+      + '<div style="font-size:12px;color:' + couleur + ';font-weight:600">📅 ' + formatDateCourt(r.datePrevue)
+      + (r.traite ? ' — ✅ Trait\u00e9 le ' + formatDateCourt(r.dateTraite) : '') + '</div>'
+      + (r.description ? '<div style="font-size:12px;color:var(--texte-sec);margin-top:2px">' + echapperHtml(r.description) + '</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:4px;flex-shrink:0">'
+      + (!r.traite ? '<button class="btn btn-sm" style="color:var(--vert)" onclick="marquerRappelPersoTraite(' + r.id + ')">✅</button>' : '')
+      + '<button class="btn btn-sm" onclick="ouvrirCreationRappelPerso(' + r.id + ')">✏️</button>'
+      + '<button class="btn btn-sm" style="color:var(--rouge)" onclick="supprimerRappelPerso(' + r.id + ')">🗑</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 // ============================================================
@@ -12079,6 +12281,23 @@ function verifierEntretiensUrgents() {
     });
   }
 
+  // ── Rappels personnels (créés par Patrick/Angélique, liés ou non à un
+  //    véhicule) — affichés dès que leur date prévue est atteinte, tant
+  //    qu'ils ne sont pas marqués traités. Même popup, même tri chronologique.
+  (window._rappelsPerso || []).filter(r => !r.traite && r.datePrevue && r.datePrevue <= today).forEach(r => {
+    const v = r.vehId ? vehicules.find(x => x.id === r.vehId) : null;
+    items.push({
+      v, type: 'perso', priorite: PRIORITE.planifier,
+      _dateRef: new Date(r.datePrevue),
+      _icone: '\ud83d\udccc',
+      badge: 'Rappel', badgeCouleur: 'var(--bleu)', badgeFond: 'var(--bleu-clair)',
+      titre: r.titre + (v ? ' \u2014 ' + v.marque + ' ' + v.immat : ''),
+      detail: r.description || '',
+      actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
+        + ' onclick="marquerRappelPersoTraite(' + r.id + ')">\u2705 Marquer trait\u00e9</button>',
+    });
+  });
+
   // Sortie si vraiment aucun item, toutes cat\u00e9gories confondues (y compris
   // les pneus \u00e0 commander) \u2014 d\u00e9plac\u00e9e ici, apr\u00e8s le calcul complet, pour
   // ne plus ignorer un rappel pneus qui serait le SEUL \u00e9l\u00e9ment en attente :
@@ -13495,6 +13714,7 @@ function initRapports() {
   updateBackupInfo();
   updateStatutNotif();
   rafraichirBadgeExportExcel();
+  chargerRappelsPerso();
 
   // Peupler le select des années (rapport annuel) une seule fois
   const selAnnee = document.getElementById('rapport-annuel-annee');
@@ -13717,7 +13937,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260915.0941';
+const APP_VERSION = '260915.1000';
 
 let _swRegistration = null;
 
