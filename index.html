@@ -1431,7 +1431,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260915.1953</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260918.1825</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2879,11 +2879,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card superadmin-only" style="max-width:480px;margin-top:14px">
     <h3>🔄 Gestion des versions</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Version actuelle de l'app : <strong>v260915.1953</strong><br>
+      Version actuelle de l'app : <strong>v260918.1825</strong><br>
       Après chaque mise à jour GitHub, cliquez ici pour notifier les utilisateurs.
     </p>
     <button class="btn primary" onclick="publierVersion()">
-      📢 Notifier les utilisateurs (v260915.1953 disponible)
+      📢 Notifier les utilisateurs (v260918.1825 disponible)
     </button>
   </div>
 
@@ -8920,6 +8920,64 @@ function imprimerApercuKmComplet() {
 // RÉCAPITULATIF VÉHICULE — historique complet, toutes sources
 // ============================================================
 
+/* Libellés des types de RV — deux vocabulaires coexistent dans la
+   collection "rendezvous" selon le formulaire d'origine : le sélecteur
+   principal "Prendre RV" (#rv-type, ex: rep-parebrise, permutation…) et le
+   formulaire "intervention urgente" issu d'un signalement chauffeur
+   (#interv-type, ex: vitre, radiateur, batterie…) — deux vocabulaires
+   partiellement différents. Le récapitulatif véhicule les réduisait tous à
+   tort à "Entretien garage" dès que le type n'était pas exactement 'ct',
+   masquant par exemple une réparation pare-brise. Une entrée dont le type
+   ne figure pas ici est un type personnalisé ajouté via "➕" — dans ce cas
+   la valeur stockée EST déjà son libellé complet (voir getCustomOpts), donc
+   le repli sur la valeur brute reste correct sans entrée supplémentaire ici.
+   Étendre cette liste en même temps que les <option> des deux sélecteurs
+   si un nouveau type standard y est ajouté. */
+const LIBELLES_TYPE_RV = {
+  'ct': 'Contr\u00f4le Technique',
+  'garage': 'Entretien Garage',
+  'reparation': 'R\u00e9paration / Adaptation',
+  'rappel-marque': 'Rappel de la marque',
+  'rep-parebrise': 'R\u00e9paration pare-brise / vitre',
+  'rempl-parebrise': 'Remplacement pare-brise / vitre',
+  'permutation': 'Permutation pneus',
+  'pneus-av': 'Nouveaux pneus AV',
+  'pneus-ar': 'Nouveaux pneus AR',
+  'pneus-4': '4 nouveaux pneus',
+  'geometrie': 'G\u00e9om\u00e9trie',
+  'crevaison': 'Crevaison',
+  'entretien-lift': 'Entretien lift / rampe',
+  'reparation-lift': 'R\u00e9paration lift / rampe',
+  'enrouleur': 'Probl\u00e8me enrouleur(s)',
+  'treuil': 'Probl\u00e8me treuil',
+  'marquage': 'Marquage v\u00e9hicule',
+  'autre': 'Autre',
+  // Vocabulaire du formulaire "intervention urgente" (#interv-type)
+  'radiateur': 'Radiateur / Refroidissement',
+  'batterie': 'Batterie / D\u00e9marrage',
+  'frein': 'Freins',
+  'carrosserie': 'Carrosserie / Accident',
+  'vitre': 'Vitre cass\u00e9e',
+  'lift': 'Probl\u00e8me lift / rampe',
+};
+
+/* Libellé + icône d'un type de RV, quel que soit le formulaire d'origine
+   (voir LIBELLES_TYPE_RV ci-dessus). Renvoie la valeur brute si le type est
+   inconnu de la table — cas d'un type personnalisé ajouté via "➕", déjà
+   son propre libellé complet. */
+function libelleTypeRV(type) {
+  return LIBELLES_TYPE_RV[type] || type || 'Autre';
+}
+function iconeTypeRV(type) {
+  if (type === 'ct') return '\ud83c\udfe5';
+  if (['rep-parebrise','rempl-parebrise','vitre'].includes(type)) return '\ud83e\ude9f';
+  if (['permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison'].includes(type)) return '\ud83d\udee1';
+  if (['entretien-lift','reparation-lift','enrouleur','treuil','lift'].includes(type)) return '\ud83d\udd29';
+  if (type === 'carrosserie') return '\ud83d\udca5';
+  if (['radiateur','batterie','frein'].includes(type)) return '\u26a0\ufe0f';
+  return '\ud83d\udd27';
+}
+
 const RECAP_STATUTS_RV = { planifie: 'Planifi\u00e9', effectue: 'Effectu\u00e9', annule: 'Annul\u00e9' };
 
 /* Rassemble tous les événements connus pour un véhicule, toutes sources
@@ -8932,12 +8990,11 @@ function collecterEvenementsVehicule(vehId) {
   const evenements = [];
   const v = vehicules.find(x => x.id === vehId);
 
-  // Rendez-vous (CT et garage), tous statuts
+  // Rendez-vous (tous types précis, tous statuts)
   rendezvous.filter(r => r.vehId === vehId).forEach(r => {
     evenements.push({
-      date: r.date, categorie: 'rv', icone: r.type === 'ct' ? '\ud83c\udfe5' : '\ud83d\udd27',
-      titre: (r.type === 'ct' ? 'RV Contr\u00f4le Technique' : 'RV Entretien garage')
-        + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
+      date: r.date, categorie: 'rv', icone: iconeTypeRV(r.type),
+      titre: 'RV ' + libelleTypeRV(r.type) + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
       detail: [
         'Date : ' + formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : ''),
         r.garage ? 'Garage : ' + r.garage : '',
@@ -12316,9 +12373,9 @@ function verifierEntretiensUrgents() {
     items.push({
       v, type: r.type, priorite: PRIORITE.retard,
       _dateRef: new Date(r.date + 'T' + (r.heure || '00:00')),
-      _icone: r.type === 'ct' ? '\ud83c\udfe5' : '\ud83d\udccb',
+      _icone: iconeTypeRV(r.type),
       badge: 'En retard', badgeCouleur: 'var(--rouge)', badgeFond: 'var(--rouge-clair)',
-      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId),
+      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
       detail: formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : '') + (r.garage ? ' \u2014 ' + r.garage : ''),
       actionsHtml: '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
         + '<button class="btn btn-sm" style="background:var(--vert);color:#fff;border-color:var(--vert);flex:1"'
@@ -12349,12 +12406,12 @@ function verifierEntretiensUrgents() {
     items.push({
       v, type: r.type, priorite: PRIORITE.h48,
       _dateRef: new Date(dateHeure),
-      _icone: r.type === 'ct' ? '\ud83c\udfe5' : '\ud83d\udccb',
+      _icone: iconeTypeRV(r.type),
       _ligneClignote: sous24h,
       badge: sous24h ? '\ud83d\udd34 <24h' : '48h',
       badgeCouleur: sous24h ? 'var(--rouge)' : 'var(--orange)',
       badgeFond: sous24h ? 'var(--rouge-clair)' : '#fef5e7',
-      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId),
+      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
       detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ' + heureHtml
         + (r.garage ? ' \u2014 ' + r.garage : ''),
       actionsHtml: '',
@@ -14152,7 +14209,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260915.1953';
+const APP_VERSION = '260918.1825';
 
 let _swRegistration = null;
 
