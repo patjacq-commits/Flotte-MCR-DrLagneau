@@ -1431,7 +1431,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260918.1825</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260923.1040</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -4508,6 +4508,7 @@ function savePermutation() {
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
 
   let ancienVehId = vehId, ancienType = type;
+  const estFutur = date > toLocalYMD(new Date());
 
   if (editId) {
     const existante = permutations.find(p => String(p.id) === String(editId));
@@ -4515,9 +4516,19 @@ function savePermutation() {
       ancienVehId = existante.vehId; ancienType = existante.type;
       existante.date = date; existante.vehId = vehId; existante.type = type;
       existante.km = km ? parseInt(km) : null; existante.lieu = lieu; existante.rem = rem;
+      // Garder le RV planifié éventuellement lié (voir plus bas) synchronisé
+      // avec les nouvelles infos, ou le créer/retirer si la date passe du
+      // futur au passé ou inversement.
+      synchroniserRVLiePermutation(existante, estFutur, { date, vehId, lieu, km, rem });
     }
   } else {
-    permutations.unshift({ id: Date.now(), date, vehId, type, km: km ? parseInt(km) : null, lieu, rem });
+    const nouvelle = { id: Date.now(), date, vehId, type, km: km ? parseInt(km) : null, lieu, rem };
+    permutations.unshift(nouvelle);
+    // Une permutation planifiée dans le futur est un rendez-vous comme un
+    // autre : sans ceci, elle ne vivait que dans l'onglet Pneus et restait
+    // invisible du Calendrier, du Tableau de bord et de l'Historique RV —
+    // donc aussi invisible côté chauffeur.
+    if (estFutur) creerRVLiePermutation(nouvelle);
   }
 
   // Recalculer le(s) cache(s) véhicule concerné(s) — l'ancien véhicule/type
@@ -4533,7 +4544,54 @@ function savePermutation() {
     else logCreation('permutations', desc, { vehId:_pmN.vehId, date:_pmN.date, type:_pmN.type });
   }
   saveAll(); clearPneuForm(); renderPneuRecap(); renderPneuHistorique();
-  toast(editId ? '✅ Permutation mise à jour' : '✅ Permutation enregistrée');
+  renderAccueil();
+  if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
+  toast(editId
+    ? '✅ Permutation mise à jour'
+    : (estFutur ? '✅ Permutation enregistrée — RV planifié ajouté' : '✅ Permutation enregistrée'));
+}
+
+/* Crée le RV planifié (collection rendezvous) lié à une permutation future,
+   pour qu'elle apparaisse au Calendrier, au Tableau de bord et dans
+   l'Historique RV — chauffeur compris. Le lien (rvLieeId) permet de garder
+   les deux enregistrements synchronisés par la suite. */
+function creerRVLiePermutation(permutation) {
+  const rvId = permutation.id + 1; // distinct de l'id de la permutation
+  rendezvous.unshift({
+    id: rvId, vehId: permutation.vehId, type: 'permutation', date: permutation.date,
+    statut: 'planifie', heure: '', garage: permutation.lieu || '',
+    km: permutation.km || '', notes: permutation.rem || '',
+    createdAt: new Date().toISOString(), auto: 'permutation',
+  });
+  window.rendezvous = rendezvous;
+  permutation.rvLieeId = rvId;
+  const v = vehicules.find(x => x.id === permutation.vehId);
+  logCreation('rendezvous',
+    `RV planifié (auto, depuis Pneus) : ${v ? v.immat : permutation.vehId} — Permutation pneus — ${formatDate(permutation.date)}`,
+    { vehId: permutation.vehId, type: 'permutation', date: permutation.date, statut: 'planifie' });
+}
+
+/* Synchronise le RV planifié lié à une permutation qu'on vient de modifier :
+   - toujours dans le futur → on met simplement ses infos à jour ;
+   - n'est plus dans le futur → le RV n'a plus lieu d'être, on le retire ;
+   - passe du passé au futur sans lien existant → on le crée maintenant.
+   Ne touche jamais un RV que l'admin aurait depuis confirmé/annulé/traité
+   manuellement (statut différent de 'planifie'). */
+function synchroniserRVLiePermutation(permutation, estFutur, infos) {
+  const rvLiee = permutation.rvLieeId ? rendezvous.find(r => r.id === permutation.rvLieeId) : null;
+
+  if (rvLiee && rvLiee.statut === 'planifie') {
+    if (estFutur) {
+      rvLiee.date = infos.date; rvLiee.vehId = infos.vehId;
+      rvLiee.garage = infos.lieu || ''; rvLiee.km = infos.km || ''; rvLiee.notes = infos.rem || '';
+    } else {
+      rendezvous = rendezvous.filter(r => r.id !== rvLiee.id);
+      window.rendezvous = rendezvous;
+      permutation.rvLieeId = null;
+    }
+  } else if (estFutur && !rvLiee) {
+    creerRVLiePermutation(permutation);
+  }
 }
 
 function modifierPermutation(id) {
@@ -4564,8 +4622,23 @@ function deletePermutation(id) {
   if (!confirm('Supprimer cette permutation ?')) return;
   const p = permutations.find(x => x.id === id);
   permutations = permutations.filter(x => x.id !== id);
-  if (p) recalculerCachePermutation(p.vehId, p.type);
-  saveAll(); renderPneuRecap(); renderPneuHistorique(); toast('Supprimé');
+  if (p) {
+    recalculerCachePermutation(p.vehId, p.type);
+    // Retirer aussi le RV planifié lié — seulement s'il existe encore, n'a
+    // pas été traité entre-temps (confirmé/annulé) et a bien été créé
+    // automatiquement depuis cet onglet : on ne touche jamais un RV que
+    // l'admin gère lui-même.
+    if (p.rvLieeId) {
+      const rvLiee = rendezvous.find(r => r.id === p.rvLieeId);
+      if (rvLiee && rvLiee.statut === 'planifie' && rvLiee.auto === 'permutation') {
+        rendezvous = rendezvous.filter(r => r.id !== p.rvLieeId);
+        window.rendezvous = rendezvous;
+      }
+    }
+  }
+  saveAll(); renderPneuRecap(); renderPneuHistorique(); renderAccueil();
+  if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
+  toast('Supprimé');
 }
 
 // ── Remplacement ponctuel d'un seul pneu ────────────────────────
@@ -14209,7 +14282,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260918.1825';
+const APP_VERSION = '260923.1040';
 
 let _swRegistration = null;
 
