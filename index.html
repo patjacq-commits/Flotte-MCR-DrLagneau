@@ -221,7 +221,11 @@
   window.db      = db;
 
   // ── Chargement initial depuis Firebase ──────────────────────
-  function chargerDonneesFirebase() {
+  // estSuperAdmin : les commandes de fûts AdBlue sont réservées au
+  // superadmin (lecture ET écriture, voir firestore.rules) — inutile de
+  // tenter cette lecture pour les autres rôles, qui essuieraient un refus
+  // Firestore à chaque connexion.
+  function chargerDonneesFirebase(estSuperAdmin) {
     return Promise.all([
       fbGetCollection('maintenances'),
       fbGetCollection('ctEvents'),
@@ -233,9 +237,10 @@
       fbGetCollection('rechargesCle').catch(() => null),
       fbGetCollection('permutations').catch(() => null),
       fbGetCollection('commandesPneus').catch(() => null),
+      estSuperAdmin ? fbGetCollection('commandesAdBlue').catch(() => null) : Promise.resolve(null),
       db.collection('config').doc('infosVehicules').get().catch(() => null),
       db.collection('config').doc('garagesTel').get().catch(() => null),
-    ]).then(([maint, ct, veh, rv, ab, cw, chauf, rk, pm, cmdPneus, infosDoc, garagesTelDoc]) => {
+    ]).then(([maint, ct, veh, rv, ab, cw, chauf, rk, pm, cmdPneus, cmdAb, infosDoc, garagesTelDoc]) => {
       if (maint    && maint.length)    window._fbData_maintenances  = maint;
       if (ct       && ct.length)       window._fbData_ctEvents      = ct;
       if (veh      && veh.length)      window._fbData_vehicules     = veh;
@@ -246,6 +251,7 @@
       if (rk       && rk.length)       window._fbData_rechargesCle  = rk;
       if (pm       && pm.length)       window._fbData_permutations  = pm;
       if (cmdPneus && cmdPneus.length) window._fbData_commandesPneus = cmdPneus;
+      if (cmdAb    && cmdAb.length)    window._fbData_commandesAdBlue = cmdAb;
       if (infosDoc && infosDoc.exists) {
         window._fbData_infosVehicules = infosDoc.data().infos || {};
       }
@@ -446,8 +452,19 @@
         }, 2 * 60 * 1000);
       } catch(e) { console.warn('Erreur log connexion:', e); }
 
+      // Commandes AdBlue (fûts) : donnée strictement réservée au superadmin.
+      // Sur un poste partagé, une session précédente (Patrick) peut avoir
+      // laissé ces données en mémoire et dans le localStorage — on les
+      // efface explicitement dès qu'on sait que ce n'est pas lui, pour
+      // qu'Angélique ou un chauffeur n'y aient jamais accès, même via la
+      // console du navigateur.
+      if (role !== 'superadmin') {
+        commandesAdBlue = [];
+        window.commandesAdBlue = commandesAdBlue;
+        try { localStorage.removeItem('mcr_commandes_adblue'); } catch(e) {}
+      }
       // Charger les données Firebase si pas encore fait
-      await chargerDonneesFirebase();
+      await chargerDonneesFirebase(role === 'superadmin');
       // Synchroniser immédiatement les variables locales
       if (window._fbData_vehicules)      vehicules     = window._fbData_vehicules;
       if (window._fbData_maintenances)   maintenances  = window._fbData_maintenances;
@@ -456,6 +473,8 @@
       if (window._fbData_adblues)        adblues       = window._fbData_adblues;
       if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
       if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+      if (window._fbData_commandesAdBlue) commandesAdBlue = window._fbData_commandesAdBlue;
+      window.commandesAdBlue = commandesAdBlue;
       // Afficher l'app
       document.getElementById('ecran-connexion')?.remove();
       document.getElementById('app-wrapper').style.display = '';
@@ -1431,7 +1450,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260923.1040</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260928.1818</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2665,52 +2684,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-adblue" class="page">
   <h2 style="margin-bottom:14px">💧 AdBlue</h2>
 
-  <!-- Formulaire AdBlue chauffeur (véhicules éligibles, visible pour chauffeurs) -->
-  <div class="form-card" id="chauf-adblue-card">
-    <h3>💧 Signaler un ajout AdBlue</h3>
-    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">Pour les véhicules : <span id="chauf-ab-liste-veh">294, 633, 789, 941, 527, 910</span></p>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Date</label>
-        <input type="date" id="chauf-ab-date" />
-      </div>
-      <div class="form-group">
-        <label>Véhicule</label>
-        <select id="chauf-ab-veh"></select>
-      </div>
-      <div class="form-group">
-        <label>Type</label>
-        <select id="chauf-ab-type" onchange="toggleChauffeurAdBlue()">
-          <option value="bidon">Bidon (volume et prix modifiables)</option>
-          <option value="pompe">Pompe</option>
-        </select>
-      </div>
-      <div class="form-group" id="chauf-ab-litre-group">
-        <label>Volume (L)</label>
-        <input type="number" id="chauf-ab-litre" step="0.1" min="0.1" value="10"
-          oninput="calcPrixLitre()" />
-      </div>
-      <div class="form-group" id="chauf-ab-montant-group">
-        <label>Montant total (€)</label>
-        <input type="number" id="chauf-ab-prix" step="0.01" min="0" value="20"
-          oninput="calcPrixLitre()" />
-      </div>
-      <div class="form-group" id="chauf-ab-prixl-group" style="display:none">
-        <label>Prix/L calculé</label>
-        <div id="chauf-ab-prixl" style="padding:8px 0;font-weight:700;color:var(--bleu);font-size:14px">—</div>
-      </div>
-      <div class="form-group">
-        <label>Kilométrage <span style="font-size:11px;color:var(--texte-sec)">(optionnel)</span></label>
-        <input type="number" id="chauf-ab-km" placeholder="ex: 72345" />
-      </div>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn primary" style="background:var(--bleu);border-color:var(--bleu)"
-        onclick="saveChauffeurAdBlue()">💧 Enregistrer AdBlue</button>
-      <button class="btn" onclick="clearChauffeurAdBlue()">✕ Effacer</button>
-    </div>
-  </div>
-
   <!-- Formulaire AdBlue admin (toutes options) -->
   <div class="form-card admin-only">
     <h3>Enregistrer un ajout AdBlue</h3>
@@ -2731,7 +2704,15 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
         <label>Kilométrage</label>
         <input type="number" id="ab-ong-km" placeholder="Optionnel" />
       </div>
+      <div class="form-group">
+        <label>Provenance</label>
+        <select id="ab-ong-contenant">
+          <option value="fut" selected>⛽ Fût (stock)</option>
+          <option value="bidon">🧴 Bidon 10 L</option>
+        </select>
+      </div>
     </div>
+    <p style="font-size:11px;color:var(--texte-sec);margin:6px 0 0">« Fût » déduit le volume du stock de fûts ci-dessous ; « Bidon » n'a aucun impact sur ce stock.</p>
     <div style="margin-top:12px;display:flex;gap:10px;">
       <button class="btn primary" onclick="saveAdBlueOnglet()">💾 Enregistrer</button>
       <button class="btn" onclick="clearABForm()">✕ Effacer</button>
@@ -2756,6 +2737,90 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════
+       Commandes de fûts AdBlue (200 L) — superadmin uniquement.
+       Distinct des pleins par véhicule ci-dessus : n'écrit jamais dans
+       "adblues" et ne modifie jamais le kilométrage affiché.
+       ══════════════════════════════════════════════════════════ -->
+  <div class="form-card superadmin-only" style="border:1.5px solid var(--bleu);background:var(--bleu-clair)">
+    <h3 style="margin-bottom:2px">📦 Commandes de fûts AdBlue (200 L)</h3>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:12px">Suivi des commandes/livraisons fournisseur — indépendant des pleins par véhicule ci-dessus.</p>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date de commande</label>
+        <input type="date" id="cab-date-commande" onchange="calculerCommandeAdBlue()" />
+      </div>
+      <div class="form-group">
+        <label>Date de livraison <span style="font-size:11px;color:var(--texte-sec)">(optionnel)</span></label>
+        <input type="date" id="cab-date-livraison" onchange="calculerCommandeAdBlue()" />
+      </div>
+      <div class="form-group">
+        <label>Nombre de fûts (200 L)</label>
+        <input type="number" id="cab-futs" min="1" step="1" value="1" oninput="calculerCommandeAdBlue()" />
+      </div>
+      <div class="form-group">
+        <label>Volume total</label>
+        <div id="cab-volume-total" style="padding:8px 0;font-weight:700;color:var(--bleu);font-size:14px">200 L</div>
+      </div>
+      <div class="form-group">
+        <label>Prix HTVA / L (€)</label>
+        <input type="number" id="cab-prix-htva-l" step="0.001" min="0" placeholder="ex: 0,850" oninput="calculerCommandeAdBlue()" />
+      </div>
+      <div class="form-group">
+        <label>Prix TVAC / L (21 %)</label>
+        <div id="cab-prix-tvac-l" style="padding:8px 0;font-weight:700;color:var(--bleu);font-size:14px">—</div>
+      </div>
+      <div class="form-group">
+        <label>Total HTVA commande</label>
+        <div id="cab-total-htva" style="padding:8px 0;font-weight:700;font-size:14px">—</div>
+      </div>
+      <div class="form-group">
+        <label>Total TVAC commande</label>
+        <div id="cab-total-tvac" style="padding:8px 0;font-weight:700;font-size:14px">—</div>
+      </div>
+      <div class="form-group">
+        <label>Fournisseur <span style="font-size:11px;color:var(--texte-sec)">(optionnel)</span></label>
+        <input type="text" id="cab-fournisseur" placeholder="ex: Total, Q8…" />
+      </div>
+      <div class="form-group">
+        <label>Remarque <span style="font-size:11px;color:var(--texte-sec)">(optionnel)</span></label>
+        <input type="text" id="cab-remarque" />
+      </div>
+    </div>
+    <input type="hidden" id="cab-edit-id" value="" />
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" id="cab-btn-save" onclick="saveCommandeAdBlue()">💾 Enregistrer</button>
+      <button class="btn" onclick="clearCommandeAdBlueForm()">✕ Effacer</button>
+    </div>
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--gris-bord)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:12px;color:var(--texte-sec)">📊 Stock estimé en réserve</div>
+          <div id="cab-stock-restant" style="font-size:20px;font-weight:700;color:var(--bleu)">— L</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="font-size:12px;color:var(--texte-sec)">Stock initial (L)</label>
+          <input type="number" id="cab-stock-initial" min="0" step="1" style="width:90px;border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:13px" />
+          <button class="btn btn-sm" onclick="enregistrerStockInitialAdBlue()">💾</button>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--texte-sec);margin-bottom:0">Stock initial + fûts livrés depuis lors − litres pris sur un fût (pleins par véhicule marqués « Fût ») depuis lors. Les pleins via bidon n'ont aucun impact ici. À ajuster une fois si le stock initial est inconnu.</p>
+    </div>
+
+    <div class="table-wrap" style="margin-top:14px">
+      <table>
+        <thead><tr>
+          <th>Commande</th><th>Livraison</th><th>Statut</th><th>Fûts</th><th>Volume</th>
+          <th>HTVA/L</th><th>TVAC/L</th><th>Total HTVA</th><th>Total TVAC</th><th>Fournisseur</th><th></th>
+        </tr></thead>
+        <tbody id="cab-tbody"></tbody>
+      </table>
+    </div>
+    <div id="cab-total" style="text-align:right;font-weight:700;margin-top:8px;font-size:13px"></div>
+  </div>
+
   <!-- Historique AdBlue -->
   <div class="form-card">
     <h3>Historique AdBlue</h3>
@@ -2766,7 +2831,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Volume</th><th>Km</th><th>Source</th><th class="admin-only">Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Volume</th><th>Km</th><th>Provenance</th><th class="admin-only">Action</th></tr></thead>
         <tbody id="ab-tbody"></tbody>
       </table>
     </div>
@@ -3606,6 +3671,8 @@ let adblues       = window._fbData_adblues        || JSON.parse(localStorage.get
 let carwashes     = window._fbData_carwashes      || JSON.parse(localStorage.getItem('mcr_carwash')      || '[]');
 let rechargesCle  = window._fbData_rechargesCle   || JSON.parse(localStorage.getItem('mcr_recharges_cle')|| '[]');
 let permutations  = window._fbData_permutations   || JSON.parse(localStorage.getItem('mcr_permutations') || '[]');
+let commandesAdBlue = window._fbData_commandesAdBlue || JSON.parse(localStorage.getItem('mcr_commandes_adblue') || '[]');
+window.commandesAdBlue = commandesAdBlue;
 let garagesTel    = window._fbData_garagesTel     || JSON.parse(localStorage.getItem('mcr_garages_tel')  || '{}');
 // Priorité Firebase pour commandesPneus
 if (window._fbData_commandesPneus && window._fbData_commandesPneus.length) {
@@ -3747,14 +3814,16 @@ async function saveAll() {
   localStorage.setItem('mcr_permutations',  JSON.stringify(permutations));
   localStorage.setItem('mcr_chauf',         JSON.stringify(messagesChauf));
   localStorage.setItem('mcr_infos_veh',     JSON.stringify(infosVehicules));
+  localStorage.setItem('mcr_commandes_adblue', JSON.stringify(commandesAdBlue));
 
   // Firebase : uniquement si admin (les chauffeurs utilisent des writes directs)
   const role = currentUser?.role || '';
   const peutEcrire = role === 'admin' || role === 'superadmin';
+  const estSuperAdmin = role === 'superadmin';
   if (window._fb && peutEcrire) {
     const { fbSaveCollection } = window._fb;
     const ensureId = (arr, prefix) => arr.map((x,i) => ({ ...x, id: x.id || `${prefix}_${Date.now()}_${i}` }));
-    const resultats = await Promise.all([
+    const ecrituresBase = [
       fbSaveCollection('maintenances',  ensureId(maintenances.map(m => ({...m, photosData:[]})), 'maint')),
       fbSaveCollection('ctEvents',      ensureId(ctEvents,      'ct')),
       fbSaveCollection('vehicules',     vehicules),
@@ -3777,7 +3846,18 @@ async function saveAll() {
         }
         return m;
       }), 'chauf')),
-    ]).catch(e => { console.warn('Firebase saveAll error:', e); return []; });
+    ];
+    // Commandes de fûts AdBlue : réservées au superadmin (lecture ET
+    // écriture, voir firestore.rules) — ne jamais tenter cette écriture
+    // depuis une session admin/chauffeur, sous peine d'un refus Firestore
+    // à chaque saveAll() (déclenché par n'importe quelle autre action) et
+    // d'un tableau local vide qui écraserait les commandes réelles si la
+    // règle changeait un jour.
+    if (estSuperAdmin) {
+      ecrituresBase.push(fbSaveCollection('commandesAdBlue', ensureId(commandesAdBlue, 'cab')));
+    }
+    const resultats = await Promise.all(ecrituresBase)
+      .catch(e => { console.warn('Firebase saveAll error:', e); return []; });
 
     // fbSaveCollection ne rejette jamais (elle catch en interne et renvoie
     // false) — sans cette vérification explicite, un échec réseau en cours
@@ -3988,62 +4068,6 @@ function dateFormulaireMaintenanceParDefaut() {
 // ============================================================
 
 /* Enregistre un ajout AdBlue depuis le dashboard (inline) */
-function saveAdBlue(vehId) {
-  const dateEl  = document.getElementById(`ab-date-${vehId}`);
-  const litreEl = document.getElementById(`ab-litre-${vehId}`);
-  const kmEl    = document.getElementById(`ab-km-${vehId}`);
-  if (!dateEl || !litreEl) return;
-  const date  = dateEl.value;
-  const litre = parseFloat(litreEl.value.replace(',', '.'));
-  const km    = kmEl && kmEl.value ? parseInt(kmEl.value) : null;
-  if (!date || isNaN(litre) || litre <= 0) { toast('Veuillez indiquer une date et un volume.'); return; }
-  adblues.unshift({ id: Date.now(), vehId, date, litre, km });
-  saveAll();
-  toast(`AdBlue enregistré — ${litre.toFixed(2)} L ✅`);
-  renderAccueil(); // rafraîchit le dashboard
-}
-
-/* Supprime une entrée AdBlue */
-function deleteAdBlue(id) {
-  adblues = adblues.filter(a => a.id !== id);
-  saveAll();
-  renderAccueil();
-}
-
-/* Génère le HTML du bloc AdBlue pour un véhicule donné */
-function renderBlocAdBlue(v) {
-  const hist = adblues.filter(a => a.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date));
-  const today = toLocalYMD(new Date());
-
-  // Dernière entrée pour affichage résumé dans la cellule
-  const last = hist[0] || null;
-  const lastStr = last
-    ? `<span style="color:var(--bleu);font-weight:700">${last.litre.toFixed(2)} L</span> le ${formatDate(last.date)}${last.km ? ' à ' + last.km.toLocaleString('fr-BE') + ' km' : ''}`
-    : '<span style="color:var(--texte-sec)">Aucun ajout enregistré</span>';
-
-  const histHtml = hist.length ? hist.map(a => `
-    <div class="adblue-hist-ligne">
-      <span class="ah-date">${formatDate(a.date)}</span>
-      <span class="ah-litre">${a.litre.toFixed(2)} L</span>
-      <span class="ah-km">${a.km ? a.km.toLocaleString('fr-BE') + ' km' : '—'}</span>
-      <button class="ah-del" onclick="deleteAdBlue(${a.id})" title="Supprimer">✕</button>
-    </div>`).join('') : '<p style="color:var(--texte-sec);font-size:12px;margin:4px 0">Aucun historique.</p>';
-
-  return `<div class="adblue-bloc">
-    <div class="adblue-titre">💧 AdBlue — ${lastStr}</div>
-    <div class="adblue-form">
-      <input type="date" id="ab-date-${v.id}" value="${today}" />
-      <input type="number" id="ab-litre-${v.id}" value="10.00" step="0.01" min="0.01" placeholder="Litres" />
-      <input type="number" id="ab-km-${v.id}" value="${v.km || ''}" placeholder="km" />
-      <button class="btn-adblue" onclick="saveAdBlue('${v.id}')">+ Enregistrer</button>
-    </div>
-    ${hist.length ? `<details class="adblue-hist">
-      <summary>Historique (${hist.length} entrée${hist.length>1?'s':''})</summary>
-      ${histHtml}
-    </details>` : `<div class="adblue-hist">${histHtml}</div>`}
-  </div>`;
-}
-
 // ============================================================
 // CAR WASH — fonctions
 // ============================================================
@@ -5838,19 +5862,6 @@ function initChauf() {
     });
   }
 
-  // Peupler AdBlue (onglet adblue)
-  const selAb = document.getElementById('chauf-ab-veh');
-  if (selAb && selAb.options.length === 0) {
-    const vehAbTries = VEHICULES_ADBLUE
-      .map(id => vehicules.find(x => x.id === id)).filter(Boolean)
-      .sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
-    selAb.innerHTML = vehAbTries.map(v =>
-      '<option value="' + v.id + '">' + v.marque + ' — ' + v.immat + '</option>').join('');
-  }
-
-  const abCard = document.getElementById('chauf-adblue-card');
-  if (abCard) abCard.style.display = 'none';
-
   // Le superadmin reçoit/consulte/répond aux signalements mais n'en crée pas —
   // cette fonctionnalité est dédiée aux chauffeurs (et reste disponible pour
   // l'admin classique, qui peut avoir besoin de signaler depuis le terrain).
@@ -5864,97 +5875,6 @@ function initChauf() {
 
   renderMessagesChauf();
   renderChaufMaintenances();
-}
-
-// ── Fonctions AdBlue chauffeur ────────────────────────────────
-function toggleChauffeurAdBlue() {
-  const type = document.getElementById('chauf-ab-type')?.value;
-  // Les champs volume et montant sont toujours visibles
-  // Bidon : valeurs préremplies modifiables ; Pompe : champs vides
-  const litre = document.getElementById('chauf-ab-litre');
-  const prix  = document.getElementById('chauf-ab-prix');
-  if (type === 'bidon') {
-    if (litre && !litre.value) litre.value = '10';
-    if (prix  && !prix.value)  prix.value  = '20';
-  } else {
-    if (litre) litre.value = '';
-    if (prix)  prix.value  = '';
-    if (document.getElementById('chauf-ab-prixl'))
-      document.getElementById('chauf-ab-prixl').textContent = '—';
-  }
-  calcPrixLitre();
-}
-
-function calcPrixLitre() {
-  const litre = parseFloat(String(document.getElementById('chauf-ab-litre')?.value || '').replace(',','.'));
-  const prix  = parseFloat(String(document.getElementById('chauf-ab-prix')?.value  || '').replace(',','.'));
-  const el    = document.getElementById('chauf-ab-prixl');
-  if (el) {
-    if (litre > 0 && prix > 0) {
-      el.textContent = (prix / litre).toFixed(3) + ' €/L';
-    } else {
-      el.textContent = '—';
-    }
-  }
-}
-
-let _verrouAdBlue = false;
-async function saveChauffeurAdBlue() {
-  if (_verrouAdBlue) return; // évite un double envoi si double-tap
-  _verrouAdBlue = true;
-  setTimeout(() => { _verrouAdBlue = false; }, 2500);
-  const date  = document.getElementById('chauf-ab-date')?.value;
-  const vehId = document.getElementById('chauf-ab-veh')?.value;
-  const type  = document.getElementById('chauf-ab-type')?.value;
-  const km    = document.getElementById('chauf-ab-km')?.value ? parseInt(document.getElementById('chauf-ab-km').value) : null;
-
-  let litre, prixTotal, prixUnit;
-  // Bidon ou pompe : toujours lire les champs (bidon a des valeurs par défaut modifiables)
-  litre     = parseFloat(String(document.getElementById('chauf-ab-litre')?.value || '').replace(',','.'));
-  prixTotal = parseFloat(String(document.getElementById('chauf-ab-prix')?.value  || '').replace(',','.'));
-  prixUnit  = (litre > 0 && prixTotal > 0) ? prixTotal / litre : null;
-
-  if (!date || !vehId || !litre || litre <= 0) {
-    toast('Veuillez remplir la date, le véhicule et le volume.'); return;
-  }
-
-  const rec = { id: Date.now(), vehId, date, litre, prixTotal: prixTotal || null, prixUnit: prixUnit || null, km, source: 'chauffeur' };
-  adblues.unshift(rec);
-
-  logAction('creation', 'adblues',
-    'AdBlue chauffeur — ' + vehId + ' — ' + litre + ' L' + (prixTotal ? ' — ' + prixTotal + ' €' : ''), null, rec);
-
-  // Sauvegarder directement dans Firestore (create autorisé pour chauffeur)
-  try {
-    await db.collection('adblues').doc(String(rec.id)).set(rec);
-  } catch(e) {
-    console.warn('Erreur Firestore adblues:', e);
-    if (typeof isAdmin === 'function' && isAdmin()) saveAll();
-  }
-  clearChauffeurAdBlue();
-  if (document.getElementById('page-vehicules')?.classList.contains('active')) renderVehicules();
-  renderBlocAdBlue(vehicules.find(v => v.id === vehId));
-  toast('AdBlue enregistré — ' + litre.toFixed(2) + ' L ✅');
-}
-
-function clearChauffeurAdBlue() {
-  ['chauf-ab-km'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  const dateEl = document.getElementById('chauf-ab-date');
-  if (dateEl) dateEl.value = toLocalYMD(new Date());
-  // Remettre valeurs par défaut bidon
-  const type = document.getElementById('chauf-ab-type')?.value;
-  if (type === 'bidon') {
-    const l = document.getElementById('chauf-ab-litre'); if (l) l.value = '10';
-    const p = document.getElementById('chauf-ab-prix');  if (p) p.value = '20';
-  } else {
-    const l = document.getElementById('chauf-ab-litre'); if (l) l.value = '';
-    const p = document.getElementById('chauf-ab-prix');  if (p) p.value = '';
-  }
-  const pl = document.getElementById('chauf-ab-prixl');
-  if (pl) pl.textContent = type === 'bidon' ? '2.000 €/L' : '—';
-  calcPrixLitre();
 }
 
 function selectionnerVehicule(btn) {
@@ -6284,27 +6204,6 @@ async function sendMessageChauf() {
 }
 
 function initAdBlueOnglet() {
-  // Bloc AdBlue chauffeur (visible pour tous dans cet onglet)
-  const selChauf = document.getElementById('chauf-ab-veh');
-  if (selChauf && selChauf.options.length === 0) {
-    const vehAbTries = VEHICULES_ADBLUE
-      .map(id => vehicules.find(x => x.id === id)).filter(Boolean)
-      .sort((a,b) => a.marque.localeCompare(b.marque, 'fr'));
-    selChauf.innerHTML = vehAbTries.map(v =>
-      `<option value="${v.id}">${v.marque} — ${v.immat}</option>`).join('');
-  }
-  // Liste des véhicules concernés — plaques complètes, générée depuis la
-  // vraie liste (évite qu'un texte codé en dur se désynchronise un jour).
-  const listeVehAb = document.getElementById('chauf-ab-liste-veh');
-  if (listeVehAb) listeVehAb.textContent = VEHICULES_ADBLUE.join(', ');
-
-  const abDate = document.getElementById('chauf-ab-date');
-  if (abDate && !abDate.value) abDate.value = toLocalYMD(new Date());
-
-  // Masquer le bloc AdBlue chauffeur pour les admins (ils utilisent le formulaire admin)
-  const chaufCard = document.getElementById('chauf-adblue-card');
-  if (chaufCard) chaufCard.style.display = userIsAdmin() ? 'none' : '';
-
   // Formulaire admin
   const selVeh = document.getElementById('ab-ong-veh');
   if (selVeh && selVeh.options.length <= 0) {
@@ -6329,6 +6228,14 @@ function initAdBlueOnglet() {
   if (kmEl && veh) kmEl.value = veh.km;
   document.getElementById('ab-ong-date').value = toLocalYMD(new Date());
   renderAdBlueTable();
+
+  // Commandes de fûts AdBlue — superadmin uniquement
+  if (userIsSuperAdmin()) {
+    const cabDate = document.getElementById('cab-date-commande');
+    if (cabDate && !cabDate.value) cabDate.value = toLocalYMD(new Date());
+    calculerCommandeAdBlue();
+    renderCommandesAdBlue();
+  }
 }
 
 function saveAdBlueOnglet() {
@@ -6336,13 +6243,18 @@ function saveAdBlueOnglet() {
   const vehId = document.getElementById('ab-ong-veh').value;
   const litre = parseFloat(String(document.getElementById('ab-ong-litre').value).replace(',','.'));
   const km    = document.getElementById('ab-ong-km').value ? parseInt(document.getElementById('ab-ong-km').value) : null;
+  const contenant = document.getElementById('ab-ong-contenant')?.value === 'bidon' ? 'bidon' : 'fut';
   if (!date || !vehId || isNaN(litre) || litre <= 0) { toast('Veuillez remplir la date, le véhicule et le volume.'); return; }
-  adblues.unshift({ id: Date.now(), vehId, date, litre, prixTotal: litre * 2.0, prixUnit: 2.0, km, source: 'admin' });
+  adblues.unshift({ id: Date.now(), vehId, date, litre, prixTotal: litre * 2.0, prixUnit: 2.0, km, source: 'admin', contenant });
   logCreation('adblues', `AdBlue : ${vehicules.find(v=>v.id===vehId)?.immat||vehId} — ${litre.toFixed(2)} L — ${formatDate(date)}`, { vehId, date, litre });
   saveAll();
   clearABForm();
   renderAdBlueTable();
   if (document.getElementById('page-vehicules').classList.contains('active')) renderVehicules();
+  // Un plein pris sur un fût impacte le stock de fûts affiché juste en
+  // dessous, sur la même page : on le rafraîchit aussi (sans effet si la
+  // carte n'existe pas, càd si l'utilisateur n'est pas superadmin).
+  if (typeof renderCommandesAdBlue === 'function') renderCommandesAdBlue();
   toast(`AdBlue enregistré — ${litre.toFixed(2)} L ✅`);
 }
 
@@ -6350,6 +6262,8 @@ function clearABForm() {
   document.getElementById('ab-ong-litre').value = '10.00';
   document.getElementById('ab-ong-km').value = '';
   document.getElementById('ab-ong-date').value = toLocalYMD(new Date());
+  const contEl = document.getElementById('ab-ong-contenant');
+  if (contEl) contEl.value = 'fut';
 }
 
 function deleteAdBlueOnglet(id) {
@@ -6358,7 +6272,9 @@ function deleteAdBlueOnglet(id) {
   const vABd = abD ? vehicules.find(v => v.id === abD.vehId) : null;
   adblues = adblues.filter(a => a.id !== id);
   logSuppression('adblues', `Suppression AdBlue ${vABd ? vABd.immat : abD?.vehId||'?'} — ${abD ? formatDate(abD.date) : ''}`, abD);
-  saveAll(); renderAdBlueTable(); toast('Entrée supprimée');
+  saveAll(); renderAdBlueTable();
+  if (typeof renderCommandesAdBlue === 'function') renderCommandesAdBlue();
+  toast('Entrée supprimée');
 }
 
 function renderAdBlueTable() {
@@ -6372,7 +6288,11 @@ function renderAdBlueTable() {
     ? rows.map(a => {
         const v = vehicules.find(x => x.id === a.vehId);
         total += a.litre;
-        const src = a.source === 'maintenance' ? '<span style="font-size:11px;color:var(--texte-sec)">maintenance</span>' : '—';
+        // Provenance : par défaut "fût" pour toute entrée antérieure à
+        // l'ajout de ce champ (comportement inchangé pour l'historique).
+        const contenant = a.contenant === 'bidon' ? 'bidon' : 'fut';
+        let src = contenant === 'bidon' ? '🧴 Bidon' : '⛽ Fût';
+        if (a.source === 'maintenance') src += ' <span style="font-size:11px;color:var(--texte-sec)">(maintenance)</span>';
         return `<tr>
           <td>${formatDate(a.date)}</td>
           <td>${v ? v.marque + ' ' + v.immat : a.vehId}</td>
@@ -6437,6 +6357,237 @@ function rafraichirBadgeAdBlueNavbar() {
   badge.title = 'Total AdBlue ' + anneeActuelle + ' (flotte) \u2014 cliquer pour voir le d\u00e9tail';
 }
 
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Commandes de f\u00fbts AdBlue (200 L) \u2014 superadmin uniquement
+// Collection Firestore d\u00e9di\u00e9e "commandesAdBlue", persist\u00e9e via saveAll()
+// comme le reste de l'app. N'\u00e9crit jamais dans "adblues" (pleins par
+// v\u00e9hicule) et ne touche jamais au kilom\u00e9trage affich\u00e9.
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+const TAUX_TVA_ADBLUE  = 0.21;
+const VOLUME_FUT_ADBLUE = 200; // litres par f\u00fbt
+const ID_STOCK_INIT_ADBLUE = 'stock_init';
+
+function calculerCommandeAdBlue() {
+  const futs = parseInt(document.getElementById('cab-futs')?.value) || 0;
+  const htvaL = parseFloat(String(document.getElementById('cab-prix-htva-l')?.value || '').replace(',','.'));
+  const volume = futs * VOLUME_FUT_ADBLUE;
+
+  const elVol = document.getElementById('cab-volume-total');
+  if (elVol) elVol.textContent = volume.toLocaleString('fr-BE') + ' L';
+
+  // Arrondi explicite pour éviter les artefacts d'imprécision binaire
+  // (ex. 0.85*1.21 = 1.0284999... en JS, arrondi naïvement 1.028 au lieu
+  // de 1.029) — on arrondit au centime/millième avant tout affichage ou
+  // enregistrement, jamais après.
+  // Le total TVAC part du total HTVA (et non du prix TVAC/litre déjà
+  // arrondi) pour éviter une dérive d'arrondi entre le prix unitaire
+  // affiché et le total de la commande — c'est le total HTVA qui fait foi.
+  const arrondi = (n, dec) => Math.round((n + Number.EPSILON) * Math.pow(10, dec)) / Math.pow(10, dec);
+  const tvacL     = (htvaL > 0) ? arrondi(htvaL * (1 + TAUX_TVA_ADBLUE), 3) : null;
+  const totalHtva = (htvaL > 0) ? arrondi(volume * htvaL, 2) : null;
+  const totalTvac = (htvaL > 0) ? arrondi(totalHtva * (1 + TAUX_TVA_ADBLUE), 2) : null;
+
+  const elTvacL = document.getElementById('cab-prix-tvac-l');
+  if (elTvacL) elTvacL.textContent = tvacL != null ? tvacL.toFixed(3) + ' \u20ac' : '\u2014';
+  const elTotHtva = document.getElementById('cab-total-htva');
+  if (elTotHtva) elTotHtva.textContent = totalHtva != null ? totalHtva.toFixed(2) + ' \u20ac' : '\u2014';
+  const elTotTvac = document.getElementById('cab-total-tvac');
+  if (elTotTvac) elTotTvac.textContent = totalTvac != null ? totalTvac.toFixed(2) + ' \u20ac' : '\u2014';
+
+  return { volume, htvaL: htvaL > 0 ? htvaL : null, tvacL, totalHtva, totalTvac };
+}
+
+/* Statut d\u00e9riv\u00e9 automatiquement des dates \u2014 jamais saisi \u00e0 la main, pour
+   \u00e9viter qu'il se d\u00e9synchronise (ex: "Command\u00e9" oubli\u00e9 apr\u00e8s livraison). */
+function statutCommandeAdBlue(dateLivraison) {
+  if (!dateLivraison) return 'commande';
+  return dateLivraison <= toLocalYMD(new Date()) ? 'livre' : 'prevu';
+}
+
+function libelleStatutCommandeAdBlue(statut) {
+  if (statut === 'livre') return '\u2705 Livr\u00e9';
+  if (statut === 'prevu') return '\ud83d\ude9a Livraison pr\u00e9vue';
+  return '\ud83d\udfe0 Command\u00e9';
+}
+
+function saveCommandeAdBlue() {
+  if (!userIsSuperAdmin()) return;
+  const editId         = document.getElementById('cab-edit-id')?.value;
+  const dateCommande    = document.getElementById('cab-date-commande')?.value;
+  const dateLivraison   = document.getElementById('cab-date-livraison')?.value || '';
+  const futs            = parseInt(document.getElementById('cab-futs')?.value) || 0;
+  const fournisseur      = document.getElementById('cab-fournisseur')?.value?.trim() || '';
+  const remarque         = document.getElementById('cab-remarque')?.value?.trim() || '';
+
+  if (!dateCommande) { toast('Indiquez la date de commande.'); return; }
+  if (futs < 1)       { toast('Indiquez au moins 1 f\u00fbt.'); return; }
+  if (dateLivraison && dateLivraison < dateCommande) {
+    toast('La date de livraison ne peut pas pr\u00e9c\u00e9der la date de commande.'); return;
+  }
+
+  const calc = calculerCommandeAdBlue();
+  const rec = {
+    id: editId ? Number(editId) : Date.now(),
+    dateCommande, dateLivraison,
+    statut: statutCommandeAdBlue(dateLivraison),
+    futs, volume: calc.volume,
+    prixHtvaL: calc.htvaL, prixTvacL: calc.tvacL,
+    totalHtva: calc.totalHtva, totalTvac: calc.totalTvac,
+    fournisseur, remarque,
+  };
+
+  if (editId) {
+    const idx = commandesAdBlue.findIndex(c => String(c.id) === String(editId));
+    if (idx >= 0) commandesAdBlue[idx] = rec;
+    logModification('commandesAdBlue',
+      `Commande AdBlue modifi\u00e9e : ${futs} f\u00fbt(s) \u2014 ${formatDateCourt(dateCommande)}`,
+      null, rec);
+  } else {
+    commandesAdBlue.unshift(rec);
+    logCreation('commandesAdBlue',
+      `Commande AdBlue : ${futs} f\u00fbt(s) (${calc.volume} L) \u2014 ${formatDateCourt(dateCommande)}`,
+      rec);
+  }
+
+  window.commandesAdBlue = commandesAdBlue;
+  saveAll();
+  clearCommandeAdBlueForm();
+  renderCommandesAdBlue();
+  toast(editId ? '\u2705 Commande mise \u00e0 jour' : '\u2705 Commande enregistr\u00e9e');
+}
+
+function modifierCommandeAdBlue(id) {
+  if (!userIsSuperAdmin()) return;
+  const c = commandesAdBlue.find(x => String(x.id) === String(id));
+  if (!c) return;
+  document.getElementById('cab-edit-id').value = c.id;
+  document.getElementById('cab-date-commande').value = c.dateCommande || '';
+  document.getElementById('cab-date-livraison').value = c.dateLivraison || '';
+  document.getElementById('cab-futs').value = c.futs || 1;
+  document.getElementById('cab-prix-htva-l').value = c.prixHtvaL != null ? c.prixHtvaL : '';
+  document.getElementById('cab-fournisseur').value = c.fournisseur || '';
+  document.getElementById('cab-remarque').value = c.remarque || '';
+  calculerCommandeAdBlue();
+  const btn = document.getElementById('cab-btn-save');
+  if (btn) btn.textContent = '\ud83d\udcbe Mettre \u00e0 jour';
+  const page = document.getElementById('page-adblue');
+  if (page && typeof page.scrollIntoView === 'function') page.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function deleteCommandeAdBlue(id) {
+  if (!userIsSuperAdmin()) return;
+  if (!confirm('Supprimer cette commande ?')) return;
+  commandesAdBlue = commandesAdBlue.filter(c => String(c.id) !== String(id));
+  window.commandesAdBlue = commandesAdBlue;
+  saveAll();
+  renderCommandesAdBlue();
+  toast('Commande supprim\u00e9e');
+}
+
+function clearCommandeAdBlueForm() {
+  document.getElementById('cab-edit-id').value = '';
+  document.getElementById('cab-date-commande').value = '';
+  document.getElementById('cab-date-livraison').value = '';
+  document.getElementById('cab-futs').value = '1';
+  document.getElementById('cab-prix-htva-l').value = '';
+  document.getElementById('cab-fournisseur').value = '';
+  document.getElementById('cab-remarque').value = '';
+  const btn = document.getElementById('cab-btn-save');
+  if (btn) btn.textContent = '\ud83d\udcbe Enregistrer';
+  calculerCommandeAdBlue();
+}
+
+function enregistrerStockInitialAdBlue() {
+  if (!userIsSuperAdmin()) return;
+  const val = parseFloat(String(document.getElementById('cab-stock-initial')?.value || '').replace(',','.'));
+  if (!(val >= 0)) { toast('Indiquez un stock initial valide (0 ou plus).'); return; }
+  const aujourdhui = toLocalYMD(new Date());
+  let doc = commandesAdBlue.find(c => c.id === ID_STOCK_INIT_ADBLUE);
+  if (doc) {
+    doc.stockInitial = val; doc.stockInitialDate = aujourdhui;
+  } else {
+    commandesAdBlue.push({ id: ID_STOCK_INIT_ADBLUE, stockInitial: val, stockInitialDate: aujourdhui });
+  }
+  logModification('commandesAdBlue', `Stock initial AdBlue d\u00e9fini : ${val} L (compt\u00e9 le ${formatDateCourt(aujourdhui)})`, null, { stockInitial: val, stockInitialDate: aujourdhui });
+  window.commandesAdBlue = commandesAdBlue;
+  saveAll();
+  renderCommandesAdBlue();
+  toast('\u2705 Stock initial enregistr\u00e9');
+}
+
+/* Stock estim\u00e9 = stock initial (compt\u00e9 \u00e0 une date de r\u00e9f\u00e9rence)
+   + litres livr\u00e9s depuis cette date - litres consomm\u00e9s (pleins par
+   v\u00e9hicule, collection "adblues") depuis cette date. Sans stock initial
+   renseign\u00e9, on part de 0 \u00e0 partir d'aujourd'hui (stock "relatif").
+   Seules les pleins pris sur un F\u00dbT sont d\u00e9duits : un plein via un
+   bidon de 10 L n'a aucun impact sur ce stock (les bidons ne sont pas
+   g\u00e9r\u00e9s ici). Une entr\u00e9e sans champ "contenant" (ant\u00e9rieure \u00e0 son
+   ajout) est trait\u00e9e comme "f\u00fbt", comme avant. */
+function calculerStockAdBlue(commandes) {
+  const stockDoc  = commandesAdBlue.find(c => c.id === ID_STOCK_INIT_ADBLUE);
+  const refDate   = stockDoc?.stockInitialDate || toLocalYMD(new Date());
+  const stockInit = stockDoc?.stockInitial || 0;
+
+  const litresLivres = commandes
+    .filter(c => c.statut === 'livre' && c.dateLivraison >= refDate)
+    .reduce((s,c) => s + (c.volume || 0), 0);
+
+  const litresConsommes = adblues
+    .filter(a => a.date && a.date >= refDate && (a.contenant || 'fut') === 'fut')
+    .reduce((s,a) => s + (a.litre || 0), 0);
+
+  return { stock: stockInit + litresLivres - litresConsommes, refDate, stockInit };
+}
+
+function renderCommandesAdBlue() {
+  const tbody = document.getElementById('cab-tbody');
+  if (!tbody) return;
+
+  const commandes = commandesAdBlue
+    .filter(c => c.id !== ID_STOCK_INIT_ADBLUE)
+    .map(c => ({ ...c, statut: statutCommandeAdBlue(c.dateLivraison) })) // toujours recalcul\u00e9, jamais fig\u00e9
+    .sort((a,b) => (b.dateCommande||'').localeCompare(a.dateCommande||''));
+
+  let totFuts = 0, totVol = 0, totHtva = 0, totTvac = 0;
+  tbody.innerHTML = commandes.length
+    ? commandes.map(c => {
+        totFuts += c.futs || 0; totVol += c.volume || 0;
+        totHtva += c.totalHtva || 0; totTvac += c.totalTvac || 0;
+        return `<tr>
+          <td>${formatDateCourt(c.dateCommande)}</td>
+          <td>${c.dateLivraison ? formatDateCourt(c.dateLivraison) : '\u2014'}</td>
+          <td>${libelleStatutCommandeAdBlue(c.statut)}</td>
+          <td>${c.futs}</td>
+          <td>${(c.volume||0).toLocaleString('fr-BE')} L</td>
+          <td>${c.prixHtvaL != null ? c.prixHtvaL.toFixed(3) + ' \u20ac' : '\u2014'}</td>
+          <td>${c.prixTvacL != null ? c.prixTvacL.toFixed(3) + ' \u20ac' : '\u2014'}</td>
+          <td>${c.totalHtva != null ? c.totalHtva.toFixed(2) + ' \u20ac' : '\u2014'}</td>
+          <td>${c.totalTvac != null ? c.totalTvac.toFixed(2) + ' \u20ac' : '\u2014'}</td>
+          <td>${echapperHtml(c.fournisseur || '\u2014')}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-sm" onclick="modifierCommandeAdBlue(${c.id})">\u270f\ufe0f</button>
+            <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCommandeAdBlue(${c.id})">\u2715</button>
+          </td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="11" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune commande enregistr\u00e9e</td></tr>';
+
+  const totEl = document.getElementById('cab-total');
+  if (totEl) totEl.textContent = commandes.length
+    ? `Total : ${totFuts} f\u00fbt(s) \u2014 ${totVol.toLocaleString('fr-BE')} L \u2014 ${totHtva.toFixed(2)} \u20ac HTVA \u2014 ${totTvac.toFixed(2)} \u20ac TVAC`
+    : '';
+
+  const stockDoc = commandesAdBlue.find(c => c.id === ID_STOCK_INIT_ADBLUE);
+  const stockInput = document.getElementById('cab-stock-initial');
+  if (stockInput && stockDoc && document.activeElement !== stockInput) stockInput.value = stockDoc.stockInitial;
+
+  const { stock, refDate } = calculerStockAdBlue(commandes);
+  const elStock = document.getElementById('cab-stock-restant');
+  if (elStock) {
+    elStock.textContent = stock.toLocaleString('fr-BE') + ' L';
+    elStock.title = stockDoc ? `Compt\u00e9 depuis le ${formatDateCourt(refDate)}` : 'Aucun stock initial renseign\u00e9 \u2014 compt\u00e9 depuis aujourd\'hui';
+  }
+}
 
 function ctStatus(veh) {
   const j = daysUntil(veh.ct_valid);
@@ -7106,10 +7257,6 @@ function appliquerDroits() {
   // Éléments admin-only et superadmin-only dans les pages
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdm ? '' : 'none');
   document.querySelectorAll('.superadmin-only').forEach(el => el.style.display = isSA ? '' : 'none');
-
-  // AdBlue chauffeur : visible uniquement pour les chauffeurs
-  const abCard = document.getElementById('chauf-adblue-card');
-  if (abCard) abCard.style.display = isAdm ? 'none' : '';
 
   updateTabChauf();
   updateNavbarMaint();
@@ -13757,6 +13904,29 @@ async function exporterExcel() {
     ]);
     XLSX.utils.book_append_sheet(wb, wsPneusGarages, 'Pneus & Garages');
 
+    // ── Feuille 7 : Commandes AdBlue (superadmin uniquement — les autres
+    //    rôles n'ont de toute façon jamais ces données en mémoire) ──
+    if (userIsSuperAdmin()) {
+      const commandesTriees = commandesAdBlue
+        .filter(c => c.id !== ID_STOCK_INIT_ADBLUE)
+        .map(c => ({ ...c, statut: statutCommandeAdBlue(c.dateLivraison) }))
+        .sort((a,b) => (b.dateCommande||'').localeCompare(a.dateCommande||''));
+      const wsCommandesAB = XLSX.utils.aoa_to_sheet([
+        ['Date commande','Date livraison','Statut','Fûts','Volume (L)',
+         'Prix HTVA/L','Prix TVAC/L','Total HTVA','Total TVAC','Fournisseur','Remarque'],
+        ...commandesTriees.map(c => [
+          c.dateCommande || '', c.dateLivraison || '', libelleStatutCommandeAdBlue(c.statut),
+          c.futs || '', c.volume || '',
+          c.prixHtvaL != null ? Number(c.prixHtvaL.toFixed(3)) : '',
+          c.prixTvacL != null ? Number(c.prixTvacL.toFixed(3)) : '',
+          c.totalHtva != null ? Number(c.totalHtva.toFixed(2)) : '',
+          c.totalTvac != null ? Number(c.totalTvac.toFixed(2)) : '',
+          c.fournisseur || '', c.remarque || '',
+        ]),
+      ]);
+      XLSX.utils.book_append_sheet(wb, wsCommandesAB, 'Commandes AdBlue');
+    }
+
     // ── Génération et téléchargement ──
     const dateStr = toLocalYMD(new Date()).split('-').reverse().join('-');
     XLSX.writeFile(wb, `MCR_Opont_Flotte_Export_${dateStr}.xlsx`);
@@ -14282,7 +14452,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260923.1040';
+const APP_VERSION = '260928.1818';
 
 let _swRegistration = null;
 
@@ -14550,6 +14720,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window._fbData_adblues)        adblues       = window._fbData_adblues;
     if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
     if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+    if (window._fbData_commandesAdBlue) commandesAdBlue = window._fbData_commandesAdBlue;
+    window.commandesAdBlue = commandesAdBlue;
     // infosVehicules : depuis Firebase si disponible, sinon localStorage
     if (window._fbData_infosVehicules) {
       infosVehicules = window._fbData_infosVehicules;
