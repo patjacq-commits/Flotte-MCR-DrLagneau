@@ -441,15 +441,33 @@
             JSON.stringify({ fields: { online: { booleanValue: false } } })
           );
         });
-        // Maintenir le heartbeat toutes les 2 minutes
-        window._heartbeatInterval = setInterval(async () => {
+        // Maintenir le heartbeat toutes les 2 minutes. Sur mobile, un
+        // onglet/PWA mis en arrière-plan peut voir ses setInterval gelés
+        // par le système pendant des heures, voire des mois (observé en
+        // pratique : un chauffeur resté "connecté" sans jamais rouvrir
+        // l'app au premier plan gardait un derniere_activite figé au jour
+        // de sa première connexion, donc invisible dans "Connectés en ce
+        // moment" tout ce temps). Pour compenser, on renvoie aussi un
+        // heartbeat immédiat dès que l'app repasse au premier plan.
+        const envoyerHeartbeatSession = async () => {
           try {
             await db.collection('sessions').doc(firebaseUser.uid).set(
               { derniere_activite: new Date().toISOString(), online: true },
               { merge: true }
             );
           } catch(e) {}
-        }, 2 * 60 * 1000);
+        };
+        window._heartbeatInterval = setInterval(envoyerHeartbeatSession, 2 * 60 * 1000);
+        // Retirer un éventuel écouteur d'un cycle connexion/déconnexion
+        // précédent dans le même onglet, avant d'ajouter le nouveau —
+        // évite l'empilement si on se reconnecte sans recharger la page.
+        if (window._visibilityHeartbeatHandler) {
+          document.removeEventListener('visibilitychange', window._visibilityHeartbeatHandler);
+        }
+        window._visibilityHeartbeatHandler = () => {
+          if (document.visibilityState === 'visible') envoyerHeartbeatSession();
+        };
+        document.addEventListener('visibilitychange', window._visibilityHeartbeatHandler);
       } catch(e) { console.warn('Erreur log connexion:', e); }
 
       // Commandes AdBlue (fûts) : donnée strictement réservée au superadmin.
@@ -1450,7 +1468,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.0909</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.0921</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -7346,6 +7364,10 @@ async function seDeconnecter() {
   if (window._heartbeatInterval) {
     clearInterval(window._heartbeatInterval);
     window._heartbeatInterval = null;
+  }
+  if (window._visibilityHeartbeatHandler) {
+    document.removeEventListener('visibilitychange', window._visibilityHeartbeatHandler);
+    window._visibilityHeartbeatHandler = null;
   }
   await auth.signOut();
   currentUser = null;
@@ -14688,7 +14710,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260929.0909';
+const APP_VERSION = '260929.0921';
 
 let _swRegistration = null;
 
