@@ -1450,7 +1450,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.0901</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.0909</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -8511,7 +8511,7 @@ function renderAccueil() {
         <span style="font-size:22px">👥</span>
       </div>
       <div class="lbl">Comptes</div>
-      <div id="card-comptes-presence" style="font-size:10px;margin-top:3px;height:14px"></div>
+      <div id="card-comptes-presence" style="margin-top:6px"></div>
     </div>
   `;
 
@@ -8552,9 +8552,10 @@ function renderAccueil() {
       const numEl  = document.getElementById('card-comptes-online');
       if (!presEl || !numEl) return;
 
+      const ROLE_LABELS_DASH = { superadmin:'Patrick', admin:'Angélique', chauffeur:'Chauffeur' };
       if (enligne.length > 0) {
-        // Afficher les noms des connectés
-        const noms = enligne.map(s => s.nom || s.email?.split('@')[0] || '?');
+        // Un nom par ligne, bien lisible (repris du même style que l'onglet
+        // Comptes), plutôt qu'une seule ligne compacte en petits caractères.
         numEl.innerHTML = `
           <span style="position:relative;display:inline-block">
             <span style="font-size:22px">👥</span>
@@ -8563,11 +8564,16 @@ function renderAccueil() {
               width:16px;height:16px;display:flex;align-items:center;justify-content:center;
               animation:pulse-info 1.5s ease infinite">${enligne.length}</span>
           </span>`;
-        presEl.innerHTML = `<span style="color:var(--vert);font-weight:700">
-          🟢 ${noms.join(', ')}</span>`;
+        presEl.innerHTML = enligne.map(s => `
+          <div style="display:flex;align-items:center;justify-content:center;gap:5px;margin-top:3px">
+            <span style="width:7px;height:7px;border-radius:50%;background:var(--vert);flex-shrink:0;
+              animation:pulse-info 1.5s ease infinite"></span>
+            <span style="font-size:13px;font-weight:700;color:var(--vert)">${s.nom || s.email?.split('@')[0] || '?'}</span>
+            <span style="font-size:10px;color:var(--texte-sec)">${ROLE_LABELS_DASH[s.role] || ''}</span>
+          </div>`).join('');
       } else {
         numEl.innerHTML  = `<span style="font-size:22px">👥</span>`;
-        presEl.innerHTML = `<span style="color:#bbb">— hors ligne</span>`;
+        presEl.innerHTML = `<span style="font-size:11px;color:#bbb">— personne d'autre en ligne</span>`;
       }
     }, () => {});
   }
@@ -14682,7 +14688,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260929.0901';
+const APP_VERSION = '260929.0909';
 
 let _swRegistration = null;
 
