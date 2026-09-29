@@ -1480,7 +1480,13 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.1041</div>
+  <!-- Aide contextuelle — remplace l'ancien onglet "Mode d'emploi" unique :
+       affiche uniquement l'aide de la page actuellement ouverte, adaptée au
+       rôle connecté (voir afficherAidePage() / AIDE_CONTENU). -->
+  <button onclick="afficherAidePage()" title="Aide sur cette page"
+    style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
+
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.1057</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1535,7 +1541,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Signaler un problème</button>
   <button class="tab-btn" onclick="showPage('accident',this)">💡 Bon à savoir…</button>
-  <button class="tab-btn" onclick="showPage('modeemploi',this)">📖 Mode d'emploi</button>
   <button class="tab-btn chauf-only" onclick="showPage('histmaint',this)" style="display:none">📋 Historique maintenances</button>
   <button class="tab-btn" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
   <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 Prendre RV</button>
@@ -2076,210 +2081,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
           Source : police.be et 112.be — vérifié le 15/09/2026.
         </p>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════
-     PAGE MODE D'EMPLOI — visible pour les 3 rôles.
-     À tenir à jour à chaque évolution de l'application (voir la
-     note en tête de page). Structure : 3 accordéons par rôle
-     (Patrick / Angélique / Chauffeurs), la section du rôle de la
-     personne connectée s'ouvre automatiquement (initModeEmploi()).
-     ══════════════════════════════════════════════════════════ -->
-<div id="page-modeemploi" class="page">
-  <h2 style="margin-bottom:4px">📖 Mode d'emploi</h2>
-  <p style="font-size:12px;color:var(--texte-sec);margin-bottom:14px">
-    Ce que chacun peut voir et faire dans l'application, étape par étape — version <span id="mode-emploi-version">—</span>.
-    Ce guide est mis à jour à chaque évolution de l'app.
-  </p>
-
-  <!-- ── Inscription et validation d'un nouveau chauffeur (transversal) ── -->
-  <div class="form-card" style="margin-bottom:14px;padding:0;overflow:hidden;border:1.5px solid var(--bleu)">
-    <div onclick="toggleInfoSection('mode-inscr-body','chevron-mode-inscr')"
-         style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:var(--bleu-clair)">
-      <h3 style="margin:0">🆕 Inscription d'un nouveau chauffeur</h3>
-      <span id="chevron-mode-inscr" style="font-size:14px;color:var(--texte-sec)">▼</span>
-    </div>
-    <div id="mode-inscr-body" style="display:none;padding:14px 16px">
-      <p style="font-size:13px;margin:0 0 8px"><b>Le futur chauffeur :</b></p>
-      <ol style="font-size:13px;margin:0 0 12px;padding-left:20px">
-        <li>Sur l'écran de connexion, clique sur « S'inscrire ».</li>
-        <li>Renseigne son nom, son e-mail et un mot de passe (6 caractères minimum, à confirmer).</li>
-        <li>Valide — un message l'informe que son accès sera activé par Patrick, puis il est déconnecté.</li>
-        <li>Tant que le compte n'est pas validé, toute tentative de connexion affiche un écran « en attente de validation ».</li>
-      </ol>
-      <p style="font-size:13px;margin:0 0 8px"><b>Patrick (superadmin) — validation :</b></p>
-      <ol style="font-size:13px;margin:0;padding-left:20px">
-        <li>Onglet « 👥 Comptes » → section « 🕐 En attente de validation ».</li>
-        <li>✅ Approuver (le chauffeur peut alors se connecter normalement) ou ❌ Refuser (le compte est supprimé).</li>
-        <li>Un compte actif peut ensuite être ⏸ suspendu ou 🗑 supprimé à tout moment depuis cette même page.</li>
-      </ol>
-    </div>
-  </div>
-
-  <!-- ── PATRICK (superadmin) ── -->
-  <div class="form-card" style="margin-bottom:14px;padding:0;overflow:hidden;border:1.5px solid #d4a017">
-    <div onclick="toggleInfoSection('mode-sa-body','chevron-mode-sa')"
-         style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:#fdf3d9">
-      <h3 style="margin:0">👑 Patrick (superadmin)</h3>
-      <span id="chevron-mode-sa" style="font-size:14px;color:var(--texte-sec)">▼</span>
-    </div>
-    <div id="mode-sa-body" style="display:none;padding:14px 16px;font-size:13px">
-      <p style="color:var(--texte-sec);margin:0 0 12px">Patrick a accès à tout ce qu'a Angélique (ci-dessous), plus les éléments suivants.</p>
-
-      <h4 style="margin:14px 0 4px">👥 Comptes</h4>
-      <p style="margin:0 0 4px">Seul onglet réservé exclusivement à Patrick.</p>
-      <ul style="margin:0 0 8px;padding-left:20px">
-        <li>Créer un compte admin ou chauffeur directement, sans passer par l'auto-inscription.</li>
-        <li>Approuver / refuser les inscriptions, suspendre / réactiver / supprimer un compte (voir ci-dessus).</li>
-        <li>« Connectés en ce moment » : qui est en ligne, en temps réel.</li>
-        <li>« Historique des modifications » : journal de toutes les actions (créations, modifications, suppressions) filtrable.</li>
-        <li>« Boîte à idées des chauffeurs » : toutes les suggestions reçues.</li>
-        <li>« Erreurs techniques signalées » : journal automatique des erreurs JS rencontrées par les utilisateurs.</li>
-      </ul>
-
-      <h4 style="margin:14px 0 4px">🔧 Maintenance (saisie mensuelle)</h4>
-      <p style="margin:0 0 4px">Patrick seul voit et remplit ce formulaire complet (Angélique consulte via « Historique maintenances », sans pouvoir éditer) :</p>
-      <ul style="margin:0 0 8px;padding-left:20px">
-        <li>Date, véhicule, kilométrage (aide au calcul de la différence avec le relevé précédent).</li>
-        <li>Niveaux (lave-glace, huile moteur, huile de frein, liquide de refroidissement), éclairage, pneus, état extérieur.</li>
-        <li>Cases de nettoyage effectué, photos, remarques libres.</li>
-        <li>Tableau des maintenances enregistrées, imprimable en PDF.</li>
-      </ul>
-
-      <h4 style="margin:14px 0 4px">💧 AdBlue — Commandes de fûts (200 L)</h4>
-      <p style="margin:0 0 4px">Section réservée à Patrick, indépendante des pleins par véhicule (elle n'écrit jamais dans l'historique par véhicule et ne touche jamais un kilométrage) :</p>
-      <ol style="margin:0 0 8px;padding-left:20px">
-        <li>Onglet AdBlue → carte « 📦 Commandes de fûts AdBlue ».</li>
-        <li>Renseigner la date de commande, la date de livraison (dès qu'elle est connue), le nombre de fûts et le prix HTVA/L (1,09 € par défaut, fournisseur « Ets Warin » par défaut — les deux sont modifiables à chaque commande).</li>
-        <li>Le prix TVAC/L (21 %) et les totaux HTVA/TVAC se calculent automatiquement.</li>
-        <li>Le statut (🟠 Commandé / 🚚 Livraison prévue / ✅ Livré) se déduit automatiquement des dates.</li>
-        <li>« Stock initial » : à renseigner une fois pour indiquer le stock de fûts déjà en réserve à une date donnée. Le stock affiché ensuite = stock initial + fûts livrés depuis lors − litres pris sur un fût (pleins véhicule marqués « Fût », voir ci-dessous). Les pleins « Bidon / à la pompe » n'ont aucun impact sur ce stock.</li>
-      </ol>
-
-      <h4 style="margin:14px 0 4px">🚨 Signaler un problème — côté Patrick</h4>
-      <p style="margin:0">Patrick ne crée pas de signalement (le formulaire de saisie est masqué pour lui) : il consulte le fil des signalements et peut y répondre, comme Angélique.</p>
-
-      <h4 style="margin:14px 0 4px">⚙️ Profil</h4>
-      <p style="margin:0">En plus des fonctions communes (ci-dessous, section Angélique) : carte « 🔄 Gestion des versions » — voir la version actuellement publiée et notifier tous les utilisateurs (Angélique et chauffeurs) qu'une mise à jour est disponible.</p>
-    </div>
-  </div>
-
-  <!-- ── ANGÉLIQUE (admin) ── -->
-  <div class="form-card" style="margin-bottom:14px;padding:0;overflow:hidden;border:1.5px solid var(--bleu)">
-    <div onclick="toggleInfoSection('mode-adm-body','chevron-mode-adm')"
-         style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:var(--bleu-clair)">
-      <h3 style="margin:0">🛠️ Angélique (admin)</h3>
-      <span id="chevron-mode-adm" style="font-size:14px;color:var(--texte-sec)">▼</span>
-    </div>
-    <div id="mode-adm-body" style="display:none;padding:14px 16px;font-size:13px">
-      <p style="color:var(--texte-sec);margin:0 0 12px">Angélique a accès à tout ce qu'ont les chauffeurs (ci-dessous), plus les éléments suivants.</p>
-
-      <h4 style="margin:14px 0 4px">🚐 Véhicules</h4>
-      <ul style="margin:0 0 8px;padding-left:20px">
-        <li>✏️ Modifier les informations d'un véhicule.</li>
-        <li>🔴/🟢 Marquer un véhicule (in)disponible.</li>
-        <li>🗑 Archiver ou supprimer définitivement un véhicule ; réactiver un véhicule archivé.</li>
-      </ul>
-
-      <h4 style="margin:14px 0 4px">🔔 Alertes</h4>
-      <p style="margin:0 0 8px">Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli. Tout rappel lié à un <b>Contrôle Technique</b> (Alertes, tableau de bord, onglet Garages/Prendre RV, tableau des RV et détail du jour dans le Calendrier) affiche systématiquement, en <span style="color:#ff00c8;font-weight:800">rose fluo</span>, le rappel « 📎 Prévoir et remplir document pour facturer ».</p>
-
-      <h4 style="margin:14px 0 4px">📈 Kilométrage</h4>
-      <p style="margin:0 0 8px">Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable.</p>
-
-      <h4 style="margin:14px 0 4px">🚨 Signaler un problème — côté Angélique</h4>
-      <ul style="margin:0 0 8px;padding-left:20px">
-        <li>Peut créer un signalement comme un chauffeur.</li>
-        <li>Répond aux signalements des chauffeurs — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné.</li>
-      </ul>
-
-      <h4 style="margin:14px 0 4px">📋 Historique maintenances</h4>
-      <p style="margin:0 0 8px">Consultation + bouton « ➕ Ajouter un commentaire garage » (notes libres sur les dépôts Curfoz/Bouillon/Opont, indépendantes d'un véhicule précis).</p>
-
-      <h4 style="margin:14px 0 4px">📋 Prendre RV</h4>
-      <ul style="margin:0 0 8px;padding-left:20px">
-        <li>Formulaire complet : véhicule, type de RV (CT, entretien, réparation, vitrage, pneus, lift/rampe, marquage, autre…), date/heure, garage (téléphones modifiables), kilométrage.</li>
-        <li>Bouton « Intervention urgente » pour un cas prioritaire.</li>
-        <li>Bouton « ➕ » pour ajouter un nouveau type de RV à la liste.</li>
-        <li>Les RV créés ici apparaissent automatiquement dans le Calendrier et l'Historique des RV.</li>
-      </ul>
-
-      <h4 style="margin:14px 0 4px">🛞 Pneus</h4>
-      <ul style="margin:0 0 8px;padding-left:20px">
-        <li>Enregistrer une permutation été/hiver (date, véhicule, type, km, lieu, remarques) — génère automatiquement un RV correspondant dans le Calendrier si la date est future.</li>
-        <li>Enregistrer un remplacement ponctuel d'un seul pneu (position, marque, dimensions, motif).</li>
-        <li>« Commandes pneus à prévoir » et bouton « Récupérer les dates manquantes ».</li>
-        <li>Historiques modifiables/supprimables pour les deux types d'opération.</li>
-      </ul>
-
-      <h4 style="margin:14px 0 4px">💧 AdBlue — plein par véhicule</h4>
-      <ol style="margin:0 0 8px;padding-left:20px">
-        <li>Onglet AdBlue → « Enregistrer un ajout AdBlue » : date, véhicule, volume, kilométrage (optionnel).</li>
-        <li><b>Provenance</b> : « 🧴 Bidon / à la pompe » (par défaut — aucun impact sur le stock de fûts) ou « ⛽ Fût » (déduit le volume du stock de fûts géré par Patrick). À choisir « Fût » uniquement quand le plein est effectivement pris sur un fût de 200 L livré.</li>
-      </ol>
-
-      <h4 style="margin:14px 0 4px">🚿 Car Wash</h4>
-      <p style="margin:0 0 8px">En plus de l'enregistrement d'un lavage (comme les chauffeurs) : « Recharge clé Car Wash » (date, lieu, montant payé ou gratuit) et son historique dédié.</p>
-
-      <h4 style="margin:14px 0 4px">📋 Historique des RV</h4>
-      <p style="margin:0 0 8px">Filtres complets (dates, véhicule, type, statut) et bouton « ⬇ Export CSV ».</p>
-
-      <h4 style="margin:14px 0 4px">📄 Rapports</h4>
-      <ul style="margin:0 0 8px;padding-left:20px">
-        <li>Sauvegarde/restauration complète des données (JSON) et export Excel de secours.</li>
-        <li>« Mes rappels » personnels, rapports CT/entretien imprimables.</li>
-        <li>Exports CSV (véhicules, maintenances) et import CSV.</li>
-        <li>Statistiques d'usage de la flotte (6/12 mois) et rapport annuel simplifié.</li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- ── CHAUFFEURS ── -->
-  <div class="form-card" style="margin-bottom:14px;padding:0;overflow:hidden;border:1.5px solid var(--vert)">
-    <div onclick="toggleInfoSection('mode-chauf-body','chevron-mode-chauf')"
-         style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:#e8f7ee">
-      <h3 style="margin:0">🚐 Chauffeurs</h3>
-      <span id="chevron-mode-chauf" style="font-size:14px;color:var(--texte-sec)">▼</span>
-    </div>
-    <div id="mode-chauf-body" style="display:none;padding:14px 16px;font-size:13px">
-      <h4 style="margin:0 0 4px">📊 Tableau de bord</h4>
-      <p style="margin:0 0 8px">Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, alertes urgentes, prochains RV.</p>
-
-      <h4 style="margin:14px 0 4px">🚐 Véhicules / 🔔 Alertes / 📅 Calendrier</h4>
-      <p style="margin:0 0 8px">Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif), alertes en cours, échéances à venir.</p>
-
-      <h4 style="margin:14px 0 4px">🚨 Signaler un problème</h4>
-      <p style="margin:0 0 4px">Formulaire en 3 étapes :</p>
-      <ol style="margin:0 0 8px;padding-left:20px">
-        <li>Choisir le véhicule concerné.</li>
-        <li>Cocher une ou plusieurs catégories (panne, bruit, voyant = urgent ; carrosserie, serrure, équipement, autre = information) et préciser un commentaire par anomalie cochée.</li>
-        <li>Ajouter une note générale et, si utile, une ou plusieurs photos (caméra ou galerie), puis envoyer après relecture du récapitulatif.</li>
-      </ol>
-      <p style="margin:0 0 8px">Le fil de ses propres signalements est visible (filtrable par statut/véhicule), avec la réponse de Patrick ou Angélique une fois traité.</p>
-
-      <h4 style="margin:14px 0 4px">💡 Bon à savoir…</h4>
-      <p style="margin:0 0 8px">Que faire en cas d'accident, déclaration de sinistre auto, PV/amende de stationnement, codes des cartes carburant par véhicule, numéros d'urgence belges (112, Ethias Assistance…) — accessible une fois connecté. Le 112 et le numéro de Patrick restent aussi joignables sans connexion via la petite icône 🆘 en bas à droite de l'écran de connexion.</p>
-
-      <h4 style="margin:14px 0 4px">📋 Historique maintenances</h4>
-      <p style="margin:0 0 8px">Consultation des maintenances de l'année (filtrable par véhicule), commentaires garage, impression PDF.</p>
-
-      <h4 style="margin:14px 0 4px">💧 AdBlue</h4>
-      <p style="margin:0 0 8px">Consultation uniquement — récapitulatif annuel par véhicule et historique des pleins. La saisie d'un plein est réservée à Angélique et Patrick.</p>
-
-      <h4 style="margin:14px 0 4px">🚿 Car Wash</h4>
-      <p style="margin:0 0 8px">Peut enregistrer un lavage (date, véhicule, lieu, montant) et consulter l'historique.</p>
-
-      <h4 style="margin:14px 0 4px">📋 Historique des RV</h4>
-      <p style="margin:0 0 8px">Consultation de tous les RV/maintenances (filtrable par véhicule/type).</p>
-
-      <h4 style="margin:14px 0 4px">⚙️ Profil</h4>
-      <ul style="margin:0;padding-left:20px">
-        <li>Mode gros caractères, numéro de portable (pour être rappelé en cas de besoin), changement de mot de passe.</li>
-        <li>Activation des notifications (résumé quotidien à 7h).</li>
-        <li>💡 Boîte à idées : envoyer une suggestion ou une remarque à Patrick, avec l'historique de ses propres envois.</li>
-      </ul>
     </div>
   </div>
 </div>
@@ -3473,6 +3274,16 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <button class="modal-close" onclick="closeModal('modal-veh')">✕</button>
     <h2 id="modal-veh-title">Détail véhicule</h2>
     <div id="modal-veh-body"></div>
+  </div>
+</div>
+
+<!-- MODAL AIDE CONTEXTUELLE — remplace l'ancien onglet "Mode d'emploi" ;
+     contenu rempli par afficherAidePage() selon la page active + le rôle. -->
+<div class="modal-overlay" id="modal-aide-page">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modal-aide-page')">✕</button>
+    <h2 id="aide-page-titre">❓ Aide</h2>
+    <div id="aide-page-contenu" style="font-size:13px"></div>
   </div>
 </div>
 
@@ -6912,25 +6723,167 @@ function toggleInfoSection(bodyId, chevronId) {
   if (chevron) chevron.textContent = estOuvert ? '▼' : '▲';
 }
 
-/* Mode d'emploi — ouvre automatiquement la section correspondant au rôle
-   de la personne connectée (les 2 autres restent visibles, repliées, pour
-   qu'un chauffeur curieux puisse aussi lire ce que fait Angélique, etc.).
-   Rappel pour les prochaines évolutions de l'app : ce guide doit être
-   maintenu à jour à chaque changement de fonctionnalité. */
-function initModeEmploi() {
-  const elVer = document.getElementById('mode-emploi-version');
-  if (elVer && typeof APP_VERSION !== 'undefined') elVer.textContent = APP_VERSION;
-  const sections = [
-    { body: 'mode-sa-body',    chevron: 'chevron-mode-sa',    show: userIsSuperAdmin() },
-    { body: 'mode-adm-body',   chevron: 'chevron-mode-adm',   show: userIsAdmin() && !userIsSuperAdmin() },
-    { body: 'mode-chauf-body', chevron: 'chevron-mode-chauf', show: !userIsAdmin() },
-  ];
-  sections.forEach(s => {
-    const b = document.getElementById(s.body);
-    const c = document.getElementById(s.chevron);
-    if (b) b.style.display = s.show ? 'block' : 'none';
-    if (c) c.textContent = s.show ? '▲' : '▼';
-  });
+// ============================================================
+// AIDE CONTEXTUELLE — remplace l'ancien onglet unique "Mode d'emploi".
+// Bouton ❓ dans la barre de navigation (toujours visible) : ouvre une
+// pop-up qui n'explique QUE la page actuellement affichée, avec un texte
+// déjà adapté au rôle connecté (un chauffeur ne voit jamais ce qui
+// concerne Patrick ou Angélique, et inversement).
+//
+// RAPPEL POUR LES PROCHAINES ÉVOLUTIONS DE L'APP : mettre à jour l'entrée
+// correspondante ci-dessous (et son titre dans AIDE_TITRES) à chaque
+// changement de fonctionnalité sur une page.
+// ============================================================
+const AIDE_TITRES = {
+  accueil:      '📊 Tableau de bord',
+  vehicules:    '🚐 Véhicules',
+  alertes:      '🔔 Alertes',
+  kilometrage:  '📈 Kilométrage',
+  calendrier:   '📅 Calendrier',
+  chauf:        '🚨 Signaler un problème',
+  accident:     '💡 Bon à savoir…',
+  histmaint:    '📋 Historique maintenances',
+  maintenance:  '🔧 Maintenance mensuelle',
+  garages:      '📋 Prendre RV',
+  carwash:      '🚿 Car Wash',
+  pneus:        '🛞 Pneus',
+  adblue:       '💧 AdBlue',
+  historique:   '📋 Historique des RV',
+  rapports:     '📄 Rapports',
+  comptes:      '👥 Comptes',
+  profil:       '⚙️ Profil',
+};
+
+const AIDE_CONTENU = {
+  accueil: {
+    chauffeur: `<p>Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, alertes urgentes, prochains RV.</p>`,
+    admin: `<p>Vue d'ensemble : véhicules (in)disponibles, RV urgents à traiter, RV planifiés par catégorie, rubriques « À surveiller » (CT, entretien, extincteurs, assurance, SPW…).</p>
+      <p>Tout rappel de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
+  },
+  vehicules: {
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif).</p>`,
+    admin: `<ul style="margin:0;padding-left:20px">
+        <li>✏️ Modifier les informations d'un véhicule.</li>
+        <li>🔴/🟢 Marquer un véhicule (in)disponible.</li>
+        <li>🗑 Archiver ou supprimer définitivement un véhicule ; réactiver un véhicule archivé.</li>
+      </ul>`,
+  },
+  alertes: {
+    chauffeur: `<p>Alertes en cours (CT, entretien, extincteurs, assurance…) et échéances à venir, en consultation.</p>`,
+    admin: `<p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>
+      <p>Tout rappel lié à un <b>Contrôle Technique</b> affiche systématiquement, en <span style="color:#ff00c8;font-weight:800">rose fluo</span>, le rappel « 📎 Prévoir et remplir document pour facturer ».</p>`,
+  },
+  kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable.</p>`,
+  calendrier: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>
+    <p>Tout événement de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
+  chauf: {
+    chauffeur: `<p style="margin:0 0 4px"><b>Formulaire en 3 étapes :</b></p>
+      <ol style="margin:0 0 8px;padding-left:20px">
+        <li>Choisir le véhicule concerné.</li>
+        <li>Cocher une ou plusieurs catégories (panne, bruit, voyant = urgent ; carrosserie, serrure, équipement, autre = information) et préciser un commentaire par anomalie cochée.</li>
+        <li>Ajouter une note générale et, si utile, une ou plusieurs photos, puis envoyer après relecture du récapitulatif.</li>
+      </ol>
+      <p>Le fil de vos propres signalements est visible (filtrable par statut/véhicule), avec la réponse de Patrick ou Angélique une fois traité.</p>`,
+    admin: `<p>Vous pouvez créer un signalement comme un chauffeur, et vous répondez aux signalements reçus — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné.</p>`,
+    superadmin: `<p>Le formulaire de création de signalement est masqué pour vous : vous consultez le fil des signalements et pouvez y répondre.</p>`,
+  },
+  accident: `<p>Que faire en cas d'accident, déclaration de sinistre auto, PV/amende de stationnement, codes des cartes carburant par véhicule, numéros d'urgence belges (112, Ethias Assistance…).</p>
+    <p>Le 112 et le numéro de Patrick restent aussi joignables sans connexion via la petite icône 🆘 en bas à droite de l'écran de connexion.</p>`,
+  histmaint: {
+    chauffeur: `<p>Consultation des maintenances de l'année (filtrable par véhicule), commentaires garage, impression PDF.</p>`,
+    admin: `<p>Consultation + bouton « ➕ Ajouter un commentaire garage » (notes libres sur les dépôts Curfoz/Bouillon/Opont, indépendantes d'un véhicule précis).</p>`,
+  },
+  maintenance: `<p>Formulaire complet de saisie mensuelle, réservé à Patrick (Angélique consulte via « Historique maintenances », sans pouvoir éditer) :</p>
+    <ul style="margin:0;padding-left:20px">
+      <li>Date, véhicule, kilométrage (aide au calcul de la différence avec le relevé précédent).</li>
+      <li>Niveaux (lave-glace, huile moteur, huile de frein, liquide de refroidissement), éclairage, pneus, état extérieur.</li>
+      <li>Cases de nettoyage effectué, photos, remarques libres.</li>
+      <li>Tableau des maintenances enregistrées, imprimable en PDF.</li>
+    </ul>`,
+  garages: `<ul style="margin:0;padding-left:20px">
+      <li>Formulaire complet : véhicule, type de RV (CT, entretien, réparation, vitrage, pneus, lift/rampe, marquage, autre…), date/heure, garage (téléphones modifiables), kilométrage.</li>
+      <li>Bouton « Intervention urgente » pour un cas prioritaire.</li>
+      <li>Bouton « ➕ » pour ajouter un nouveau type de RV à la liste.</li>
+      <li>Les RV créés ici apparaissent automatiquement dans le Calendrier et l'Historique des RV.</li>
+    </ul>
+    <p>Tout RV de <b>Contrôle Technique</b> planifié affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
+  carwash: {
+    chauffeur: `<p>Enregistrer un lavage (date, véhicule, lieu, montant) et consulter l'historique.</p>`,
+    admin: `<p>En plus de l'enregistrement d'un lavage (comme les chauffeurs) : « Recharge clé Car Wash » (date, lieu, montant payé ou gratuit) et son historique dédié.</p>`,
+  },
+  pneus: `<ul style="margin:0;padding-left:20px">
+      <li>Enregistrer une permutation été/hiver (date, véhicule, type, km, lieu, remarques) — génère automatiquement un RV correspondant dans le Calendrier si la date est future.</li>
+      <li>Enregistrer un remplacement ponctuel d'un seul pneu (position, marque, dimensions, motif).</li>
+      <li>« Commandes pneus à prévoir » et bouton « Récupérer les dates manquantes ».</li>
+      <li>Historiques modifiables/supprimables pour les deux types d'opération.</li>
+    </ul>`,
+  adblue: {
+    chauffeur: `<p>Consultation uniquement — récapitulatif annuel par véhicule et historique des pleins. La saisie d'un plein est réservée à Angélique et Patrick.</p>`,
+    admin: `<p style="margin:0 0 4px"><b>Plein par véhicule</b> (« Enregistrer un ajout AdBlue ») : date, véhicule, volume, kilométrage (optionnel).</p>
+      <p><b>Provenance</b> : « 🧴 Bidon / à la pompe » (par défaut — aucun impact sur le stock de fûts) ou « ⛽ Fût » (déduit le volume du stock de fûts géré par Patrick). À choisir « Fût » uniquement quand le plein est effectivement pris sur un fût de 200 L livré.</p>`,
+    superadmin: `<p style="margin:0 0 4px"><b>Plein par véhicule</b> (« Enregistrer un ajout AdBlue ») : date, véhicule, volume, kilométrage (optionnel), provenance « Bidon » ou « Fût » (voir ci-dessous).</p>
+      <h4 style="margin:12px 0 4px">📦 Commandes de fûts AdBlue (200 L) — réservé à Patrick</h4>
+      <p style="margin:0 0 4px">Indépendant des pleins par véhicule (n'écrit jamais dans l'historique par véhicule, ne touche jamais un kilométrage) :</p>
+      <ol style="margin:0;padding-left:20px">
+        <li>Renseigner la date de commande, la date de livraison (dès qu'elle est connue), le nombre de fûts et le prix HTVA/L (1,09 € par défaut, fournisseur « Ets Warin » par défaut — les deux modifiables).</li>
+        <li>Prix TVAC/L (21 %) et totaux HTVA/TVAC calculés automatiquement.</li>
+        <li>Statut (🟠 Commandé / 🚚 Livraison prévue / ✅ Livré) déduit automatiquement des dates.</li>
+        <li>« Stock initial » : à renseigner une fois. Stock affiché = stock initial + fûts livrés − litres pris sur un fût (pleins « Fût » uniquement, les pleins « Bidon » n'ont aucun impact).</li>
+      </ol>`,
+  },
+  historique: {
+    chauffeur: `<p>Consultation de tous les RV/maintenances (filtrable par véhicule/type).</p>`,
+    admin: `<p>Filtres complets (dates, véhicule, type, statut) et bouton « ⬇ Export CSV ».</p>`,
+  },
+  rapports: `<ul style="margin:0;padding-left:20px">
+      <li>Sauvegarde/restauration complète des données (JSON) et export Excel de secours.</li>
+      <li>« Mes rappels » personnels, rapports CT/entretien imprimables.</li>
+      <li>Exports CSV (véhicules, maintenances) et import CSV.</li>
+      <li>Statistiques d'usage de la flotte (6/12 mois) et rapport annuel simplifié.</li>
+    </ul>`,
+  comptes: `<ul style="margin:0;padding-left:20px">
+      <li>Créer un compte admin ou chauffeur directement, sans passer par l'auto-inscription.</li>
+      <li>« 🕐 En attente de validation » : ✅ approuver (le chauffeur peut alors se connecter) ou ❌ refuser (le compte est supprimé).</li>
+      <li>Un compte actif peut ensuite être ⏸ suspendu ou 🗑 supprimé à tout moment.</li>
+      <li>« Connectés en ce moment » : qui est en ligne, en temps réel.</li>
+      <li>« Historique des modifications » : journal de toutes les actions, filtrable.</li>
+      <li>« Boîte à idées des chauffeurs » : toutes les suggestions reçues.</li>
+      <li>« Erreurs techniques signalées » : journal automatique des erreurs JS rencontrées.</li>
+    </ul>`,
+  profil: {
+    chauffeur: `<ul style="margin:0;padding-left:20px">
+        <li>Mode gros caractères, numéro de portable (pour être rappelé en cas de besoin), changement de mot de passe.</li>
+        <li>Activation des notifications (résumé quotidien à 7h).</li>
+        <li>💡 Boîte à idées : envoyer une suggestion ou une remarque à Patrick, avec l'historique de vos propres envois.</li>
+      </ul>`,
+    admin: `<p>Mêmes fonctions que pour un chauffeur (mode gros caractères, portable, mot de passe, notifications, boîte à idées).</p>`,
+    superadmin: `<p>Mêmes fonctions que pour Angélique, plus la carte « 🔄 Gestion des versions » : voir la version actuellement publiée et notifier tous les utilisateurs (Angélique et chauffeurs) qu'une mise à jour est disponible.</p>`,
+  },
+};
+
+function afficherAidePage() {
+  const pageActive = document.querySelector('.page.active');
+  const id = pageActive ? pageActive.id.replace(/^page-/, '') : null;
+  const entree = id ? AIDE_CONTENU[id] : null;
+  const titre = document.getElementById('aide-page-titre');
+  const contenu = document.getElementById('aide-page-contenu');
+  if (!titre || !contenu) return;
+
+  titre.textContent = (id && AIDE_TITRES[id]) ? AIDE_TITRES[id] : '❓ Aide';
+
+  let html = '';
+  if (typeof entree === 'string') {
+    html = entree;
+  } else if (entree && typeof entree === 'object') {
+    // Contenu adapté au rôle connecté — un chauffeur ne voit jamais le
+    // texte destiné à Angélique ou Patrick, et inversement.
+    if (userIsSuperAdmin())      html = entree.superadmin || entree.admin || entree.chauffeur || '';
+    else if (userIsAdmin())      html = entree.admin      || entree.chauffeur || '';
+    else                          html = entree.chauffeur  || '';
+  }
+  contenu.innerHTML = html || '<p style="color:var(--texte-sec)">Aucune aide disponible pour cette page.</p>';
+
+  document.getElementById('modal-aide-page')?.classList.add('open');
 }
 
 function showPage(id, btn) {
@@ -6973,7 +6926,6 @@ function showPage(id, btn) {
     renderCalendrier();
   }
   if (id === 'adblue')  initAdBlueOnglet();
-  if (id === 'modeemploi') initModeEmploi();
   if (id === 'chauf') {
     initChauf();
     const tab = document.getElementById('tab-chauf');
@@ -14751,7 +14703,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260929.1041';
+const APP_VERSION = '260929.1057';
 
 let _swRegistration = null;
 
