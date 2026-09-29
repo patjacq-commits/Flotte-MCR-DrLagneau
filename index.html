@@ -634,12 +634,28 @@ input,select,textarea,button { font-family: inherit; font-size: 14px; }
 button { cursor: pointer; }
 
 /* ===== NAVBAR ===== */
+/* Défilement horizontal — au fil des ajouts (badges AdBlue/Car Wash,
+   rappel export Excel, aide ❓, rappel perso…), la barre peut contenir plus
+   d'éléments que la largeur d'un écran de téléphone. Sans ceci, les
+   derniers éléments (rôle + bouton 🔐 connexion/déconnexion) sortaient de
+   l'écran sans aucun moyen d'y accéder en mobile — corrigé en rendant la
+   barre défilable horizontalement au doigt, comme .tabs ci-dessous.
+   flex-shrink:0 sur tous les enfants (y compris navbar-title, qui n'a donc
+   plus vocation à "remplir" l'espace restant mais garde sa taille propre)
+   pour que rien ne se comprime au point de devenir illisible : le
+   défilement prend le relais dès que ça ne tient plus. */
 .navbar {
   position: fixed; top: 0; left: 0; right: 0; height: var(--navbar-h); z-index: 100;
   background: var(--rouge); color: #fff;
   display: flex; align-items: center; padding: 0 16px; gap: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
 }
+.navbar > * { flex-shrink: 0; }
+.navbar::-webkit-scrollbar { height: 3px; }
+.navbar::-webkit-scrollbar-track { background: transparent; }
+.navbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.4); border-radius: 2px; }
+@media (max-width:600px) { .navbar::-webkit-scrollbar { display:none; } }
 .navbar-logo { font-size: 22px; font-weight: 800; letter-spacing: 1px; }
 .navbar-title { font-size: 14px; opacity: 0.85; flex: 1; }
 .navbar-role { font-size: 12px; background: rgba(255,255,255,0.2); border-radius: 12px; padding: 3px 10px; }
@@ -1486,7 +1502,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherAidePage()" title="Aide sur cette page"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.1103</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.1113</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -14718,7 +14734,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '260929.1103';
+const APP_VERSION = '260929.1113';
 
 let _swRegistration = null;
 
