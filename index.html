@@ -417,13 +417,25 @@
         } catch(e) { console.warn('Erreur création doc roles:', e); }
       }
 
-      // Logger la dernière connexion + marquer comme en ligne
+      // Logger la dernière connexion. BUG CORRIGÉ (29/09) : cette écriture
+      // était dans le MÊME try/catch que la session ci-dessous — or pour un
+      // chauffeur ou Angélique (non-superadmin), la règle Firestore sur
+      // "roles" n'autorise leur propre écriture que sur les champs
+      // telephone/lastSeen (pas derniere_connexion) : ce set() était donc
+      // systématiquement rejeté, l'erreur interrompait le bloc AVANT
+      // d'atteindre l'écriture de "sessions" juste après, et leur présence
+      // "en ligne" ne se mettait alors jamais à jour. Isolée dans son propre
+      // try/catch pour ne plus jamais bloquer la suite.
+      const now = new Date().toISOString();
       try {
-        const now = new Date().toISOString();
         await db.collection('roles').doc(firebaseUser.uid).set(
           { derniere_connexion: now },
           { merge: true }
         );
+      } catch(e) { console.warn('Erreur maj derniere_connexion (attendu pour non-superadmin tant que la règle Firestore n\'est pas mise à jour):', e); }
+
+      // Marquer comme en ligne
+      try {
         // Marquer la session active
         await db.collection('sessions').doc(firebaseUser.uid).set({
           uid:               firebaseUser.uid,
@@ -1468,7 +1480,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirRecherche()" title="Recherche rapide"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">🔍</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.0921</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.0942</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -14710,7 +14722,7 @@ function toast(msg) {
 // ============================================================
 // VERSION & SERVICE WORKER
 // ============================================================
-const APP_VERSION = '260929.0921';
+const APP_VERSION = '260929.0942';
 
 let _swRegistration = null;
 
