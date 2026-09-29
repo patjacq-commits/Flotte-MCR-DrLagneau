@@ -1502,7 +1502,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherAidePage()" title="Aide sur cette page"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.1113</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260929.1404</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -7361,6 +7361,22 @@ async function seDeconnecter() {
     document.removeEventListener('visibilitychange', window._visibilityHeartbeatHandler);
     window._visibilityHeartbeatHandler = null;
   }
+
+  // BUG CORRIGÉ (29/09) : ces indicateurs "déjà vérifié cette session"
+  // (voir window._refreshUI plus haut) ne sont normalement remis à zéro
+  // qu'au retour au premier plan de l'app (visibilitychange) ou à un
+  // rechargement complet de la page — jamais à la déconnexion. Résultat :
+  // en restant sur la même page (sans recharger) après une déconnexion
+  // puis une reconnexion par email/mot de passe, ces indicateurs
+  // restaient à "true" d'une session précédente et empêchaient le popup
+  // de rappels (CT/entretien, export Excel, rappels personnels) de se
+  // redéclencher au démarrage de la nouvelle session — il fallait
+  // rafraîchir la page ou fermer/rouvrir l'app pour le voir apparaître.
+  window._entretienUrgentChecked = false;
+  window._rappelsRVChecked       = false;
+  window._exportExcelChecked     = false;
+  window._rappelsPersoChecked    = false;
+
   await auth.signOut();
   currentUser = null;
 }
@@ -14734,7 +14750,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '260929.1113';
+const APP_VERSION = '260929.1404';
 
 let _swRegistration = null;
 
