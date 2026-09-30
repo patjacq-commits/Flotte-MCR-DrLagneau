@@ -1502,7 +1502,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherAidePage()" title="Aide sur cette page"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260930.1830</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260930.1843</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -10995,6 +10995,16 @@ async function saveVehEdit(vehId) {
       ? v.dernier_entretien_km + v.interval_entretien_km : null;
     if (prochainCalcule) v.prochain_entretien_km = prochainCalcule;
 
+    // BUG CORRIGÉ (30/09) : même classe de bug que dans
+    // confirmerEntretienEffectue() (voir son commentaire) — sans cette
+    // resynchronisation immédiate, une mise à jour temps réel Firestore
+    // pouvait survenir juste après l'enregistrement (déclenchée par
+    // N'IMPORTE QUELLE écriture sur la collection "vehicules", même sur un
+    // autre véhicule) et faire revenir silencieusement la fiche en arrière,
+    // avant même que le prochain rafraîchissement normal (listener Firestore
+    // avec les données fraîchement écrites) ne rattrape l'affichage.
+    window.vehicules = vehicules;
+
     // Attendre réellement la fin de saveAll() (async) avant de confirmer —
     // sans ce "await", le message "✅ Véhicule mis à jour" s'affichait
     // immédiatement, avant même de savoir si l'écriture Firestore avait
@@ -12547,6 +12557,21 @@ function confirmerEntretienEffectue(id) {
     v.dernier_entretien_date = today;
     v.prochain_entretien_km  = prochainKm;
   }
+  // BUG CORRIGÉ (30/09) : contrairement à saveMaintenance()/saveVehEdit()
+  // (voir leurs "// sync immédiat pour éviter écrasement par _refreshUI"),
+  // cette fonction-ci ne republiait jamais window.vehicules après avoir
+  // modifié `v`. Tant qu'aucune mise à jour temps réel Firestore n'était
+  // survenue depuis le chargement de la page, `vehicules` et
+  // `window.vehicules` pointaient par coïncidence vers le même tableau, donc
+  // ça ne se voyait pas tout de suite — mais dès que le listener temps réel
+  // "vehicules" se redéclenchait (y compris à cause de N'IMPORTE QUELLE autre
+  // écriture, même sur un autre véhicule ou depuis un autre appareil/onglet
+  // connecté), _refreshUI() réaffectait `vehicules = window.vehicules`, qui
+  // pointait encore vers l'ANCIEN tableau (sans la mise à jour de `v` faite
+  // ci-dessus) : la fiche véhicule revenait alors silencieusement en arrière
+  // au prochain rendu. D'où l'impression que "la fiche ne s'est pas mise à
+  // jour" alors qu'elle l'avait bien été un court instant.
+  window.vehicules = vehicules;
 
   // BUG CORRIGÉ (30/09) : une "vraie" entrée était auparavant créée ici dans
   // l'historique des MAINTENANCES (mensuelles) pour ce même événement,
@@ -13712,6 +13737,10 @@ function recalculerKmVehicule(vehId) {
   // Si plus aucune maintenance avec km pour ce véhicule, on laisse v.km tel
   // quel plutôt que de le remettre à zéro — mieux vaut une valeur ancienne
   // que perdue.
+
+  // BUG CORRIGÉ (30/09) : même classe de bug que confirmerEntretienEffectue()
+  // et saveVehEdit() — sync immédiat pour éviter écrasement par _refreshUI.
+  window.vehicules = vehicules;
 }
 
 function editHistItem(srcType, srcId) {
@@ -14779,7 +14808,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '260930.1830';
+const APP_VERSION = '260930.1843';
 
 let _swRegistration = null;
 
