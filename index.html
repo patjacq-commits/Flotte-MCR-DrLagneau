@@ -1502,7 +1502,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherAidePage()" title="Aide sur cette page"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260930.1843</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260930.1900</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -10334,19 +10334,15 @@ function renderVehicules() {
     // son propre encadré "💧 AdBlue" plus bas, pas ici.
     const lastMHist = maintenances.filter(m => m.vehId === v.id).sort((a,b) => b.date.localeCompare(a.date))[0] || null;
 
-    // BUG CORRIGÉ (30/09) : le kilométrage affiché ici ne peut plus régresser
-    // (ni disparaître) simplement parce que le dernier relevé de maintenance
-    // mensuelle réel est plus ancien que le km courant du véhicule (v.km,
-    // tenu à jour par ailleurs — ex. Entretien garage effectué, fiche
-    // "✏️ Modifier"). On retient le plus élevé des deux, et le badge "— maint.
-    // <date>" n'est affiché QUE si c'est bien ce relevé de maintenance réel
-    // qui est à l'origine du chiffre affiché — jamais accolé à un chiffre
-    // venant d'une autre source (voir confirmerEntretienEffectue : un
-    // "Entretien garage" n'est volontairement plus enregistré comme une
-    // "Maintenance mensuelle").
+    // Décision explicite de Patrick (30/09) : la ligne "Kilométrage" reste
+    // EXCLUSIVEMENT réservée aux relevés de "Maintenance mensuelle" — jamais
+    // à l'entretien garage (qui ne touche plus v.km du tout, voir
+    // confirmerEntretienEffectue) ni à un plein AdBlue (voir plus haut). Si
+    // aucune maintenance n'existe encore pour ce véhicule, on retombe sur
+    // v.km (donnée initiale) à défaut de mieux.
     const dernierReleve = lastMHist;
-    const kmAffiche = Math.max(parseInt(v.km) || 0, (dernierReleve && dernierReleve.km) ? parseInt(dernierReleve.km) : 0) || v.km;
-    const lastMStr  = (dernierReleve && parseInt(dernierReleve.km) === kmAffiche)
+    const kmAffiche = (dernierReleve && dernierReleve.km) ? parseInt(dernierReleve.km) : v.km;
+    const lastMStr  = dernierReleve
       ? ` <span style="color:var(--texte-sec);font-size:11px;font-weight:400">— maint. ${formatDate(dernierReleve.date)}</span>`
       : '';
 
@@ -12551,8 +12547,14 @@ function confirmerEntretienEffectue(id) {
   const intervalle = v?.interval_entretien_km || 20000;
   const prochainKm = km + intervalle;
 
+  // BUG CORRIGÉ (30/09, 2e passage) : "Entretien garage" NE touche PLUS
+  // v.km (le kilométrage général affiché en gros sur la fiche véhicule,
+  // ligne "Kilométrage"). Décision explicite de Patrick : cette ligne doit
+  // rester réservée EXCLUSIVEMENT aux relevés de "Maintenance mensuelle"
+  // (voir renderVehicules), quelle que soit par ailleurs la fraîcheur d'un
+  // kilométrage saisi ici. Seuls les champs propres à l'entretien garage
+  // (dernier_entretien_km/date, prochain_entretien_km) sont mis à jour.
   if (v) {
-    v.km                    = km;
     v.dernier_entretien_km   = km;
     v.dernier_entretien_date = today;
     v.prochain_entretien_km  = prochainKm;
@@ -12584,16 +12586,16 @@ function confirmerEntretienEffectue(id) {
   // qui s'affichait ensuite un peu partout (fiche véhicule, page Maintenance)
   // à la place ou en plus des vraies données d'entretien garage saisies
   // ci-dessus. Un "Entretien garage" (RV) n'est PAS une "Maintenance
-  // mensuelle" : les deux historiques doivent rester strictement séparés.
-  // La mise à jour de v.km / dernier_entretien_* ci-dessus suffit ; la ligne
-  // "Kilométrage" de la fiche véhicule (voir renderVehicules) est calculée
-  // pour tenir compte de v.km même sans entrée "maintenances" correspondante.
+  // mensuelle" : les deux historiques doivent rester strictement séparés, et
+  // (2e passage, voir plus haut) l'entretien garage ne touche même plus
+  // v.km — seule une vraie "Maintenance mensuelle" fait foi pour la ligne
+  // "Kilométrage" de la fiche véhicule (voir renderVehicules).
 
   // Mettre à jour VEHICULES_DATA en mémoire pour cohérence (écriture dans le
-  // sens live → VEHICULES_DATA, jamais l'inverse).
+  // sens live → VEHICULES_DATA, jamais l'inverse). Ne touche pas .km, pour
+  // la même raison que ci-dessus.
   const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
   if (ref) {
-    ref.km                    = km;
     ref.dernier_entretien_km   = km;
     ref.dernier_entretien_date = today;
     ref.prochain_entretien_km  = prochainKm;
@@ -14808,7 +14810,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '260930.1843';
+const APP_VERSION = '260930.1900';
 
 let _swRegistration = null;
 
