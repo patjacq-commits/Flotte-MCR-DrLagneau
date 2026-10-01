@@ -1502,7 +1502,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherAidePage()" title="Aide sur cette page"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1349</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1555</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -12347,18 +12347,14 @@ function initGarages() {
 
 // ── Handlers formulaire ──────────────────────────────────────
 function onRVVehChange() {
-  const vehId   = document.getElementById('rv-veh')?.value;
-  const vehList = (vehicules && vehicules.length > 0) ? vehicules : VEHICULES_DATA;
-  const veh     = vehList.find(v => v.id === vehId);
-  const type    = document.getElementById('rv-type')?.value;
-  const gar     = document.getElementById('rv-garage');
-  if (!gar) return;
-  // Pré-remplir le garage attitré (toujours modifiable manuellement)
-  if (type === 'ct') {
-    gar.value = RV_GARAGES_DEFAUT.ct;
-  } else {
-    gar.value = veh?.garage || '';
-  }
+  // BUG CORRIGÉ (01/10) : cette fonction contenait sa propre copie, partielle
+  // et obsolète, de la logique de pré-remplissage du garage (ne gérait que le
+  // cas CT, pas vitrage/pneus/Recht/CP Arlon ajoutés ensuite). Résultat : si
+  // l'utilisateur choisissait d'abord le TYPE (auto-remplissant ex. "Carglass"),
+  // puis changeait le VÉHICULE, le garage auto-rempli était silencieusement
+  // écrasé. On délègue maintenant entièrement à onRVTypeChange(), seule et
+  // unique source de vérité pour cette règle.
+  onRVTypeChange();
   onRVDateChange();
 }
 
@@ -12415,6 +12411,46 @@ function onRVDateChange() {
   }
 }
 
+// ── Entretien garage : mise à jour des champs véhicule (factorisé) ──
+// Utilisé à la fois par confirmerEntretienEffectue() (bouton "effectué" du
+// tableau) et par sauvegarderRV() (RV "garage" encodé directement avec une
+// date passée + kilométrage) — AJOUTÉ (01/10) pour que les deux chemins
+// mettent à jour dernier_entretien_km/date et prochain_entretien_km de la
+// même façon, au lieu que seul le premier le fasse.
+function appliquerMajEntretienGarage(vehId, km, dateStr) {
+  const v       = vehicules.find(x => x.id === vehId);
+  const today   = dateStr || toLocalYMD(new Date());
+  // Intervalle propre au véhicule (20 000 km pour la plupart, 15 000 km
+  // pour 1RER037). Ce champ reste toujours modifiable/corrigeable
+  // manuellement via "✏️ Modifier" si besoin.
+  const intervalle = v?.interval_entretien_km || 20000;
+  const prochainKm = km + intervalle;
+
+  // Décision explicite de Patrick (30/09) : "Entretien garage" NE touche
+  // JAMAIS v.km (le kilométrage général affiché en gros sur la fiche
+  // véhicule, ligne "Kilométrage", réservée exclusivement aux relevés de
+  // "Maintenance mensuelle" — voir renderVehicules). Seuls les champs
+  // propres à l'entretien garage sont mis à jour ici.
+  if (v) {
+    v.dernier_entretien_km   = km;
+    v.dernier_entretien_date = today;
+    v.prochain_entretien_km  = prochainKm;
+  }
+  // sync immédiat pour éviter écrasement par _refreshUI
+  window.vehicules = vehicules;
+
+  // Mettre à jour VEHICULES_DATA en mémoire pour cohérence (écriture dans
+  // le sens live → VEHICULES_DATA, jamais l'inverse). Ne touche pas .km,
+  // pour la même raison que ci-dessus.
+  const ref = VEHICULES_DATA.find(x => x.id === vehId);
+  if (ref) {
+    ref.dernier_entretien_km   = km;
+    ref.dernier_entretien_date = today;
+    ref.prochain_entretien_km  = prochainKm;
+  }
+  return prochainKm;
+}
+
 // ── Sauvegarde unique ─────────────────────────────────────────
 function sauvegarderRV() {
   const vehId = document.getElementById('rv-veh')?.value;
@@ -12446,6 +12482,19 @@ function sauvegarderRV() {
 
   rendezvous.unshift(rec);
   window.rendezvous = rendezvous; // sync immédiat pour éviter écrasement par _refreshUI
+
+  // BUG CORRIGÉ (01/10) : un entretien garage encodé directement ici avec une
+  // date déjà passée (donc statut='effectue' d'emblée) ne déclenchait jusque-là
+  // aucune mise à jour de dernier_entretien_km/date/prochain_entretien_km —
+  // cette mise à jour n'existait que via le bouton "effectué" du tableau
+  // (confirmerEntretienEffectue). On applique maintenant la même logique ici,
+  // uniquement si un kilométrage a été saisi (sinon on ne force rien).
+  let prochainKmInfo = null;
+  if (type === 'garage' && statut === 'effectue' && rec.km) {
+    const kmSaisi = parseInt(rec.km);
+    if (kmSaisi > 0) prochainKmInfo = appliquerMajEntretienGarage(vehId, kmSaisi, date);
+  }
+
   saveAll();
 
   const v = vehicules.find(x => x.id === vehId);
@@ -12461,11 +12510,16 @@ function sauvegarderRV() {
   clearRVForm();
   renderTableRV();
   renderAccueil();
+  renderVehicules();
   if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
 
-  toast(statut === 'planifie'
-    ? '📅 RV planifié — visible sur le dashboard'
-    : "✅ RV enregistré dans l'historique");
+  if (prochainKmInfo) {
+    toast('✅ RV enregistré — entretien mis à jour, prochain à ' + prochainKmInfo.toLocaleString('fr-BE') + ' km');
+  } else {
+    toast(statut === 'planifie'
+      ? '📅 RV planifié — visible sur le dashboard'
+      : "✅ RV enregistré dans l'historique");
+  }
 }
 
 // ── Effacer le formulaire ─────────────────────────────────────
@@ -12527,7 +12581,72 @@ function marquerRVEffectue(id) {
     return;
   }
 
+  // AJOUTÉ (01/10) : si RV type CT ET admin → proposer mise à jour de la
+  // date de validité du CT, comme pour l'entretien garage ci-dessus. Avant
+  // ce correctif, marquer un RV CT "effectué" via "Prendre RV" ne mettait
+  // jamais à jour veh.ct_valid — seule une modification passant par le
+  // circuit ctEvents (historique séparé) le faisait. Patrick a choisi
+  // d'unifier : un seul geste suffit désormais aussi pour le CT.
+  if (r.type === 'ct' && userIsAdmin()) {
+    const v    = vehicules.find(x => x.id === r.vehId);
+    const vNom = v ? v.marque + ' ' + v.immat : r.vehId;
+
+    const ex = document.getElementById('modal-ct-effectue');
+    if (ex) ex.remove();
+
+    const div = document.createElement('div');
+    div.id = 'modal-ct-effectue';
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+      + 'display:flex;align-items:center;justify-content:center;padding:16px';
+    div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;'
+      + 'max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🔒 Contrôle technique effectué</div>'
+      + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">' + vNom + '</div>'
+      + '<div class="form-group" style="margin-bottom:16px">'
+      + '<label>Nouveau CT valable jusqu\'au *</label>'
+      + '<input type="date" id="ct-valid-input" style="font-size:16px;font-weight:700" /></div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px">'
+      + '<button class="btn primary" onclick="confirmerCTEffectue(\'' + id + '\')">'
+      + '💾 Mettre à jour le CT</button>'
+      + '<button class="btn" onclick="document.getElementById(\'modal-ct-effectue\').remove();'
+      + '_marquerRVEffectueSimple(\'' + id + '\')">'
+      + 'Marquer effectué sans mise à jour</button>'
+      + '<button class="btn" onclick="document.getElementById(\'modal-ct-effectue\').remove()">'
+      + 'Annuler</button>'
+      + '</div></div>';
+    document.body.appendChild(div);
+    setTimeout(() => document.getElementById('ct-valid-input')?.focus(), 100);
+    return;
+  }
+
   _marquerRVEffectueSimple(id);
+}
+
+function confirmerCTEffectue(id) {
+  const r = rendezvous.find(x => String(x.id) === String(id));
+  if (!r) return;
+
+  const dateValid = document.getElementById('ct-valid-input')?.value;
+  if (!dateValid) { toast('⚠️ Veuillez saisir la date de validité du CT'); return; }
+
+  document.getElementById('modal-ct-effectue')?.remove();
+
+  const v = vehicules.find(x => x.id === r.vehId);
+  if (v) v.ct_valid = dateValid;
+  window.vehicules = vehicules; // sync immédiat pour éviter écrasement par _refreshUI
+  const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
+  if (ref) ref.ct_valid = dateValid;
+
+  r.statut = 'effectue';
+  if (window.db) {
+    window.db.collection('rendezvous').doc(String(id)).update({ statut: 'effectue' }).catch(() => {});
+  }
+  window.rendezvous = rendezvous;
+  saveAll();
+  renderTableRV();
+  renderAccueil();
+  renderVehicules();
+  toast('✅ CT enregistré — valable jusqu\'au ' + formatDate(dateValid));
 }
 
 function _marquerRVEffectueSimple(id) {
@@ -12556,73 +12675,15 @@ function confirmerEntretienEffectue(id) {
 
   document.getElementById('modal-entretien-effectue')?.remove();
 
-  const v     = vehicules.find(x => x.id === r.vehId);
   const today = dat || toLocalYMD(new Date());
 
-  // Marquer un "Entretien garage" effectué EST, par définition, "le dernier
-  // entretien effectué" — le seuil "Prochain entretien" se recalcule donc
-  // automatiquement ici (relevé + intervalle propre au véhicule : 20 000 km
-  // pour la plupart, 15 000 km pour 1RER037). Seul le formulaire Maintenance
-  // routinier (relevé mensuel, sans lien direct avec l'échéance officielle
-  // d'entretien) reste volontairement exclu de ce recalcul — voir
-  // saveMaintenance. Ce champ reste par ailleurs toujours modifiable/
-  // corrigeable manuellement via "✏️ Modifier" si besoin.
-  const intervalle = v?.interval_entretien_km || 20000;
-  const prochainKm = km + intervalle;
-
-  // BUG CORRIGÉ (30/09, 2e passage) : "Entretien garage" NE touche PLUS
-  // v.km (le kilométrage général affiché en gros sur la fiche véhicule,
-  // ligne "Kilométrage"). Décision explicite de Patrick : cette ligne doit
-  // rester réservée EXCLUSIVEMENT aux relevés de "Maintenance mensuelle"
-  // (voir renderVehicules), quelle que soit par ailleurs la fraîcheur d'un
-  // kilométrage saisi ici. Seuls les champs propres à l'entretien garage
-  // (dernier_entretien_km/date, prochain_entretien_km) sont mis à jour.
-  if (v) {
-    v.dernier_entretien_km   = km;
-    v.dernier_entretien_date = today;
-    v.prochain_entretien_km  = prochainKm;
-  }
-  // BUG CORRIGÉ (30/09) : contrairement à saveMaintenance()/saveVehEdit()
-  // (voir leurs "// sync immédiat pour éviter écrasement par _refreshUI"),
-  // cette fonction-ci ne republiait jamais window.vehicules après avoir
-  // modifié `v`. Tant qu'aucune mise à jour temps réel Firestore n'était
-  // survenue depuis le chargement de la page, `vehicules` et
-  // `window.vehicules` pointaient par coïncidence vers le même tableau, donc
-  // ça ne se voyait pas tout de suite — mais dès que le listener temps réel
-  // "vehicules" se redéclenchait (y compris à cause de N'IMPORTE QUELLE autre
-  // écriture, même sur un autre véhicule ou depuis un autre appareil/onglet
-  // connecté), _refreshUI() réaffectait `vehicules = window.vehicules`, qui
-  // pointait encore vers l'ANCIEN tableau (sans la mise à jour de `v` faite
-  // ci-dessus) : la fiche véhicule revenait alors silencieusement en arrière
-  // au prochain rendu. D'où l'impression que "la fiche ne s'est pas mise à
-  // jour" alors qu'elle l'avait bien été un court instant.
-  window.vehicules = vehicules;
-
-  // BUG CORRIGÉ (30/09) : une "vraie" entrée était auparavant créée ici dans
-  // l'historique des MAINTENANCES (mensuelles) pour ce même événement,
-  // uniquement pour que la ligne "Kilométrage" de la fiche véhicule en tienne
-  // compte. Effet de bord non voulu : un "Entretien garage effectué" (RV)
-  // apparaissait alors dans l'onglet "Maintenance mensuelle"/l'historique des
-  // maintenances comme une VRAIE maintenance mensuelle (avec une checklist
-  // entièrement fictive, tout à "OK" alors que rien n'a été réellement
-  // vérifié) — et c'est cette fausse entrée "maintenance" (sa date, son km)
-  // qui s'affichait ensuite un peu partout (fiche véhicule, page Maintenance)
-  // à la place ou en plus des vraies données d'entretien garage saisies
-  // ci-dessus. Un "Entretien garage" (RV) n'est PAS une "Maintenance
-  // mensuelle" : les deux historiques doivent rester strictement séparés, et
-  // (2e passage, voir plus haut) l'entretien garage ne touche même plus
-  // v.km — seule une vraie "Maintenance mensuelle" fait foi pour la ligne
-  // "Kilométrage" de la fiche véhicule (voir renderVehicules).
-
-  // Mettre à jour VEHICULES_DATA en mémoire pour cohérence (écriture dans le
-  // sens live → VEHICULES_DATA, jamais l'inverse). Ne touche pas .km, pour
-  // la même raison que ci-dessus.
-  const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
-  if (ref) {
-    ref.dernier_entretien_km   = km;
-    ref.dernier_entretien_date = today;
-    ref.prochain_entretien_km  = prochainKm;
-  }
+  // NB (01/10) : logique de mise à jour (dernier_entretien_km/date,
+  // prochain_entretien_km) factorisée dans appliquerMajEntretienGarage(),
+  // désormais partagée avec sauvegarderRV() (entretien garage backdaté
+  // encodé directement). Un "Entretien garage" (RV) n'est PAS une
+  // "Maintenance mensuelle" : ne touche jamais v.km ni la collection
+  // maintenances — voir le détail des décisions dans cette fonction.
+  const prochainKm = appliquerMajEntretienGarage(r.vehId, km, today);
 
   // Marquer le RV effectué
   r.statut = 'effectue';
@@ -14833,7 +14894,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261001.1349';
+const APP_VERSION = '261001.1555';
 
 let _swRegistration = null;
 
