@@ -1502,7 +1502,14 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherAidePage()" title="Aide sur cette page"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1640</div>
+  <!-- AJOUTÉ (01/10) : Mode d'emploi complet — toujours visible dans la
+       bannière rouge (demande de Patrick : un lien dans Profil seul était
+       trop caché), pas seulement l'aide de la page en cours. Voir
+       ouvrirModeEmploiComplet() et le modal #modal-mode-emploi. -->
+  <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
+    style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
+
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1700</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2903,19 +2910,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-profil" class="page">
   <h2 style="margin-bottom:14px">⚙️ Mon profil</h2>
 
-  <!-- AJOUTÉ (01/10) : lien vers le mode d'emploi complet (document externe
-       tenu à jour par Patrick/Claude, mis à jour à chaque évolution de
-       l'appli). Visible pour tous les rôles. -->
-  <div class="form-card" style="max-width:480px;margin-bottom:14px">
-    <h3>📖 Mode d'emploi complet</h3>
-    <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Guide détaillé de tous les onglets, cas par cas — qui peut faire quoi,
-      et une FAQ "je dois faire X, comment ?".
-    </p>
-    <button class="btn primary" onclick="window.open('https://claude.ai/code/artifact/1e5553ef-e04b-4e35-9761-ef6df49082b0','_blank')"
-      style="width:100%">📖 Ouvrir le mode d'emploi</button>
-  </div>
-
   <!-- Confort de lecture -->
   <div class="form-card" style="max-width:480px;margin-bottom:14px">
     <h3>🔤 Confort de lecture</h3>
@@ -3323,6 +3317,26 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <button class="modal-close" onclick="closeModal('modal-aide-page')">✕</button>
     <h2 id="aide-page-titre">❓ Aide</h2>
     <div id="aide-page-contenu" style="font-size:13px"></div>
+  </div>
+</div>
+
+<!-- AJOUTÉ (01/10) : MODAL MODE D'EMPLOI COMPLET — accessible depuis la
+     bannière rouge (bouton 📖, toujours visible, tous rôles), pas seulement
+     depuis Profil. Contrairement à l'aide contextuelle (❓, une seule page à
+     la fois), celui-ci réunit TOUTES les fonctions accessibles à
+     l'utilisateur connecté, dans l'ordre des onglets — réutilise exactement
+     le même contenu (AIDE_TITRES/AIDE_CONTENU) que l'aide contextuelle, donc
+     reste synchronisé automatiquement avec elle : pas de contenu séparé à
+     maintenir en double. Voir ouvrirModeEmploiComplet(). -->
+<div class="modal-overlay" id="modal-mode-emploi">
+  <div class="modal" style="max-width:600px;max-height:85vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeModal('modal-mode-emploi')">✕</button>
+    <h2 style="margin-bottom:4px">📖 Mode d'emploi</h2>
+    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:14px">
+      Uniquement les fonctions accessibles à votre compte.
+    </p>
+    <div id="mode-emploi-sommaire" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px"></div>
+    <div id="mode-emploi-contenu" style="font-size:13px"></div>
   </div>
 </div>
 
@@ -6942,6 +6956,67 @@ function afficherAidePage() {
   contenu.innerHTML = html || '<p style="color:var(--texte-sec)">Aucune aide disponible pour cette page.</p>';
 
   document.getElementById('modal-aide-page')?.classList.add('open');
+}
+
+// AJOUTÉ (01/10) : Mode d'emploi complet — réunit, dans l'ordre des onglets,
+// TOUTES les fonctions accessibles au rôle connecté (pas seulement la page
+// en cours, contrairement à afficherAidePage() ci-dessus). Réutilise le
+// même contenu (AIDE_TITRES/AIDE_CONTENU), donc reste automatiquement
+// synchronisé : pas de texte séparé à maintenir.
+//
+// La liste PAGES_MODE_EMPLOI et la condition d'accès de chaque page doivent
+// rester identiques à ce que fait appliquerDroits() pour les onglets eux-
+// mêmes — si un onglet change de visibilité par rôle, mettre à jour ici.
+const PAGES_MODE_EMPLOI = [
+  { id: 'accueil',     acces: () => true },
+  { id: 'vehicules',   acces: () => true },
+  { id: 'alertes',     acces: () => true },
+  { id: 'kilometrage', acces: () => userIsAdmin() },
+  { id: 'calendrier',  acces: () => true },
+  { id: 'chauf',       acces: () => true },
+  { id: 'accident',    acces: () => true },
+  { id: 'histmaint',   acces: () => !userIsSuperAdmin() },
+  { id: 'maintenance', acces: () => userIsSuperAdmin() },
+  { id: 'garages',     acces: () => userIsAdmin() },
+  { id: 'carwash',     acces: () => true },
+  { id: 'pneus',       acces: () => userIsAdmin() },
+  { id: 'adblue',      acces: () => true },
+  { id: 'historique',  acces: () => true },
+  { id: 'rapports',    acces: () => userIsAdmin() },
+  { id: 'comptes',     acces: () => userIsSuperAdmin() },
+  { id: 'profil',      acces: () => true },
+];
+
+function contenuAideRole(id) {
+  const entree = AIDE_CONTENU[id];
+  if (typeof entree === 'string') return entree;
+  if (entree && typeof entree === 'object') {
+    if (userIsSuperAdmin()) return entree.superadmin || entree.admin || entree.chauffeur || '';
+    if (userIsAdmin())      return entree.admin      || entree.chauffeur || '';
+    return entree.chauffeur || '';
+  }
+  return '';
+}
+
+function ouvrirModeEmploiComplet() {
+  const sommaire = document.getElementById('mode-emploi-sommaire');
+  const contenu  = document.getElementById('mode-emploi-contenu');
+  if (!sommaire || !contenu) return;
+
+  const pages = PAGES_MODE_EMPLOI.filter(p => p.acces());
+
+  sommaire.innerHTML = pages.map(p =>
+    `<a href="#mode-emploi-${p.id}" style="font-size:11px;background:var(--bleu-clair);color:var(--bleu);` +
+    `padding:3px 8px;border-radius:12px;text-decoration:none;white-space:nowrap">${AIDE_TITRES[p.id] || p.id}</a>`
+  ).join('');
+
+  contenu.innerHTML = pages.map(p => {
+    const texte = contenuAideRole(p.id) || '<p style="color:var(--texte-sec)">Aucune information disponible.</p>';
+    return `<h3 id="mode-emploi-${p.id}" style="margin:20px 0 6px;padding-top:6px;border-top:1px solid var(--gris-bord)">` +
+      `${AIDE_TITRES[p.id] || p.id}</h3>${texte}`;
+  }).join('');
+
+  document.getElementById('modal-mode-emploi')?.classList.add('open');
 }
 
 function showPage(id, btn) {
@@ -14922,7 +14997,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261001.1640';
+const APP_VERSION = '261001.1700';
 
 let _swRegistration = null;
 
