@@ -1509,7 +1509,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1827</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1851</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -9039,8 +9039,14 @@ function renderAccueil() {
         + '</div></div>';
     }
 
-    // ── RV futurs par catégorie ──────────────────────────────
-    if (rvFuturs.length) {
+    // ── RV futurs : par catégorie (admin/superadmin) ou liste
+    // chronologique simple (chauffeur) ───────────────────────────
+    // MODIFIÉ (01/10) : un chauffeur n'a pas besoin de voir le détail par
+    // catégorie (Sécurité/Entretien, Pneumatiques, Autres, ...) — il voit
+    // uniquement la liste de tous les RV planifiés, triée par date, comme
+    // l'affichage "aujourd'hui/en retard" ci-dessus. L'affichage catégorisé
+    // reste réservé à l'admin/superadmin qui pilote la planification.
+    if (rvFuturs.length && isAdmin) {
       CATS_RV.forEach(cat => {
         const knownTypes = CATS_RV.filter(c => c.types).flatMap(c => c.types);
         const STANDARD_TYPES = Object.keys(RV_TYPES || {});
@@ -9056,6 +9062,10 @@ function renderAccueil() {
           + '<div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">'
           + items.map(r => rowRV(r)).join('') + '</div></div>';
       });
+    } else if (rvFuturs.length) {
+      rvContent += '<div style="margin-bottom:10px">'
+        + '<div class="form-card" style="padding:0;overflow:hidden;margin-bottom:0">'
+        + rvFuturs.map(r => rowRV(r)).join('') + '</div></div>';
     }
     if (!rvAujourdhui.length && !rvFuturs.length) {
       rvContent = '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucun RV planifié ✅</p>';
@@ -10973,9 +10983,15 @@ function openVehDetail(id) {
 
   document.getElementById('modal-veh-body').innerHTML =
     '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">'
-    + '<button class="btn" style="color:var(--rouge);border-color:var(--rouge);width:100%;font-weight:700;padding:11px"'
-    + ' onclick="closeModal(\'modal-veh\');ouvrirInterventionUrgente(\'' + v.id + '\')">'
-    + '🚨 Intervention urgente (sans RV)</button>'
+    // BUG CORRIGÉ (01/10) : ce bouton était affiché sans condition de rôle,
+    // alors qu'un chauffeur ne doit pas pouvoir créer de RV (voir aussi la
+    // garde showPage() / historique restreint, même date). Il est désormais
+    // réservé à l'admin/superadmin, comme les deux boutons ci-dessous.
+    + (isAdmin
+        ? '<button class="btn" style="color:var(--rouge);border-color:var(--rouge);width:100%;font-weight:700;padding:11px"'
+          + ' onclick="closeModal(\'modal-veh\');ouvrirInterventionUrgente(\'' + v.id + '\')">'
+          + '🚨 Intervention urgente (sans RV)</button>'
+        : '')
     + (isAdmin
         ? '<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu-clair);width:100%"'
           + ' onclick="closeModal(\'modal-veh\');ouvrirInfoVeh(\'' + v.id + '\')">ℹ️ Immobilisation / Info véhicule</button>'
@@ -15174,7 +15190,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261001.1827';
+const APP_VERSION = '261001.1851';
 
 let _swRegistration = null;
 
