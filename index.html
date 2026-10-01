@@ -1509,7 +1509,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1746</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1827</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -5435,7 +5435,7 @@ function afficherDetailJour(dateStr) {
           <span style="font-size:13px">${e.detail}</span>
           ${e.estCT ? '<div style="color:#ff00c8;font-weight:800;font-size:11px;background:#fff0fb;'
             + 'border:1px solid #ff00c8;border-radius:4px;padding:2px 6px;margin-top:3px;'
-            + 'display:inline-block">📎 Prévoir et remplir document pour facturer</div>' : ''}
+            + 'display:inline-block">📎 Remplir bon de commande</div>' : ''}
         </div>
       </div>`).join('');
   }
@@ -6846,7 +6846,7 @@ const AIDE_CONTENU = {
   accueil: {
     chauffeur: `<p>Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, alertes urgentes, prochains RV.</p>`,
     admin: `<p>Vue d'ensemble : véhicules (in)disponibles, RV urgents à traiter, RV planifiés par catégorie, rubriques « À surveiller » (CT, entretien, extincteurs, assurance, SPW…).</p>
-      <p>Tout rappel de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
+      <p>Tout rappel de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
   },
   vehicules: {
     chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif).</p>`,
@@ -6859,11 +6859,11 @@ const AIDE_CONTENU = {
   alertes: {
     chauffeur: `<p>Alertes en cours (CT, entretien, extincteurs, assurance…) et échéances à venir, en consultation.</p>`,
     admin: `<p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>
-      <p>Tout rappel lié à un <b>Contrôle Technique</b> affiche systématiquement, en <span style="color:#ff00c8;font-weight:800">rose fluo</span>, le rappel « 📎 Prévoir et remplir document pour facturer ».</p>`,
+      <p>Tout rappel lié à un <b>Contrôle Technique</b> affiche systématiquement, en <span style="color:#ff00c8;font-weight:800">rose fluo</span>, le rappel « 📎 Remplir bon de commande ».</p>`,
   },
   kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable.</p>`,
   calendrier: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>
-    <p>Tout événement de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
+    <p>Tout événement de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
   chauf: {
     chauffeur: `<p style="margin:0 0 4px"><b>Formulaire en 3 étapes :</b></p>
       <ol style="margin:0 0 8px;padding-left:20px">
@@ -6926,7 +6926,7 @@ const AIDE_CONTENU = {
       <li>Bouton « 🚨 Intervention urgente » : raccourci pour un cas prioritaire, hors planification classique.</li>
       <li>Bouton « ➕ » : ajouter un nouveau type de RV à la liste déroulante.</li>
     </ul>
-    <p>Tout RV de <b>Contrôle technique</b> planifié affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
+    <p>Tout RV de <b>Contrôle technique</b> planifié affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
   carwash: {
     chauffeur: `<p>Enregistrer un lavage (date, véhicule, lieu, montant) et consulter l'historique.</p>`,
     admin: `<p>En plus de l'enregistrement d'un lavage (comme les chauffeurs) : « Recharge clé Car Wash » (date, lieu, montant payé ou gratuit) et son historique dédié.</p>`,
@@ -6964,10 +6964,9 @@ const AIDE_CONTENU = {
         <li>« Stock initial » : à renseigner une fois. Stock affiché = stock initial + fûts livrés − litres pris sur un fût (pleins « Fût » uniquement, les pleins « Bidon » n'ont aucun impact).</li>
       </ol>`,
   },
-  historique: {
-    chauffeur: `<p>Consultation de tous les RV/maintenances (filtrable par véhicule/type).</p>`,
-    admin: `<p>Filtres complets (dates, véhicule, type, statut) et bouton « ⬇ Export CSV ».</p>`,
-  },
+  // MODIFIÉ (01/10) : réservé à Angélique/Patrick — un chauffeur n'y a plus
+  // accès (il garde « 📋 Historique maintenances » pour ses propres besoins).
+  historique: `<p>Consultation de tous les RV (filtrable par véhicule/type/statut/dates) et bouton « ⬇ Export CSV ».</p>`,
   rapports: `<ul style="margin:0;padding-left:20px">
       <li>Sauvegarde/restauration complète des données (JSON) et export Excel de secours.</li>
       <li>« Mes rappels » personnels, rapports CT/entretien imprimables.</li>
@@ -7025,9 +7024,20 @@ function afficherAidePage() {
 // même contenu (AIDE_TITRES/AIDE_CONTENU), donc reste automatiquement
 // synchronisé : pas de texte séparé à maintenir.
 //
-// La liste PAGES_MODE_EMPLOI et la condition d'accès de chaque page doivent
-// rester identiques à ce que fait appliquerDroits() pour les onglets eux-
-// mêmes — si un onglet change de visibilité par rôle, mettre à jour ici.
+// BUG DE SÉCURITÉ CORRIGÉ (01/10) : PAGES_MODE_EMPLOI ne servait jusqu'ici
+// qu'à construire ce sommaire — appliquerDroits() masquait séparément le
+// BOUTON d'onglet correspondant, mais rien n'empêchait un appel direct à
+// showPage(id) d'afficher quand même la page. Un chauffeur a pu atteindre
+// "Prendre RV" via la recherche globale (🔍), qui appelle showPage('garages')
+// sans passer par le bouton d'onglet, et y enregistrer un rendez-vous.
+// PAGES_MODE_EMPLOI sert donc maintenant AUSSI de source unique de vérité
+// pour le contrôle d'accès : voir la garde ajoutée en tête de showPage()
+// ci-dessous, qui bloque toute page dont acces() renvoie faux, quel que
+// soit le chemin emprunté pour y arriver (recherche, raccourci, bouton
+// oublié, appel direct…). La liste et la condition d'accès de chaque page
+// doivent donc rester identiques à ce que fait appliquerDroits() pour les
+// onglets eux-mêmes — si un onglet change de visibilité par rôle, mettre à
+// jour ici aussi.
 const PAGES_MODE_EMPLOI = [
   { id: 'accueil',     acces: () => true },
   { id: 'vehicules',   acces: () => true },
@@ -7042,7 +7052,9 @@ const PAGES_MODE_EMPLOI = [
   { id: 'carwash',     acces: () => true },
   { id: 'pneus',       acces: () => userIsAdmin() },
   { id: 'adblue',      acces: () => true },
-  { id: 'historique',  acces: () => true },
+  // MODIFIÉ (01/10) : un chauffeur n'a plus besoin de consulter l'historique
+  // des RV (il garde "📋 Historique maintenances" via histmaint ci-dessus).
+  { id: 'historique',  acces: () => userIsAdmin() },
   { id: 'rapports',    acces: () => userIsAdmin() },
   { id: 'comptes',     acces: () => userIsSuperAdmin() },
   { id: 'profil',      acces: () => true },
@@ -7081,6 +7093,16 @@ function ouvrirModeEmploiComplet() {
 }
 
 function showPage(id, btn) {
+  // GARDE DE SÉCURITÉ (01/10) : voir le commentaire au-dessus de
+  // PAGES_MODE_EMPLOI. Bloque ici, à la source, tout accès à une page dont
+  // le rôle connecté ne remplit pas la condition — quel que soit le chemin
+  // emprunté (bouton d'onglet masqué contourné, recherche globale,
+  // raccourci, appel direct…), pas seulement les 1-2 endroits identifiés.
+  const pageAcces = PAGES_MODE_EMPLOI.find(p => p.id === id);
+  if (pageAcces && !pageAcces.acces()) {
+    toast('⛔ Accès non autorisé.');
+    return;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
@@ -7662,7 +7684,9 @@ function appliquerDroits() {
   show(tabCW,         true);
   show(tabPneus,      isAdm);
   show(tabAdblue,     true);
-  show(tabHist,       true);
+  // MODIFIÉ (01/10) : un chauffeur n'a plus besoin de consulter l'historique
+  // des RV — il garde « 📋 Historique maintenances » (tabHistMaint) ci-dessous.
+  show(tabHist,       isAdm);
   show(tabHistMaint,  !isSA);  // consultation + impression pour chauffeurs ET admin (Angélique)
   show(tabRapports,   isAdm);
   show(tabComptes,    isSA);
@@ -9862,17 +9886,34 @@ function fermerRecherche() {
   document.getElementById('modal-recherche').classList.remove('open');
   _rechercheIdx = -1;
 }
+// BUG DE SÉCURITÉ CORRIGÉ (01/10) : ces raccourcis s'affichaient sans
+// aucune vérification de rôle et menaient (via rechercheRaccourci() ci-
+// dessous) directement à showPage('maintenance'/'garages'/'pneus'/
+// 'historique'…) — un chauffeur pouvait ainsi atteindre "Prendre RV" (et
+// créer un vrai rendez-vous), "Nouvelle maintenance" ou "Pneus" depuis la
+// recherche globale, alors que ces pages lui sont fermées partout ailleurs.
+// showPage() est désormais bloqué à la source pour ces pages (voir
+// PAGES_MODE_EMPLOI / la garde en tête de showPage()), mais autant ne plus
+// proposer un raccourci qui mènerait de toute façon à un refus d'accès.
 function afficherRaccourcis() {
+  const accesPage = (id) => {
+    const p = PAGES_MODE_EMPLOI.find(x => x.id === id);
+    return !p || p.acces();
+  };
+  const raccourcis = [
+    { page: 'maintenance', type: 'maintenance', label: '🔧 Nouvelle maintenance' },
+    { page: 'garages',     type: 'rv',          label: '📅 Prendre un RV' },
+    { page: 'carwash',     type: 'carwash',      label: '🚿 Car Wash' },
+    { page: 'adblue',      type: 'adblue',       label: '💧 AdBlue' },
+    { page: 'chauf',       type: 'alerte',       label: '🚨 Alerte chauffeur' },
+    { page: 'pneus',       type: 'pneus',        label: '🛞 Pneus' },
+    { page: 'historique',  type: 'historique',   label: '📋 Historique' },
+    { page: 'vehicules',   type: 'vehicules',    label: '🚐 Véhicules' },
+  ].filter(r => accesPage(r.page));
+
   document.getElementById('search-results').innerHTML = `
     <div class="search-shortcuts">
-      <button class="search-shortcut" onclick="rechercheRaccourci('maintenance')">🔧 Nouvelle maintenance</button>
-      <button class="search-shortcut" onclick="rechercheRaccourci('rv')">📅 Prendre un RV</button>
-      <button class="search-shortcut" onclick="rechercheRaccourci('carwash')">🚿 Car Wash</button>
-      <button class="search-shortcut" onclick="rechercheRaccourci('adblue')">💧 AdBlue</button>
-      <button class="search-shortcut" onclick="rechercheRaccourci('alerte')">🚨 Alerte chauffeur</button>
-      <button class="search-shortcut" onclick="rechercheRaccourci('pneus')">🛞 Pneus</button>
-      <button class="search-shortcut" onclick="rechercheRaccourci('historique')">📋 Historique</button>
-      <button class="search-shortcut" onclick="rechercheRaccourci('vehicules')">🚐 Véhicules</button>
+      ${raccourcis.map(r => `<button class="search-shortcut" onclick="rechercheRaccourci('${r.type}')">${r.label}</button>`).join('')}
     </div>`;
 }
 function rechercheRaccourci(type) {
@@ -9899,17 +9940,27 @@ function executerRecherche() {
   maintenances.slice(0,50).forEach(m=>{
     const v=vehicules.find(x=>x.id===m.vehId);
     if(![v?.immat,v?.marque,m.date,m.rem,String(m.km)].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
+    // BUG CORRIGÉ (01/10) : ceci renvoyait vers 'historique' (Historique des
+    // RV — désormais réservé admin/superadmin), alors que le résultat est
+    // une MAINTENANCE : un chauffeur cherchant sa propre maintenance tombait
+    // sur une page qui lui est fermée. Renvoie désormais vers la page où
+    // chaque rôle consulte réellement ses maintenances (voir PAGES_MODE_EMPLOI).
+    const pageMaint = userIsSuperAdmin() ? 'maintenance' : 'histmaint';
     res.push({section:'🔧 Maintenances',icon:'🔧',titre:`Maintenance ${v?v.immat:m.vehId} — ${formatDate(m.date)}`,
       detail:`${m.km?.toLocaleString('fr-BE')} km${m.rem?' • '+m.rem.substring(0,40):''}`,action:'Historique',
-      fn:()=>{fermerRecherche();showPage('historique',document.querySelectorAll('.tab-btn')[10]);}});
+      fn:()=>{fermerRecherche();showPage(pageMaint,document.querySelector(`.tab-btn[onclick*="${pageMaint}"]`));}});
   });
-  rendezvous.filter(r=>r.statut!=='annule').forEach(r=>{
+  // BUG DE SÉCURITÉ CORRIGÉ (01/10) : ces résultats menaient vers 'garages'
+  // (Prendre RV), désormais réservé admin/superadmin — ils n'apparaissent
+  // donc plus que pour ces rôles, pour éviter un résultat de recherche qui
+  // mènerait de toute façon à un refus d'accès.
+  if (userIsAdmin()) rendezvous.filter(r=>r.statut!=='annule').forEach(r=>{
     const v=vehicules.find(x=>x.id===r.vehId);
     if(![v?.immat,v?.marque,r.date,r.garage,r.notes].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
     const lbl=CT_TYPE_LABELS?.[r.type]||r.type;
     res.push({section:'📅 Rendez-vous',icon:'📅',titre:`RV ${v?v.immat:r.vehId} — ${lbl}`,
       detail:`${formatDate(r.date)}${r.heure?' à '+r.heure:''} • ${echapperHtml(r.garage||'')}`,action:'Modifier',
-      fn:()=>{fermerRecherche();showPage('garages',document.querySelectorAll('.tab-btn')[6]);}});
+      fn:()=>{fermerRecherche();showPage('garages',document.querySelector('.tab-btn[onclick*="garages"]'));}});
   });
   messagesChauf.forEach(m=>{
     const v=vehicules.find(x=>x.id===m.vehId);
@@ -10355,7 +10406,7 @@ function rappelFacturationCT(a) {
   if (a.category !== 'ct') return '';
   return `<p style="color:#ff00c8;font-weight:800;font-size:12px;background:#fff0fb;
     border:1px solid #ff00c8;border-radius:4px;padding:3px 7px;margin-top:5px;
-    display:inline-block">📎 Prévoir et remplir document pour facturer</p>`;
+    display:inline-block">📎 Remplir bon de commande</p>`;
 }
 
 function renderAlerte(a) {
@@ -12539,7 +12590,7 @@ function renderVehiculesUrgentsRV() {
         + '<div style="font-size:12px;color:var(--texte-sec)">' + it.label + '</div>'
         + (it.type === 'ct' ? '<div style="color:#ff00c8;font-weight:800;font-size:11px;background:#fff0fb;'
             + 'border:1px solid #ff00c8;border-radius:4px;padding:2px 6px;margin-top:3px;'
-            + 'display:inline-block">📎 Prévoir et remplir document pour facturer</div>' : '')
+            + 'display:inline-block">📎 Remplir bon de commande</div>' : '')
         + '</div>'
         + '<div style="text-align:right">'
         + '<div style="font-size:12px;font-weight:700;color:var(--rouge)">' + echapperHtml(it.detail) + '</div>'
@@ -13099,7 +13150,7 @@ function renderTableRV() {
     const rappelCT = r.type === 'ct'
       ? '<div style="color:#ff00c8;font-weight:800;font-size:11px;background:#fff0fb;'
         + 'border:1px solid #ff00c8;border-radius:4px;padding:2px 6px;margin-top:3px;'
-        + 'display:inline-block">📎 Prévoir et remplir document pour facturer</div>'
+        + 'display:inline-block">📎 Remplir bon de commande</div>'
       : '';
     return `<tr style="${rowBg}">
       <td data-label="Date" style="white-space:nowrap">${formatDate(r.date)}${hr}</td>
@@ -15123,7 +15174,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261001.1746';
+const APP_VERSION = '261001.1827';
 
 let _swRegistration = null;
 
