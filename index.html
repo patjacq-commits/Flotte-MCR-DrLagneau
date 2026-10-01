@@ -1509,7 +1509,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1700</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1722</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2153,6 +2153,15 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   </div>
   <!-- Formulaire de saisie — superadmin uniquement -->
   <div id="maint-form-saisie">
+  <!-- AJOUTÉ (01/10) : progression du tour mensuel — quels véhicules ont déjà
+       leur relevé ce mois-ci, lesquels restent. Voir renderProgressionMaintenance(). -->
+  <div class="form-card" id="maint-progression-card" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0;font-size:13px;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px">Progression du tour</h3>
+      <span id="maint-progression-compteur" style="font-size:13px;font-weight:700"></span>
+    </div>
+    <div id="maint-progression-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+  </div>
   <div class="form-card">
     <h3>Relevé mensuel</h3>
     <div class="form-grid">
@@ -3329,14 +3338,21 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
      reste synchronisé automatiquement avec elle : pas de contenu séparé à
      maintenir en double. Voir ouvrirModeEmploiComplet(). -->
 <div class="modal-overlay" id="modal-mode-emploi">
-  <div class="modal" style="max-width:600px;max-height:85vh;overflow-y:auto">
-    <button class="modal-close" onclick="closeModal('modal-mode-emploi')">✕</button>
-    <h2 style="margin-bottom:4px">📖 Mode d'emploi</h2>
-    <p style="font-size:12px;color:var(--texte-sec);margin-bottom:14px">
-      Uniquement les fonctions accessibles à votre compte.
-    </p>
-    <div id="mode-emploi-sommaire" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px"></div>
-    <div id="mode-emploi-contenu" style="font-size:13px"></div>
+  <div class="modal" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+    <!-- AMÉLIORÉ (01/10) : en-tête (croix de fermeture + titre + sommaire) figé
+         en haut, SEUL #mode-emploi-contenu défile. Avant, la croix faisait
+         partie du bloc qui défilait entièrement : un clic sur un raccourci du
+         sommaire faisait disparaître la croix en haut de la zone, obligeant à
+         remonter tout en haut pour fermer. -->
+    <div style="padding:20px 20px 0;flex-shrink:0">
+      <button class="modal-close" onclick="closeModal('modal-mode-emploi')" style="position:relative;z-index:1">✕</button>
+      <h2 style="margin-bottom:4px">📖 Mode d'emploi</h2>
+      <p style="font-size:12px;color:var(--texte-sec);margin-bottom:14px">
+        Uniquement les fonctions accessibles à votre compte.
+      </p>
+      <div id="mode-emploi-sommaire" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+    </div>
+    <div id="mode-emploi-contenu" style="font-size:13px;overflow-y:auto;padding:0 20px 20px"></div>
   </div>
 </div>
 
@@ -6865,30 +6881,75 @@ const AIDE_CONTENU = {
     chauffeur: `<p>Consultation des maintenances de l'année (filtrable par véhicule), commentaires garage, impression PDF.</p>`,
     admin: `<p>Consultation + bouton « ➕ Ajouter un commentaire garage » (notes libres sur les dépôts Curfoz/Bouillon/Opont, indépendantes d'un véhicule précis).</p>`,
   },
-  maintenance: `<p>Formulaire complet de saisie mensuelle, réservé à Patrick (Angélique consulte via « Historique maintenances », sans pouvoir éditer) :</p>
+  maintenance: `<p style="margin:0 0 8px">Formulaire complet de saisie mensuelle, réservé à Patrick (Angélique consulte via « Historique maintenances », sans pouvoir éditer) :</p>
+    <p style="margin:0 0 8px"><b>Pour faire le tour mensuel des véhicules :</b></p>
+    <ol style="margin:0 0 10px;padding-left:20px">
+      <li>La carte « Progression du tour » en haut de page affiche les véhicules actifs (un véhicule archivé n'apparaît plus ni dans cette carte ni dans la liste de sélection) : ✅ vert = déjà fait ce mois-ci, ⬜ gris = à faire — cliquer dessus sélectionne directement ce véhicule dans le formulaire.</li>
+      <li>Remplir date, kilométrage, niveaux (lave-glace, huile moteur, huile de frein, liquide de refroidissement), éclairage, pneus, état extérieur, cases de nettoyage, remarques et, si besoin, photos.</li>
+      <li>Si le kilométrage saisi est <b>inférieur</b> au dernier relevé connu pour ce véhicule, une confirmation est demandée avant d'enregistrer (signe fréquent d'une confusion entre deux véhicules) — on peut confirmer malgré tout (ex. relevé correctif).</li>
+      <li>Après enregistrement, un récapitulatif liste les alertes détectées (entretien garage proche/dépassé, CT proche/expiré) et le nombre de véhicules déjà faits ce jour, avec un bouton d'impression groupée.</li>
+    </ol>
+    <p style="margin:0 0 8px"><b>Autres cas :</b></p>
     <ul style="margin:0;padding-left:20px">
-      <li>Date, véhicule, kilométrage (aide au calcul de la différence avec le relevé précédent).</li>
-      <li>Niveaux (lave-glace, huile moteur, huile de frein, liquide de refroidissement), éclairage, pneus, état extérieur.</li>
-      <li>Cases de nettoyage effectué, photos, remarques libres.</li>
-      <li>Tableau des maintenances enregistrées, imprimable en PDF.</li>
+      <li>Changer de véhicule sans avoir enregistré conserve automatiquement un brouillon par véhicule (sauvegardé dans ce navigateur) — rien n'est perdu en passant de l'un à l'autre.</li>
+      <li>Modifier ou supprimer une entrée se fait depuis « Historique » ou « Historique maintenances » ; la carte de progression se met à jour en conséquence.</li>
+      <li>⚠️ Les photos sont conservées uniquement dans ce navigateur (stockage local) : elles ne sont pas synchronisées entre appareils ni envoyées sur le serveur. Pour les consulter ailleurs, faire une impression/export PDF depuis cet appareil.</li>
+      <li>Le kilométrage affiché sur la fiche véhicule provient toujours de la maintenance la plus récente ; l'« Entretien garage » (onglet Prendre RV) est un suivi séparé et indépendant.</li>
     </ul>`,
-  garages: `<ul style="margin:0;padding-left:20px">
-      <li>Formulaire complet : véhicule, type de RV (CT, entretien, réparation, vitrage, pneus, lift/rampe, marquage, autre…), date/heure, garage (téléphones modifiables), kilométrage.</li>
-      <li>Bouton « Intervention urgente » pour un cas prioritaire.</li>
-      <li>Bouton « ➕ » pour ajouter un nouveau type de RV à la liste.</li>
-      <li>Les RV créés ici apparaissent automatiquement dans le Calendrier et l'Historique des RV.</li>
+  garages: `<p style="margin:0 0 8px"><b>Pour prendre un nouveau RV :</b></p>
+    <ol style="margin:0 0 10px;padding-left:20px">
+      <li>Choisir le <b>véhicule</b>.</li>
+      <li>Choisir le <b>type</b> de RV — le garage se remplit alors automatiquement selon le type choisi (modifiable ensuite) :
+        <ul style="margin:4px 0;padding-left:18px">
+          <li><b>Contrôle technique</b> → Centre de Contrôle.</li>
+          <li><b>Entretien garage</b> → garage attitré du véhicule.</li>
+          <li><b>Pneus (avant/arrière/4 roues), géométrie</b> → un lien apparaît sous le champ Type : « Allez sur l'onglet Pneus ». Une permutation saisonnière ou une crevaison se gère exclusivement depuis l'onglet 🛞 Pneus (qui crée lui-même le RV correspondant si la date est future), plus depuis ce menu-ci.</li>
+          <li>Autres types (réparation, vitrage, lift/rampe, marquage, autre…) → garage laissé vide ou dernier garage connu, à compléter au besoin.</li>
+        </ul>
+      </li>
+      <li>Renseigner date/heure et, si connu, le kilométrage, puis enregistrer. Changer ensuite de véhicule ne réinitialise plus le garage déjà pré-rempli par le type choisi.</li>
+    </ol>
+    <p style="margin:0 0 8px"><b>Selon la date saisie à l'enregistrement :</b></p>
+    <ul style="margin:0 0 10px;padding-left:20px">
+      <li><b>Date future</b> → le RV est enregistré « 📅 planifié », visible dans le Calendrier et l'Historique des RV.</li>
+      <li><b>Date du jour ou passée, type « Entretien garage », avec kilométrage renseigné</b> → inutile de repasser ensuite par « Marquer effectué » : l'entretien du véhicule (dernier entretien km/date, prochain seuil) est mis à jour automatiquement dès l'enregistrement.</li>
+      <li><b>Date du jour ou passée sans kilométrage</b> → le RV est enregistré « ✅ effectué » mais rien n'est mis à jour sur le véhicule (kilométrage inconnu) ; à compléter plus tard via « Marquer effectué ».</li>
     </ul>
-    <p>Tout RV de <b>Contrôle Technique</b> planifié affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
+    <p style="margin:0 0 8px"><b>Pour un RV déjà planifié, bouton « Marquer effectué » :</b></p>
+    <ul style="margin:0 0 10px;padding-left:20px">
+      <li><b>Type Entretien garage</b> → propose un kilométrage et une date ; une fois validés, l'entretien du véhicule est mis à jour (même mécanisme que ci-dessus).</li>
+      <li><b>Type Contrôle technique</b> → propose une nouvelle date de validité CT : « 💾 Mettre à jour le CT » l'enregistre sur le véhicule, ou « Marquer effectué sans mise à jour » clôture le RV sans toucher au CT (utile par exemple si le contrôle a échoué).</li>
+      <li><b>Autres types</b> → marque simplement le RV « effectué », sans mise à jour automatique d'un champ véhicule.</li>
+    </ul>
+    <p style="margin:0 0 8px"><b>Autres cas :</b></p>
+    <ul style="margin:0;padding-left:20px">
+      <li>Bouton « 🚨 Intervention urgente » : raccourci pour un cas prioritaire, hors planification classique.</li>
+      <li>Bouton « ➕ » : ajouter un nouveau type de RV à la liste déroulante.</li>
+    </ul>
+    <p>Tout RV de <b>Contrôle technique</b> planifié affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Prévoir et remplir document pour facturer ».</p>`,
   carwash: {
     chauffeur: `<p>Enregistrer un lavage (date, véhicule, lieu, montant) et consulter l'historique.</p>`,
     admin: `<p>En plus de l'enregistrement d'un lavage (comme les chauffeurs) : « Recharge clé Car Wash » (date, lieu, montant payé ou gratuit) et son historique dédié.</p>`,
   },
-  pneus: `<ul style="margin:0;padding-left:20px">
-      <li>Enregistrer une permutation été/hiver (date, véhicule, type, km, lieu, remarques) — génère automatiquement un RV correspondant dans le Calendrier si la date est future.</li>
-      <li>Enregistrer un remplacement ponctuel d'un seul pneu (position, marque, dimensions, motif).</li>
-      <li>« Commandes pneus à prévoir » et bouton « Récupérer les dates manquantes ».</li>
-      <li>Historiques modifiables/supprimables pour les deux types d'opération.</li>
-    </ul>`,
+  pneus: `<p style="margin:0 0 8px"><b>Permutation saisonnière (été ↔ hiver) :</b></p>
+    <ol style="margin:0 0 10px;padding-left:20px">
+      <li>Renseigner date, véhicule, type (hiver→été ou été→hiver), kilométrage, lieu, remarques.</li>
+      <li><b>Date future</b> → un RV lié est créé automatiquement, visible dans le Calendrier et l'Historique des RV (catégorie 🛞 Pneumatiques).</li>
+      <li><b>Date du jour ou passée</b> → enregistrée directement comme faite, sans création de RV.</li>
+      <li>Modifier la date d'une permutation déjà enregistrée répercute le changement sur son RV lié ; supprimer la permutation supprime aussi ce RV.</li>
+    </ol>
+    <p style="margin:0 0 8px"><b>Remplacement ponctuel d'un seul pneu</b> (crevaison, usure localisée…) :</p>
+    <ul style="margin:0 0 10px;padding-left:20px">
+      <li>Position (avant/arrière, gauche/droit), marque, dimensions, motif.</li>
+      <li>N'est jamais lié à un RV — à réserver à une intervention isolée, pas à la permutation saisonnière complète.</li>
+    </ul>
+    <p style="margin:0 0 8px"><b>Suivi des commandes :</b></p>
+    <ul style="margin:0;padding-left:20px">
+      <li>« Commandes pneus à prévoir » liste les véhicules à anticiper.</li>
+      <li>Bouton « Récupérer les dates manquantes » complète automatiquement les permutations sans date suivante connue.</li>
+      <li>Les deux historiques (permutations et remplacements) restent modifiables/supprimables à tout moment.</li>
+    </ul>
+    <p>👉 Besoin de planifier une permutation ou une crevaison à l'avance ? Cet onglet est le seul endroit pour le faire — le menu « Prendre RV » n'en propose plus l'option et y renvoie directement.</p>`,
   adblue: {
     chauffeur: `<p>Consultation uniquement — récapitulatif annuel par véhicule et historique des pleins. La saisie d'un plein est réservée à Angélique et Patrick.</p>`,
     admin: `<p style="margin:0 0 4px"><b>Plein par véhicule</b> (« Enregistrer un ajout AdBlue ») : date, véhicule, volume, kilométrage (optionnel).</p>
@@ -11329,9 +11390,13 @@ function updateIndicateurBrouillon(actif) {
 
 function populateMaintSelect() {
   const sel = document.getElementById('maint-veh');
+  // BUG CORRIGÉ (01/10) : les véhicules archivés restaient dans ce
+  // sélecteur — contrairement à quasiment tous les autres endroits de
+  // l'app (listes, alertes, calendrier…), qui excluent systématiquement
+  // !v.archive. Un véhicule archivé n'a plus lieu de recevoir de relevé.
   sel.innerHTML = ORDRE_VEHICULES.map(id => {
     const v = vehicules.find(x => x.id === id);
-    return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+    return (v && !v.archive) ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
   }).join('');
 
   injecterToutesCustomOpts();
@@ -11346,6 +11411,39 @@ function populateMaintSelect() {
   chargerDraftVehicule(_maintVehActuel);
 
   renderMaintTable();
+  renderProgressionMaintenance();
+}
+
+// AJOUTÉ (01/10) : affiche, pour le tour mensuel en cours (mois de la date
+// de relevé par défaut — gère déjà le débordement de fin de mois, voir
+// dateFormulaireMaintenanceParDefaut), quels véhicules actifs (non
+// archivés) ont déjà un relevé ce mois-ci et lesquels restent à faire.
+// Cliquer sur un véhicule "à faire" le sélectionne directement dans le
+// formulaire.
+function renderProgressionMaintenance() {
+  const chips = document.getElementById('maint-progression-chips');
+  const compteur = document.getElementById('maint-progression-compteur');
+  if (!chips || !compteur) return;
+
+  const moisCible = toLocalYMD(dateFormulaireMaintenanceParDefaut()).slice(0, 7); // "YYYY-MM"
+  const vehActifs = ORDRE_VEHICULES
+    .map(id => vehicules.find(v => v.id === id))
+    .filter(v => v && !v.archive);
+
+  let nbFaits = 0;
+  chips.innerHTML = vehActifs.map(v => {
+    const fait = maintenances.some(m => m.vehId === v.id && (m.date || '').slice(0, 7) === moisCible);
+    if (fait) nbFaits++;
+    return fait
+      ? `<span style="font-size:12px;font-weight:600;background:var(--vert-clair);color:var(--vert);` +
+        `padding:4px 10px;border-radius:12px;white-space:nowrap">✅ ${v.immat}</span>`
+      : `<button onclick="document.getElementById('maint-veh').value='${v.id}';changerVehiculeMaint()" ` +
+        `style="font-size:12px;font-weight:600;background:var(--gris-clair);color:var(--texte-sec);` +
+        `border:1.5px dashed var(--gris-bord);padding:3px 9px;border-radius:12px;cursor:pointer;white-space:nowrap">⬜ ${v.immat}</button>`;
+  }).join('');
+
+  compteur.textContent = `${nbFaits}/${vehActifs.length} véhicule${vehActifs.length > 1 ? 's' : ''} fait${nbFaits > 1 ? 's' : ''}`;
+  compteur.style.color = nbFaits === vehActifs.length ? 'var(--vert)' : 'var(--texte-sec)';
 }
 
 /* ── Options personnalisées persistées par champ ───────────────
@@ -11981,6 +12079,29 @@ async function saveMaintenance() {
   const km    = parseInt(document.getElementById('maint-km').value);
   if (!date || !vehId || !km) { toast('Veuillez remplir au moins la date, le véhicule et le kilométrage.'); return; }
 
+  // AJOUTÉ (01/10) : jusqu'ici, un kilométrage inférieur au dernier relevé
+  // connu n'affichait qu'un avertissement visuel (voir calculerDiffKm) sans
+  // jamais bloquer l'enregistrement. En faisant le tour de 9 véhicules à la
+  // suite, confondre le kilométrage de deux véhicules est une erreur
+  // plausible — on redemande donc confirmation explicite dans ce cas
+  // précis, sans bloquer les cas légitimes (relevé correctif, par ex.).
+  const vehPourCheck   = vehicules.find(v => v.id === vehId);
+  const dernierMaintCheck = maintenances
+    .filter(m => m.vehId === vehId && m.km)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const dernierKmCheck = dernierMaintCheck
+    ? parseInt(dernierMaintCheck.km)
+    : (vehPourCheck?.dernier_entretien_km ? parseInt(vehPourCheck.dernier_entretien_km) : null);
+  if (dernierKmCheck && km < dernierKmCheck) {
+    const vNomCheck = vehPourCheck ? vehPourCheck.marque + ' ' + vehPourCheck.immat : vehId;
+    const continuer = confirm(
+      `⚠️ Le kilométrage saisi (${km.toLocaleString('fr-BE')} km) est INFÉRIEUR au dernier relevé ` +
+      `connu pour ${vNomCheck} (${dernierKmCheck.toLocaleString('fr-BE')} km).\n\n` +
+      `C'est souvent le signe d'une confusion entre deux véhicules. Continuer quand même ?`
+    );
+    if (!continuer) { delete _verrouMaintenanceParVeh[vehId]; return; }
+  }
+
   // Encoder les photos (stockage localStorage - Firebase Storage non activé)
   const photos = await encodePhotos();
   let photoUrls = photos.map(p => ({ name: p.name, url: p.data, path: null }));
@@ -12039,6 +12160,7 @@ async function saveMaintenance() {
   effacerBrouillon();
   clearMaintForm();
   renderMaintTable();
+  renderProgressionMaintenance();
 
   // Traçabilité
   const vNom = vehicules.find(v => v.id === vehId);
@@ -12259,11 +12381,15 @@ function deleteMaint(id) {
   const mDel = maintenances.find(m => m.id === id);
   const vDel = mDel ? vehicules.find(v => v.id === mDel.vehId) : null;
   maintenances = maintenances.filter(m => m.id !== id);
+  window.maintenances = maintenances; // BUG CORRIGÉ (01/10) : sync immédiat manquant, qui pouvait
+  // faire réapparaître l'entrée supprimée au prochain _refreshUI (voir window.vehicules pour le même motif)
   saveAll();
   logSuppression('maintenances',
     `Suppression maintenance ${vDel ? vDel.immat : mDel?.vehId||'?'} — ${mDel ? formatDate(mDel.date) : ''}`,
     mDel ? { vehId:mDel.vehId, date:mDel.date, km:mDel.km } : null);
-  renderMaintTable(); toast('Entrée supprimée');
+  renderMaintTable();
+  renderProgressionMaintenance();
+  toast('Entrée supprimée');
 }
 
 function clearMaintForm() {
@@ -13885,6 +14011,7 @@ function deleteHistItem(srcType, srcId) {
     const m = maintenances.find(x => x.id === id);
     vehIdConcerne = m ? m.vehId : null;
     maintenances  = maintenances.filter(x => x.id !== id);
+    window.maintenances = maintenances; // BUG CORRIGÉ (01/10) : sync immédiat manquant (idem deleteMaint)
   }
   if (srcType === 'ct')           ctEvents      = ctEvents.filter(x => x.id !== id);
   if (srcType === 'rv')           rendezvous    = rendezvous.filter(x => x.id !== id);
@@ -13893,7 +14020,7 @@ function deleteHistItem(srcType, srcId) {
   if (srcType === 'message')      messagesChauf = messagesChauf.filter(x => x.id !== id);
   if (vehIdConcerne) recalculerKmVehicule(vehIdConcerne);
   saveAll(); renderHistorique();
-  if (vehIdConcerne) { renderMaintTable(); renderVehicules(); renderAccueil(); }
+  if (vehIdConcerne) { renderMaintTable(); renderProgressionMaintenance(); renderVehicules(); renderAccueil(); }
   if (srcType === 'message') updateTabChauf();
   toast('Entrée supprimée');
 }
@@ -13960,7 +14087,7 @@ function editHistItem(srcType, srcId) {
       if (changes.adblue)    changes.adblue    = String(changes.adblue);
       Object.assign(m, changes);
       recalculerKmVehicule(m.vehId);
-      saveAll(); renderHistorique(); renderMaintTable(); renderVehicules(); renderAccueil(); toast('Maintenance modifiée ✅');
+      saveAll(); renderHistorique(); renderMaintTable(); renderProgressionMaintenance(); renderVehicules(); renderAccueil(); toast('Maintenance modifiée ✅');
     });
   } else if (srcType === 'rv') {
     const r = rendezvous.find(x => x.id === id);
@@ -14997,7 +15124,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261001.1700';
+const APP_VERSION = '261001.1722';
 
 let _swRegistration = null;
 
