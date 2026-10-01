@@ -1502,7 +1502,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="afficherAidePage()" title="Aide sur cette page"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">❓</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v260930.1945</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261001.1349</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -4093,14 +4093,33 @@ function samediPlusProcheFinMois(annee, mois) {
 
 function prochainSamediFinDeMois() {
   const now = new Date(); now.setHours(0,0,0,0);
-  let sam = samediPlusProcheFinMois(now.getFullYear(), now.getMonth());
-  // Si le samedi calculé est déjà passé, prendre le mois suivant
-  if (sam < now) {
-    const nextM = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
-    const nextY = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
-    sam = samediPlusProcheFinMois(nextY, nextM);
-  }
-  return sam;
+
+  // BUG CORRIGÉ (01/10) : le samedi "le plus proche" de la fin d'un mois
+  // peut déborder sur le mois SUIVANT (ex: fin septembre 2026 = mercredi
+  // 30/09 → le samedi le plus proche est le 03/10, pas le 26/09). Tant qu'on
+  // reste dans le même mois calendaire que ce débordement, tout va bien.
+  // Mais dès le passage au mois suivant (ex: 1er octobre), le code d'avant
+  // recalculait DIRECTEMENT le samedi de fin du nouveau mois (ici le
+  // 31/10, qui tombe justement un samedi) sans jamais vérifier si le samedi
+  // "débordant" du mois précédent (03/10) était déjà passé ou non — il
+  // sautait donc une échéance pourtant encore à venir. Même correctif que
+  // dateFormulaireMaintenanceParDefaut() (qui gérait déjà ce cas pour la
+  // date par défaut du formulaire) : on compare aussi le samedi du mois
+  // précédent, et on retient le plus proche des deux qui n'est pas encore
+  // passé.
+  const moisPrec  = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const anneePrec = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const candidats = [
+    samediPlusProcheFinMois(anneePrec, moisPrec),
+    samediPlusProcheFinMois(now.getFullYear(), now.getMonth()),
+  ].filter(sam => sam >= now).sort((a, b) => a - b);
+
+  if (candidats.length) return candidats[0];
+
+  // Aucun des deux candidats n'est encore à venir → mois suivant.
+  const nextM = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+  const nextY = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+  return samediPlusProcheFinMois(nextY, nextM);
 }
 
 /* Date par défaut du formulaire Maintenance — reste sur la date du samedi
@@ -14814,7 +14833,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '260930.1945';
+const APP_VERSION = '261001.1349';
 
 let _swRegistration = null;
 
