@@ -335,6 +335,35 @@
             }).catch(() => {});
           });
         }
+
+        // AJOUTÉ (02/10) : alerte visuelle symétrique pour le CHAUFFEUR quand
+        // SON PROPRE signalement reçoit une réponse — jusqu'ici rien ne le
+        // signalait (voir aussi le correctif dans renderMessagesChauf() qui
+        // garde le message visible dans "En cours" tant qu'il ne l'a pas vu).
+        if (typeof userIsAdmin === 'function' && !userIsAdmin()
+            && typeof currentUser !== 'undefined' && currentUser) {
+          const monUid = currentUser.uid || '';
+          const monNom = currentUser.nom || '';
+          const ancienParId = {};
+          ancien.forEach(m => { ancienParId[m.id] = m; });
+          const nouvellesReponses = (d || []).filter(m => {
+            const estMien = (monUid && m.uid === monUid) || (!monUid && m.auteur === monNom);
+            if (!estMien) return false;
+            const nbAvant = ancienParId[m.id] ? (ancienParId[m.id].reponses||[]).length : 0;
+            return (m.reponses||[]).length > nbAvant;
+          });
+          if (nouvellesReponses.length) {
+            if (!document.getElementById('page-chauf')?.classList.contains('active')) {
+              const tabChauf = document.getElementById('tab-chauf');
+              if (tabChauf) {
+                tabChauf.style.background = 'rgba(39,174,96,0.2)';
+                setTimeout(() => { if (tabChauf) tabChauf.style.background = ''; }, 5000);
+              }
+            }
+            const rep = nouvellesReponses[0].reponses[nouvellesReponses[0].reponses.length - 1];
+            toast('💬 Réponse de ' + (rep?.auteur || 'votre responsable') + ' à votre signalement');
+          }
+        }
       }
     };
     Object.entries(COLS).forEach(([col, cb]) => fbListen(col, cb));
@@ -1509,7 +1538,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261002.1452</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261002.1512</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -5471,6 +5500,27 @@ function afficherDetailJour(dateStr) {
 // admin mais jamais dans le formulaire AdBlue du chauffeur. Les deux usages
 // pointent maintenant directement vers VEHICULES_ADBLUE.
 
+/* BUG CORRIGÉ (02/10) : quand l'admin répond à un signalement,
+   repondreMessage() passe son statut à "lu" (= traité). Côté chauffeur, le
+   filtre par défaut "En cours" n'affiche QUE les messages non traités — la
+   réponse se retrouvait donc instantanément masquée, sans aucun signal,
+   d'où l'impression que "la réponse n'apparaît pas chez le chauffeur".
+   Ces deux fonctions retiennent, par appareil (localStorage), combien de
+   réponses le chauffeur a déjà vues pour chaque signalement : tant qu'une
+   réponse n'a pas été affichée au moins une fois dans son fil, le message
+   reste visible dans "En cours" même si son statut est "traité". */
+function _nbReponsesVuesChauf(msgId) {
+  try { return JSON.parse(localStorage.getItem('mcr_reponses_vues') || '{}')[msgId] || 0; }
+  catch(e) { return 0; }
+}
+function _marquerReponsesVuesChauf(msgId, nb) {
+  try {
+    const obj = JSON.parse(localStorage.getItem('mcr_reponses_vues') || '{}');
+    obj[msgId] = nb;
+    localStorage.setItem('mcr_reponses_vues', JSON.stringify(obj));
+  } catch(e) {}
+}
+
 function renderMessagesChauf() {
   window.renderMessagesChauf = renderMessagesChauf;
   const filterVeh    = document.getElementById('chauf-filter')?.value || '';
@@ -5495,7 +5545,12 @@ function renderMessagesChauf() {
       (monUid && m.uid === monUid) || (!m.uid && m.auteur === monNom)
     );
     if (filterStatut === 'actifs') {
-      msgs = msgs.filter(m => m.statut === 'nonlu' || m.statut === 'vu' || !m.statut);
+      msgs = msgs.filter(m => {
+        const pasEncoreTraite = m.statut === 'nonlu' || m.statut === 'vu' || !m.statut;
+        const reponseNonVue   = (m.statut === 'traite' || m.statut === 'lu')
+          && (m.reponses||[]).length > _nbReponsesVuesChauf(m.id);
+        return pasEncoreTraite || reponseNonVue;
+      });
     } else if (filterStatut === 'traites') {
       msgs = msgs.filter(m => m.statut === 'traite' || m.statut === 'lu');
     }
@@ -5705,6 +5760,31 @@ function renderMessagesChauf() {
         ? `<div class="msg-actions">${adminBtns}${chaufDeleteBtn}</div>` : ''}
     </div>`;
   }).join('');
+
+  // BUG CORRIGÉ (02/10) : marquer une réponse "vue" dès son premier rendu
+  // dans le DOM est trop agressif — un rafraîchissement temps réel (debounce
+  // _refreshUI, ~400ms) peut redessiner ce même fil une seconde fois juste
+  // après l'ouverture de la page, avant même que le chauffeur n'ait eu le
+  // temps de la voir, ce qui la faisait disparaître de "En cours" en un
+  // clin d'œil. On attend plutôt que la page reste affichée un court
+  // instant (DWELL_VU_MS) avant de la considérer vue — un seul minuteur par
+  // message, qui ne se déclenche que si la page "Signaler" est toujours
+  // active à l'échéance.
+  if (!userIsAdmin()) {
+    const DWELL_VU_MS = 1500;
+    window._dwellTimersVuChauf = window._dwellTimersVuChauf || {};
+    msgs.forEach(m => {
+      const nbRep = (m.reponses||[]).length;
+      const dejaVu = nbRep <= _nbReponsesVuesChauf(m.id);
+      if (dejaVu || window._dwellTimersVuChauf[m.id]) return;
+      window._dwellTimersVuChauf[m.id] = setTimeout(() => {
+        delete window._dwellTimersVuChauf[m.id];
+        if (document.getElementById('page-chauf')?.classList.contains('active')) {
+          _marquerReponsesVuesChauf(m.id, nbRep);
+        }
+      }, DWELL_VU_MS);
+    });
+  }
 }
 
 // Variables globales formulaire 3 taps
@@ -6894,8 +6974,8 @@ const AIDE_CONTENU = {
         <li>Cocher une ou plusieurs catégories (panne, bruit, voyant = urgent ; carrosserie, serrure, équipement, autre = information) et préciser un commentaire par anomalie cochée.</li>
         <li>Ajouter une note générale et, si utile, une ou plusieurs photos, puis envoyer après relecture du récapitulatif.</li>
       </ol>
-      <p>Le fil de vos propres signalements est visible (filtrable par statut/véhicule), avec la réponse de Patrick ou Angélique une fois traité.</p>`,
-    admin: `<p>Vous pouvez créer un signalement comme un chauffeur, et vous répondez aux signalements reçus — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné.</p>`,
+      <p>Le fil de vos propres signalements est visible (filtrable par statut/véhicule). Dès que Patrick ou Angélique répond, une notification (💬 + onglet qui clignote) apparaît si l'app est ouverte, et la réponse reste visible dans « En cours » tant que vous ne l'avez pas consultée — elle bascule ensuite dans « ✅ Traités ».</p>`,
+    admin: `<p>Vous pouvez créer un signalement comme un chauffeur, et vous répondez aux signalements reçus — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné, qui est notifié (si l'app est ouverte) et voit la réponse rester dans son fil « En cours » jusqu'à ce qu'il l'ait consultée.</p>`,
     superadmin: `<p>Le formulaire de création de signalement est masqué pour vous : vous consultez le fil des signalements et pouvez y répondre.</p>`,
   },
   accident: `<p>Que faire en cas d'accident, déclaration de sinistre auto, PV/amende de stationnement, codes des cartes carburant par véhicule, numéros d'urgence belges (112, Ethias Assistance…).</p>
@@ -15213,7 +15293,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261002.1452';
+const APP_VERSION = '261002.1512';
 
 let _swRegistration = null;
 
