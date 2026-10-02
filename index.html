@@ -1538,7 +1538,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261002.1512</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261002.2037</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -14201,8 +14201,16 @@ function deleteHistItem(srcType, srcId) {
    d'une maintenance : v.km n'était mis à jour qu'à la CRÉATION d'une nouvelle
    maintenance (saveMaintenance), jamais lors d'une édition ou suppression
    ultérieure — un véhicule pouvait donc garder un kilométrage obsolète (et
-   tous les calculs qui en dépendent : prochain entretien, alertes, onglet
-   Kilométrage) même après correction ou suppression de l'entrée concernée. */
+   tous les calculs qui en dépendent : alertes, onglet Kilométrage) même
+   après correction ou suppression de l'entrée concernée.
+   BUG CORRIGÉ (02/10) : cette fonction recalculait AUSSI prochain_entretien_km
+   à partir du km de cette même maintenance mensuelle — alors que ce champ
+   doit être piloté EXCLUSIVEMENT par "Dernier entretien à (km)"
+   (v.dernier_entretien_km, saisi via "✏️ Modifier" ou coché "effectué" dans
+   l'onglet Entretien garage — voir appliquerMajEntretienGarage/saveVehEdit).
+   Modifier ou supprimer un simple relevé de maintenance mensuelle écrasait
+   donc silencieusement la valeur de "Prochain entretien" voulue par l'admin.
+   On ne touche plus ici qu'à v.km. */
 function recalculerKmVehicule(vehId) {
   const veh = vehicules.find(v => v.id === vehId);
   if (!veh) return;
@@ -14211,13 +14219,9 @@ function recalculerKmVehicule(vehId) {
     .sort((a, b) => b.date.localeCompare(a.date));
   if (historiqueVeh.length) {
     veh.km = parseInt(historiqueVeh[0].km);
-    if (veh.interval_entretien_km) {
-      veh.prochain_entretien_km = veh.km + veh.interval_entretien_km;
-    }
     const vRef = VEHICULES_DATA.find(r => r.id === vehId);
     if (vRef) {
       vRef.km = veh.km;
-      if (veh.interval_entretien_km) vRef.prochain_entretien_km = veh.prochain_entretien_km;
     }
   }
   // Si plus aucune maintenance avec km pour ce véhicule, on laisse v.km tel
@@ -15293,7 +15297,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261002.1512';
+const APP_VERSION = '261002.2037';
 
 let _swRegistration = null;
 
