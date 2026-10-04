@@ -852,6 +852,17 @@ table { width: 100%; border-collapse: collapse; background: var(--blanc); font-s
 thead { background: var(--gris-clair); }
 th { padding: 10px 12px; text-align: left; font-weight: 600; color: var(--texte-sec); border-bottom: 1.5px solid var(--gris-bord); white-space: nowrap; }
 td { padding: 9px 12px; border-bottom: 0.5px solid #f0f0f0; vertical-align: top; }
+
+/* AJOUTÉ (04/10) : première ligne (en-têtes) figée pour le tableau
+   "Maintenances enregistrées" — scrollée sur toute la hauteur de la page
+   (pas de hauteur fixe sur .table-wrap ici), donc "position: sticky" docké
+   juste sous les barres fixes du haut (navbar + onglets, voir .content) au
+   lieu d'un simple "top:0" qui le passerait sous elles. Scopé à ce tableau
+   précis plutôt qu'à tous les tableaux de l'appli (demande ciblée). */
+#maint-table thead th {
+  position: sticky; top: calc(var(--navbar-h) + 44px); z-index: 5;
+  background: var(--gris-clair);
+}
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--gris-clair); }
 td.danger { color: var(--rouge); font-weight: 600; }
@@ -1545,7 +1556,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.0915</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.0939</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2451,6 +2462,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
           <tr>
             <th>Date</th><th>Véhicule</th><th>Km</th>
             <th>LG</th><th>HM</th><th>HF</th><th>LR</th><th>Écl.</th><th>Pneus</th><th>Ext.</th>
+            <!-- AJOUTÉ (04/10) : 🪰 mouches, 🔧 moteur, 💧 AdBlue, 🚿 Car Wash
+                 — regroupés dans 1 seule colonne compacte plutôt que 4
+                 colonnes séparées, pour ne pas élargir démesurément un
+                 tableau déjà large (voir fmtInfo dans renderMaintTable). -->
+            <th title="Nettoyage mouches / moteur, AdBlue fait, Car Wash fait">Info</th>
             <th>Remarques</th><th>Photos</th>
             <th style="min-width:60px">Action</th>
           </tr>
@@ -12615,6 +12631,20 @@ function renderMaintTable() {
         : `<span style="color:var(--orange);font-weight:600">${val}</span>`)
     : '<span style="color:#ddd">—</span>';
 
+  // AJOUTÉ (04/10) : colonne "Info" compacte — mouches/moteur/AdBlue
+  // fait/Car Wash fait manquaient entièrement de ce tableau (signalé par
+  // Patrick), d'où l'ajout d'une colonne dédiée plutôt que 4 de plus.
+  const fmtInfo = m => {
+    const icones = [];
+    if (m.mouches)    icones.push('🪰');
+    if (m.moteur)     icones.push('🔧');
+    if (m.adblueFait) icones.push('💧');
+    if (m.carwashFait)icones.push('🚿');
+    return icones.length
+      ? `<span style="font-size:14px" title="${icones.join(' ')}">${icones.join(' ')}</span>`
+      : '<span style="color:#ddd">—</span>';
+  };
+
   tbody.innerHTML = list.length
     ? list.map(m => {
         const v = vehicules.find(x => x.id === m.vehId);
@@ -12654,12 +12684,13 @@ function renderMaintTable() {
           <td style="text-align:center">${fmt(m.ecl)}</td>
           <td style="text-align:center">${fmt(m.pneus)}</td>
           <td style="text-align:center">${fmt(m.ext)}</td>
+          <td style="text-align:center">${fmtInfo(m)}</td>
           <td style="font-size:11px;max-width:150px">${m.rem || '—'}</td>
           <td>${photosHtml}</td>
           ${userIsAdmin() ? `<td style="white-space:nowrap">${editBtn}${delBtn}</td>` : ''}
         </tr>`;
       }).join('')
-    : `<tr><td colspan="${userIsAdmin()?13:12}"
+    : `<tr><td colspan="${userIsAdmin()?14:13}"
          style="color:var(--texte-sec);text-align:center;padding:20px">
          Aucune maintenance pour ces critères</td></tr>`;
 
@@ -14385,13 +14416,25 @@ function editHistItem(srcType, srcId) {
       { label:'Éclairage',        type:'text',   key:'ecl',     val: m.ecl || '' },
       { label:'Pneus',            type:'text',   key:'pneus',   val: m.pneus || '' },
       { label:'Extérieur',        type:'text',   key:'ext',     val: m.ext || '' },
+      // AJOUTÉ (04/10) : ces 4 cases existaient déjà sur le relevé
+      // (mouches/moteur depuis le début, AdBlue fait/Car Wash fait depuis
+      // le 04/10) mais n'étaient pas éditables ici — champs manquants
+      // signalés par Patrick. À NE PAS confondre avec les champs litres/
+      // montant retirés le 01/10 (voir commentaire ci-dessous) : ce sont 4
+      // cases "pour info" propres au relevé de maintenance lui-même.
+      { label:'🪰 Nettoyé mouches',  type:'checkbox', key:'mouches',    val: !!m.mouches },
+      { label:'🔧 Nettoyé moteur',   type:'checkbox', key:'moteur',     val: !!m.moteur },
+      { label:'💧 AdBlue fait',      type:'checkbox', key:'adblueFait', val: !!m.adblueFait },
+      { label:'🚿 Car Wash fait',    type:'checkbox', key:'carwashFait',val: !!m.carwashFait },
       { label:'Remarques',        type:'text',   key:'rem',     val: m.rem || '' },
     ], (changes) => {
-      // BUG CORRIGÉ (01/10) : les champs Car Wash et AdBlue ont été retirés de
-      // ce modal — ces deux suivis se font désormais sur leurs propres
-      // onglets dédiés (🚿 Car Wash, 💧 AdBlue) et saveMaintenance() ne les
-      // écrit plus dans un enregistrement de maintenance ; leur présence ici
-      // était un reliquat de l'ancienne version, source de confusion.
+      // BUG CORRIGÉ (01/10) : les champs Car Wash et AdBlue (litres/montant)
+      // ont été retirés de ce modal — ces deux suivis se font désormais sur
+      // leurs propres onglets dédiés (🚿 Car Wash, 💧 AdBlue) et
+      // saveMaintenance() ne les écrit plus dans un enregistrement de
+      // maintenance ; leur présence ici était un reliquat de l'ancienne
+      // version, source de confusion. Ne pas les réintroduire — à ne pas
+      // confondre avec les 4 cases "pour info" ajoutées juste au-dessus.
       if (changes.km)        changes.km        = parseInt(changes.km);
       Object.assign(m, changes);
       recalculerKmVehicule(m.vehId);
@@ -14490,6 +14533,14 @@ function openEditModal(titre, fields, callback) {
     // Échapper les guillemets pour ne pas casser l'attribut value
     const valSafe = String(f.val !== null && f.val !== undefined ? f.val : '')
       .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    // AJOUTÉ (04/10) : support du type "checkbox" — nécessaire pour éditer
+    // les cases "pour info" (mouches, moteur, AdBlue fait, Car Wash fait)
+    // de la maintenance, absentes jusqu'ici de ce modal générique.
+    if (f.type === 'checkbox') {
+      return `<div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">`
+        + `<input type="checkbox" data-key="${f.key}" ${f.val ? 'checked' : ''} style="width:20px;height:20px;cursor:pointer" />`
+        + `${f.label}</label></div>`;
+    }
     const input = f.type === 'text' && f.label && f.label.toLowerCase().includes('remarque') || f.type === 'text' && f.label && f.label.toLowerCase().includes('info')
       ? `<textarea data-key="${f.key}" rows="3"
           style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px;width:100%;resize:vertical"
@@ -14506,6 +14557,9 @@ function saveEditHist() {
   const fields = document.querySelectorAll('#edit-hist-fields input, #edit-hist-fields textarea');
   const changes = {};
   fields.forEach(f => {
+    // AJOUTÉ (04/10) : lire .checked (booléen) pour une case à cocher,
+    // plutôt que .value (qui vaudrait toujours la chaîne "on").
+    if (f.type === 'checkbox') { changes[f.dataset.key] = f.checked; return; }
     const val = f.value.trim();
     changes[f.dataset.key] = val === '' ? null : (f.type === 'number' ? Number(val) : val);
   });
@@ -15511,7 +15565,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261004.0915';
+const APP_VERSION = '261004.0939';
 
 let _swRegistration = null;
 
