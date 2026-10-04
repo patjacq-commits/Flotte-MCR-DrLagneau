@@ -1538,7 +1538,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261002.2117</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.0852</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2354,6 +2354,22 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" id="maint-moteur" style="width:18px;height:18px;cursor:pointer" />
           🔧 Nettoyé moteur
+        </label>
+      </div>
+      <!-- AJOUTÉ (04/10) : purement informatif — ne touche ni la collection
+           "adblues" ni "carwashes" (voir saveMaintenance). Si décochée à
+           l'enregistrement, une confirmation propose d'aller enregistrer le
+           plein/lavage sur son propre onglet (voir rappelAdBlueCarWash). -->
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="maint-adblue-fait" style="width:18px;height:18px;cursor:pointer" />
+          💧 AdBlue fait
+        </label>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="maint-carwash-fait" style="width:18px;height:18px;cursor:pointer" />
+          🚿 Car Wash fait
         </label>
       </div>
     </div>
@@ -4282,6 +4298,14 @@ function initCarWash() {
       return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
     }).join('');
   }
+  // AJOUTÉ (04/10) : présélection du véhicule en arrivant depuis le rappel
+  // "Car Wash fait" non coché de la fiche Maintenance (voir
+  // rappelAdBlueCarWash) — même mécanisme que la présélection AdBlue
+  // (initAdBlueOnglet). Consommée une seule fois.
+  if (selVeh && window._carwashPreselectVeh) {
+    selVeh.value = window._carwashPreselectVeh;
+  }
+  window._carwashPreselectVeh = null;
   const selFilt = document.getElementById('cw-filter-veh');
   if (selFilt && selFilt.options.length <= 1) {
     vehicules.forEach(v => {
@@ -11438,7 +11462,7 @@ const LAST_VEH_MAINT_KEY = 'mcr_maint_last_veh';
 const CHAMPS_MAINT = [
   'maint-date','maint-km',
   'maint-lg','maint-hm','maint-hf','maint-lr','maint-ecl','maint-pneus',
-  'maint-ext','maint-mouches','maint-moteur','maint-rem',
+  'maint-ext','maint-mouches','maint-moteur','maint-adblue-fait','maint-carwash-fait','maint-rem',
   'maint-lg-custom','maint-hm-custom','maint-hf-custom','maint-lr-custom',
   'maint-ecl-custom','maint-pneus-custom','maint-ext-custom',
 ];
@@ -11510,7 +11534,7 @@ function chargerDraftVehicule(vehId) {
       if (el) { el.value = ''; el.style.display = 'none'; }
     });
     const remEl = document.getElementById('maint-rem'); if (remEl) remEl.value = '';
-    ['maint-mouches','maint-moteur'].forEach(id => {
+    ['maint-mouches','maint-moteur','maint-adblue-fait','maint-carwash-fait'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = false;
     });
@@ -12330,6 +12354,11 @@ async function saveMaintenance() {
     ext:    getSelectVal('maint-ext',   'maint-ext-custom'),
     mouches: document.getElementById('maint-mouches')?.checked || false,
     moteur:  document.getElementById('maint-moteur')?.checked || false,
+    // AJOUTÉ (04/10) : purement informatif, visible dans l'historique —
+    // n'écrit jamais rien dans les collections "adblues"/"carwashes" (voir
+    // rappelAdBlueCarWash juste après l'enregistrement).
+    adblueFait:  document.getElementById('maint-adblue-fait')?.checked || false,
+    carwashFait: document.getElementById('maint-carwash-fait')?.checked || false,
     photosData: photoUrls,
     rem: document.getElementById('maint-rem').value
   };
@@ -12385,6 +12414,50 @@ async function saveMaintenance() {
 
   // Récapitulatif avec alertes pour ce véhicule
   afficherRecapMaintenance(vehId, date, km, rec);
+
+  // AJOUTÉ (04/10) : rappel post-enregistrement pour les cases "pour info"
+  // (AdBlue fait / Car Wash fait). Ne bloque JAMAIS la sauvegarde, qui est
+  // déjà effectuée ci-dessus — propose juste, si une case a été laissée
+  // décochée, d'aller enregistrer le plein/lavage sur son propre onglet.
+  rappelAdBlueCarWash(vehId, rec);
+}
+
+// Décision du 04/10 : les 2 confirmations restent séquentielles (AdBlue
+// d'abord, puis Car Wash) plutôt qu'un message groupé. Si la personne
+// répond "Oui" pour l'AdBlue, elle quitte la fiche Maintenance tout de
+// suite pour aller enregistrer le plein — le rappel Car Wash n'est donc
+// pas posé à ce moment-là ; il se représentera lors d'une prochaine
+// maintenance (choix explicite de Patrick, qui gère le Car Wash "à une
+// prochaine visite" dans ce cas).
+function rappelAdBlueCarWash(vehId, rec) {
+  const v     = vehicules.find(x => x.id === vehId);
+  const vNom  = v ? v.marque + ' ' + v.immat : vehId;
+
+  // AdBlue : uniquement pour les véhicules équipés (voir VEHICULES_ADBLUE,
+  // même liste que pour le bouton raccourci de l'onglet Maintenance).
+  if (!rec.adblueFait && VEHICULES_ADBLUE.includes(vehId)) {
+    const allerAdBlue = confirm(
+      `💧 La case "AdBlue fait" n'a pas été cochée pour ${vNom}.\n\n` +
+      `Enregistrer le plein AdBlue maintenant ?`
+    );
+    if (allerAdBlue) {
+      window._adbluePreselectVeh = vehId;
+      showPage('adblue', document.querySelector('.tab-btn[onclick*="adblue"]'));
+      return;
+    }
+  }
+
+  // Car Wash : tous les véhicules (pas de liste de restriction côté Car Wash).
+  if (!rec.carwashFait) {
+    const allerCarWash = confirm(
+      `🚿 La case "Car Wash fait" n'a pas été cochée pour ${vNom}.\n\n` +
+      `Enregistrer le lavage maintenant ?`
+    );
+    if (allerCarWash) {
+      window._carwashPreselectVeh = vehId;
+      showPage('carwash', document.querySelector('.tab-btn[onclick*="carwash"]'));
+    }
+  }
 }
 
 function afficherRecapMaintenance(vehId, date, km, rec) {
@@ -14173,6 +14246,19 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
           <span style="font-weight:500">${nettoyageParts.join(' + ')}</span>
         </div>` : '';
 
+    // AJOUTÉ (04/10) : cases "pour info" cochées sur la fiche Maintenance —
+    // à ne pas confondre avec m.adblue (litres, voir bloc AdBlue ci-dessous)
+    // ni m.cw (Car Wash du système actuel, ci-dessus) : purement
+    // informatif, sans lien avec les collections adblues/carwashes.
+    const infoParts = [];
+    if (m.adblueFait)  infoParts.push('💧 AdBlue fait');
+    if (m.carwashFait) infoParts.push('🚿 Car Wash fait');
+    const infoFaitHtml = infoParts.length
+      ? `<div style="display:flex;gap:6px;padding:4px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px">
+          <span style="min-width:130px;color:var(--texte-sec)">ℹ️ Pour info</span>
+          <span style="font-weight:500">${infoParts.join(' + ')}</span>
+        </div>` : '';
+
     // AdBlue
     const abHtml = m.adblue
       ? `<div style="display:flex;gap:6px;padding:4px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px">
@@ -14207,7 +14293,7 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
         </div>
         <span class="badge info" style="font-size:11px">Maintenance</span>
       </div>
-      ${champsHtml}${nettoyageHtml}${cwHtml}${abHtml}
+      ${champsHtml}${nettoyageHtml}${infoFaitHtml}${cwHtml}${abHtml}
       ${remHtml}${photosHtml}
       ${adminBtns}
     </div>`;
@@ -15339,7 +15425,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261002.2117';
+const APP_VERSION = '261004.0852';
 
 let _swRegistration = null;
 
