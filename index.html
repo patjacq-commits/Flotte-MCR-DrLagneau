@@ -21,6 +21,13 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- AJOUTÉ (04/10) : la version gratuite (Community Edition) de la
+     librairie XLSX ci-dessus n'a pas de fonction intégrée pour "figer" la
+     première ligne d'une feuille (ça reste une fonctionnalité payante chez
+     SheetJS). JSZip permet de rouvrir le fichier Excel généré (c'est un ZIP)
+     et d'y injecter le réglage de volet figé directement dans le XML avant
+     le téléchargement — voir figerPremieresLignesExcel(). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
   // ══════════════════════════════════════════════════════════
   // FILET DE SÉCURITÉ — capture les erreurs JS non gérées
@@ -1538,7 +1545,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.0852</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.0915</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -14771,6 +14778,44 @@ async function verifierRappelExportExcel() {
    pas systématiquement chargées en mémoire selon les pages déjà visitées
    cette session : récupérées fraîchement ici pour garantir un export
    complet quel que soit le parcours de navigation avant le clic. */
+// AJOUTÉ (04/10) : la version gratuite de XLSX (SheetJS Community Edition,
+// voir le commentaire sur le tag JSZip en tête de fichier) ne sait pas
+// figer de ligne à l'écriture — fonctionnalité réservée à la version
+// payante. Contournement : XLSX.write(...,{type:'array'}) produit le .xlsx
+// tel quel (un fichier .xlsx est un ZIP), on le rouvre avec JSZip, on
+// injecte le réglage standard OOXML de volet figé (<pane ... state="frozen">)
+// dans le XML de chaque feuille demandée, puis on regénère le ZIP final.
+// `buf` : ArrayBuffer renvoyé par XLSX.write. `indexFeuilles1Based` : les
+// index (1-based, dans l'ORDRE D'AJOUT des feuilles au classeur — XLSX
+// écrit toujours xl/worksheets/sheet1.xml pour la 1re feuille ajoutée,
+// sheet2.xml pour la 2e, etc., vérifié) des feuilles à figer sur leur 1re
+// ligne. Retourne un Uint8Array prêt à être mis dans un Blob.
+async function figerPremieresLignesExcel(buf, indexFeuilles1Based) {
+  try {
+    const zip = await JSZip.loadAsync(buf);
+    const paneXml = '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>';
+    for (const idx of indexFeuilles1Based) {
+      const chemin = `xl/worksheets/sheet${idx}.xml`;
+      const fichier = zip.file(chemin);
+      if (!fichier) continue; // garde-fou : index hors limites, ne bloque pas le reste
+      let xml = await fichier.async('string');
+      if (/<sheetView([^>]*)\/>/.test(xml)) {
+        xml = xml.replace(/<sheetView([^>]*)\/>/, `<sheetView$1>${paneXml}</sheetView>`);
+      } else if (/<sheetView([^>]*)>/.test(xml)) {
+        xml = xml.replace(/<sheetView([^>]*)>/, `<sheetView$1>${paneXml}`);
+      }
+      zip.file(chemin, xml);
+    }
+    return await zip.generateAsync({ type: 'uint8array' });
+  } catch(e) {
+    // En cas de souci sur l'injection (format inattendu, etc.), on renvoie
+    // le fichier d'origine non modifié plutôt que de faire échouer tout
+    // l'export — mieux vaut un Excel sans volet figé qu'aucun Excel.
+    console.warn('figerPremieresLignesExcel: ', e);
+    return buf;
+  }
+}
+
 async function exporterExcel() {
   if (!userIsAdmin()) return;
   if (typeof XLSX === 'undefined') { toast('❌ Librairie Excel indisponible — vérifiez la connexion internet.'); return; }
@@ -14779,6 +14824,15 @@ async function exporterExcel() {
 
   try {
     const wb = XLSX.utils.book_new();
+    // AJOUTÉ (04/10) : suit l'index (1-based) de chaque feuille au moment où
+    // elle est ajoutée au classeur — nécessaire pour figerPremieresLignesExcel()
+    // ci-dessous (XLSX écrit toujours xl/worksheets/sheetN.xml dans l'ordre
+    // d'ajout des feuilles, vérifié — voir son commentaire). La feuille
+    // "Pneus & Garages" est volontairement exclue : elle contient 2
+    // tableaux l'un sous l'autre avec des en-têtes à des lignes différentes,
+    // "figer la 1re ligne" y figerait un simple titre, pas un vrai en-tête.
+    let nbFeuilles = 0;
+    const feuillesAFigerIdx = [];
 
     // ── Feuille 1 : Véhicules ──
     const vehOrdre = ORDRE_VEHICULES.map(id => vehicules.find(v => v.id === id)).filter(v => v && !v.archive);
@@ -14798,18 +14852,27 @@ async function exporterExcel() {
       ]),
     ]);
     XLSX.utils.book_append_sheet(wb, wsVeh, 'Véhicules');
+    nbFeuilles++; feuillesAFigerIdx.push(nbFeuilles);
 
     // ── Feuille 2 : Historique maintenances ──
+    // AJOUTÉ (04/10) : "AdBlue fait" et "Car Wash fait" manquaient — ce sont
+    // les 2 cases à cocher "pour info" ajoutées le même jour sur la fiche
+    // Maintenance (voir rappelAdBlueCarWash), purement informatives,
+    // distinctes des feuilles "Commandes AdBlue" (fûts) et de "Car Wash" —
+    // qui n'ont pas leur propre feuille ici, d'où l'utilité de les montrer
+    // au moins ici pour ne rien perdre dans cet export de secours.
     const wsMaint = XLSX.utils.aoa_to_sheet([
       ['Date','Véhicule','Km','Lave-glace','Huile moteur','Huile frein','Refroidissement',
-       'Éclairage','Pneus','Extérieur','Mouches nettoyées','Moteur nettoyé','Remarques'],
+       'Éclairage','Pneus','Extérieur','Mouches nettoyées','Moteur nettoyé','AdBlue fait','Car Wash fait','Remarques'],
       ...[...maintenances].sort((a,b) => b.date.localeCompare(a.date)).map(m => {
         const v = vehicules.find(x => x.id === m.vehId);
         return [m.date || '', v ? v.immat : m.vehId, m.km || '', m.lg || '', m.hm || '', m.hf || '',
-          m.lr || '', m.ecl || '', m.pneus || '', m.ext || '', m.mouches ? 'Oui' : '', m.moteur ? 'Oui' : '', m.rem || ''];
+          m.lr || '', m.ecl || '', m.pneus || '', m.ext || '', m.mouches ? 'Oui' : '', m.moteur ? 'Oui' : '',
+          m.adblueFait ? 'Oui' : '', m.carwashFait ? 'Oui' : '', m.rem || ''];
       }),
     ]);
     XLSX.utils.book_append_sheet(wb, wsMaint, 'Historique maintenances');
+    nbFeuilles++; feuillesAFigerIdx.push(nbFeuilles);
 
     // ── Feuille 3 : Signalements chauffeurs ──
     const wsSignal = XLSX.utils.aoa_to_sheet([
@@ -14822,6 +14885,7 @@ async function exporterExcel() {
       }),
     ]);
     XLSX.utils.book_append_sheet(wb, wsSignal, 'Signalements chauffeurs');
+    nbFeuilles++; feuillesAFigerIdx.push(nbFeuilles);
 
     // ── Feuille 4 : Rendez-vous ──
     const wsRV = XLSX.utils.aoa_to_sheet([
@@ -14832,6 +14896,7 @@ async function exporterExcel() {
       }),
     ]);
     XLSX.utils.book_append_sheet(wb, wsRV, 'Rendez-vous');
+    nbFeuilles++; feuillesAFigerIdx.push(nbFeuilles);
 
     // ── Feuille 5 : Chauffeurs actifs (récupérés fraîchement) ──
     let rolesSnap = { docs: [] };
@@ -14844,6 +14909,7 @@ async function exporterExcel() {
       }).filter(row => row[2] === 'chauffeur'),
     ]);
     XLSX.utils.book_append_sheet(wb, wsChauf, 'Chauffeurs actifs');
+    nbFeuilles++; feuillesAFigerIdx.push(nbFeuilles);
 
     // ── Feuille 6 : Pneus & Garages (récupérés fraîchement si besoin) ──
     let remplacementsSnap = { docs: [] }, commentairesSnap = { docs: [] };
@@ -14868,6 +14934,7 @@ async function exporterExcel() {
       }),
     ]);
     XLSX.utils.book_append_sheet(wb, wsPneusGarages, 'Pneus & Garages');
+    nbFeuilles++; // volontairement PAS dans feuillesAFigerIdx — voir commentaire plus haut
 
     // ── Feuille 7 : Commandes AdBlue (superadmin uniquement — les autres
     //    rôles n'ont de toute façon jamais ces données en mémoire) ──
@@ -14890,11 +14957,30 @@ async function exporterExcel() {
         ]),
       ]);
       XLSX.utils.book_append_sheet(wb, wsCommandesAB, 'Commandes AdBlue');
+      nbFeuilles++; feuillesAFigerIdx.push(nbFeuilles);
     }
 
     // ── Génération et téléchargement ──
     const dateStr = toLocalYMD(new Date()).split('-').reverse().join('-');
-    XLSX.writeFile(wb, `MCR_Opont_Flotte_Export_${dateStr}.xlsx`);
+    const nomFichier = `MCR_Opont_Flotte_Export_${dateStr}.xlsx`;
+
+    // AJOUTÉ (04/10) : première ligne (en-têtes) figée sur les feuilles
+    // listées dans feuillesAFigerIdx, pour ne plus devoir remonter tout le
+    // document en scrollant — voir figerPremieresLignesExcel() : si JSZip
+    // est indisponible (coupure réseau), on retombe simplement sur le
+    // fichier normal, sans volet figé, plutôt que de bloquer l'export.
+    if (typeof JSZip !== 'undefined') {
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const bufFige = await figerPremieresLignesExcel(buf, feuillesAFigerIdx);
+      const blob = new Blob([bufFige], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = nomFichier;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } else {
+      XLSX.writeFile(wb, nomFichier);
+    }
 
     // Marquer l'export comme fait — referme la boucle de détection
     const nowIso = new Date().toISOString();
@@ -15425,7 +15511,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261004.0852';
+const APP_VERSION = '261004.0915';
 
 let _swRegistration = null;
 
