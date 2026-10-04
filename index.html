@@ -1556,7 +1556,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.0939</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.1823</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -9858,8 +9858,8 @@ function collecterEvenementsVehicule(vehId) {
       titre: 'RV ' + libelleTypeRV(r.type) + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
       detail: [
         'Date : ' + formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : ''),
-        r.garage ? 'Garage : ' + r.garage : '',
-        r.notes ? 'Notes : ' + r.notes : '',
+        r.garage ? 'Garage : ' + echapperHtml(r.garage) : '',
+        r.notes ? 'Notes : ' + echapperHtml(r.notes) : '',
       ].filter(Boolean).join(' \u2014 '),
     });
   });
@@ -9878,8 +9878,8 @@ function collecterEvenementsVehicule(vehId) {
       detail: [
         'Date : ' + formatDateCourt(p.date),
         p.km ? 'Km : ' + parseInt(p.km).toLocaleString('fr-BE') + ' km' : '',
-        p.lieu ? 'Lieu : ' + p.lieu : '',
-        p.rem ? p.rem : '',
+        p.lieu ? 'Lieu : ' + echapperHtml(p.lieu) : '',
+        p.rem ? echapperHtml(p.rem) : '',
       ].filter(Boolean).join(' \u2014 '),
     });
   });
@@ -9894,10 +9894,10 @@ function collecterEvenementsVehicule(vehId) {
       detail: [
         'Date : ' + formatDateCourt(r.date),
         r.km ? 'Km : ' + parseInt(r.km).toLocaleString('fr-BE') + ' km' : '',
-        r.marque ? 'Marque : ' + r.marque : '',
-        r.dimensions ? 'Dim. : ' + r.dimensions : '',
-        'Motif : ' + (MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif),
-        r.lieu ? 'Lieu : ' + r.lieu : '',
+        r.marque ? 'Marque : ' + echapperHtml(r.marque) : '',
+        r.dimensions ? 'Dim. : ' + echapperHtml(r.dimensions) : '',
+        'Motif : ' + echapperHtml(MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif),
+        r.lieu ? 'Lieu : ' + echapperHtml(r.lieu) : '',
       ].filter(Boolean).join(' \u2014 '),
     });
   });
@@ -9922,7 +9922,7 @@ function collecterEvenementsVehicule(vehId) {
       titre: 'Car Wash',
       detail: [
         'Date : ' + formatDateCourt(c.date),
-        c.lieu ? 'Lieu : ' + c.lieu : '',
+        c.lieu ? 'Lieu : ' + echapperHtml(c.lieu) : '',
         c.montant ? Number(c.montant).toFixed(2) + ' \u20ac' : '',
       ].filter(Boolean).join(' \u2014 '),
     });
@@ -9937,12 +9937,12 @@ function collecterEvenementsVehicule(vehId) {
     const derniereReponse = m.reponses?.length ? m.reponses[m.reponses.length - 1] : null;
     evenements.push({
       date: dateSeule, categorie: 'signalement', icone: '\ud83d\udcac',
-      titre: 'Signalement' + (m.priorite === 'urgent' ? ' (Urgent)' : '') + ' \u2014 ' + (m.auteur || ''),
+      titre: 'Signalement' + (m.priorite === 'urgent' ? ' (Urgent)' : '') + ' \u2014 ' + echapperHtml(m.auteur || ''),
       detail: [
         'Date : ' + formatDateCourt(dateSeule),
-        cats ? 'Cat\u00e9gorie(s) : ' + cats : '',
-        m.msg ? 'Message : ' + m.msg : '',
-        derniereReponse ? 'R\u00e9ponse (' + derniereReponse.auteur + ') : ' + derniereReponse.texte : '',
+        cats ? 'Cat\u00e9gorie(s) : ' + echapperHtml(cats) : '',
+        m.msg ? 'Message : ' + echapperHtml(m.msg) : '',
+        derniereReponse ? 'R\u00e9ponse (' + echapperHtml(derniereReponse.auteur) + ') : ' + echapperHtml(derniereReponse.texte) : '',
       ].filter(Boolean).join(' \u2014 '),
     });
   });
@@ -9954,8 +9954,8 @@ function collecterEvenementsVehicule(vehId) {
       titre: 'P\u00e9riode d\'indisponibilit\u00e9',
       detail: [
         'Du ' + formatDateCourt(h.depuis) + ' au ' + formatDateCourt(h.jusqua) + (h.dureeJours ? ' (' + h.dureeJours + ' j)' : ''),
-        h.motif ? 'Motif : ' + h.motif : '',
-        h.dureeEstimee ? 'Dur\u00e9e estim\u00e9e annonc\u00e9e : ' + h.dureeEstimee : '',
+        h.motif ? 'Motif : ' + echapperHtml(h.motif) : '',
+        h.dureeEstimee ? 'Dur\u00e9e estim\u00e9e annonc\u00e9e : ' + echapperHtml(h.dureeEstimee) : '',
       ].filter(Boolean).join(' \u2014 '),
     });
   });
@@ -15565,7 +15565,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261004.0939';
+const APP_VERSION = '261004.1823';
 
 let _swRegistration = null;
 
