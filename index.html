@@ -1562,7 +1562,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1425</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1447</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3133,8 +3133,8 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <div id="page-carwash" class="page">
   <h2 style="margin-bottom:14px">🚿 Car Wash</h2>
 
-  <!-- Lavage -->
-  <div class="form-card">
+  <!-- Lavage — saisie réservée aux admins ; un chauffeur ne fait que consulter l'historique -->
+  <div class="form-card admin-only">
     <h3>🚿 Enregistrer un lavage</h3>
     <div class="form-grid">
       <div class="form-group">
@@ -3232,7 +3232,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Lieu</th><th>Montant</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Lieu</th><th>Montant</th><th class="admin-only">Action</th></tr></thead>
         <tbody id="cw-tbody"></tbody>
       </table>
     </div>
@@ -4365,6 +4365,7 @@ function initCarWash() {
 }
 
 function saveCarWash() {
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
   const date    = document.getElementById('cw-date').value;
   const vehId   = document.getElementById('cw-veh').value;
   const lieu    = document.getElementById('cw-lieu').value;
@@ -4385,6 +4386,7 @@ function clearCWForm() {
 }
 
 function deleteCW(id) {
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
   if (!confirm('Supprimer ce lavage ?')) return;
   const cwDel = carwashes.find(c => c.id === id);
   const vCW2  = cwDel ? vehicules.find(v => v.id === cwDel.vehId) : null;
@@ -4410,7 +4412,7 @@ function renderCWTable() {
           <td>${v ? v.marque + ' ' + v.immat : c.vehId}</td>
           <td>${c.lieu}</td>
           <td>${c.montant != null ? Number(c.montant).toFixed(2) + ' €' : '—'}</td>
-          <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCW(${c.id})">✕</button></td>
+          ${userIsAdmin() ? `<td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteCW(${c.id})">✕</button></td>` : ''}
         </tr>`;
       }).join('')
     : '<tr><td colspan="5" style="text-align:center;color:var(--texte-sec);padding:20px">Aucun lavage enregistré</td></tr>';
@@ -4480,6 +4482,7 @@ function updateCWKTotal() {
 }
 
 function saveRechargeKey() {
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
   const date    = document.getElementById('cwk-date').value;
   const lieu    = document.getElementById('cwk-lieu').value;
   const paye    = parseFloat(document.getElementById('cwk-montant').value) || 0;
@@ -4499,6 +4502,7 @@ function clearCWKForm() {
 }
 
 function deleteCWK(id) {
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
   if (!confirm('Supprimer cette recharge ?')) return;
   rechargesCle = rechargesCle.filter(r => r.id !== id);
   saveAll(); renderCWKTable(); toast('Entrée supprimée');
@@ -6562,6 +6566,7 @@ function initAdBlueOnglet() {
 }
 
 function saveAdBlueOnglet() {
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
   const date  = document.getElementById('ab-ong-date').value;
   const vehId = document.getElementById('ab-ong-veh').value;
   const litre = parseFloat(String(document.getElementById('ab-ong-litre').value).replace(',','.'));
@@ -6590,6 +6595,7 @@ function clearABForm() {
 }
 
 function deleteAdBlueOnglet(id) {
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
   if (!confirm('Supprimer cette entrée ?')) return;
   const abD = adblues.find(a => a.id === id);
   const vABd = abD ? vehicules.find(v => v.id === abD.vehId) : null;
@@ -6623,7 +6629,7 @@ function renderAdBlueTable() {
           <td style="color:var(--bleu);font-weight:700">${a.litre.toFixed(2)} L</td>
           <td>${a.km ? parseInt(a.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
           <td>${src}</td>
-          <td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteAdBlueOnglet(${a.id})">✕</button></td>
+          ${userIsAdmin() ? `<td><button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteAdBlueOnglet(${a.id})">✕</button></td>` : ''}
         </tr>`;
       }).join('')
     : '<tr><td colspan="6" style="text-align:center;color:var(--texte-sec);padding:20px">Aucune entrée enregistrée</td></tr>';
@@ -15950,7 +15956,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261005.1425';
+const APP_VERSION = '261005.1447';
 
 let _swRegistration = null;
 
