@@ -1557,7 +1557,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.0835</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.0848</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -12991,9 +12991,26 @@ function ouvrirBonCommandeCT(rvId) {
     + '✍️ Signature, fonction et cachet restent à compléter à la main sur la feuille imprimée.</div>'
     + '<div id="bonct-resultat" style="display:flex;flex-direction:column;gap:8px">'
     + '<button class="btn primary" onclick="genererBonCommandeCT()">📄 Générer le PDF</button>'
+    + '<button class="btn" onclick="genererBonCommandeCTVierge()">📄 Formulaire vierge (sans données)</button>'
     + '<button class="btn" onclick="document.getElementById(\'modal-bon-ct\').remove()">Annuler</button>'
     + '</div></div>';
   document.body.appendChild(div);
+}
+
+// Formulaire d'origine non rempli (tout à compléter à la main) — n'a besoin
+// ni de véhicule ni de pdf-lib, donc fonctionne aussi hors connexion.
+function genererBonCommandeCTVierge() {
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
+  if (_bonCtUrlBlob) { try { URL.revokeObjectURL(_bonCtUrlBlob); } catch(e) {} }
+  _bonCtUrlBlob = URL.createObjectURL(new Blob([_bonCtBytesVierge()], { type: 'application/pdf' }));
+  const zone = document.getElementById('bonct-resultat');
+  if (zone) {
+    zone.innerHTML =
+      '<div style="font-size:13px;color:var(--vert);font-weight:600">✅ Formulaire vierge prêt</div>'
+      + '<a class="btn primary" style="text-align:center;text-decoration:none" href="' + _bonCtUrlBlob + '" target="_blank" rel="noopener">🖨 Ouvrir / imprimer</a>'
+      + '<a class="btn" style="text-align:center;text-decoration:none" href="' + _bonCtUrlBlob + '" download="Bon_commande_CT_vierge.pdf">⬇ Télécharger le PDF</a>'
+      + '<button class="btn" onclick="document.getElementById(\'modal-bon-ct\').remove()">Fermer</button>';
+  }
 }
 
 async function genererBonCommandeCT() {
@@ -15731,7 +15748,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261005.0835';
+const APP_VERSION = '261005.0848';
 
 let _swRegistration = null;
 
