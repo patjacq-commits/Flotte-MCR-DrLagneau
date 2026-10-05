@@ -1556,7 +1556,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261004.1823</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.0815</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -6116,7 +6116,7 @@ function renderChaufMaintenances() {
         + label + ': ' + val + '</span>';
     }).join('');
 
-    const rem = m.rem ? '<div style="font-size:12px;color:var(--rouge);margin-top:6px">📝 ' + m.rem + '</div>' : '';
+    const rem = m.rem ? '<div style="font-size:12px;color:var(--rouge);margin-top:6px">📝 ' + echapperHtml(m.rem) + '</div>' : '';
 
     return '<div class="form-card" style="margin-bottom:10px;padding:12px 14px">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px">'
@@ -8728,7 +8728,7 @@ function _construirePDF(maints, vLabel, labelPeriode) {
       return '<td style="padding:5px 8px;border:1px solid #ddd;font-size:11px;color:' + color + ';font-weight:' + weight + ';text-align:center">' + label + '<br><span style="font-size:12px">' + val + '</span></td>';
     }).join('');
 
-    const rem = m.rem ? '<tr><td colspan="7" style="padding:4px 8px;border:1px solid #ddd;font-size:11px;color:#c0392b;background:#fff8f8">Remarque : ' + m.rem + '</td></tr>' : '';
+    const rem = m.rem ? '<tr><td colspan="7" style="padding:4px 8px;border:1px solid #ddd;font-size:11px;color:#c0392b;background:#fff8f8">Remarque : ' + echapperHtml(m.rem) + '</td></tr>' : '';
 
     return '<tr style="background:#e8f4fc"><td colspan="7" style="padding:6px 8px;font-weight:700;font-size:12px;border:1px solid #ddd">'
       + vNom + '<span style="float:right;font-weight:400;color:#555">' + date + ' \u2014 ' + km + '</span></td></tr>'
@@ -10123,7 +10123,7 @@ function executerRecherche() {
     // chaque rôle consulte réellement ses maintenances (voir PAGES_MODE_EMPLOI).
     const pageMaint = userIsSuperAdmin() ? 'maintenance' : 'histmaint';
     res.push({section:'🔧 Maintenances',icon:'🔧',titre:`Maintenance ${v?v.immat:m.vehId} — ${formatDate(m.date)}`,
-      detail:`${m.km?.toLocaleString('fr-BE')} km${m.rem?' • '+m.rem.substring(0,40):''}`,action:'Historique',
+      detail:`${m.km?.toLocaleString('fr-BE')} km${m.rem?' • '+echapperHtml(m.rem.substring(0,40)):''}`,action:'Historique',
       fn:()=>{fermerRecherche();showPage(pageMaint,document.querySelector(`.tab-btn[onclick*="${pageMaint}"]`));}});
   });
   // BUG DE SÉCURITÉ CORRIGÉ (01/10) : ces résultats menaient vers 'garages'
@@ -12224,7 +12224,7 @@ function aideKm() {
     items += `<div class="aide-item" onclick="choisirKm(${m.km})">
       <span class="ai-date">${formatDate(m.date)}</span>
       <span class="ai-val">${m.km.toLocaleString('fr-BE')} km</span>
-      <span class="ai-veh">${m.rem ? m.rem.substring(0,20) : ''}</span>
+      <span class="ai-veh">${m.rem ? echapperHtml(m.rem.substring(0,20)) : ''}</span>
     </div>`;
   });
 
@@ -12685,7 +12685,7 @@ function renderMaintTable() {
           <td style="text-align:center">${fmt(m.pneus)}</td>
           <td style="text-align:center">${fmt(m.ext)}</td>
           <td style="text-align:center">${fmtInfo(m)}</td>
-          <td style="font-size:11px;max-width:150px">${m.rem || '—'}</td>
+          <td style="font-size:11px;max-width:150px">${m.rem ? echapperHtml(m.rem) : '—'}</td>
           <td>${photosHtml}</td>
           ${userIsAdmin() ? `<td style="white-space:nowrap">${editBtn}${delBtn}</td>` : ''}
         </tr>`;
@@ -15565,7 +15565,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261004.1823';
+const APP_VERSION = '261005.0815';
 
 let _swRegistration = null;
 
