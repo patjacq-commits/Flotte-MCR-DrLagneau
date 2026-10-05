@@ -1562,7 +1562,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1829</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1845</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -9164,7 +9164,7 @@ function renderAccueil() {
   // ── 2. RV PLANIFIÉS — 4 catégories ──────────────────────────
   {
     const rvProg = rendezvous
-      .filter(r => r.statut === 'planifie')
+      .filter(r => r.statut === 'planifie' && (userIsAdmin() || r.type !== 'ct'))
       .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
     // RV d'aujourd'hui ou passés non traités → mis en évidence en haut
@@ -9881,7 +9881,7 @@ function collecterEvenementsVehicule(vehId) {
   const v = vehicules.find(x => x.id === vehId);
 
   // Rendez-vous (tous types précis, tous statuts)
-  rendezvous.filter(r => r.vehId === vehId).forEach(r => {
+  rendezvous.filter(r => r.vehId === vehId && (userIsAdmin() || r.type !== 'ct')).forEach(r => {
     evenements.push({
       date: r.date, categorie: 'rv', icone: iconeTypeRV(r.type),
       titre: 'RV ' + libelleTypeRV(r.type) + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
@@ -10429,12 +10429,12 @@ function buildAlertes() {
       } else if (j !== null && j <= 7) {
         alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
           titre:`CT URGENT — ${v.marque} ${v.immat}`,
-          detail:`CT expire le ${formatDate(v.ct_valid)} — dans ${j} jour${j>1?'s':''} ! Prenez RV immédiatement.` });
+          detail:`CT expire le ${formatDate(v.ct_valid)} — dans ${j} jour${j>1?'s':''} !${userIsAdmin() ? ' Prenez RV immédiatement.' : ''}` });
       } else if (j !== null && j <= 35) {
         // 31–35 jours : warn (seuil abaissé de 90 à 60)
         alertes.push({ level:'warn', icon:'🔶', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
           titre:`CT à planifier — ${v.marque} ${v.immat}`,
-          detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} — ${j} jours restants. Pensez à prendre RV.` });
+          detail:`CT valable jusqu'au ${formatDate(v.ct_valid)} — ${j} jours restants.${userIsAdmin() ? ' Pensez à prendre RV.' : ''}` });
       }
     }
 
@@ -10902,7 +10902,8 @@ function renderVehicules() {
         ${(() => {
           // RV planifiés à venir pour ce véhicule (tous types)
           const rvs = rendezvous
-            .filter(r => r.vehId === v.id && r.date >= todayStr && r.statut === 'planifie')
+            .filter(r => r.vehId === v.id && r.date >= todayStr && r.statut === 'planifie'
+                      && (userIsAdmin() || r.type !== 'ct'))
             .sort((a,b) => a.date.localeCompare(b.date))
             .slice(0, 3);
           if (!rvs.length) return '';
@@ -15962,7 +15963,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261005.1829';
+const APP_VERSION = '261005.1845';
 
 let _swRegistration = null;
 
