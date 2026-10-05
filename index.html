@@ -1557,7 +1557,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.0854</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1421</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3967,6 +3967,16 @@ window._refreshUI = function() {
     }, 700);
   }
 
+  // Rappel d'impression des bons de commande CT (RV à 5 jours ou moins) —
+  // une seule vérification par ouverture de l'app, admins uniquement.
+  if (!window._bonsCtChecked && window.vehicules?.length && rendezvous?.length
+      && typeof currentUser !== 'undefined' && currentUser && userIsAdmin()) {
+    window._bonsCtChecked = true;
+    setTimeout(function() {
+      if (typeof verifierBonsCommandeCT === 'function') verifierBonsCommandeCT();
+    }, 1800);
+  }
+
   // Rappels personnels — chargés tôt (avant le popup CT/entretien) pour
   // qu'ils puissent y figurer dès le premier affichage. chargerRappelsPerso
   // re-déclenche elle-même verifierEntretiensUrgents() une fois les
@@ -3989,6 +3999,7 @@ window._refreshUI = function() {
         window._rappelsRVChecked = false;
         window._exportExcelChecked = false;
         window._rappelsPersoChecked = false;
+        window._bonsCtChecked = false;
       }
     });
   }
@@ -7742,6 +7753,7 @@ async function seDeconnecter() {
   window._rappelsRVChecked       = false;
   window._exportExcelChecked     = false;
   window._rappelsPersoChecked    = false;
+  window._bonsCtChecked          = false;
 
   await auth.signOut();
   currentUser = null;
@@ -10583,6 +10595,11 @@ function buildAlertes() {
 // utilise renderAlerte().
 function rappelFacturationCT(a) {
   if (a.category !== 'ct') return '';
+  if (a.rv && bonCtEstValide(a.rv)) {
+    return `<p style="color:#1a6b38;font-weight:700;font-size:12px;background:var(--vert-clair);
+      border:1px solid var(--vert);border-radius:4px;padding:3px 7px;margin-top:5px;
+      display:inline-block">✅ Bon de commande imprimé le ${formatDate(a.rv.bonCtImprimeLe.slice(0, 10))}</p>`;
+  }
   return `<p style="color:#ff00c8;font-weight:800;font-size:12px;background:#fff0fb;
     border:1px solid #ff00c8;border-radius:4px;padding:3px 7px;margin-top:5px;
     display:inline-block">📎 Remplir bon de commande</p>`;
@@ -12956,9 +12973,146 @@ function stationBonCtDepuisTexte(txt) {
   return Object.keys(BON_CT_STATIONS).find(n => t.includes(norm(n))) || '';
 }
 
+
+// ── Suivi d'impression du bon de commande CT (rappels) ──────────────
+// Champs ajoutés sur le RV : bonCtImprimeLe (horodatage ISO du marquage),
+// bonCtPourDate (date du RV pour laquelle le bon a été imprimé) et
+// bonCtManuel (true si marqué "déjà imprimé" sans passer par l'app).
+// Un bon n'est considéré valide QUE si bonCtPourDate == date actuelle du RV :
+// dès que le RV est déplacé, le bon imprimé devient obsolète (il porte
+// l'ancienne date) et le rappel redevient actif, sans rien avoir à réinitialiser.
+const BON_CT_RAPPEL_JOURS = 5;
+
+function bonCtEstValide(r) {
+  return !!(r && r.bonCtImprimeLe && r.bonCtPourDate === r.date);
+}
+function _bonCtJoursRestants(r) {
+  const auj = toLocalYMD(new Date());
+  return Math.round((new Date(r.date + 'T00:00:00') - new Date(auj + 'T00:00:00')) / 86400000);
+}
+function _bonCtDateRappel(r) {
+  const d = new Date(r.date + 'T12:00:00');
+  d.setDate(d.getDate() - BON_CT_RAPPEL_JOURS);
+  return toLocalYMD(d);
+}
+
+function marquerBonCtImprime(rvId, dateUtilisee, manuel) {
+  const r = rendezvous.find(x => String(x.id) === String(rvId));
+  if (!r) return;
+  r.bonCtImprimeLe = new Date().toISOString();
+  r.bonCtPourDate  = dateUtilisee || r.date;
+  if (manuel) r.bonCtManuel = true; else delete r.bonCtManuel;
+  window.rendezvous = rendezvous;
+  saveAll();
+  renderTableRV();
+  try { renderAccueil(); } catch(e) {}
+  if (document.getElementById('page-alertes')?.classList.contains('active')) { try { renderAlertesFull(); } catch(e) {} }
+}
+
+function annulerMarquageBonCt(rvId) {
+  const r = rendezvous.find(x => String(x.id) === String(rvId));
+  if (!r) return;
+  if (!confirm('Retirer la mention « bon de commande imprimé » pour ce RV ?')) return;
+  delete r.bonCtImprimeLe; delete r.bonCtPourDate; delete r.bonCtManuel;
+  window.rendezvous = rendezvous;
+  saveAll();
+  renderTableRV();
+  try { renderAccueil(); } catch(e) {}
+  toast('↩ Marquage retiré — le rappel redevient actif');
+}
+
+// Appelé quand on clique sur « Ouvrir / imprimer » ou « Télécharger » dans la
+// fenêtre du bon (seul moyen de savoir qu'il a été sorti — l'app ne peut pas
+// détecter l'impression réelle).
+function marquerBonCtDepuisModal() {
+  if (!window._bonCtRvId) return;
+  const date = document.getElementById('bonct-date')?.value || '';
+  marquerBonCtImprime(window._bonCtRvId, date, false);
+  toast('✅ Bon marqué comme imprimé');
+}
+
+// Fenêtre « Imprimer le bon de commande maintenant ? » — contexte :
+//  'nouveau'  : juste après l'enregistrement d'un RV CT planifié
+//  'deplace'  : RV déplacé (report ou modification de la date)
+// info (déplacement) : { ancienneDate, ancienImprime }
+function proposerBonCt(rvId, contexte, info) {
+  if (!userIsAdmin()) return;
+  const r = rendezvous.find(x => String(x.id) === String(rvId));
+  if (!r || r.type !== 'ct' || r.statut !== 'planifie') return;
+  document.getElementById('modal-propose-bon-ct')?.remove();
+  const v = vehicules.find(x => x.id === r.vehId);
+  const vNom = v ? v.marque + ' ' + v.immat : r.vehId;
+  const jours = _bonCtJoursRestants(r);
+  const plusTardTxt = jours <= BON_CT_RAPPEL_JOURS
+    ? 'Plus tard (rappel à la prochaine ouverture)'
+    : 'Plus tard (rappel le ' + formatDate(_bonCtDateRappel(r)) + ')';
+  let titre = '🖨 Bon de commande — Contrôle technique';
+  let intro;
+  if (contexte === 'deplace') {
+    intro = 'Le RV de <b>' + echapperHtml(vNom) + '</b> a été déplacé' + (info?.ancienneDate ? ' (ancienne date : ' + formatDate(info.ancienneDate) + ')' : '')
+      + ' au <b>' + formatDate(r.date) + '</b>.'
+      + (info?.ancienImprime ? '<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--orange-clair);color:#7a4a00;font-size:12px">'
+        + '⚠️ Un bon avait déjà été imprimé pour l\'ancienne date : il ne correspond plus à ce RV.</div>' : '');
+  } else {
+    intro = 'RV contrôle technique enregistré pour <b>' + echapperHtml(vNom) + '</b> le <b>' + formatDate(r.date) + '</b>'
+      + (jours > 0 ? ' (dans ' + jours + ' jour' + (jours > 1 ? 's' : '') + ')' : '') + '.';
+  }
+  const div = document.createElement('div');
+  div.id = 'modal-propose-bon-ct';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:8px">' + titre + '</div>'
+    + '<div style="font-size:13px;margin-bottom:14px;line-height:1.5">' + intro + '</div>'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:12px">Imprimer le bon de commande maintenant ?</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<button class="btn primary" onclick="document.getElementById(\'modal-propose-bon-ct\').remove();ouvrirBonCommandeCT(' + r.id + ')">🖨 Imprimer maintenant</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-propose-bon-ct\').remove()">⏰ ' + plusTardTxt + '</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-propose-bon-ct\').remove();marquerBonCtImprime(' + r.id + ',null,true);toast(\'✅ Bon marqué comme déjà imprimé\')">✅ Déjà imprimé</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+// Rappel à l'ouverture de l'app : RV CT planifiés dans 5 jours ou moins
+// (J-5 → jour J) dont le bon n'a pas (ou plus) été imprimé. Une seule fois
+// par ouverture ; « Plus tard » ferme simplement — il revient à la prochaine.
+function verifierBonsCommandeCT() {
+  if (!userIsAdmin()) return;
+  if (document.getElementById('modal-bons-ct')) return;
+  const liste = rendezvous.filter(r => r.type === 'ct' && r.statut === 'planifie' && r.date && !bonCtEstValide(r))
+    .filter(r => { const j = _bonCtJoursRestants(r); return j >= 0 && j <= BON_CT_RAPPEL_JOURS; })
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!liste.length) return;
+  const lignes = liste.map(r => {
+    const v = vehicules.find(x => x.id === r.vehId);
+    const vNom = v ? v.marque + ' ' + v.immat : r.vehId;
+    const j = _bonCtJoursRestants(r);
+    const quand = j === 0 ? "aujourd'hui" : j === 1 ? 'demain' : 'dans ' + j + ' jours';
+    const perime = r.bonCtImprimeLe
+      ? '<div style="font-size:11px;color:#b9770e">⚠️ Le bon imprimé portait l\'ancienne date (' + formatDate(r.bonCtPourDate) + ')</div>' : '';
+    return '<div style="border:1px solid var(--gris-bord);border-radius:10px;padding:10px;margin-bottom:8px">'
+      + '<div style="font-size:13px;font-weight:700">🏥 ' + echapperHtml(vNom) + '</div>'
+      + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:6px">RV le ' + formatDate(r.date) + ' (' + quand + ')</div>' + perime
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+      + '<button class="btn btn-sm primary" onclick="document.getElementById(\'modal-bons-ct\').remove();ouvrirBonCommandeCT(' + r.id + ')">🖨 Imprimer</button>'
+      + '<button class="btn btn-sm" onclick="marquerBonCtImprime(' + r.id + ',null,true);document.getElementById(\'modal-bons-ct\').remove();verifierBonsCommandeCT()">✅ Déjà imprimé</button>'
+      + '</div></div>';
+  }).join('');
+  const div = document.createElement('div');
+  div.id = 'modal-bons-ct';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25);max-height:90vh;overflow:auto">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">📎 Bon de commande CT à imprimer</div>'
+    + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:12px">Contrôle technique dans ' + BON_CT_RAPPEL_JOURS + ' jours ou moins — le bon n\'est pas encore imprimé.</div>'
+    + lignes
+    + '<button class="btn" style="width:100%;margin-top:4px" onclick="document.getElementById(\'modal-bons-ct\').remove()">⏰ Plus tard</button>'
+    + '</div>';
+  document.body.appendChild(div);
+}
+
 function ouvrirBonCommandeCT(rvId) {
   if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
   const r = rvId ? rendezvous.find(x => String(x.id) === String(rvId)) : null;
+  window._bonCtRvId = r ? r.id : null; // RV à marquer « imprimé » quand le PDF est ouvert / téléchargé
   // Sans RV (appel depuis le formulaire), on reprend ce qui est déjà saisi
   const vehId = r ? r.vehId : (document.getElementById('rv-veh')?.value || '');
   const date  = r ? r.date  : (document.getElementById('rv-date')?.value || '');
@@ -13080,8 +13234,8 @@ async function genererBonCommandeCT() {
         ? '<div style="font-size:13px;color:var(--vert);font-weight:600">✅ PDF prêt pour ' + echapperHtml(plaque) + '</div>'
         : '<div style="font-size:12px;color:var(--orange);background:var(--orange-clair);padding:8px 10px;border-radius:8px">'
           + '⚠️ Remplissage automatique indisponible (connexion ?). Voici le formulaire vierge : plaque, date et station sont à compléter à la main.</div>')
-      + '<a class="btn primary" style="text-align:center;text-decoration:none" href="' + _bonCtUrlBlob + '" target="_blank" rel="noopener">🖨 Ouvrir / imprimer</a>'
-      + '<a class="btn" style="text-align:center;text-decoration:none" href="' + _bonCtUrlBlob + '" download="' + nomFichier + '">⬇ Télécharger le PDF</a>'
+      + '<a class="btn primary" style="text-align:center;text-decoration:none" href="' + _bonCtUrlBlob + '" target="_blank" rel="noopener"' + (complet ? ' onclick="marquerBonCtDepuisModal()"' : '') + '>🖨 Ouvrir / imprimer</a>'
+      + '<a class="btn" style="text-align:center;text-decoration:none" href="' + _bonCtUrlBlob + '" download="' + nomFichier + '"' + (complet ? ' onclick="marquerBonCtDepuisModal()"' : '') + '>⬇ Télécharger le PDF</a>'
       + '<button class="btn" onclick="document.getElementById(\'modal-bon-ct\').remove()">Fermer</button>';
   }
   try { logAction('creation', 'bonCommandeCT', 'Bon de commande CT généré — ' + plaque + (dateY ? ' — ' + dateY : '')); } catch(e) {}
@@ -13245,6 +13399,11 @@ function sauvegarderRV() {
   renderAccueil();
   renderVehicules();
   if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
+
+  // RV contrôle technique planifié → proposer l'impression du bon de commande
+  if (type === 'ct' && statut === 'planifie' && userIsAdmin()) {
+    setTimeout(() => proposerBonCt(rec.id, 'nouveau'), 400);
+  }
 
   if (prochainKmInfo) {
     toast('✅ RV enregistré — entretien mis à jour, prochain à ' + prochainKmInfo.toLocaleString('fr-BE') + ' km');
@@ -13489,6 +13648,8 @@ function confirmerAnnulation(id, type, nouvDate) {
     toast('RV annulé');
   } else {
     if (!nouvDate) { toast('Veuillez indiquer une date de report.'); return; }
+    const ancienImprime = bonCtEstValide(r);
+    const ancienneDate  = r.date;
     r.statut    = 'annule';
     r.reporteAu = nouvDate;
     window.rendezvous = rendezvous;
@@ -13507,6 +13668,10 @@ function confirmerAnnulation(id, type, nouvDate) {
     };
     rendezvous.unshift(nouveau);
     toast('RV annulé et reporté au ' + formatDate(nouvDate));
+    // RV contrôle technique déplacé → redemander l'impression du bon
+    if (nouveau.type === 'ct' && userIsAdmin()) {
+      setTimeout(() => proposerBonCt(nouveau.id, 'deplace', { ancienneDate, ancienImprime }), 400);
+    }
   }
   saveAll();
   renderTableRV();
@@ -13602,11 +13767,24 @@ function renderTableRV() {
     ` : '';
     // Rappel facturation — rose fluo — pour tout RV de type Contrôle
     // Technique, en plus des notes éventuelles.
-    const rappelCT = r.type === 'ct'
-      ? '<div style="color:#ff00c8;font-weight:800;font-size:11px;background:#fff0fb;'
-        + 'border:1px solid #ff00c8;border-radius:4px;padding:2px 6px;margin-top:3px;'
-        + 'display:inline-block">📎 Remplir bon de commande</div>'
-      : '';
+    let rappelCT = '';
+    if (r.type === 'ct') {
+      if (bonCtEstValide(r)) {
+        rappelCT = '<div style="color:#1a6b38;font-weight:700;font-size:11px;background:var(--vert-clair);'
+          + 'border:1px solid var(--vert);border-radius:4px;padding:2px 6px;margin-top:3px;display:inline-block">'
+          + '✅ Bon imprimé le ' + formatDate(r.bonCtImprimeLe.slice(0, 10)) + (r.bonCtManuel ? ' (saisi à la main)' : '')
+          + (userIsAdmin() ? ' <a href="javascript:void(0)" onclick="annulerMarquageBonCt(' + r.id + ')" title="Retirer le marquage" style="text-decoration:none">↩</a>' : '')
+          + '</div>';
+      } else {
+        rappelCT = (r.bonCtImprimeLe
+            ? '<div style="color:#7a4a00;font-weight:700;font-size:11px;background:var(--orange-clair);border:1px solid var(--orange);'
+              + 'border-radius:4px;padding:2px 6px;margin-top:3px;display:inline-block">⚠️ Bon imprimé pour le ' + formatDate(r.bonCtPourDate) + ' — à refaire</div><br>'
+            : '')
+          + '<div style="color:#ff00c8;font-weight:800;font-size:11px;background:#fff0fb;'
+          + 'border:1px solid #ff00c8;border-radius:4px;padding:2px 6px;margin-top:3px;'
+          + 'display:inline-block">📎 Remplir bon de commande</div>';
+      }
+    }
     return `<tr style="${rowBg}">
       <td data-label="Date" style="white-space:nowrap">${formatDate(r.date)}${hr}</td>
       <td data-label="Véhicule" style="font-size:12px">${v ? v.marque+' '+v.immat : r.vehId}</td>
@@ -14633,8 +14811,12 @@ function editHistItem(srcType, srcId) {
       { label:'Garage',  type:'text', key:'garage', val: r.garage || '' },
       { label:'Notes',   type:'text', key:'notes',  val: r.notes  || '' },
     ], (changes) => {
+      const ancienneDate = r.date, ancienImprime = bonCtEstValide(r);
       Object.assign(r, changes);
       saveAll(); renderHistorique(); renderTableRV(); toast('RV modifié ✅');
+      if (r.type === 'ct' && r.statut === 'planifie' && changes.date && changes.date !== ancienneDate) {
+        setTimeout(() => proposerBonCt(r.id, 'deplace', { ancienneDate, ancienImprime }), 400);
+      }
     });
   } else if (srcType === 'ct') {
     const c = ctEvents.find(x => x.id === id);
@@ -14701,8 +14883,12 @@ function editHistItem(srcType, srcId) {
 
     openEditModal(`RV planifié — ${v ? v.marque + ' ' + v.immat : r.vehId} — ${formatDate(r.date)}`, fields, (changes) => {
       if (changes.km) changes.km = parseInt(changes.km);
+      const ancienneDate = r.date, ancienImprime = bonCtEstValide(r);
       Object.assign(r, changes);
       saveAll(); renderHistorique(); toast('RV modifié ✅');
+      if (r.type === 'ct' && r.statut === 'planifie' && changes.date && changes.date !== ancienneDate) {
+        setTimeout(() => proposerBonCt(r.id, 'deplace', { ancienneDate, ancienImprime }), 400);
+      }
     });
   }
 }
@@ -15759,7 +15945,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261005.0854';
+const APP_VERSION = '261005.1421';
 
 let _swRegistration = null;
 
