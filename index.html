@@ -1557,7 +1557,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.0848</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.0854</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -15423,8 +15423,19 @@ function _exportMaintenancesCSV() {
   downloadCSV(rows, 'MCR_maintenances' + suffix + '.csv');
 }
 
+// Protection contre l'injection de formule : Excel/LibreOffice évaluent comme
+// formule toute cellule CSV de TEXTE commençant par = + - @ (ou tabulation /
+// retour chariot). Une remarque saisie "=HYPERLINK(...)" serait donc exécutée
+// à l'ouverture du CSV. On préfixe ces textes d'une apostrophe (méthode
+// standard OWASP) — les nombres (type number) ne sont pas touchés.
+// NB : l'export Excel (.xlsx) n'est pas concerné : SheetJS y écrit les textes
+// comme du texte pur, jamais comme formule.
+function neutraliserFormuleCSV(c) {
+  return (typeof c === 'string' && /^[=+\-@\t\r]/.test(c)) ? "'" + c : c;
+}
+
 function downloadCSV(rows, filename) {
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const csv = rows.map(r => r.map(c => `"${String(neutraliserFormuleCSV(c)).replace(/"/g,'""')}"`).join(';')).join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -15748,7 +15759,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261005.0848';
+const APP_VERSION = '261005.0854';
 
 let _swRegistration = null;
 
