@@ -158,6 +158,11 @@
   firebase.initializeApp(firebaseConfig);
   const db   = firebase.firestore();
   const auth = firebase.auth();
+  // Langue des emails envoyés par Firebase Auth (réinitialisation du mot de
+  // passe, vérification d'adresse) et de leur page de confirmation : sans
+  // cette ligne, c'est la langue du modèle réglé dans la console Firebase qui
+  // s'applique (anglais par défaut) — jamais le français automatiquement.
+  auth.languageCode = 'fr';
 
   // Rôles connus : superadmin > admin > chauffeur
   // Patrick  : superadmin (saisie maintenance + gestion comptes)
@@ -1557,7 +1562,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1421</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1425</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -15945,7 +15950,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261005.1421';
+const APP_VERSION = '261005.1425';
 
 let _swRegistration = null;
 
