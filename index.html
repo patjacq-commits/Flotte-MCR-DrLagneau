@@ -1663,7 +1663,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1702</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1719</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1950,7 +1950,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
            text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
         Note générale <span style="font-weight:400;text-transform:none">(optionnel — pour une remarque globale)</span>
       </div>
-      <textarea id="chauf-msg" placeholder="Précision supplémentaire…"
+      <textarea id="chauf-msg" maxlength="1000" placeholder="Précision supplémentaire…"
         style="width:100%;min-height:60px;border:1.5px solid var(--gris-bord);
                border-radius:6px;padding:8px 10px;font-size:14px;resize:vertical"></textarea>
     </div>
@@ -3224,7 +3224,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       Une suggestion pour améliorer l'app, une remarque générale, une idée ?
       Écrivez librement à Patrick ici — pas besoin que ça concerne un véhicule précis.
     </p>
-    <textarea id="idee-texte" rows="3" placeholder="Une suggestion, une remarque, une idée…"
+    <textarea id="idee-texte" rows="3" maxlength="2000" placeholder="Une suggestion, une remarque, une idée…"
       style="width:100%;border:1.5px solid var(--gris-bord);border-radius:8px;padding:10px 12px;
              font-size:14px;font-family:inherit;resize:vertical;margin-bottom:10px"></textarea>
     <button class="btn primary" onclick="envoyerSuggestion()">💬 Envoyer</button>
@@ -6404,7 +6404,7 @@ function renderAnomaliesDetail() {
     const valPrecedente = commentairesActuels[a.cat] || '';
     return '<div style="margin-bottom:8px">'
       + '<div style="font-size:12px;font-weight:600;color:var(--texte-sec);margin-bottom:4px">' + label + '</div>'
-      + '<input type="text" id="chauf-anomalie-com-' + a.cat + '" placeholder="Détail pour ce point (optionnel)…" '
+      + '<input type="text" id="chauf-anomalie-com-' + a.cat + '" maxlength="200" placeholder="Détail pour ce point (optionnel)…" '
       + 'oninput="mettreAJourRecap()" value="' + valPrecedente.replace(/"/g,'&quot;') + '" '
       + 'style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:7px 10px;font-size:13px" />'
       + '</div>';
@@ -6450,6 +6450,42 @@ function ouvrirCamera() {
 function ouvrirGalerie() {
   if (_chaufPhotos.filter(Boolean).length >= 5) { toast('Maximum 5 photos.'); return; }
   document.getElementById('chauf-galerie').click();
+}
+
+/* ── Photos : compression adaptative (07/10) ────────────────────
+   Un document Firestore est limité à 1 Mo. Les photos d'un signalement y
+   sont embarquées : si leur total dépasse la limite, on les ré-encode
+   progressivement plus petites au lieu de les abandonner en silence. */
+const LIMITE_PHOTOS_OCTETS = 600000;
+const NIVEAUX_COMPRESSION = [ { max: 600, q: 0.55 }, { max: 480, q: 0.45 }, { max: 360, q: 0.4 }, { max: 280, q: 0.35 } ];
+function _tailleJson(photos) { return JSON.stringify(photos || []).length; }
+function _recompresserPhoto(photo, max, q) {
+  return new Promise(res => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const ratio = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * ratio));
+          c.height = Math.max(1, Math.round(img.height * ratio));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          res({ ...photo, data: c.toDataURL('image/jpeg', q) });
+        } catch (e) { res(photo); }
+      };
+      img.onerror = () => res(photo);
+      img.src = photo.data;
+    } catch (e) { res(photo); }
+  });
+}
+async function reduirePhotosPourLimite(photos, limite) {
+  let courant = photos.slice();
+  if (_tailleJson(courant) <= limite) return { photos: courant, ok: true };
+  for (const niv of NIVEAUX_COMPRESSION) {
+    courant = await Promise.all(photos.map(p => _recompresserPhoto(p, niv.max, niv.q)));
+    if (_tailleJson(courant) <= limite) return { photos: courant, ok: true };
+  }
+  return { photos: courant, ok: _tailleJson(courant) <= limite };
 }
 
 function ajouterPhotoChauf(input) {
@@ -6581,15 +6617,28 @@ async function sendMessageChauf() {
     } catch(e) { photosCompressees.push(p); }
   }
 
+  // Taille maximale d'un signalement dans Firestore (limite 1 Mo/document) :
+  // si les photos sont trop lourdes, on les RÉDUIT encore (plus petites,
+  // plus compressées) plutôt que de les perdre en silence.
+  let photosTropLourdes = false;
+  {
+    const r = await reduirePhotosPourLimite(photosCompressees, LIMITE_PHOTOS_OCTETS);
+    photosCompressees.length = 0; r.photos.forEach(x => photosCompressees.push(x));
+    photosTropLourdes = !r.ok;
+  }
+
   const msgId   = Date.now();
   const dateStr = new Date().toLocaleString('fr-BE',
     { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
 
-  // Backup localStorage
+  // Backup localStorage (protégé : un stockage plein ne doit JAMAIS empêcher
+  // l'envoi du signalement lui-même)
   if (photosCompressees.length) {
-    const pls = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
-    pls[msgId] = photosCompressees;
-    localStorage.setItem('mcr_photos_msg', JSON.stringify(pls));
+    try {
+      const pls = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
+      pls[msgId] = photosCompressees;
+      localStorage.setItem('mcr_photos_msg', JSON.stringify(pls));
+    } catch(e) { console.warn('Photos localStorage (signalement):', e); }
   }
 
   const uid = currentUser?.uid || '';
@@ -6611,8 +6660,11 @@ async function sendMessageChauf() {
   try {
     const tailleApprox = JSON.stringify(msgRec.photosData || []).length;
     const msgAEnvoyer = tailleApprox > 700000
-      ? { ...msgRec, photosData: [] }
+      ? { ...msgRec, photosData: [], nbPhotos: 0 }
       : msgRec;
+    if (tailleApprox > 700000 || photosTropLourdes) {
+      toast('⚠️ Signalement envoyé SANS les photos (trop lourdes). Décrivez le problème par écrit ou renvoyez-les séparément.');
+    }
     await db.collection('messagesChauf').doc(String(msgId)).set(msgAEnvoyer);
   } catch(e) {
     console.warn('Erreur Firestore messagesChauf:', e);
@@ -12717,7 +12769,10 @@ async function saveMaintenance() {
       const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
       photosLS[rec.id] = photoUrls;
       localStorage.setItem('mcr_photos', JSON.stringify(photosLS));
-    } catch(e) { console.warn('Photos localStorage:', e); }
+    } catch(e) {
+      console.warn('Photos localStorage:', e);
+      toast('⚠️ Maintenance enregistrée, mais les photos n\'ont pas pu être conservées (mémoire de l\'appareil pleine).');
+    }
   }
 
   // Sauvegarder dans Firestore SANS les photos
@@ -16302,7 +16357,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.1702';
+const APP_VERSION = '261006.1719';
 
 let _swRegistration = null;
 
