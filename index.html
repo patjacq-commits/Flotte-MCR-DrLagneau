@@ -395,6 +395,19 @@
       }
     };
     Object.entries(COLS).forEach(([col, cb]) => window._fbUnsubs.push(fbListen(col, cb)));
+    // Boîte à idées : lecture réservée au superadmin (firestore.rules) —
+    // badge sur l'onglet Comptes + toast à l'arrivée d'un nouveau message.
+    if (typeof userIsSuperAdmin === 'function' && userIsSuperAdmin()) {
+      let premier = true; const connus = new Set();
+      window._fbUnsubs.push(db.collection('suggestionsChauf').onSnapshot(snap => {
+        const nonlus = snap.docs.map(d => d.data()).filter(m => m.statut === 'nonlu');
+        const nouveaux = nonlus.filter(m => !connus.has(m.id));
+        nonlus.forEach(m => connus.add(m.id));
+        window.majBadgeIdees?.(nonlus.length);
+        if (!premier && nouveaux.length) toast('💡 Nouvelle idée de ' + (nouveaux[0].auteur || 'chauffeur'));
+        premier = false;
+      }, e => console.warn('Firebase suggestionsChauf listen error:', e)));
+    }
     window._fbUnsubs.push(db.collection('config').doc('infosVehicules').onSnapshot(snap => {
       if (snap.exists) {
         infosVehicules = snap.data().infos || {};
@@ -1577,7 +1590,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0916</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0926</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1640,7 +1653,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button class="tab-btn" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
   <button class="tab-btn" onclick="showPage('historique',this)" style="display:none">📋 Historique RV</button>
   <button class="tab-btn admin-only" onclick="showPage('rapports',this)" style="display:none">📄 Rapports</button>
-  <button class="tab-btn superadmin-only" onclick="showPage('comptes',this)" style="display:none">👥 Comptes</button>
+  <button class="tab-btn superadmin-only" id="tab-comptes" onclick="showPage('comptes',this)" style="display:none">👥 Comptes</button>
   <button class="tab-btn" onclick="showPage('profil',this)">⚙️ Profil</button>
 </div>
 
@@ -7202,7 +7215,7 @@ const AIDE_CONTENU = {
       <li>Un compte actif peut ensuite être ⏸ suspendu ou 🗑 supprimé à tout moment.</li>
       <li>« Connectés en ce moment » : qui est en ligne, en temps réel.</li>
       <li>« Historique des modifications » : journal de toutes les actions, filtrable.</li>
-      <li>« Boîte à idées des chauffeurs » : toutes les suggestions reçues.</li>
+      <li>« Boîte à idées des chauffeurs » (tout en bas de la page) : toutes les suggestions reçues, avec possibilité de répondre. À chaque nouveau message, un <b>badge orange</b> s'affiche sur l'onglet 👥 Comptes (qui clignote), une bannière apparaît en haut de la page (un appui y mène directement) et une notification s'affiche si l'app est ouverte.</li>
       <li>« Erreurs techniques signalées » : journal automatique des erreurs JS rencontrées.</li>
     </ul>`,
   profil: {
@@ -7352,6 +7365,7 @@ function showPage(id, btn) {
   // même la carte "Export Excel" — réservée à Angélique/Patrick.
   if (id === 'rapports' && userIsAdmin()) initRapports();
   if (id === 'comptes' && userIsSuperAdmin()) {
+    document.getElementById('tab-comptes')?.classList.remove('tab-msg-urgent');
     renderGestionComptes();
     renderSessionsActives();
     renderHistoriqueLog();
@@ -10406,6 +10420,27 @@ function updateTabAlertes() {
 }
 
 /* Met à jour le badge et clignotement de l'onglet Alerte chauffeur (côté admin uniquement) */
+/* Boîte à idées (superadmin) : badge sur l'onglet Comptes + bannière en haut
+   de la page, car la carte se trouve tout en bas de l'onglet. */
+function majBadgeIdees(nb) {
+  window._nbIdeesNouvelles = nb;
+  const tab = document.getElementById('tab-comptes');
+  if (tab) {
+    let badge = tab.querySelector('.tab-badge');
+    if (nb > 0) {
+      if (!badge) { badge = document.createElement('span'); badge.className = 'tab-badge'; tab.appendChild(badge); }
+      badge.textContent = nb;
+    } else if (badge) badge.remove();
+    tab.classList.toggle('tab-msg-urgent', nb > 0 && !tab.classList.contains('active'));
+  }
+  const ban = document.getElementById('banniere-idees');
+  if (ban) {
+    ban.style.display = nb > 0 ? '' : 'none';
+    const t = document.getElementById('banniere-idees-txt');
+    if (t) t.textContent = '💡 ' + nb + ' nouveau' + (nb > 1 ? 'x' : '') + ' message' + (nb > 1 ? 's' : '') + ' dans la boîte à idées — toucher pour y aller ↓';
+  }
+}
+
 function updateTabChauf() {
   const tab = document.getElementById('tab-chauf');
   if (!tab) return;
@@ -15982,7 +16017,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.0916';
+const APP_VERSION = '261006.0926';
 
 let _swRegistration = null;
 
@@ -16358,6 +16393,10 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- PAGE COMPTES (superadmin uniquement) -->
 <div id="page-comptes" class="page">
   <h2 style="margin-bottom:14px">👥 Gestion des comptes</h2>
+  <div id="banniere-idees" class="form-card" style="display:none;background:var(--orange-clair);border:2px solid var(--orange);cursor:pointer;margin-bottom:14px"
+       onclick="document.getElementById('carte-boite-idees')?.scrollIntoView({behavior:'smooth',block:'start'})">
+    <b id="banniere-idees-txt" style="color:#7a4a00;font-size:14px"></b>
+  </div>
   <div class="form-card">
     <h3>Ajouter un chauffeur</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
@@ -16415,7 +16454,7 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 
   <!-- Suggestions et remarques des chauffeurs -->
-  <div class="form-card">
+  <div class="form-card" id="carte-boite-idees">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
       <h3>💡 Boîte à idées des chauffeurs</h3>
       <button class="btn btn-sm" onclick="renderSuggestionsChauf()">🔄</button>
