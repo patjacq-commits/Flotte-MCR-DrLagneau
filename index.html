@@ -1577,7 +1577,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0819</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0840</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1774,9 +1774,18 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
        que chauf-form-card. -->
   <div id="chauf-contact-patrick" class="form-card"
        style="background:var(--rouge-clair);border:2px solid var(--rouge);margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <b style="color:var(--rouge-fonce);font-size:15px">📞 Urgent ? Appelez d'abord le bureau</b>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 14px;margin:6px 0 10px">
+      <div style="font-size:13px;color:var(--texte)">Bureau — fixe</div>
+      <a href="tel:061292059" style="font-size:20px;font-weight:800;color:var(--rouge-fonce);text-decoration:none">061/29 20 59</a>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 14px;margin:0 0 10px">
+      <div style="font-size:13px;color:var(--texte)">Bureau — GSM</div>
+      <a href="tel:0499921047" style="font-size:20px;font-weight:800;color:var(--rouge-fonce);text-decoration:none">0499/92 10 47</a>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-top:1px solid var(--rouge);padding-top:8px">
       <div>
-        <b style="color:var(--rouge-fonce);font-size:15px">📱 Urgent ? Appelez Patrick</b>
+        <b style="color:var(--rouge-fonce);font-size:14px">📱 Patrick</b>
         <div style="font-size:13px;color:var(--texte);margin-top:2px">Responsable de flotte</div>
       </div>
       <a href="tel:0496224371" style="font-size:20px;font-weight:800;color:var(--rouge-fonce);text-decoration:none">
@@ -2173,6 +2182,8 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
           <table style="width:100%">
             <thead><tr><th>Service</th><th>Numéro</th></tr></thead>
             <tbody>
+              <tr><td>☎️ Bureau de la Maison Croix-Rouge — fixe</td><td><a href="tel:061292059"><b>061/29 20 59</b></a></td></tr>
+              <tr><td>📞 Bureau de la Maison Croix-Rouge — GSM</td><td><a href="tel:0499921047"><b>0499/92 10 47</b></a></td></tr>
               <tr><td>🚨 Urgence européenne (police, pompiers, ambulance)</td><td><a href="tel:112"><b>112</b></a></td></tr>
               <tr><td>👮 Police (non urgent)</td><td><a href="tel:101"><b>101</b></a></td></tr>
               <tr><td>🚒 Pompiers / ambulance (ancien numéro, actif)</td><td><a href="tel:100"><b>100</b></a></td></tr>
@@ -7074,7 +7085,7 @@ const AIDE_CONTENU = {
       <p>Tout événement de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
   },
   chauf: {
-    chauffeur: `<p style="margin:0 0 8px">📱 <b>Urgent ?</b> Le numéro de Patrick (0496 22 43 71) est affiché en haut de cette page, en permanence — appelez-le directement plutôt que de remplir le formulaire si la situation l'exige.</p>
+    chauffeur: `<p style="margin:0 0 8px">📱 <b>Urgent ?</b> Les numéros du bureau (fixe 061/29 20 59, GSM 0499/92 10 47) puis celui de Patrick (0496 22 43 71) sont affichés en haut de cette page, en permanence — appelez-les directement, dans cet ordre, plutôt que de remplir le formulaire si la situation l'exige.</p>
       <p style="margin:0 0 4px"><b>Formulaire en 3 étapes :</b></p>
       <ol style="margin:0 0 8px;padding-left:20px">
         <li>Choisir le véhicule concerné.</li>
@@ -7564,6 +7575,14 @@ function afficherUrgenceSansConnexion() {
     + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:10px;font-weight:700">'
     + '<span style="font-size:24px">🚑</span><div><div style="font-size:15px">Urgence médicale / accident</div>'
     + '<div style="font-size:13px;opacity:0.9">112</div></div></a>'
+    + '<a href="tel:061292059" style="display:flex;align-items:center;gap:12px;background:var(--bleu);color:#fff;'
+    + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:10px;font-weight:700">'
+    + '<span style="font-size:24px">☎️</span><div><div style="font-size:15px">Bureau — fixe</div>'
+    + '<div style="font-size:13px;opacity:0.9">061/29 20 59</div></div></a>'
+    + '<a href="tel:0499921047" style="display:flex;align-items:center;gap:12px;background:var(--bleu);color:#fff;'
+    + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:10px;font-weight:700">'
+    + '<span style="font-size:24px">📞</span><div><div style="font-size:15px">Bureau — GSM</div>'
+    + '<div style="font-size:13px;opacity:0.9">0499/92 10 47</div></div></a>'
     + '<a href="tel:0496224371" style="display:flex;align-items:center;gap:12px;background:var(--bleu);color:#fff;'
     + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:16px;font-weight:700">'
     + '<span style="font-size:24px">📱</span><div><div style="font-size:15px">Patrick (responsable flotte)</div>'
@@ -15994,7 +16013,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.0819';
+const APP_VERSION = '261006.0840';
 
 let _swRegistration = null;
 
