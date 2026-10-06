@@ -1590,7 +1590,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1302</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1602</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3962,6 +3962,7 @@ window._refreshUI = function() {
 
   if (window.vehicules && window.vehicules.length > 0) {
     vehicules = window.vehicules;
+    appliquerIndisponibilitesPrevues();
     // Ancien code retiré ici : même logique reverting que dans le listener
     // COLS.vehicules ci-dessus (voir ce commentaire) — un troisième
     // mécanisme identique, tout aussi actif à chaque rafraîchissement,
@@ -7118,7 +7119,7 @@ const AIDE_CONTENU = {
     chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif).</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
         <li>✏️ Modifier les informations d'un véhicule, dont la case « 🛞 Pneus été et neige montés sur jantes » (TLAN633, TLAN910 et TLAN527 sont cochés d'office) : une pastille « 🛞 Sur jantes » apparaît alors sur la fiche — visible uniquement par Angélique et Patrick.</li>
-        <li>🔴/🟢 Marquer un véhicule (in)disponible : choisir un motif, ou « Autre » pour le préciser en texte libre (ex. « pneu éventré, en attente de livraison »), et indiquer si possible une durée estimée. La fiche affiche le motif et la durée estimée, avec « ⏰ N jours ! » au-delà de 5 jours d'immobilisation (sans date).</li>
+        <li>🔴/🟢 Marquer un véhicule (in)disponible : choisir un motif, ou « Autre » pour le préciser en texte libre (ex. « pneu éventré, en attente de livraison »), et indiquer si possible une durée estimée. La fiche affiche le motif et la durée estimée, avec « ⏰ N jours ! » au-delà de 5 jours d'immobilisation (sans date). Le champ « À partir du » (facultatif) permet de programmer l'immobilisation : jusqu'à cette date le véhicule reste disponible (hors « Priorités du jour ») et la fiche affiche seulement « 🗓 Immobilisation prévue le … » (✕ pour annuler) ; le jour dit, il passe automatiquement en indisponible.</li>
         <li>🗑 Archiver ou supprimer définitivement un véhicule ; réactiver un véhicule archivé.</li>
       </ul>`,
   },
@@ -8960,6 +8961,7 @@ function renderRVDashboard() {
 }
 
 function renderAccueil() {
+  appliquerIndisponibilitesPrevues();
   // Forcer synchronisation depuis window
   if (window.rendezvous && window.rendezvous.length >= rendezvous.length) {
     rendezvous = window.rendezvous;
@@ -9167,9 +9169,10 @@ function renderAccueil() {
       const puceIndispo = nbIndisponibles > 0
         ? `<div onclick="showPage('vehicules', document.querySelector('.tab-btn[onclick*=\\'vehicules\\']'))"
              style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--gris-bord);
-             border-radius:20px;padding:4px 11px;cursor:pointer;font-size:12px;white-space:nowrap">
+             border-radius:20px;padding:4px 11px;cursor:pointer;font-size:12px;max-width:100%;
+             flex-wrap:wrap;overflow-wrap:anywhere">
              <b style="color:var(--rouge)">${nbIndisponibles}</b> 🔴 indisponible${nbIndisponibles>1?'s':''}
-             <span style="color:var(--texte-sec)">(${vehiculesIndispo.map(v =>
+             <span style="color:var(--texte-sec);min-width:0">(${vehiculesIndispo.map(v =>
                v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : '?'
              ).join(', ')})</span>
            </div>` : '';
@@ -9181,11 +9184,11 @@ function renderAccueil() {
             ${vehiculesIndispo.map(v => `<div onclick="showPage('vehicules', document.querySelector('.tab-btn[onclick*=\\'vehicules\\']'))"
               style="display:flex;justify-content:space-between;align-items:center;gap:8px;
               background:var(--rouge-clair);border-radius:6px;padding:4px 10px;
-              cursor:pointer;font-size:12px;overflow:hidden">
-              <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              cursor:pointer;font-size:12px;overflow:hidden;flex-wrap:wrap;overflow-wrap:anywhere">
+              <span style="min-width:0">
                 🔴 <b>${v.immat}</b> — ${echapperHtml(v.motifIndisponible || 'Motif non précisé')}
               </span>
-              <span style="color:var(--texte-sec);white-space:nowrap;flex-shrink:0">
+              <span style="color:var(--texte-sec);min-width:0">
                 ${v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : 'durée inconnue'}
               </span>
             </div>`).join('')}
@@ -10835,6 +10838,7 @@ let ORDRE_VEHICULES = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM94
 let VEHICULES_ADBLUE = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
 
 function renderVehicules() {
+  appliquerIndisponibilitesPrevues();
   // Nettoyer l'éventuel bouton "Ajouter" précédent pour éviter les doublons
   const oldBtn = document.getElementById('btn-ajouter-veh');
   if (oldBtn) oldBtn.remove();
@@ -10939,8 +10943,12 @@ function renderVehicules() {
 
     return `<div class="veh-card${v.indisponible ? ' indisponible-clignote' : ''}">
       ${pastilleRV}
+      ${(!v.indisponible && v.indispoPrevue) ? `<div style="background:#fff3e0;color:#8a4b00;padding:5px 14px;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;overflow-wrap:anywhere">
+          🗓 Immobilisation prévue le ${formatDate(v.indispoPrevue.depuis)} — ${echapperHtml(v.indispoPrevue.motif || 'Autre')}${v.indispoPrevue.duree ? ' (' + echapperHtml(v.indispoPrevue.duree) + ')' : ''}
+          ${userIsAdmin() ? `<button onclick="annulerIndisponibilitePrevue('${v.id}')" title="Annuler" style="border:none;background:none;cursor:pointer;color:#8a4b00;font-weight:700">✕</button>` : ''}
+        </div>` : ''}
       ${v.indisponible ? (() => {
-        const jInd = Math.round((new Date() - new Date(v.indisponibleDepuis)) / 86400000);
+        const jInd = Math.round((new Date(toLocalYMD(new Date()) + 'T00:00:00') - new Date(v.indisponibleDepuis + 'T00:00:00')) / 86400000);
         const longue = jInd >= 5;
         return `<div style="background:${longue?'#8b0000':'var(--rouge)'};color:#fff;padding:6px 14px;
           font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -12092,6 +12100,11 @@ function ouvrirModalIndisponible(vehId) {
     + '<input type="text" id="indispo-motif-libre" maxlength="120" placeholder="Précisez le motif (ex: pneu éventré, en attente de livraison)"'
     + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" /></div>'
     + '</div>'
+    + '<div class="form-group" style="margin-bottom:14px"><label>À partir du '
+    + '<span style="font-weight:400;color:var(--texte-sec)">(optionnel — vide = tout de suite)</span></label>'
+    + '<input type="date" id="indispo-debut" min="' + toLocalYMD(new Date()) + '"'
+    + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" />'
+    + '<div style="font-size:11px;color:var(--texte-sec);margin-top:3px">Avant cette date, le véhicule reste disponible ; il passe automatiquement en indisponible le jour choisi.</div></div>'
     + '<div class="form-group" style="margin-bottom:18px"><label>Durée estimée '
     + '<span style="font-weight:400;color:var(--texte-sec)">(optionnel)</span></label>'
     + '<input type="text" id="indispo-duree" placeholder="ex: 2-3 jours, 1 semaine, indéterminé…"'
@@ -12117,6 +12130,20 @@ function marquerVehiculeIndisponible(vehId) {
     motif = libre;
   }
   const duree = document.getElementById('indispo-duree')?.value?.trim() || '';
+  const debut = document.getElementById('indispo-debut')?.value || '';
+  if (debut && debut > toLocalYMD(new Date())) {
+    // Immobilisation PRÉVUE : le véhicule reste disponible jusqu'à cette date
+    // (voir appliquerIndisponibilitesPrevues, qui la déclenche le jour dit).
+    v.indispoPrevue = { depuis: debut, motif, duree };
+    document.getElementById('modal-indisponible')?.remove();
+    window.vehicules = vehicules;
+    saveAll();
+    renderVehicules();
+    renderAccueil();
+    logCreation('vehicules', `${v.marque} ${v.immat} : immobilisation prévue le ${formatDate(debut)} (${motif}${duree ? ' — ' + duree : ''})`, { vehId, motif, duree, debut });
+    toast(`🗓 ${v.immat} : immobilisation prévue le ${formatDate(debut)}`);
+    return;
+  }
   v.indisponible = true;
   v.motifIndisponible = motif;
   v.dureeEstimeeIndisponible = duree;
@@ -12128,6 +12155,44 @@ function marquerVehiculeIndisponible(vehId) {
   renderAccueil();
   logCreation('vehicules', `${v.marque} ${v.immat} marqué indisponible (${motif}${duree ? ' — ' + duree : ''})`, { vehId, motif, duree });
   toast(`🔴 ${v.immat} marqué indisponible`);
+}
+
+/* Déclenche les immobilisations prévues dont la date est arrivée. Appelée à
+   chaque rafraîchissement (tous rôles : l'état affiché est donc toujours
+   juste, même si seul un chauffeur ouvre l'app ce jour-là) ; seule une
+   session admin enregistre le changement dans Firestore. */
+function appliquerIndisponibilitesPrevues() {
+  const today = toLocalYMD(new Date());
+  let change = false;
+  (vehicules || []).forEach(v => {
+    const p = v.indispoPrevue;
+    if (!p || !p.depuis || p.depuis > today || v.indisponible) return;
+    v.indisponible = true;
+    v.motifIndisponible = p.motif || 'Autre';
+    v.dureeEstimeeIndisponible = p.duree || '';
+    v.indisponibleDepuis = p.depuis;
+    delete v.indispoPrevue;
+    change = true;
+  });
+  if (change && typeof userIsAdmin === 'function' && userIsAdmin()) {
+    window.vehicules = vehicules;
+    saveAll();
+  }
+  return change;
+}
+
+function annulerIndisponibilitePrevue(vehId) {
+  if (!userIsAdmin()) return;
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v || !v.indispoPrevue) return;
+  if (!confirm('Annuler l\'immobilisation prévue ?\n\n' + v.marque + ' ' + v.immat + '\nle ' + formatDate(v.indispoPrevue.depuis) + ' — ' + (v.indispoPrevue.motif || ''))) return;
+  delete v.indispoPrevue;
+  window.vehicules = vehicules;
+  saveAll();
+  renderVehicules();
+  renderAccueil();
+  logCreation('vehicules', `${v.marque} ${v.immat} : immobilisation prévue annulée`, { vehId });
+  toast('Immobilisation prévue annulée');
 }
 
 function marquerVehiculeDisponible(vehId) {
@@ -16120,7 +16185,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.1302';
+const APP_VERSION = '261006.1602';
 
 let _swRegistration = null;
 
