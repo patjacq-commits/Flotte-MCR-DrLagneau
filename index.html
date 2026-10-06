@@ -1667,7 +1667,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1743</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.2242</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -10612,7 +10612,13 @@ function updateTabAlertes() {
    de la page, car la carte se trouve tout en bas de l'onglet. */
 function allerBoiteIdees() {
   showPage('comptes', document.getElementById('tab-comptes'));
-  setTimeout(() => document.getElementById('carte-boite-idees')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+  // Deux passes : les autres cartes de la page (sessions, historique…) se
+  // remplissent en asynchrone et décalent la position de la boîte à idées.
+  // NB : l'id "carte-boite-idees" appartient à la carte CHAUFFEUR (masquée,
+  // plus haut dans le DOM) — d'où l'id distinct "carte-boite-idees-admin".
+  const aller = () => document.getElementById('carte-boite-idees-admin')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(aller, 350);
+  setTimeout(aller, 1500);
 }
 
 /* Vérification DIRECTE (sans écouteur temps réel) des idées non lues :
@@ -16407,7 +16413,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.1743';
+const APP_VERSION = '261006.2242';
 
 let _swRegistration = null;
 
@@ -16784,7 +16790,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <div id="page-comptes" class="page">
   <h2 style="margin-bottom:14px">👥 Gestion des comptes</h2>
   <div id="banniere-idees" class="form-card" style="display:none;background:var(--orange-clair);border:2px solid var(--orange);cursor:pointer;margin-bottom:14px"
-       onclick="document.getElementById('carte-boite-idees')?.scrollIntoView({behavior:'smooth',block:'start'})">
+       onclick="allerBoiteIdees()">
     <b id="banniere-idees-txt" style="color:#7a4a00;font-size:14px"></b>
   </div>
   <div class="form-card">
@@ -16844,7 +16850,7 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 
   <!-- Suggestions et remarques des chauffeurs -->
-  <div class="form-card" id="carte-boite-idees">
+  <div class="form-card" id="carte-boite-idees-admin" style="scroll-margin-top:70px">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
       <h3>💡 Boîte à idées des chauffeurs</h3>
       <button class="btn btn-sm" onclick="renderSuggestionsChauf()">🔄</button>
