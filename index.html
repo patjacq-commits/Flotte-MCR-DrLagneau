@@ -1577,7 +1577,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0900</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0902</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1775,18 +1775,19 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div id="chauf-contact-patrick" class="form-card"
        style="background:var(--rouge-clair);border:2px solid var(--rouge);margin-bottom:14px">
     <b style="color:var(--rouge-fonce);font-size:15px">📞 Urgent ? Appelez d'abord le bureau</b>
+    <div style="font-size:12px;color:var(--texte);margin-top:3px">Fixe : de 8h à 12h. En cas d'absence, l'appel est dévié vers le GSM du bureau ou celui de Patrick.</div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 14px;margin:6px 0 10px">
-      <div style="font-size:13px;color:var(--texte)">Bureau — fixe</div>
+      <div style="font-size:13px;color:var(--texte)">Bureau — fixe<br><span style="font-size:12px;color:var(--texte-sec)">joignable de 8h à 12h</span></div>
       <a href="tel:061292059" style="font-size:20px;font-weight:800;color:var(--rouge-fonce);text-decoration:none">061/29 20 59</a>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 14px;margin:0 0 10px">
-      <div style="font-size:13px;color:var(--texte)">Bureau — GSM</div>
+      <div style="font-size:13px;color:var(--texte)">Bureau — GSM<br><span style="font-size:12px;color:var(--texte-sec)">si le fixe ne répond pas</span></div>
       <a href="tel:0499921047" style="font-size:20px;font-weight:800;color:var(--rouge-fonce);text-decoration:none">0499/92 10 47</a>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-top:1px solid var(--rouge);padding-top:8px">
       <div>
         <b style="color:var(--rouge-fonce);font-size:14px">📱 Patrick</b>
-        <div style="font-size:13px;color:var(--texte);margin-top:2px">Responsable de flotte</div>
+        <div style="font-size:13px;color:var(--texte);margin-top:2px">Responsable de flotte — en dernier recours</div>
       </div>
       <a href="tel:0496224371" style="font-size:20px;font-weight:800;color:var(--rouge-fonce);text-decoration:none">
         0496 22 43 71
@@ -2182,7 +2183,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
           <table style="width:100%">
             <thead><tr><th>Service</th><th>Numéro</th></tr></thead>
             <tbody>
-              <tr><td>☎️ Bureau de la Maison Croix-Rouge — fixe</td><td><a href="tel:061292059"><b>061/29 20 59</b></a></td></tr>
+              <tr><td>☎️ Bureau de la Maison Croix-Rouge — fixe (8h–12h ; sinon dévié vers le GSM du bureau ou Patrick)</td><td><a href="tel:061292059"><b>061/29 20 59</b></a></td></tr>
               <tr><td>📞 Bureau de la Maison Croix-Rouge — GSM</td><td><a href="tel:0499921047"><b>0499/92 10 47</b></a></td></tr>
               <tr><td>🚨 Urgence européenne (police, pompiers, ambulance)</td><td><a href="tel:112"><b>112</b></a></td></tr>
               <tr><td>👮 Police (non urgent)</td><td><a href="tel:101"><b>101</b></a></td></tr>
@@ -7080,7 +7081,7 @@ const AIDE_CONTENU = {
     admin: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>`,
   },
   chauf: {
-    chauffeur: `<p style="margin:0 0 8px">📱 <b>Urgent ?</b> Les numéros du bureau (fixe 061/29 20 59, GSM 0499/92 10 47) puis celui de Patrick (0496 22 43 71) sont affichés en haut de cette page, en permanence — appelez-les directement, dans cet ordre, plutôt que de remplir le formulaire si la situation l'exige.</p>
+    chauffeur: `<p style="margin:0 0 8px">📱 <b>Urgent ?</b> Les numéros du bureau (fixe 061/29 20 59, joignable de 8h à 12h ; en cas d'absence, l'appel est dévié vers le GSM du bureau 0499/92 10 47 ou vers celui de Patrick 0496 22 43 71) sont affichés en haut de cette page, en permanence — appelez-les directement, dans cet ordre, plutôt que de remplir le formulaire si la situation l'exige.</p>
       <p style="margin:0 0 4px"><b>Formulaire en 3 étapes :</b></p>
       <ol style="margin:0 0 8px;padding-left:20px">
         <li>Choisir le véhicule concerné.</li>
@@ -7572,11 +7573,11 @@ function afficherUrgenceSansConnexion() {
     + '<a href="tel:061292059" style="display:flex;align-items:center;gap:12px;background:var(--bleu);color:#fff;'
     + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:10px;font-weight:700">'
     + '<span style="font-size:24px">☎️</span><div><div style="font-size:15px">Bureau — fixe</div>'
-    + '<div style="font-size:13px;opacity:0.9">061/29 20 59</div></div></a>'
+    + '<div style="font-size:13px;opacity:0.9">061/29 20 59 — de 8h à 12h</div></div></a>'
     + '<a href="tel:0499921047" style="display:flex;align-items:center;gap:12px;background:var(--bleu);color:#fff;'
     + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:10px;font-weight:700">'
     + '<span style="font-size:24px">📞</span><div><div style="font-size:15px">Bureau — GSM</div>'
-    + '<div style="font-size:13px;opacity:0.9">0499/92 10 47</div></div></a>'
+    + '<div style="font-size:13px;opacity:0.9">0499/92 10 47 — si le fixe ne répond pas</div></div></a>'
     + '<a href="tel:0496224371" style="display:flex;align-items:center;gap:12px;background:var(--bleu);color:#fff;'
     + 'text-decoration:none;padding:14px 16px;border-radius:10px;margin-bottom:16px;font-weight:700">'
     + '<span style="font-size:24px">📱</span><div><div style="font-size:15px">Patrick (responsable flotte)</div>'
@@ -15984,7 +15985,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.0900';
+const APP_VERSION = '261006.0902';
 
 let _swRegistration = null;
 
