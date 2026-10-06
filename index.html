@@ -365,6 +365,7 @@
     (window._fbUnsubs || []).forEach(u => { try { u(); } catch(e) {} });
     window._fbUnsubs = [];
     try { window._fb?.fbResetBaseline?.(); } catch(e) {}
+    try { window.arreterSurveillanceIdees?.(); window.majBadgeIdees?.(0); } catch(e) {}
   };
   window.addEventListener('firebase-ready', () => {
     window._arreterEcouteursTempsReel();
@@ -480,6 +481,7 @@
         if (!premier && nouveaux.length) toast('💡 Nouvelle idée de ' + (nouveaux[0].auteur || 'chauffeur'));
         premier = false;
       }, e => console.warn('Firebase suggestionsChauf listen error:', e)));
+      window.demarrerSurveillanceIdees?.();
     }
     window._fbUnsubs.push(db.collection('config').doc('infosVehicules').onSnapshot(snap => {
       if (snap.exists) {
@@ -1205,6 +1207,8 @@ td.ok { color: var(--vert); font-weight: 600; }
   padding:0 3px; margin-left:4px; border-radius:50%;
   background:rgba(0,0,0,0.06);
 }
+@keyframes ampoule-clignote { 0%,100% { opacity:1; transform:scale(1.15); } 50% { opacity:0.25; transform:scale(0.9); } }
+.ampoule-idee { display:inline-block; animation:ampoule-clignote 1s ease-in-out infinite; font-size:18px; }
 @keyframes tab-msg-pulse {
   0%,100% { color:var(--rouge); background:transparent; }
   50%      { color:#fff; background:var(--rouge); border-radius:4px; }
@@ -1663,7 +1667,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1719</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1743</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1735,6 +1739,12 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 
 <!-- PAGE ACCUEIL -->
 <div id="page-accueil" class="page active">
+  <!-- Boîte à idées (superadmin) : visible dès l'ouverture, ampoule clignotante -->
+  <div id="idees-accueil" style="display:none;cursor:pointer;margin-bottom:12px;padding:12px 14px;border-radius:10px;
+       background:var(--orange-clair);border:2px solid var(--orange);color:#7a4a00;font-weight:700;font-size:14px"
+       onclick="allerBoiteIdees()">
+    <span class="ampoule-idee">💡</span> <span id="idees-accueil-txt"></span>
+  </div>
   <div class="summary-grid" id="summary-grid"></div>
   <div id="alertes-dashboard"></div>
   <div id="rv-dashboard-panel" style="display:none;margin-top:14px"></div>
@@ -10600,6 +10610,40 @@ function updateTabAlertes() {
 /* Met à jour le badge et clignotement de l'onglet Alerte chauffeur (côté admin uniquement) */
 /* Boîte à idées (superadmin) : badge sur l'onglet Comptes + bannière en haut
    de la page, car la carte se trouve tout en bas de l'onglet. */
+function allerBoiteIdees() {
+  showPage('comptes', document.getElementById('tab-comptes'));
+  setTimeout(() => document.getElementById('carte-boite-idees')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+}
+
+/* Vérification DIRECTE (sans écouteur temps réel) des idées non lues :
+   à la connexion, au retour sur l'app et toutes les 2 minutes. Filet de
+   sécurité si l'écouteur a été refusé ou interrompu. */
+async function verifierIdeesNonLues() {
+  if (!userIsSuperAdmin() || !window.db) return;
+  try {
+    const snap = await window.db.collection('suggestionsChauf').get();
+    const nb = snap.docs.filter(d => (d.data() || {}).statut === 'nonlu').length;
+    const avant = window._nbIdeesNouvelles || 0;
+    majBadgeIdees(nb);
+    if (nb > avant && window._ideesVerifiees) toast('💡 Nouvelle idée dans la boîte à idées');
+    window._ideesVerifiees = true;
+  } catch (e) { console.warn('verifierIdeesNonLues:', e); }
+}
+function demarrerSurveillanceIdees() {
+  arreterSurveillanceIdees();
+  if (!userIsSuperAdmin()) return;
+  window._ideesVerifiees = false;
+  verifierIdeesNonLues();
+  window._ideesTimer = setInterval(() => { if (document.visibilityState === 'visible') verifierIdeesNonLues(); }, 120000);
+  window._ideesVisHandler = () => { if (document.visibilityState === 'visible') verifierIdeesNonLues(); };
+  document.addEventListener('visibilitychange', window._ideesVisHandler);
+}
+function arreterSurveillanceIdees() {
+  clearInterval(window._ideesTimer); window._ideesTimer = null;
+  if (window._ideesVisHandler) document.removeEventListener('visibilitychange', window._ideesVisHandler);
+  window._ideesVisHandler = null;
+}
+
 function majBadgeIdees(nb) {
   window._nbIdeesNouvelles = nb;
   const tab = document.getElementById('tab-comptes');
@@ -10610,6 +10654,12 @@ function majBadgeIdees(nb) {
       badge.textContent = nb;
     } else if (badge) badge.remove();
     tab.classList.toggle('tab-msg-urgent', nb > 0 && !tab.classList.contains('active'));
+  }
+  const acc = document.getElementById('idees-accueil');
+  if (acc) {
+    acc.style.display = nb > 0 ? '' : 'none';
+    const ta = document.getElementById('idees-accueil-txt');
+    if (ta) ta.textContent = nb + ' nouveau' + (nb > 1 ? 'x' : '') + ' message' + (nb > 1 ? 's' : '') + ' dans la boîte à idées — toucher pour lire';
   }
   const ban = document.getElementById('banniere-idees');
   if (ban) {
@@ -16357,7 +16407,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.1719';
+const APP_VERSION = '261006.1743';
 
 let _swRegistration = null;
 
