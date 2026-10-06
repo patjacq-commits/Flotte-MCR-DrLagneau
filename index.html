@@ -1590,7 +1590,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1007</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1119</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2641,9 +2641,10 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
     </div>
     <!-- Notes -->
-    <div class="form-group" id="rv-notes-wrap" style="display:none;margin-top:10px">
-      <label>Notes / Travaux prévus</label>
-      <textarea id="rv-notes" placeholder="Précisez les travaux…" style="min-height:60px"></textarea>
+    <div class="form-group" id="rv-notes-wrap" style="margin-top:10px">
+      <label>💬 Remarque (optionnelle)</label>
+      <textarea id="rv-notes" placeholder="ex : + montage des pneus neige — penser à apporter les pneus" style="min-height:60px"></textarea>
+      <div style="font-size:11px;color:var(--texte-sec);margin-top:3px">Visible par tous dans les RV planifiés et rappelée à l'ouverture de l'app (48 h avant).</div>
     </div>
     <!-- Indicateur statut (passé/futur) -->
     <div id="rv-statut-info" style="display:none;margin:10px 0;padding:8px 12px;
@@ -5501,8 +5502,8 @@ function getEvenementsJour(dateStr) {
       label: prefix + ' ' + (v?.immat||r.vehId) + ' ' + tl,
       detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||r.vehId) +
         (r.heure ? ' à ' + r.heure : '') +
-        (r.garage ? ' — ' + r.garage : '') +
-        (r.notes ? ' — ' + r.notes : '') });
+        (r.garage ? ' — ' + echapperHtml(r.garage) : '') +
+        (r.notes ? ' — 💬 ' + echapperHtml(r.notes) : '') });
   });
 
   // Fallback ctEvents non encore migrés
@@ -7191,6 +7192,7 @@ const AIDE_CONTENU = {
     <p style="margin:0 0 8px"><b>Autres cas :</b></p>
     <ul style="margin:0;padding-left:20px">
       <li>Bouton « 🚨 Intervention urgente » : raccourci pour un cas prioritaire, hors planification classique.</li>
+      <li>Champ « 💬 Remarque » (tous types de RV, y compris entretien garage et contrôle technique) : ex. « + montage des pneus neige — penser à apporter les pneus ». Elle s'affiche en orange dans les RV planifiés (visible par tous), dans le Calendrier, et est rappelée dans la fenêtre d'ouverture de l'app 48 h avant le RV.</li>
       <li>Bouton « ➕ » : ajouter un nouveau type de RV à la liste déroulante.</li>
     </ul>
     <p style="margin:10px 0 8px"><b>📄 Bon de commande du contrôle technique (AutoSécurité) :</b></p>
@@ -8929,7 +8931,7 @@ function renderRVDashboard() {
     const tl     = labelRV(r.type);
     const garage = r.garage ? ' — ' + r.garage : '';
     const hr     = r.heure  ? ' à <b>' + r.heure + '</b>' : '';
-    const motif  = r.notes  ? '<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">📝 ' + r.notes + '</div>' : '';
+    const motif  = remarqueRVHtml(r, 12);
     const j      = Math.round((new Date(r.date) - new Date(today)) / 86400000);
     const jStr   = j < 0  ? '<span style="color:var(--texte-sec);font-size:11px">Hier</span>'
                  : j === 0 ? '<span style="color:var(--rouge);font-weight:700;font-size:11px">Aujourd\'hui !</span>'
@@ -9297,7 +9299,7 @@ function renderAccueil() {
         : (labelRV(r.type));
       const garage = (r.garage||r.result) ? ' — ' + (r.garage||r.result) : '';
       const hr     = r.heure ? ' à <b>' + r.heure + '</b>' : '';
-      const motif  = (r.notes||r.rem) ? '<div style="font-size:11px;color:var(--texte-sec);margin-top:2px">📝 ' + (r.notes||r.rem) + '</div>' : '';
+      const motif  = remarqueRVHtml(r, 12);
       const j      = Math.round((new Date(r.date) - new Date(today2)) / 86400000);
       const jStr   = j < 0  ? '<span style="color:var(--texte-sec);font-size:11px">Hier</span>'
                    : j === 0 ? '<span style="color:var(--rouge);font-weight:700;font-size:11px">Aujourd\'hui !</span>'
@@ -10731,7 +10733,7 @@ function renderAlerte(a) {
       <div class="alerte-text" style="flex:1">
         <h4 style="color:#1a6b38">${a.titre}</h4>
         <p>${a.detail}</p>
-        ${r.notes ? `<p style="font-style:italic;margin-top:2px">${echapperHtml(r.notes)}</p>` : ''}
+        ${r.notes ? remarqueRVHtml(r, 12) : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
         <span class="badge ok" style="font-size:11px">✅ RV confirmé</span>
@@ -11381,7 +11383,7 @@ function openVehDetail(id) {
               const cl = j <= 1 ? 'var(--rouge)' : 'var(--bleu)';
               return '<tr><td style="padding:5px 0;font-size:12px;color:var(--texte-sec)">'
                 + formatDate(r.date)+hr+'<br><span style="font-size:11px;color:'+cl+'">'+jl+'</span></td>'
-                + '<td style="font-size:12px">'+tl+ga+(r.notes?'<br><span style="color:var(--texte-sec)">'+r.notes+'</span>':'')+'</td></tr>';
+                + '<td style="font-size:12px">'+tl+ga+(r.notes?'<br>'+remarqueRVHtml(r, 11):'')+'</td></tr>';
             }).join('');
       })()
     + '</table>';
@@ -13404,9 +13406,10 @@ function onRVTypeChange() {
     if (type === 'autre') chargerMotifsLibres();
   }
 
-  // Notes — visible pour tous sauf CT et garage (gérés dans Véhicules)
+  // Remarque — visible pour TOUS les types (y compris CT et entretien garage,
+  // ex. « + montage des pneus neige »).
   const notesWrap = document.getElementById('rv-notes-wrap');
-  if (notesWrap) notesWrap.style.display = (type === 'ct' || type === 'garage') ? 'none' : '';
+  if (notesWrap) notesWrap.style.display = '';
 }
 
 function onRVDateChange() {
@@ -13803,6 +13806,17 @@ function confirmerAnnulation(id, type, nouvDate) {
 }
 
 // ── Supprimer un RV ──────────────────────────────────────────
+/* Remarque d'un RV (ex. « + montage des pneus neige — penser à apporter les
+   pneus ») mise en évidence — orange, 💬 — pour que Patrick/Angélique ne
+   l'oublient pas. Échappée (texte libre). Visible de tous les utilisateurs. */
+function remarqueRVHtml(r, fontSize) {
+  const t = r && (r.notes || r.rem);
+  if (!t) return '';
+  return '<div style="font-size:' + (fontSize || 12) + 'px;font-weight:700;color:#7a4a00;background:var(--orange-clair);'
+    + 'border-left:3px solid var(--orange);border-radius:4px;padding:3px 7px;margin-top:4px;display:inline-block">💬 '
+    + echapperHtml(t) + '</div>';
+}
+
 /* Description lisible d'un RV pour les fenêtres de confirmation de
    suppression : l'utilisateur voit EXACTEMENT ce qui va disparaître
    (type, véhicule, date, heure, garage) et peut repérer un mauvais clic. */
@@ -13930,7 +13944,7 @@ function renderTableRV() {
       <td data-label="Véhicule" style="font-size:12px">${v ? v.marque+' '+v.immat : r.vehId}</td>
       <td data-label="Type"><span class="badge info" style="font-size:10px;white-space:nowrap">${tl}</span></td>
       <td data-label="Garage" style="font-size:12px">${r.garage||'—'}</td>
-      <td data-label="Notes" style="font-size:12px;max-width:160px">${r.notes||'—'}${rappelCT}</td>
+      <td data-label="Remarque" style="font-size:12px;max-width:180px">${r.notes ? remarqueRVHtml(r, 12) : '—'}${rappelCT}</td>
       <td data-label="Statut"><span class="${clsSt}" style="font-size:10px;white-space:nowrap">${lblSt}</span></td>
       <td data-label="Actions" style="white-space:nowrap">${btns}</td>
     </tr>`;
@@ -14079,7 +14093,8 @@ function verifierEntretiensUrgents() {
       _icone: iconeTypeRV(r.type),
       badge: 'En retard', badgeCouleur: 'var(--rouge)', badgeFond: 'var(--rouge-clair)',
       titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
-      detail: formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : '') + (r.garage ? ' \u2014 ' + r.garage : ''),
+      detail: formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : '') + (r.garage ? ' \u2014 ' + echapperHtml(r.garage) : '')
+        + (r.notes ? '<br>' + remarqueRVHtml(r, 12) : ''),
       actionsHtml: '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
         + '<button class="btn btn-sm" style="background:var(--vert);color:#fff;border-color:var(--vert);flex:1"'
         + ' onclick="traiterRVDepasse(' + r.id + ',\'effectue\')">\u2705 Effectu\u00e9</button>'
@@ -14116,7 +14131,8 @@ function verifierEntretiensUrgents() {
       badgeFond: sous24h ? 'var(--rouge-clair)' : '#fef5e7',
       titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
       detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ' + heureHtml
-        + (r.garage ? ' \u2014 ' + r.garage : ''),
+        + (r.garage ? ' \u2014 ' + echapperHtml(r.garage) : '')
+        + (r.notes ? '<br>' + remarqueRVHtml(r, 12) : ''),
       actionsHtml: '',
     });
   });
@@ -14957,7 +14973,7 @@ function editHistItem(srcType, srcId) {
       { label:'Date',    type:'date', key:'date',   val: r.date },
       { label:'Heure',   type:'time', key:'heure',  val: r.heure  || '' },
       { label:'Garage',  type:'text', key:'garage', val: r.garage || '' },
-      { label:'Notes',   type:'text', key:'notes',  val: r.notes  || '' },
+      { label:'💬 Remarque', type:'text', key:'notes',  val: r.notes  || '' },
     ], (changes) => {
       const ancienneDate = r.date, ancienImprime = bonCtEstValide(r);
       Object.assign(r, changes);
@@ -15025,7 +15041,7 @@ function editHistItem(srcType, srcId) {
       { label:'Date',   type:'date', key:'date',   val: r.date },
       { label:'Heure',  type:'time', key:'heure',  val: r.heure || '' },
       { label:'Garage', type:'text', key:'garage', val: r.garage || '' },
-      { label:'Notes',  type:'text', key:'notes',  val: r.notes || '' },
+      { label:'💬 Remarque', type:'text', key:'notes',  val: r.notes || '' },
     ];
     if (needsKm) fields.splice(2, 0, { label:'Kilométrage (km)', type:'number', key:'km', val: r.km || '' });
 
@@ -16093,7 +16109,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.1007';
+const APP_VERSION = '261006.1119';
 
 let _swRegistration = null;
 
