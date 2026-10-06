@@ -1577,7 +1577,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0908</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0916</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -7059,12 +7059,12 @@ const AIDE_TITRES = {
 
 const AIDE_CONTENU = {
   accueil: {
-    chauffeur: `<p>Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, alertes urgentes, prochains RV confirmés (garage, pneus…). Les rendez-vous de contrôle technique sont gérés par Angélique et Patrick et n'apparaissent pas ici.</p>`,
+    chauffeur: `<p>Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, alertes urgentes, prochains RV confirmés (contrôle technique, garage, pneus…), en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
     admin: `<p>Vue d'ensemble : véhicules (in)disponibles, RV urgents à traiter, RV planifiés par catégorie, rubriques « À surveiller » (CT, entretien, extincteurs, assurance, SPW…).</p>
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
   },
   vehicules: {
-    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Les rendez-vous de contrôle technique n'y figurent pas (gérés par Angélique et Patrick).</p>`,
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif).</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
         <li>✏️ Modifier les informations d'un véhicule.</li>
         <li>🔴/🟢 Marquer un véhicule (in)disponible.</li>
@@ -8858,11 +8858,11 @@ function renderRVDashboard() {
   if (!panel) return;
   const today = toLocalYMD(new Date());
 
-  // Chauffeurs : les RV de contrôle technique (et le bon de commande qui s'y
-  // rattache) sont réservés à Angélique et Patrick ; ni crayon ni gestion.
+  // Chauffeurs : tous les RV planifiés sont visibles (CT compris), mais sans
+  // crayon ni gestion — le bon de commande CT est réservé à Angélique/Patrick.
   const _adm = userIsAdmin();
   const rvs = rendezvous
-    .filter(r => r.statut === 'planifie' && (_adm || r.type !== 'ct'))
+    .filter(r => r.statut === 'planifie')
     .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
   if (!rvs.length) {
@@ -8924,7 +8924,7 @@ function renderAccueil() {
 
   const nbInfos = getInfosActives().length;
 
-  const nbRVprog = rendezvous.filter(r => r.statut === 'planifie' && (userIsAdmin() || r.type !== 'ct')).length;
+  const nbRVprog = rendezvous.filter(r => r.statut === 'planifie').length;
 
   // Pastille véhicules — calculée avant l'innerHTML
   // Basée sur le vrai statut d'indisponibilité (v.indisponible, activé
@@ -9209,7 +9209,7 @@ function renderAccueil() {
   // ── 2. RV PLANIFIÉS — 4 catégories ──────────────────────────
   {
     const rvProg = rendezvous
-      .filter(r => r.statut === 'planifie' && (userIsAdmin() || r.type !== 'ct'))
+      .filter(r => r.statut === 'planifie')
       .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
 
     // RV d'aujourd'hui ou passés non traités → mis en évidence en haut
@@ -9926,7 +9926,7 @@ function collecterEvenementsVehicule(vehId) {
   const v = vehicules.find(x => x.id === vehId);
 
   // Rendez-vous (tous types précis, tous statuts)
-  rendezvous.filter(r => r.vehId === vehId && (userIsAdmin() || r.type !== 'ct')).forEach(r => {
+  rendezvous.filter(r => r.vehId === vehId).forEach(r => {
     evenements.push({
       date: r.date, categorie: 'rv', icone: iconeTypeRV(r.type),
       titre: 'RV ' + libelleTypeRV(r.type) + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
@@ -10650,7 +10650,6 @@ function buildAlertes() {
 function renderAlerte(a) {
   // Carte RV planifié (déjà confirmé)
   if (a.level === 'rv') {
-    if (a.typeRV === 'ct' && !userIsAdmin()) return '';
     const r = a.rv;
     const icon = a.typeRV === 'ct' ? '🏥' : '🔧';
     return `<div class="alerte-item" style="border-left-color:var(--vert);background:var(--vert-clair)">
@@ -10707,8 +10706,7 @@ function renderAlertesFull() {
   if (!container) return;
 
   const urgentes     = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
-  const surveiller   = alertes.filter(a => (a.level === 'warn' || a.level === 'rv')
-                                            && !(a.level === 'rv' && a.typeRV === 'ct' && !userIsAdmin()));
+  const surveiller   = alertes.filter(a => a.level === 'warn'   || a.level === 'rv');
 
   let html = '';
 
@@ -10927,8 +10925,7 @@ function renderVehicules() {
         ${(() => {
           // RV planifiés à venir pour ce véhicule (tous types)
           const rvs = rendezvous
-            .filter(r => r.vehId === v.id && r.date >= todayStr && r.statut === 'planifie'
-                      && (userIsAdmin() || r.type !== 'ct'))
+            .filter(r => r.vehId === v.id && r.date >= todayStr && r.statut === 'planifie')
             .sort((a,b) => a.date.localeCompare(b.date))
             .slice(0, 3);
           if (!rvs.length) return '';
@@ -15985,7 +15982,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.0908';
+const APP_VERSION = '261006.0916';
 
 let _swRegistration = null;
 
