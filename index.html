@@ -279,7 +279,22 @@
   }
 
   // ── Listeners temps réel ────────────────────────────────────
+  // CORRIGÉ (06/10) : cet écouteur était en { once: true } et les listeners
+  // Firestore n'étaient jamais arrêtés à la déconnexion. Après signOut(),
+  // Firestore les termine (permission refusée) ; or 'firebase-ready' n'est
+  // plus jamais redéclenché pour les rattacher, donc à la reconnexion
+  // (sans recharger la page) plus AUCUN snapshot n'arrivait → _refreshUI
+  // n'était jamais rappelée → aucun rappel au démarrage (CT, entretien,
+  // bon de commande, rappels perso, export Excel). Désormais on
+  // (ré)attache les listeners à CHAQUE connexion et on les détache à la
+  // déconnexion (window._arreterEcouteursTempsReel).
+  window._fbUnsubs = [];
+  window._arreterEcouteursTempsReel = function() {
+    (window._fbUnsubs || []).forEach(u => { try { u(); } catch(e) {} });
+    window._fbUnsubs = [];
+  };
   window.addEventListener('firebase-ready', () => {
+    window._arreterEcouteursTempsReel();
     const COLS = {
       maintenances:  d => { if(d&&d.length){ window.maintenances   = d; } window._refreshUI?.(); },
       ctEvents:      d => { if(d&&d.length){ window.ctEvents        = d; } window._refreshUI?.(); },
@@ -379,8 +394,8 @@
         }
       }
     };
-    Object.entries(COLS).forEach(([col, cb]) => fbListen(col, cb));
-    db.collection('config').doc('infosVehicules').onSnapshot(snap => {
+    Object.entries(COLS).forEach(([col, cb]) => window._fbUnsubs.push(fbListen(col, cb)));
+    window._fbUnsubs.push(db.collection('config').doc('infosVehicules').onSnapshot(snap => {
       if (snap.exists) {
         infosVehicules = snap.data().infos || {};
         localStorage.setItem('mcr_infos_veh', JSON.stringify(infosVehicules));
@@ -388,8 +403,8 @@
         infosVehicules = JSON.parse(localStorage.getItem('mcr_infos_veh') || '{}');
       }
       window._refreshUI?.();
-    }, e => console.warn('Firebase infosVehicules listen error:', e));
-  }, { once: true });
+    }, e => console.warn('Firebase infosVehicules listen error:', e)));
+  });
 
   // ── Firebase Auth : observer de connexion ───────────────────
   auth.onAuthStateChanged(async firebaseUser => {
@@ -1562,7 +1577,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261005.1845</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0819</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -5556,7 +5571,7 @@ function afficherDetailJour(dateStr) {
         <span style="width:10px;height:10px;border-radius:50%;background:${e.couleur};flex-shrink:0;margin-top:4px"></span>
         <div>
           <span style="font-size:13px">${e.detail}</span>
-          ${e.estCT ? '<div style="color:#ff00c8;font-weight:800;font-size:11px;background:#fff0fb;'
+          ${(e.estCT && userIsAdmin()) ? '<div style="color:#ff00c8;font-weight:800;font-size:11px;background:#fff0fb;'
             + 'border:1px solid #ff00c8;border-radius:4px;padding:2px 6px;margin-top:3px;'
             + 'display:inline-block">📎 Remplir bon de commande</div>' : ''}
         </div>
@@ -7034,12 +7049,13 @@ const AIDE_TITRES = {
 
 const AIDE_CONTENU = {
   accueil: {
-    chauffeur: `<p>Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, alertes urgentes, prochains RV.</p>`,
+    chauffeur: `<p>Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, alertes urgentes, prochains RV confirmés (garage, pneus…). Les rendez-vous de contrôle technique sont gérés par Angélique et Patrick et n'apparaissent pas ici.</p>`,
     admin: `<p>Vue d'ensemble : véhicules (in)disponibles, RV urgents à traiter, RV planifiés par catégorie, rubriques « À surveiller » (CT, entretien, extincteurs, assurance, SPW…).</p>
-      <p>Tout rappel de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
+      <p>Tout rappel de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande » — ou, en vert, « ✅ Bon de commande imprimé le … » une fois le bon imprimé.</p>
+      <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
   },
   vehicules: {
-    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif).</p>`,
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Les rendez-vous de contrôle technique n'y figurent pas (gérés par Angélique et Patrick).</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
         <li>✏️ Modifier les informations d'un véhicule.</li>
         <li>🔴/🟢 Marquer un véhicule (in)disponible.</li>
@@ -7047,13 +7063,16 @@ const AIDE_CONTENU = {
       </ul>`,
   },
   alertes: {
-    chauffeur: `<p>Alertes en cours (CT, entretien, extincteurs, assurance…) et échéances à venir, en consultation.</p>`,
+    chauffeur: `<p>Alertes en cours (CT, entretien, extincteurs, assurance…) et échéances à venir, en consultation. La prise de rendez-vous est assurée par Angélique et Patrick.</p>`,
     admin: `<p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>
       <p>Tout rappel lié à un <b>Contrôle Technique</b> affiche systématiquement, en <span style="color:#ff00c8;font-weight:800">rose fluo</span>, le rappel « 📎 Remplir bon de commande ».</p>`,
   },
   kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable.</p>`,
-  calendrier: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>
-    <p>Tout événement de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
+  calendrier: {
+    chauffeur: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>`,
+    admin: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>
+      <p>Tout événement de <b>Contrôle Technique</b> affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
+  },
   chauf: {
     chauffeur: `<p style="margin:0 0 8px">📱 <b>Urgent ?</b> Le numéro de Patrick (0496 22 43 71) est affiché en haut de cette page, en permanence — appelez-le directement plutôt que de remplir le formulaire si la situation l'exige.</p>
       <p style="margin:0 0 4px"><b>Formulaire en 3 étapes :</b></p>
@@ -7117,10 +7136,17 @@ const AIDE_CONTENU = {
       <li>Bouton « 🚨 Intervention urgente » : raccourci pour un cas prioritaire, hors planification classique.</li>
       <li>Bouton « ➕ » : ajouter un nouveau type de RV à la liste déroulante.</li>
     </ul>
-    <p>Tout RV de <b>Contrôle technique</b> planifié affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>`,
+    <p>Tout RV de <b>Contrôle technique</b> planifié affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> : « 📎 Remplir bon de commande ».</p>
+    <p style="margin:10px 0 8px"><b>📄 Bon de commande du contrôle technique (AutoSécurité) :</b></p>
+    <ul style="margin:0;padding-left:20px">
+      <li>Bouton « 🖨 Bon de commande CT » (formulaire) ou 🖨 sur la ligne du RV : génère le PDF d'origine pré-rempli (station, plaque, date du RV) à imprimer ou télécharger. Le bouton « 📄 Formulaire vierge (sans données) » donne le bon à remplir à la main.</li>
+      <li><b>À l'enregistrement d'un RV CT</b>, l'app demande si vous imprimez le bon maintenant. Trop tôt (souvent 30 à 40 jours avant) ? « ⏰ Plus tard » : elle vous le rappellera à l'ouverture de l'app à partir de <b>5 jours avant le RV</b>, jusqu'à impression.</li>
+      <li>Une fois imprimé (ou « ✅ Déjà imprimé »), la mention verte « ✅ Bon imprimé le … » remplace le rose et le rappel disparaît ; le ↩ à côté permet d'annuler ce marquage.</li>
+      <li><b>RV déplacé</b> (avant ou après) : le bon déjà imprimé n'est plus valable (« ⚠️ à refaire ») et l'app redemande si vous voulez le réimprimer pour la nouvelle date.</li>
+    </ul>`,
   carwash: {
-    chauffeur: `<p>Enregistrer un lavage (date, véhicule, lieu, montant) et consulter l'historique.</p>`,
-    admin: `<p>En plus de l'enregistrement d'un lavage (comme les chauffeurs) : « Recharge clé Car Wash » (date, lieu, montant payé ou gratuit) et son historique dédié.</p>`,
+    chauffeur: `<p>Consultation uniquement — historique des lavages et récapitulatif annuel. L'enregistrement est réservé à Angélique et Patrick.</p>`,
+    admin: `<p>Enregistrement d'un lavage (date, véhicule, lieu, montant) et historique ; en plus : « Recharge clé Car Wash » (date, lieu, montant payé ou gratuit) et son historique dédié.</p>`,
   },
   pneus: `<p style="margin:0 0 8px"><b>Permutation saisonnière (été ↔ hiver) :</b></p>
     <ol style="margin:0 0 10px;padding-left:20px">
@@ -7175,7 +7201,7 @@ const AIDE_CONTENU = {
     </ul>`,
   profil: {
     chauffeur: `<ul style="margin:0;padding-left:20px">
-        <li>Mode gros caractères, numéro de portable (pour être rappelé en cas de besoin), changement de mot de passe.</li>
+        <li>Mode gros caractères, numéro de portable (pour être rappelé en cas de besoin), changement de mot de passe (mot de passe oublié : « Mot de passe oublié ? » sur l'écran de connexion — l'e-mail de réinitialisation est en français).</li>
         <li>Activation des notifications (résumé quotidien à 7h).</li>
         <li>💡 Boîte à idées : envoyer une suggestion ou une remarque à Patrick, avec l'historique de vos propres envois.</li>
       </ul>`,
@@ -7765,6 +7791,11 @@ async function seDeconnecter() {
   window._exportExcelChecked     = false;
   window._rappelsPersoChecked    = false;
   window._bonsCtChecked          = false;
+
+  // Détacher les listeners temps réel AVANT signOut (sinon Firestore les
+  // termine avec une erreur de permission) — ils seront rattachés à la
+  // prochaine connexion (voir 'firebase-ready').
+  if (typeof window._arreterEcouteursTempsReel === 'function') window._arreterEcouteursTempsReel();
 
   await auth.signOut();
   currentUser = null;
@@ -15963,7 +15994,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261005.1845';
+const APP_VERSION = '261006.0819';
 
 let _swRegistration = null;
 
