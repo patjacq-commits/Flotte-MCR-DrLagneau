@@ -1590,7 +1590,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.0954</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1007</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2718,7 +2718,10 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
       <div class="form-group">
         <label>Véhicule</label>
-        <select id="pneu-veh"></select>
+        <select id="pneu-veh" onchange="majIndicationJantesPermutation()"></select>
+        <div id="pneu-jantes-hint" style="display:none;margin-top:6px;padding:6px 10px;background:var(--bleu-clair);border-left:3px solid var(--bleu);border-radius:6px;font-size:12px;color:var(--bleu)">
+          🛞 <b>Pneus montés sur jantes</b> — on change les roues complètes, sans démonter les pneus.
+        </div>
       </div>
       <div class="form-group">
         <label>Type</label>
@@ -4022,6 +4025,27 @@ window._refreshUI = function() {
     }, 1800);
   }
 
+  // Migration unique (06/10) : pneus été/neige montés sur jantes pour les
+  // TLAN633, TLAN910 et TLAN527. Exécutée une seule fois par un admin
+  // (document config/migrationJantes), ne réécrase jamais un choix déjà
+  // fait dans la fiche véhicule (champ défini => on n'y touche pas).
+  if (!window._jantesMigChecked && window.vehicules?.length
+      && typeof currentUser !== 'undefined' && currentUser && userIsAdmin()) {
+    window._jantesMigChecked = true;
+    db.collection('config').doc('migrationJantes').get().then(doc => {
+      if (doc.exists && doc.data().done === true) return;
+      let modif = false;
+      ['TLAN633', 'TLAN910', 'TLAN527'].forEach(id => {
+        const v = vehicules.find(x => x.id === id);
+        if (v && v.pneus_sur_jantes === undefined) { v.pneus_sur_jantes = true; modif = true; }
+      });
+      window.vehicules = vehicules;
+      return (modif ? saveAll() : Promise.resolve())
+        .then(() => db.collection('config').doc('migrationJantes').set({ done: true, date: new Date().toISOString() }))
+        .then(() => { if (modif) { renderVehicules(); } });
+    }).catch(e => { window._jantesMigChecked = false; console.warn('Migration jantes reportée:', e); });
+  }
+
   // Rappels personnels — chargés tôt (avant le popup CT/entretien) pour
   // qu'ils puissent y figurer dès le premier affichage. chargerRappelsPerso
   // re-déclenche elle-même verifierEntretiensUrgents() une fois les
@@ -4713,6 +4737,9 @@ function majDimCmdPneu() {
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
   dimEl.value = type === 'hiver' ? (v.dim_hiver || '') : (v.dim_ete || '');
+  // Véhicules dont les pneus sont montés sur jantes : case cochée d'office
+  const cbJ = document.getElementById('cmd-pneu-jantes');
+  if (cbJ) cbJ.checked = !!v.pneus_sur_jantes;
 }
 
 function confirmerAjoutCommandePneu() {
@@ -4749,6 +4776,15 @@ function supprimerCommandePneu(id) {
   renderCommandesPneus();
 }
 
+/* Affiche l'indication « sur jantes » sous le champ Véhicule (formulaire de
+   permutation) quand le véhicule choisi a ses pneus été/neige sur jantes. */
+function majIndicationJantesPermutation() {
+  const hint = document.getElementById('pneu-jantes-hint');
+  if (!hint) return;
+  const v = vehicules.find(x => x.id === document.getElementById('pneu-veh')?.value);
+  hint.style.display = (v && v.pneus_sur_jantes && userIsAdmin()) ? '' : 'none';
+}
+
 function initPneus() {
   renderCommandesPneus();
   const vehiculesPneus = getVehiculesPneus();
@@ -4770,6 +4806,7 @@ function initPneus() {
     });
   }
   document.getElementById('pneu-date').value = toLocalYMD(new Date());
+  majIndicationJantesPermutation();
 
   // Remplacement ponctuel d'un pneu — mêmes véhicules éligibles
   const selVehRp = document.getElementById('rp-veh');
@@ -5149,7 +5186,7 @@ function renderPneuRecap() {
     }
 
     return `<tr>
-      <td style="font-weight:500">${v.marque}${iconeRemplacement}<br><span class="immat" style="font-size:10px">${v.immat}</span></td>
+      <td style="font-weight:500">${v.marque}${iconeRemplacement}<br><span class="immat" style="font-size:10px">${v.immat}</span>${v.pneus_sur_jantes ? '<br><span class="badge info" style="font-size:10px">🛞 Sur jantes</span>' : ''}</td>
       <td style="font-size:12px">${v.pneus_ete ? `<b>${v.dim_ete || ''}</b><br><span style="color:var(--texte-sec)">${v.pneus_ete}</span>` : '—'}</td>
       <td style="font-size:12px">${v.pneus_hiver ? `<b>${v.dim_hiver || ''}</b><br><span style="color:var(--texte-sec)">${v.pneus_hiver}</span>` : '—'}</td>
       <td style="font-size:12px">${formatDate(dateHE)}</td>
@@ -7079,7 +7116,7 @@ const AIDE_CONTENU = {
   vehicules: {
     chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif).</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
-        <li>✏️ Modifier les informations d'un véhicule.</li>
+        <li>✏️ Modifier les informations d'un véhicule, dont la case « 🛞 Pneus été et neige montés sur jantes » (TLAN633, TLAN910 et TLAN527 sont cochés d'office) : une pastille « 🛞 Sur jantes » apparaît alors sur la fiche — visible uniquement par Angélique et Patrick.</li>
         <li>🔴/🟢 Marquer un véhicule (in)disponible.</li>
         <li>🗑 Archiver ou supprimer définitivement un véhicule ; réactiver un véhicule archivé.</li>
       </ul>`,
@@ -7185,6 +7222,7 @@ const AIDE_CONTENU = {
       <li>Bouton « Récupérer les dates manquantes » complète automatiquement les permutations sans date suivante connue.</li>
       <li>Les deux historiques (permutations et remplacements) restent modifiables/supprimables à tout moment.</li>
     </ul>
+    <p>🛞 <b>Véhicules sur jantes</b> (case cochée dans la fiche véhicule) : une indication s'affiche sous le champ Véhicule lors d'une permutation (on change les roues complètes, sans démonter les pneus), la case « Sur jantes » est cochée d'office dans « Commande pneus à prévoir » et une pastille figure dans le récapitulatif.</p>
     <p>👉 Besoin de planifier une permutation ou une crevaison à l'avance ? Cet onglet est le seul endroit pour le faire — le menu « Prendre RV » n'en propose plus l'option et y renvoie directement.</p>`,
   adblue: {
     chauffeur: `<p>Consultation uniquement — récapitulatif annuel par véhicule et historique des pleins. La saisie d'un plein est réservée à Angélique et Patrick.</p>`,
@@ -7819,6 +7857,7 @@ async function seDeconnecter() {
   window._exportExcelChecked     = false;
   window._rappelsPersoChecked    = false;
   window._bonsCtChecked          = false;
+  window._jantesMigChecked       = false;
 
   // Détacher les listeners temps réel AVANT signOut (sinon Firestore les
   // termine avec une erreur de permission) — ils seront rattachés à la
@@ -10883,6 +10922,11 @@ function renderVehicules() {
       ? `<span class="badge info" style="font-size:10px;margin-top:3px">${v.equipement === 'Élévateur' ? '🔼 Élévateur' : '📐 Rampe'}</span>`
       : '';
 
+    // Pneus été/neige montés sur jantes — info réservée à Angélique/Patrick
+    const jantesBadge = (userIsAdmin() && v.pneus_sur_jantes)
+      ? `<span class="badge info" style="font-size:10px;margin-top:3px" title="Pneus été et neige montés sur jantes">🛞 Sur jantes</span>`
+      : '';
+
     // Pastille RV : compte les RV planifiés à venir pour ce véhicule
     const todayStr = toLocalYMD(new Date());
     const nbRV = [...rendezvous, ...ctEvents]
@@ -10911,6 +10955,7 @@ function renderVehicules() {
           <h3>${v.marque}</h3>
           <span class="immat">${v.immat}</span>
           ${equipBadge}
+          ${jantesBadge}
         </div>
         <div class="veh-badges" style="flex-shrink:0">
           <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls==='urgent'?'CT':'CT '+ct.cls.toUpperCase()}</span>
@@ -11420,6 +11465,9 @@ function openVehEdit(id) {
     + field('Marque pneus été',              'text',  'pneus_ete',            v.pneus_ete)
     + field('Dimensions pneus hiver 🟤',      'text',  'dim_hiver',            v.dim_hiver)
     + field('Marque pneus hiver',            'text',  'pneus_hiver',          v.pneus_hiver)
+    + '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
+    + '<input type="checkbox" id="edit-sur-jantes"' + (v.pneus_sur_jantes ? ' checked' : '') + ' style="width:18px;height:18px;cursor:pointer" />'
+    + ' 🛞 Pneus été et neige montés sur jantes</label></div>'
     + field('Permutation H→É (date)',        'date',  'permut_hiver_ete_date',v.permut_hiver_ete_date)
     + field('Permutation H→É (km)',          'number','permut_hiver_ete_km',  v.permut_hiver_ete_km)
     + field('Permutation É→H (date)',        'date',  'permut_ete_hiver_date',v.permut_ete_hiver_date)
@@ -11481,6 +11529,10 @@ async function saveVehEdit(vehId) {
         v[key] = val === '' ? null : val;
       }
     });
+
+    // Pneus sur jantes (case à cocher, hors data-key)
+    const cbJantes = document.getElementById('edit-sur-jantes');
+    if (cbJantes) v.pneus_sur_jantes = cbJantes.checked;
 
     // Champ extincteur (checkbox "Manquant" prioritaire sur la date)
     const manquant = document.getElementById('edit-extincteur-manquant')?.checked;
@@ -16041,7 +16093,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.0954';
+const APP_VERSION = '261006.1007';
 
 let _swRegistration = null;
 
