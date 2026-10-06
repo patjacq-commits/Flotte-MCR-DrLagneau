@@ -5,6 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://www.gstatic.com https://cdnjs.cloudflare.com; frame-src https://*.firebaseapp.com https://*.google.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#c0392b">
 <meta name="mobile-web-app-capable" content="yes">
@@ -199,18 +200,85 @@
   window.addEventListener('offline', updateNetworkStatus);
 
   // ── Helpers Firestore ────────────────────────────────────────
+  // ── Écriture DIFFÉRENTIELLE (07/10) ─────────────────────────────
+  // Avant : chaque saveAll() SUPPRIMAIT tous les documents de la collection
+  // puis réécrivait le tableau local — deux admins qui enregistraient en
+  // même temps s'écrasaient, une copie locale périmée effaçait des données
+  // récentes, et au-delà de 250 documents le lot (limite Firestore : 500
+  // opérations) échouait en permanence.
+  // Maintenant : on mémorise l'état connu du serveur par collection
+  // (_baseline : id → contenu, alimenté par le chargement initial et par les
+  // listeners temps réel) et on n'écrit QUE les documents nouveaux ou
+  // modifiés ; on ne supprime QUE les documents qui étaient connus et ont
+  // disparu du tableau local (suppression volontaire). Un document ajouté
+  // par quelqu'un d'autre et inconnu de cet appareil n'est jamais touché.
+  const _baseline = {};
+  function _stable(o) {
+    return JSON.stringify(o, (k, v) =>
+      (v && typeof v === 'object' && !Array.isArray(v))
+        ? Object.keys(v).sort().reduce((a, k2) => { a[k2] = v[k2]; return a; }, {})
+        : v);
+  }
+  function _setBaseline(colName, docs) {
+    const m = new Map();
+    docs.forEach(d => m.set(d.id, _stable(d.data())));
+    _baseline[colName] = m;
+  }
+  const TAILLE_LOT = 400; // marge sous la limite Firestore de 500 opérations
   async function fbSaveCollection(colName, arr) {
     try {
       const colRef = db.collection(colName);
-      const snap   = await colRef.get();
-      const batch  = db.batch();
-      snap.docs.forEach(d => batch.delete(d.ref));
+      let premiere = false;
+      if (!_baseline[colName]) {
+        // État serveur encore inconnu : on le lit, et on N'EFFACE RIEN cette
+        // fois (impossible de distinguer une suppression volontaire d'un
+        // document inconnu de cet appareil).
+        const snap = await colRef.get();
+        _setBaseline(colName, snap.docs);
+        premiere = true;
+      }
+      const base = _baseline[colName];
+      const ecrire = [];
+      const vus = new Set();
       arr.forEach(item => {
-        const ref = colRef.doc(String(item.id));
-        batch.set(ref, item);
+        if (!item || item.id === undefined || item.id === null || item.id === '') {
+          console.warn('fbSaveCollection', colName, ': élément sans id ignoré', item);
+          return;
+        }
+        const id = String(item.id);
+        vus.add(id);
+        const j = _stable(item);
+        if (base.get(id) !== j) ecrire.push({ id, item, j });
       });
-      await batch.commit();
-      return true;
+      let supprimer = [];
+      if (!premiere) base.forEach((_, id) => { if (!vus.has(id)) supprimer.push(id); });
+      // Garde-fou : une suppression massive (tableau local vide ou presque,
+      // copie corrompue…) est refusée plutôt qu'exécutée.
+      if (supprimer.length > 0 &&
+          ((supprimer.length >= 5 && supprimer.length > base.size / 2) ||
+           (arr.length === 0 && base.size > 3))) {
+        console.warn('fbSaveCollection', colName, ': suppression massive refusée (' + supprimer.length + '/' + base.size + ')');
+        window._fbGarde = colName;
+        supprimer = [];
+        // on continue d'écrire les modifications, mais on signale l'échec
+        var gardeDeclenche = true;
+      }
+      const ops = [
+        ...ecrire.map(e => ({ t: 'set', id: e.id, item: e.item, j: e.j })),
+        ...supprimer.map(id => ({ t: 'del', id })),
+      ];
+      for (let k = 0; k < ops.length; k += TAILLE_LOT) {
+        const batch = db.batch();
+        ops.slice(k, k + TAILLE_LOT).forEach(o => {
+          const ref = colRef.doc(o.id);
+          if (o.t === 'set') batch.set(ref, o.item); else batch.delete(ref);
+        });
+        await batch.commit();
+        ops.slice(k, k + TAILLE_LOT).forEach(o => {
+          if (o.t === 'set') base.set(o.id, o.j); else base.delete(o.id);
+        });
+      }
+      return !gardeDeclenche;
     } catch(e) {
       console.warn('Firebase write error:', colName, e);
       return false;
@@ -220,17 +288,21 @@
   async function fbGetCollection(colName) {
     try {
       const snap = await db.collection(colName).get();
+      _setBaseline(colName, snap.docs);
       return snap.docs.map(d => d.data());
     } catch(e) { console.warn('Firebase read error:', colName, e); return null; }
   }
 
   function fbListen(colName, callback) {
     return db.collection(colName).onSnapshot(snap => {
+      _setBaseline(colName, snap.docs);
       callback(snap.docs.map(d => d.data()));
     }, e => console.warn('Firebase listen error:', colName, e));
   }
 
-  window._fb     = { db, fbSaveCollection, fbGetCollection, fbListen };
+  function fbResetBaseline() { Object.keys(_baseline).forEach(k => delete _baseline[k]); }
+
+  window._fb     = { db, fbSaveCollection, fbGetCollection, fbListen, fbResetBaseline };
   window.db      = db;
 
   // ── Chargement initial depuis Firebase ──────────────────────
@@ -292,6 +364,7 @@
   window._arreterEcouteursTempsReel = function() {
     (window._fbUnsubs || []).forEach(u => { try { u(); } catch(e) {} });
     window._fbUnsubs = [];
+    try { window._fb?.fbResetBaseline?.(); } catch(e) {}
   };
   window.addEventListener('firebase-ready', () => {
     window._arreterEcouteursTempsReel();
@@ -1590,7 +1663,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1602</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.1702</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3354,7 +3427,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <h3 style="color:var(--bleu)">💾 Sauvegarde & Restauration</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">
       Exportez toutes les données en un fichier JSON. Recommandé après chaque maintenance mensuelle.
-      Le fichier contient toutes les collections : véhicules, maintenances, CT, RV, AdBlue, Car Wash, pneus, recharges clé.
+      Le fichier contient toutes les collections : véhicules, maintenances, CT, RV, AdBlue, Car Wash, pneus, recharges clé, rappels, commentaires garage, réglages, historique (et, pour Patrick, commandes AdBlue, boîte à idées, comptes). Un rappel s'affiche après 30 jours sans sauvegarde.
     </p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="btn primary" onclick="exportBackupJSON()"
@@ -4014,6 +4087,7 @@ window._refreshUI = function() {
     window._exportExcelChecked = true;
     setTimeout(function() {
       if (typeof verifierRappelExportExcel === 'function') verifierRappelExportExcel();
+      if (typeof verifierRappelBackupJSON === 'function') verifierRappelBackupJSON();
     }, 700);
   }
 
@@ -4114,7 +4188,12 @@ async function saveAll() {
   const estSuperAdmin = role === 'superadmin';
   if (window._fb && peutEcrire) {
     const { fbSaveCollection } = window._fb;
-    const ensureId = (arr, prefix) => arr.map((x,i) => ({ ...x, id: x.id || `${prefix}_${Date.now()}_${i}` }));
+    // Les id manquants sont posés SUR LES ORIGINAUX (et plus sur des copies) :
+    // l'écriture différentielle exige des id stables d'une sauvegarde à
+    // l'autre, sinon chaque enregistrement créerait un doublon.
+    const ensureId = (arr, prefix) => { arr.forEach((x,i) => { if (x && (x.id === undefined || x.id === null || x.id === '')) x.id = `${prefix}_${Date.now()}_${i}`; }); return arr; };
+    [['maint',maintenances],['ct',ctEvents],['rv',rendezvous],['ab',adblues],['cw',carwashes],['rk',rechargesCle],['pm',permutations],['chauf',messagesChauf]]
+      .forEach(([pf, a]) => ensureId(a, pf));
     const ecrituresBase = [
       fbSaveCollection('maintenances',  ensureId(maintenances.map(m => ({...m, photosData:[]})), 'maint')),
       fbSaveCollection('ctEvents',      ensureId(ctEvents,      'ct')),
@@ -4156,7 +4235,10 @@ async function saveAll() {
     // d'écriture passait totalement inaperçu : les données restaient
     // correctes en local, mais jamais synchronisées vers Firestore, sans
     // aucun signal pour s'en rendre compte.
-    if (resultats.some(r => r === false)) {
+    if (window._fbGarde) {
+      const col = window._fbGarde; window._fbGarde = null;
+      toast('⚠️ Suppression massive refusée dans « ' + col + ' » (protection). Rechargez la page si vous vouliez vraiment tout supprimer.');
+    } else if (resultats.some(r => r === false)) {
       toast('⚠️ Sauvegarde locale OK, mais la synchronisation cloud a échoué (réseau ?). Réessayez dans un instant.');
     }
   }
@@ -15370,6 +15452,18 @@ async function rafraichirBadgeExportExcel() {
    permet de la faire réapparaître ici même quand elle ne l'aurait pas été
    pour les autres raisons habituelles (signalements, RV urgents, véhicules
    indisponibles). */
+/* Rappel de sauvegarde complète JSON (07/10) — Patrick seulement, une fois
+   par ouverture de l'app : si aucune sauvegarde depuis 30 jours (ou jamais)
+   depuis cet appareil. */
+function verifierRappelBackupJSON() {
+  if (!userIsSuperAdmin()) return;
+  const last = localStorage.getItem('mcr_last_backup');
+  const jours = last ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000) : null;
+  if (jours !== null && jours < 30) return;
+  toast('💾 ' + (jours === null ? 'Aucune sauvegarde complète faite depuis cet appareil.' : 'Dernière sauvegarde complète il y a ' + jours + ' jours.')
+    + ' Rapports → « Exporter toutes les données ».');
+}
+
 async function verifierRappelExportExcel() {
   if (!userIsAdmin()) return;
   const navbarBadge = document.getElementById('navbar-export-excel');
@@ -15659,7 +15753,7 @@ async function exporterExcel() {
   }
 }
 
-function exportBackupJSON() {
+async function exportBackupJSON() {
   const now     = new Date();
   const dateStr = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}`;
   const photosLS = JSON.parse(localStorage.getItem('mcr_photos') || '{}');
@@ -15668,8 +15762,9 @@ function exportBackupJSON() {
     _meta: {
       version:    APP_VERSION,
       exportDate: now.toISOString(),
-      exportBy:   isAdmin ? 'admin' : 'chauffeur',
+      exportBy:   userIsSuperAdmin() ? 'superadmin' : (userIsAdmin() ? 'admin' : 'chauffeur'),
       app:        'MCR Opont Flotte',
+      complet:    true,
     },
     vehicules,
     maintenances,
@@ -15682,6 +15777,26 @@ function exportBackupJSON() {
     messagesChauf,
     photos: photosLS,
   };
+
+  // Sauvegarde COMPLÈTE (07/10) : en plus des collections chargées en
+  // mémoire, on relit directement le serveur pour les collections qui ne le
+  // sont pas toujours (commandes pneus, rappels perso, remplacements de
+  // pneu, commentaires garage, réglages, historique, et — pour Patrick
+  // seul — commandes AdBlue, suggestions, comptes). Une collection
+  // illisible (droits) est simplement notée dans _meta.indisponibles.
+  const extra = ['commandesPneus', 'rappelsPerso', 'remplacementsPneu', 'commentairesGarage', 'config', 'historique'];
+  if (userIsSuperAdmin()) extra.push('commandesAdBlue', 'suggestionsChauf', 'roles');
+  backup._meta.indisponibles = [];
+  if (window.db && navigator.onLine) {
+    await Promise.all(extra.map(async col => {
+      try {
+        const snap = await window.db.collection(col).get();
+        backup[col] = snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
+      } catch (e) { backup._meta.indisponibles.push(col); }
+    }));
+  } else {
+    backup._meta.indisponibles = extra.slice();
+  }
 
   const json = JSON.stringify(backup, null, 2);
   const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
@@ -15696,7 +15811,9 @@ function exportBackupJSON() {
   localStorage.setItem('mcr_last_backup', now.toISOString());
   updateBackupInfo();
   logExport(`Export backup : mcr-backup-${dateStr}.json (${maintenances.length} maint., ${vehicules.length} véh.)`);
-  toast(`Backup exporté : mcr-backup-${dateStr}.json ✅`);
+  toast(backup._meta.indisponibles.length
+    ? `Backup exporté (partiel : ${backup._meta.indisponibles.join(', ')} non lus) ⚠️`
+    : `Backup complet exporté : mcr-backup-${dateStr}.json ✅`);
 }
 
 function importBackupJSON(event) {
@@ -16185,7 +16302,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.1602';
+const APP_VERSION = '261006.1702';
 
 let _swRegistration = null;
 
