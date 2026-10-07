@@ -1667,7 +1667,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261006.2242</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1432</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -7331,7 +7331,13 @@ const AIDE_CONTENU = {
     <p style="margin:0 0 8px"><b>Pour un RV déjà planifié, bouton « Marquer effectué » :</b></p>
     <ul style="margin:0 0 10px;padding-left:20px">
       <li><b>Type Entretien garage</b> → propose un kilométrage et une date ; une fois validés, l'entretien du véhicule est mis à jour (même mécanisme que ci-dessus).</li>
-      <li><b>Type Contrôle technique</b> → propose une nouvelle date de validité CT : « 💾 Mettre à jour le CT » l'enregistre sur le véhicule, ou « Marquer effectué sans mise à jour » clôture le RV sans toucher au CT (utile par exemple si le contrôle a échoué).</li>
+      <li><b>Type Contrôle technique</b> → demande le résultat (le même écran s'ouvre depuis le rappel « En retard » au démarrage) :
+        <ul>
+          <li><b>🟢 Carte verte</b> : la nouvelle date de validité est calculée automatiquement = <b>date de référence (l'ancien « CT valable jusqu'au ») + 6 mois</b> (12 mois pour une camionnette ; réglable par véhicule dans « ✏️ Modifier » → « Intervalle CT (mois) »). Elle est affichée et modifiable ; elle n'est appliquée qu'au clic sur « Carte verte — mettre à jour le CT ». Le calcul part toujours de la date de référence, jamais du jour du passage ; si la date obtenue est déjà dépassée (véhicule longtemps immobilisé), l'écran vous l'indique et vous la faites valider ou corriger.</li>
+          <li><b>🔴 Carte rouge</b> : la date de validité du CT <b>ne change pas</b>. Vous indiquez jusqu'à quand le véhicule peut circuler (proposé : RV + 15 jours) et, si vous le souhaitez, la date du RV de repassage (créé automatiquement). L'alerte « 🔴 CARTE ROUGE » reste affichée jusqu'au repassage ; au repassage, « Carte verte » = date de référence + 6 mois et efface la carte rouge.</li>
+          <li><b>Marquer effectué sans mise à jour</b> : clôture le RV sans rien changer au véhicule.</li>
+        </ul>
+        La date « CT valable jusqu'au » reste modifiable à la main dans la fiche (« ✏️ Modifier »). Un véhicule indisponible dont le CT est dépassé (ou en carte rouge) affiche « CT dépassé (véhicule immobilisé) » et l'appli demande confirmation avant de le remettre en service.</li>
       <li><b>Autres types</b> → marque simplement le RV « effectué », sans mise à jour automatique d'un champ véhicule.</li>
     </ul>
     <p style="margin:0 0 8px"><b>Autres cas :</b></p>
@@ -10724,11 +10730,18 @@ function buildAlertes() {
     const rvCT = rvActif(v.id, 'ct');
 
     // Carte rouge CT
-    if (v.ct_carte_rouge_date) {
-      const jCR = daysUntil(v.ct_carte_rouge_date);
+    // (07/10) champ unique : v.ct_carte_rouge — celui de la fiche véhicule ET
+    // du nouveau flux « carte rouge » ; ct_carte_rouge_date = ancien nom,
+    // jamais renseigné nulle part, lu ici par prudence seulement.
+    const crDate = v.ct_carte_rouge || v.ct_carte_rouge_date;
+    if (crDate) {
+      const jCR = daysUntil(crDate);
+      const circ = jCR === null ? '' : (jCR < 0
+        ? ` Délai DÉPASSÉ de ${Math.abs(jCR)} jour${Math.abs(jCR)>1?'s':''} : ne plus circuler.`
+        : ` (encore ${jCR} jour${jCR>1?'s':''})`);
       alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct', carteRouge:true,
         titre:`🔴 CARTE ROUGE — ${v.marque} ${v.immat}`,
-        detail:`CT refusé. Circulation autorisée jusqu'au ${formatDate(v.ct_carte_rouge_date)}${jCR !== null ? ` (encore ${Math.max(0,jCR)} jour${jCR>1?'s':''})` : ''}. RV de repassage obligatoire !` });
+        detail:`CT refusé. Circulation autorisée jusqu'au ${formatDate(crDate)}${jCR !== null && jCR >= 0 ? circ : ''}.${jCR !== null && jCR < 0 ? circ : ''} ${rvCT ? `Repassage prévu le ${formatDate(rvCT.date)}${rvCT.heure ? ' à ' + rvCT.heure : ''}.` : (userIsAdmin() ? 'RV de repassage obligatoire !' : 'Repassage à planifier.')}` });
     } else if (rvCT) {
       if (j !== null && j <= 35) {
         alertes.push({ level:'rv', icon:'📅', category:'ct', vehId:v.id, typeRV:'ct', rv:rvCT,
@@ -10738,8 +10751,10 @@ function buildAlertes() {
     } else {
       if (j !== null && j < 0) {
         alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
-          titre:`CT expiré — ${v.marque} ${v.immat}`,
-          detail:`CT expiré depuis ${Math.abs(j)} jours ! Action immédiate requise.` });
+          titre: v.indisponible ? `CT dépassé (véhicule immobilisé) — ${v.marque} ${v.immat}` : `CT expiré — ${v.marque} ${v.immat}`,
+          detail: v.indisponible
+            ? `CT dépassé depuis ${Math.abs(j)} jours. Véhicule immobilisé : à contrôler avant toute remise en service.`
+            : `CT expiré depuis ${Math.abs(j)} jours ! Action immédiate requise.` });
       } else if (j !== null && j <= 7) {
         alertes.push({ level:'urgent', icon:'🚨', category:'ct', vehId:v.id, typeRV:'ct', rvAPrendre:true,
           titre:`CT URGENT — ${v.marque} ${v.immat}`,
@@ -11481,6 +11496,10 @@ function openVehDetail(id) {
   const carteRougeRow = v.ct_carte_rouge
     ? dr('🔴 Carte rouge jusqu\'au', formatDate(v.ct_carte_rouge), 'urgent', 'CARTE ROUGE')
     : '';
+  const dv = v.ct_derniere_validation;
+  const derniereValidRow = dv
+    ? dr('Dernier CT', (dv.resultat === 'verte' ? '🟢 carte verte' : '🔴 carte rouge') + ' le ' + formatDate(dv.date), '', '')
+    : '';
   const rechtRows = v.equipement
     ? '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;border-top:1px solid var(--gris-bord)">🔧 ' + v.equipement + ' — Recht</td></tr>'
       + dr('Date de visite', formatDate(v.recht_date))
@@ -11513,6 +11532,7 @@ function openVehDetail(id) {
     + dr('Kilométrage', v.km ? parseInt(v.km).toLocaleString('fr-BE') + ' km' : '—')
     + dr('CT valable jusqu\'au', formatDate(v.ct_valid), ctA?.cls, ctA?.txt)
     + carteRougeRow
+    + derniereValidRow
     + dr('Dernier entretien le', formatDate(v.dernier_entretien_date))
     + dr('Dernier entretien à', v.dernier_entretien_km ? parseInt(v.dernier_entretien_km).toLocaleString('fr-BE') + ' km' : '—')
     + dr('Prochain entretien', (() => {
@@ -11639,6 +11659,7 @@ function openVehEdit(id) {
   let body = '<div id="veh-edit-fields" class="form-grid">'
     + field('CT valable jusqu\'au',           'date',  'ct_valid',            v.ct_valid)
     + field('🔴 Carte rouge CT jusqu\'au',   'date',  'ct_carte_rouge',       v.ct_carte_rouge,    'Laisser vide si aucune')
+    + field('Intervalle CT (mois)',          'number','ct_intervalle_mois',   v.ct_intervalle_mois, 'défaut : ' + ctIntervalleMois({ type: v.type }) + ' (modifiable)')
     + fieldProchainKm(v.prochain_entretien_km)
     + field('Dernier entretien le',          'date',  'dernier_entretien_date',v.dernier_entretien_date)
     + field('Dernier entretien à (km)',      'number','dernier_entretien_km', v.dernier_entretien_km)
@@ -12388,6 +12409,16 @@ function annulerIndisponibilitePrevue(vehId) {
 function marquerVehiculeDisponible(vehId) {
   const v = vehicules.find(x => x.id === vehId);
   if (!v) return;
+  // Garde-fou CT (07/10) : ne pas remettre en service un véhicule dont le CT
+  // est dépassé ou dont la carte rouge est expirée sans le signaler.
+  {
+    const jCT = v.ct_valid ? daysUntil(v.ct_valid) : null;
+    const jCR = v.ct_carte_rouge ? daysUntil(v.ct_carte_rouge) : null;
+    const cause = (jCR !== null && jCR < 0) ? 'Délai de carte rouge dépassé (' + formatDate(v.ct_carte_rouge) + ').'
+      : (v.ct_carte_rouge ? 'Carte rouge en cours : repassage non confirmé.'
+      : (jCT !== null && jCT < 0 ? 'CT dépassé depuis ' + Math.abs(jCT) + ' jour(s) (' + formatDate(v.ct_valid) + ').' : ''));
+    if (cause && !confirm('⚠️ ' + v.marque + ' ' + v.immat + '\n\n' + cause + '\n\nRemettre quand même en service ?')) return;
+  }
   const motifPrecedent = v.motifIndisponible;
   const depuisPrecedent = v.indisponibleDepuis;
 
@@ -13869,72 +13900,189 @@ function marquerRVEffectue(id) {
     return;
   }
 
-  // AJOUTÉ (01/10) : si RV type CT ET admin → proposer mise à jour de la
-  // date de validité du CT, comme pour l'entretien garage ci-dessus. Avant
-  // ce correctif, marquer un RV CT "effectué" via "Prendre RV" ne mettait
-  // jamais à jour veh.ct_valid — seule une modification passant par le
-  // circuit ctEvents (historique séparé) le faisait. Patrick a choisi
-  // d'unifier : un seul geste suffit désormais aussi pour le CT.
+  // Résultat du contrôle technique (carte verte / carte rouge) — voir
+  // ouvrirModalResultatCT() : la nouvelle date est calculée automatiquement.
   if (r.type === 'ct' && userIsAdmin()) {
-    const v    = vehicules.find(x => x.id === r.vehId);
-    const vNom = v ? v.marque + ' ' + v.immat : r.vehId;
-
-    const ex = document.getElementById('modal-ct-effectue');
-    if (ex) ex.remove();
-
-    const div = document.createElement('div');
-    div.id = 'modal-ct-effectue';
-    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
-      + 'display:flex;align-items:center;justify-content:center;padding:16px';
-    div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;'
-      + 'max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
-      + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🔒 Contrôle technique effectué</div>'
-      + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">' + vNom + '</div>'
-      + '<div class="form-group" style="margin-bottom:16px">'
-      + '<label>Nouveau CT valable jusqu\'au *</label>'
-      + '<input type="date" id="ct-valid-input" style="font-size:16px;font-weight:700" /></div>'
-      + '<div style="display:flex;flex-direction:column;gap:8px">'
-      + '<button class="btn primary" onclick="confirmerCTEffectue(\'' + id + '\')">'
-      + '💾 Mettre à jour le CT</button>'
-      + '<button class="btn" onclick="document.getElementById(\'modal-ct-effectue\').remove();'
-      + '_marquerRVEffectueSimple(\'' + id + '\')">'
-      + 'Marquer effectué sans mise à jour</button>'
-      + '<button class="btn" onclick="document.getElementById(\'modal-ct-effectue\').remove()">'
-      + 'Annuler</button>'
-      + '</div></div>';
-    document.body.appendChild(div);
-    setTimeout(() => document.getElementById('ct-valid-input')?.focus(), 100);
+    ouvrirModalResultatCT(id);
     return;
   }
 
   _marquerRVEffectueSimple(id);
 }
 
-function confirmerCTEffectue(id) {
+/* ── Contrôle technique : résultat « carte verte » / « carte rouge » ─────
+   Règle (07/10, voulue par Patrick) : la nouvelle date de validité est
+   TOUJOURS « date de référence (= l'ancien "CT valable jusqu'au") + N mois »
+   — jamais « jour du passage + N mois » — et n'est appliquée qu'à la
+   confirmation de la CARTE VERTE (donc après réparation / repassage éventuel).
+   Carte rouge : la date de validité NE CHANGE PAS ; on enregistre seulement
+   la date limite de circulation (v.ct_carte_rouge, même champ que la fiche
+   véhicule) jusqu'au repassage.
+   N = 6 mois par défaut pour un VSL, 12 pour une camionnette, modifiable par
+   véhicule (champ « Intervalle CT (mois) » de la fiche). */
+function ctIntervalleMois(v) {
+  const n = parseInt(v && v.ct_intervalle_mois);
+  return n > 0 ? n : (v && v.type === 'Camionnette' ? 12 : 6);
+}
+/* Ajoute n mois à une date AAAA-MM-JJ en restant dans le mois cible
+   (31/08 + 6 mois → 28/02, pas 03/03). */
+function ajouterMoisYMD(ymd, n) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ''));
+  if (!m) return '';
+  const y = +m[1], mo = +m[2], d = +m[3];
+  const t = new Date(y, mo - 1 + n, 1);
+  const dernier = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+  t.setDate(Math.min(d, dernier));
+  return toLocalYMD(t);
+}
+function ctProchaineDate(v) {
+  return (v && v.ct_valid) ? ajouterMoisYMD(v.ct_valid, ctIntervalleMois(v)) : '';
+}
+
+function ouvrirModalResultatCT(id) {
   const r = rendezvous.find(x => String(x.id) === String(id));
   if (!r) return;
+  if (r.statut === 'effectue' && r.resultatCT) { toast('Le résultat de ce CT est déjà enregistré.'); return; }
+  const v    = vehicules.find(x => x.id === r.vehId);
+  const vNom = v ? v.marque + ' ' + v.immat : r.vehId;
+  const today = toLocalYMD(new Date());
+  const calc  = ctProchaineDate(v);
+  const n     = ctIntervalleMois(v);
+  const depasseDeja = calc && calc <= today;
+  const baseRouge = (r.date && r.date >= today) ? r.date : today;
+  const limiteRouge = ajouterJoursYMD(r.date && r.date < today ? r.date : baseRouge, 15);
 
-  const dateValid = document.getElementById('ct-valid-input')?.value;
-  if (!dateValid) { toast('⚠️ Veuillez saisir la date de validité du CT'); return; }
-
+  // Fenêtre du rappel de démarrage : on la ferme (sinon elle resterait
+  // affichée avec une ligne déjà traitée) et on la rouvrira à la fin.
+  window._rouvrirPopupApresCT = !!document.getElementById('modal-entretien-urgent');
+  document.getElementById('modal-entretien-urgent')?.remove();
   document.getElementById('modal-ct-effectue')?.remove();
 
-  const v = vehicules.find(x => x.id === r.vehId);
-  if (v) v.ct_valid = dateValid;
-  window.vehicules = vehicules; // sync immédiat pour éviter écrasement par _refreshUI
-  const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
-  if (ref) ref.ct_valid = dateValid;
+  const div = document.createElement('div');
+  div.id = 'modal-ct-effectue';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:20px;max-width:400px;width:100%;'
+    + 'box-shadow:0 8px 32px rgba(0,0,0,0.25);max-height:94vh;overflow-y:auto">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:2px">🔒 Résultat du contrôle technique</div>'
+    + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">' + echapperHtml(vNom)
+    + (v && v.ct_valid ? ' — date de référence actuelle : <b>' + formatDate(v.ct_valid) + '</b>' : ' — aucune date de CT encodée') + '</div>'
 
-  r.statut = 'effectue';
-  if (window.db) {
-    window.db.collection('rendezvous').doc(String(id)).update({ statut: 'effectue' }).catch(() => {});
-  }
+    + '<div style="border:2px solid var(--vert);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--vert-clair)">'
+    + '<div style="font-weight:700;margin-bottom:6px">🟢 Carte verte</div>'
+    + '<label style="font-size:12px">Nouveau CT valable jusqu\'au *</label>'
+    + '<input type="date" id="ct-valid-input" value="' + (calc || '') + '" style="font-size:16px;font-weight:700;width:100%;margin:4px 0" />'
+    + (calc ? '<div style="font-size:12px;color:var(--texte-sec)">Calcul : ' + formatDate(v.ct_valid) + ' + ' + n + ' mois = <b>' + formatDate(calc) + '</b> (modifiable)</div>' : '')
+    + (depasseDeja ? '<div style="font-size:12px;font-weight:700;color:var(--rouge);margin-top:4px">⚠️ Cette date est déjà dépassée : vérifiez-la ou corrigez-la avant de valider.</div>' : '')
+    + '<button class="btn primary" style="width:100%;margin-top:8px;background:var(--vert);border-color:var(--vert)" onclick="confirmerCTEffectue(\'' + id + '\')">💾 Carte verte — mettre à jour le CT</button>'
+    + '</div>'
+
+    + '<div style="border:2px solid var(--rouge);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--rouge-clair)">'
+    + '<div style="font-weight:700;margin-bottom:6px">🔴 Carte rouge</div>'
+    + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:6px">La date de validité du CT ne change pas tant que la carte verte n\'est pas obtenue.</div>'
+    + '<label style="font-size:12px">Circulation autorisée jusqu\'au *</label>'
+    + '<input type="date" id="ct-rouge-limite" value="' + limiteRouge + '" style="width:100%;margin:4px 0 8px;font-size:15px" />'
+    + '<label style="font-size:12px">RV de repassage le <span style="color:var(--texte-sec)">(facultatif — crée le RV)</span></label>'
+    + '<input type="date" id="ct-rouge-repassage" style="width:100%;margin:4px 0;font-size:15px" />'
+    + '<button class="btn" style="width:100%;margin-top:8px;background:var(--rouge);border-color:var(--rouge);color:#fff" onclick="confirmerCTCarteRouge(\'' + id + '\')">🔴 Carte rouge — enregistrer</button>'
+    + '</div>'
+
+    + '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<button class="btn" onclick="document.getElementById(\'modal-ct-effectue\').remove();_marquerRVEffectueSimple(\'' + id + '\')">Marquer effectué sans mise à jour</button>'
+    + '<button class="btn" onclick="fermerModalResultatCT()">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+function fermerModalResultatCT() {
+  document.getElementById('modal-ct-effectue')?.remove();
+  if (window._rouvrirPopupApresCT) { window._rouvrirPopupApresCT = false; setTimeout(() => verifierEntretiensUrgents(), 300); }
+}
+
+function ajouterJoursYMD(ymd, n) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ''));
+  if (!m) return '';
+  return toLocalYMD(new Date(+m[1], +m[2] - 1, +m[3] + n));
+}
+
+function _finirResultatCT() {
+  window.vehicules = vehicules;
   window.rendezvous = rendezvous;
   saveAll();
   renderTableRV();
   renderAccueil();
   renderVehicules();
+  if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull();
+  if (window._rouvrirPopupApresCT) { window._rouvrirPopupApresCT = false; setTimeout(() => verifierEntretiensUrgents(), 300); }
+}
+
+function confirmerCTEffectue(id) {
+  const r = rendezvous.find(x => String(x.id) === String(id));
+  if (!r) return;
+  if (r.statut === 'effectue' && r.resultatCT) { toast('Le résultat de ce CT est déjà enregistré.'); return; }
+
+  const dateValid = document.getElementById('ct-valid-input')?.value;
+  if (!dateValid) { toast('⚠️ Veuillez saisir la date de validité du CT'); return; }
+  if (dateValid <= toLocalYMD(new Date())
+      && !confirm('La nouvelle date (' + formatDate(dateValid) + ') est déjà dépassée.\n\nL\'enregistrer quand même ?')) return;
+
+  document.getElementById('modal-ct-effectue')?.remove();
+
+  const v = vehicules.find(x => x.id === r.vehId);
+  const ancienne = v ? v.ct_valid : null;
+  if (v) {
+    v.ct_valid = dateValid;
+    v.ct_carte_rouge = null;
+    v.ct_derniere_validation = { date: toLocalYMD(new Date()), resultat: 'verte', ancienneReference: ancienne || null, nouvelleDate: dateValid };
+  }
+  const ref = VEHICULES_DATA.find(x => x.id === r.vehId);
+  if (ref) ref.ct_valid = dateValid;
+
+  r.statut = 'effectue';
+  r.resultatCT = 'verte';
+  r.ctNouvelleDate = dateValid;
+
+  logAction('modification', 'vehicules',
+    'CT carte verte : ' + (v ? v.immat : r.vehId) + ' — ' + (ancienne ? formatDate(ancienne) : '—') + ' → ' + formatDate(dateValid),
+    { ct_valid: ancienne || null }, { ct_valid: dateValid });
+  _finirResultatCT();
   toast('✅ CT enregistré — valable jusqu\'au ' + formatDate(dateValid));
+}
+
+function confirmerCTCarteRouge(id) {
+  const r = rendezvous.find(x => String(x.id) === String(id));
+  if (!r) return;
+  if (r.statut === 'effectue' && r.resultatCT) { toast('Le résultat de ce CT est déjà enregistré.'); return; }
+  const limite    = document.getElementById('ct-rouge-limite')?.value;
+  const repassage = document.getElementById('ct-rouge-repassage')?.value;
+  if (!limite) { toast('⚠️ Indiquez jusqu\'à quand le véhicule peut circuler'); return; }
+  document.getElementById('modal-ct-effectue')?.remove();
+
+  const v = vehicules.find(x => x.id === r.vehId);
+  if (v) {
+    v.ct_carte_rouge = limite; // ct_valid NE change PAS
+    v.ct_derniere_validation = { date: toLocalYMD(new Date()), resultat: 'rouge', limite };
+  }
+  r.statut = 'effectue';
+  r.resultatCT = 'rouge';
+  r.ctCarteRougeJusqua = limite;
+
+  let nouveau = null;
+  if (repassage) {
+    nouveau = {
+      id: Date.now(), vehId: r.vehId, type: 'ct', date: repassage, heure: '',
+      garage: r.garage || '', km: '', notes: 'Repassage (carte rouge)',
+      statut: 'planifie', createdAt: new Date().toISOString(),
+    };
+    rendezvous.unshift(nouveau);
+  }
+  logAction('modification', 'vehicules',
+    'CT carte ROUGE : ' + (v ? v.immat : r.vehId) + ' — circulation jusqu\'au ' + formatDate(limite)
+      + (repassage ? ' — repassage le ' + formatDate(repassage) : ''),
+    null, { ct_carte_rouge: limite });
+  _finirResultatCT();
+  if (nouveau && userIsAdmin()) setTimeout(() => proposerBonCt(nouveau.id, 'nouveau'), 400);
+  toast('🔴 Carte rouge enregistrée — la date de validité du CT reste inchangée');
 }
 
 function _marquerRVEffectueSimple(id) {
@@ -14344,9 +14492,9 @@ function verifierEntretiensUrgents() {
   // reste roulant sans risque immédiat. D'autant plus critique ici que ces
   // véhicules transportent des personnes vers des rendez-vous médicaux.
   const cts = vehicules.filter(v => {
-    if (!v.ct_valid) return false;
-    const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
-    if (j > 60) return false;
+    if (!v.ct_valid && !v.ct_carte_rouge) return false;
+    const j = v.ct_valid ? Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000) : -1;
+    if (j > 60 && !v.ct_carte_rouge) return false;
     return !rendezvous.some(r => r.vehId === v.id && r.type === 'ct' && r.statut === 'planifie');
   });
 
@@ -14479,6 +14627,21 @@ function verifierEntretiensUrgents() {
   });
 
   cts.forEach(v => {
+    if (v.ct_carte_rouge) {
+      const jr = Math.round((new Date(v.ct_carte_rouge) - new Date(today)) / 86400000);
+      items.push({
+        v, type: 'ct', priorite: PRIORITE.retard,
+        _dateRef: new Date(v.ct_carte_rouge),
+        _icone: '\ud83d\udd34',
+        badge: 'Carte rouge', badgeCouleur: 'var(--rouge)', badgeFond: 'var(--rouge-clair)',
+        titre: v.marque + ' \u2014 ' + v.immat,
+        detail: 'Repassage \u00e0 planifier \u2014 circulation jusqu\'au ' + formatDate(v.ct_carte_rouge)
+          + (jr < 0 ? ' (<span class="chiffre-urgent-clignote">d\u00e9lai d\u00e9pass\u00e9</span>)' : ' (encore ' + jr + ' j)'),
+        actionsHtml: '<button class="btn btn-sm primary" style="width:100%;margin-top:6px"'
+          + ' onclick="document.getElementById(\'modal-entretien-urgent\').remove();allerAuxRV()">\ud83d\udccb Prendre RV</button>',
+      });
+      return;
+    }
     const j = Math.round((new Date(v.ct_valid) - new Date(today)) / 86400000);
     const dejaDepasse = j < 0;
     const jStr = j < 0
@@ -14622,6 +14785,13 @@ function traiterRVDepasse(id, action) {
     // Garder planifié mais ouvrir le modal de report/annulation
     document.getElementById('modal-rv-depasses')?.remove();
     annulerRV(id);
+    return;
+  }
+
+  // CT « effectué » : on ne marque pas directement, on demande le résultat
+  // (carte verte / rouge) — la date de validité est alors mise à jour.
+  if (action === 'effectue' && r.type === 'ct' && userIsAdmin()) {
+    ouvrirModalResultatCT(id);
     return;
   }
 
@@ -16413,7 +16583,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261006.2242';
+const APP_VERSION = '261007.1432';
 
 let _swRegistration = null;
 
