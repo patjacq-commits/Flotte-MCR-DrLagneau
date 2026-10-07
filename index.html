@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1605</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1625</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2795,7 +2795,17 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <!-- PAGE PNEUS (admin) -->
 <div id="page-pneus" class="page">
   <h2 style="margin-bottom:14px">🛞 Gestion des pneus</h2>
-  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Tous les VSL (sauf 1RER037 — 4 saisons). Permutations été↔hiver à enregistrer ici.</p>
+  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:16px">Tous les VSL (sauf 1RER037 — 4 saisons). Permutations été↔hiver à enregistrer ici. Les véhicules marqués « pneus 4 saisons » sont exclus.</p>
+
+  <!-- Tour de permutation : quels véhicules ont déjà permuté pour la saison en cours -->
+  <div class="form-card" id="pneu-tour-card" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+      <h3 id="pneu-tour-titre" style="margin:0;font-size:13px;color:var(--texte-sec);text-transform:uppercase;letter-spacing:0.5px">Tour de permutation</h3>
+      <span id="pneu-tour-compteur" style="font-size:13px;font-weight:700"></span>
+    </div>
+    <div id="pneu-tour-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    <div id="pneu-tour-info" style="font-size:12px;color:var(--texte-sec);margin-top:6px"></div>
+  </div>
 
   <!-- Saisie permutation -->
   <div class="form-card">
@@ -4724,7 +4734,94 @@ function renderCWKTable() {
 // à jour manuellement — même critère que celui déjà utilisé ailleurs pour
 // exclure 1RER037 des statistiques et du contrôle technique à +2 ans.
 function getVehiculesPneus() {
-  return vehicules.filter(v => v.type !== 'Camionnette' && !v.archive).map(v => v.id);
+  return vehicules.filter(v => v.type !== 'Camionnette' && !v.archive && !v.pneus_4_saisons).map(v => v.id);
+}
+
+/* ── Tour de permutation saisonnier ──────────────────────────────────────
+   Fenêtres : Été→Hiver du 1er octobre au 31 décembre ; Hiver→Été du 1er mars
+   au 30 juin. Hors fenêtre : aucun tour (rien n'est réclamé).
+   Un véhicule est « fait » s'il a une permutation EFFECTIVE (RV effectué, ou
+   saisie directe non future) du bon type depuis 45 jours avant l'ouverture de
+   la fenêtre, ou une date de permutation de ce type sur sa fiche à partir de
+   là ; « RV planifié » s'il a un RV permutation planifié ; sinon « à faire ».
+   Véhicules suivis : mêmes que l'onglet Pneus (getVehiculesPneus). */
+function tourPermutationEnCours(dateRef) {
+  const d = dateRef || new Date();
+  const y = d.getFullYear(), m = d.getMonth() + 1;
+  if (m >= 10) return { type: 'ete-hiver', debut: y + '-10-01', fin: y + '-12-31', label: '☀→❄ Été → Hiver' };
+  if (m >= 3 && m <= 6) return { type: 'hiver-ete', debut: y + '-03-01', fin: y + '-06-30', label: '❄→☀ Hiver → Été' };
+  return null;
+}
+
+function statutTourPermutation(v, tour) {
+  const limite = toLocalYMD(new Date(new Date(tour.debut + 'T00:00:00').getTime() - 45 * 86400000));
+  const faitEntree = permutations.some(p => p.vehId === v.id && p.type === tour.type
+    && (p.date || '') >= limite && permutationEffective(p));
+  const dateFiche = tour.type === 'hiver-ete' ? v.permut_hiver_ete_date : v.permut_ete_hiver_date;
+  const todayYMD = toLocalYMD(new Date());
+  const faitFiche = !!dateFiche && dateFiche >= limite && dateFiche <= todayYMD;
+  if (faitEntree || faitFiche) return { etat: 'fait' };
+  const rv = rendezvous
+    .filter(r => r.vehId === v.id && r.type === 'permutation' && r.statut === 'planifie')
+    .filter(r => (r.date || '') <= tour.fin)   // un RV de l'autre saison (ex. mars) ne compte pas
+    .filter(r => { const pm = permutations.find(x => x.rvLieeId && String(x.rvLieeId) === String(r.id)); return !pm || pm.type === tour.type; })
+    .sort((a,b) => (a.date || '').localeCompare(b.date || ''))[0];
+  if (rv) return { etat: 'planifie', date: rv.date, retard: (rv.date || '') < todayYMD };
+  return { etat: 'afaire' };
+}
+
+function listeTourPermutation() {
+  const tour = tourPermutationEnCours();
+  if (!tour) return { tour: null, items: [] };
+  const ids = getVehiculesPneus();
+  const ordre = ORDRE_VEHICULES.filter(id => ids.includes(id)).concat(ids.filter(id => !ORDRE_VEHICULES.includes(id)));
+  const items = ordre.map(id => vehicules.find(x => x.id === id)).filter(Boolean)
+    .map(v => ({ v, st: statutTourPermutation(v, tour) }));
+  return { tour, items };
+}
+
+function renderTourPermutation() {
+  const chips = document.getElementById('pneu-tour-chips');
+  if (!chips) return;
+  const compteur = document.getElementById('pneu-tour-compteur');
+  const titre = document.getElementById('pneu-tour-titre');
+  const info = document.getElementById('pneu-tour-info');
+  const { tour, items } = listeTourPermutation();
+  if (!tour) {
+    chips.innerHTML = '';
+    compteur.textContent = '';
+    titre.textContent = 'Tour de permutation';
+    const m = new Date().getMonth() + 1;
+    info.textContent = 'Aucun tour en cours. Prochain : ' + (m >= 7 ? 'Été → Hiver à partir du 1er octobre.' : 'Hiver → Été à partir du 1er mars.');
+    return;
+  }
+  titre.textContent = 'Tour de permutation — ' + tour.label;
+  let nb = 0;
+  chips.innerHTML = items.map(({ v, st }) => {
+    if (st.etat === 'fait') { nb++;
+      return '<span style="font-size:12px;font-weight:600;background:var(--vert-clair);color:var(--vert);padding:4px 10px;border-radius:12px;white-space:nowrap">✅ ' + v.immat + '</span>'; }
+    if (st.etat === 'planifie')
+      return '<button onclick="showPage(\'garages\', document.querySelector(\'.tab-btn[onclick*=&quot;garages&quot;]\'))" title="RV permutation planifié" '
+        + 'style="font-size:12px;font-weight:600;background:var(--orange-clair);color:#a04000;border:1.5px solid var(--orange);padding:3px 9px;border-radius:12px;cursor:pointer;white-space:nowrap">'
+        + '📅 ' + v.immat + ' — ' + formatDateCourt(st.date) + (st.retard ? ' ⚠' : '') + '</button>';
+    return '<button onclick="preparerPermutationDepuisTour(\'' + v.id + '\')" title="Enregistrer / planifier la permutation" '
+      + 'style="font-size:12px;font-weight:600;background:var(--rouge-clair);color:var(--rouge);border:1.5px dashed var(--rouge);padding:3px 9px;border-radius:12px;cursor:pointer;white-space:nowrap">⬜ ' + v.immat + '</button>';
+  }).join('');
+  compteur.textContent = nb + '/' + items.length + ' permuté' + (nb > 1 ? 's' : '');
+  compteur.style.color = (items.length && nb === items.length) ? 'var(--vert)' : 'var(--texte-sec)';
+  info.textContent = 'Fenêtre : du ' + formatDateCourt(tour.debut) + ' au ' + formatDateCourt(tour.fin)
+    + '. 🔴 = rien d\'enregistré ni de planifié (clic : préremplit le formulaire). 📅 = RV planifié (clic : voir les RV).';
+}
+
+function preparerPermutationDepuisTour(vehId) {
+  const tour = tourPermutationEnCours();
+  const selV = document.getElementById('pneu-veh');
+  if (selV) selV.value = vehId;
+  const selT = document.getElementById('pneu-type');
+  if (selT && tour) selT.value = tour.type;
+  majIndicationJantesPermutation();
+  selV?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  toast('Formulaire prérempli — choisissez la date (future = RV planifié automatiquement).');
 }
 
 // ── COMMANDES PNEUS ──────────────────────────────────────────
@@ -4898,6 +4995,14 @@ function majIndicationJantesPermutation() {
 function initPneus() {
   renderCommandesPneus();
   const vehiculesPneus = getVehiculesPneus();
+  // La liste des véhicules suivis a changé (ex. case « 4 saisons » cochée) :
+  // on reconstruit les listes déroulantes, construites une seule fois sinon.
+  const sigPneus = vehiculesPneus.join(',');
+  if (window._pneuVehSig !== undefined && window._pneuVehSig !== sigPneus) {
+    ['pneu-veh','rp-veh'].forEach(i => { const e = document.getElementById(i); if (e) e.innerHTML = ''; });
+    ['pneu-filter-veh','rp-filter-veh'].forEach(i => { const e = document.getElementById(i); if (e) while (e.options.length > 1) e.remove(1); });
+  }
+  window._pneuVehSig = sigPneus;
   const selVeh = document.getElementById('pneu-veh');
   if (selVeh && selVeh.options.length <= 0) {
     selVeh.innerHTML = vehiculesPneus.map(id => {
@@ -5301,6 +5406,7 @@ async function deleteRemplacementPneu(id) {
 }
 
 function renderPneuRecap() {
+  try { renderTourPermutation(); } catch(e) { console.warn('tour permutation', e); }
   const tbody = document.getElementById('pneu-recap-tbody');
   if (!tbody) return;
   tbody.innerHTML = getVehiculesPneus().map(id => {
@@ -7409,6 +7515,9 @@ const AIDE_CONTENU = {
     <ol style="margin:0 0 10px;padding-left:20px">
       <li>Renseigner date, véhicule, type (hiver→été ou été→hiver), kilométrage, lieu, remarques.</li>
       <li><b>Date future</b> → un RV lié est créé automatiquement, visible dans le Calendrier et l'Historique des RV (catégorie 🛞 Pneumatiques).</li>
+      <li><b>🔄 Tour de permutation</b> (carte en haut de la page Pneus) : comme la « Progression du tour » des maintenances, elle montre quels véhicules ont déjà permuté pour la saison. Deux tours par an : <b>Été → Hiver du 1er octobre au 31 décembre</b>, <b>Hiver → Été du 1er mars au 30 juin</b> (hors de ces dates : aucun tour). ✅ vert = permutation faite (RV effectué, saisie du jour ou date récente sur la fiche) ; 📅 orange = RV planifié (⚠ si la date est dépassée ; clic = ouvrir les RV) ; ⬜ rouge = rien d'enregistré ni de planifié (clic = préremplit le formulaire avec le véhicule et le bon type).</li>
+      <li><b>Tableau de bord</b> : pendant un tour, la puce « 🛞 N permutations sans RV » apparaît dans les Priorités du jour (Angélique et Patrick) et disparaît quand chaque véhicule est permuté ou a un RV.</li>
+      <li><b>Pneus 4 saisons</b> : sur la fiche du véhicule (✏️ Modifier), cocher « 🌤 Pneus 4 saisons » l'exclut du tour, du récapitulatif et des listes de l'onglet Pneus. Les camionnettes (1RER037) sont exclues d'office. Décocher pour le remettre dans le suivi.</li>
       <li><b>Permutation planifiée</b> (RV lié) : elle apparaît « ⏳ planifiée » dans l'historique et ne compte comme faite (récapitulatif, fiche véhicule) qu'une fois son RV marqué effectué. Si le RV est annulé ou supprimé, la permutation planifiée disparaît ; s'il est reporté, sa date suit le nouveau RV.</li>
       <li><b>RV « permutation » marqué effectué</b> (✅ dans Prendre RV ou dans la fenêtre « En retard » au démarrage) alors qu'aucune permutation n'est enregistrée : une petite fenêtre propose d'enregistrer la permutation (type, date, km, lieu). Elle est alors créée, liée au RV, et la fiche du véhicule est mise à jour. Le choix « sans enregistrer » reste possible.</li>
       <li><b>Date du jour ou passée</b> → enregistrée directement comme faite, sans création de RV.</li>
@@ -9348,7 +9457,11 @@ function renderAccueil() {
 
     const nbIndisponibles = vehicules.filter(v => !v.archive && v.indisponible).length;
 
-    const total = nbSignalements + nbRVUrgents + nbIndisponibles;
+    // Tour de permutation : véhicules sans permutation ni RV pour la saison
+    let nbPermutSansRV = 0;
+    try { nbPermutSansRV = listeTourPermutation().items.filter(i => i.st.etat === 'afaire').length; } catch(e) {}
+
+    const total = nbSignalements + nbRVUrgents + nbIndisponibles + nbPermutSansRV;
 
     {
       // Puces compactes en ligne (au lieu de grandes tuiles) — icône + nombre
@@ -9412,6 +9525,7 @@ function renderAccueil() {
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${puce(nbSignalements, '💬', 'signalement' + (nbSignalements>1?'s':''), 'chauf')}
           ${puce(nbRVUrgents, '📋', 'RV urgent' + (nbRVUrgents>1?'s':''), 'garages')}
+          ${puce(nbPermutSansRV, '🛞', 'permutation' + (nbPermutSansRV>1?'s':'') + ' sans RV', 'pneus')}
           ${puceIndispo}
         </div>
         ${detailIndispo}
@@ -11188,6 +11302,10 @@ function renderVehicules() {
       ? `<span class="badge info" style="font-size:10px;margin-top:3px" title="Pneus été et neige montés sur jantes">🛞 Sur jantes</span>`
       : '';
 
+    const saisonsBadge = (userIsAdmin() && (v.pneus_4_saisons || v.type === 'Camionnette'))
+      ? `<span class="badge info" style="font-size:10px;margin-top:3px" title="Pas de permutation saisonnière">🌤 4 saisons</span>`
+      : '';
+
     // Pastille RV : compte les RV planifiés à venir pour ce véhicule
     const todayStr = toLocalYMD(new Date());
     const nbRV = [...rendezvous, ...ctEvents]
@@ -11221,6 +11339,7 @@ function renderVehicules() {
           <span class="immat">${v.immat}</span>
           ${equipBadge}
           ${jantesBadge}
+          ${saisonsBadge}
         </div>
         <div class="veh-badges" style="flex-shrink:0">
           <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls==='urgent'?'CT':'CT '+ct.cls.toUpperCase()}</span>
@@ -11739,6 +11858,9 @@ function openVehEdit(id) {
     + '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
     + '<input type="checkbox" id="edit-sur-jantes"' + (v.pneus_sur_jantes ? ' checked' : '') + ' style="width:18px;height:18px;cursor:pointer" />'
     + ' 🛞 Pneus été et neige montés sur jantes</label></div>'
+    + '<div class="form-group"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
+    + '<input type="checkbox" id="edit-4saisons"' + (v.pneus_4_saisons ? ' checked' : '') + ' style="width:18px;height:18px;cursor:pointer" />'
+    + ' 🌤 Pneus 4 saisons (exclu du tour de permutation)</label></div>'
     + field('Permutation H→É (date)',        'date',  'permut_hiver_ete_date',v.permut_hiver_ete_date)
     + field('Permutation H→É (km)',          'number','permut_hiver_ete_km',  v.permut_hiver_ete_km)
     + field('Permutation É→H (date)',        'date',  'permut_ete_hiver_date',v.permut_ete_hiver_date)
@@ -11804,6 +11926,8 @@ async function saveVehEdit(vehId) {
     // Pneus sur jantes (case à cocher, hors data-key)
     const cbJantes = document.getElementById('edit-sur-jantes');
     if (cbJantes) v.pneus_sur_jantes = cbJantes.checked;
+    const cb4s = document.getElementById('edit-4saisons');
+    if (cb4s) v.pneus_4_saisons = cb4s.checked;
 
     // Champ extincteur (checkbox "Manquant" prioritaire sur la date)
     const manquant = document.getElementById('edit-extincteur-manquant')?.checked;
@@ -16741,7 +16865,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261007.1605';
+const APP_VERSION = '261007.1625';
 
 let _swRegistration = null;
 
