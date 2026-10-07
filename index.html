@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1556</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1605</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -4950,12 +4950,44 @@ function initPneus() {
    aveuglément avec la valeur qui vient d'être saisie/modifiée, ce qui
    donnait un résultat faux si on éditait une entrée qui n'était pas la plus
    récente (ex: correction d'une ancienne permutation). */
-function recalculerCachePermutation(vehId, type) {
+/* Une permutation est « faite » seulement si son RV lié est effectué ; sans
+   RV lié (saisie directe, ancienne donnée), si sa date n'est pas future. */
+function permutationEffective(p) {
+  if (!p) return false;
+  const rv = p.rvLieeId ? rendezvous.find(r => String(r.id) === String(p.rvLieeId)) : null;
+  if (rv) return rv.statut === 'effectue';
+  return (p.date || '') <= toLocalYMD(new Date());
+}
+
+/* Répercute un changement de statut d'un RV « permutation » sur la
+   permutation liée (effectué / annulé / reporté / supprimé). */
+function propagerRVVersPermutation(r, action, nouveauRV) {
+  if (!r || r.type !== 'permutation') return;
+  const pm = permutations.find(x => x.rvLieeId && String(x.rvLieeId) === String(r.id));
+  if (!pm) return;
+  if (action === 'effectue') {
+    recalculerCachePermutation(pm.vehId, pm.type);
+  } else if (action === 'reporte' && nouveauRV) {
+    pm.date = nouveauRV.date; pm.rvLieeId = nouveauRV.id;
+    if (r.auto && !nouveauRV.auto) nouveauRV.auto = r.auto;
+  } else if (action === 'annule' || action === 'supprime') {
+    if (action === 'supprime' && r.statut === 'effectue') {
+      pm.rvLieeId = null; // la permutation a eu lieu : on la garde
+    } else {
+      permutations = permutations.filter(x => x !== pm);
+      window.permutations = permutations;
+      recalculerCachePermutation(pm.vehId, pm.type, true);
+    }
+  }
+}
+
+function recalculerCachePermutation(vehId, type, garderSiVide) {
   const veh = vehicules.find(v => v.id === vehId);
   if (!veh) return;
   const derniere = permutations
-    .filter(p => p.vehId === vehId && p.type === type)
+    .filter(p => p.vehId === vehId && p.type === type && permutationEffective(p))
     .sort((a,b) => b.date.localeCompare(a.date))[0];
+  if (!derniere && garderSiVide) return;
   if (type === 'hiver-ete') {
     veh.permut_hiver_ete_date = derniere ? derniere.date : null;
     veh.permut_hiver_ete_km   = derniere ? derniere.km   : null;
@@ -5275,8 +5307,8 @@ function renderPneuRecap() {
     const v = vehicules.find(x => x.id === id);
     if (!v) return '';
     // Dernière permutation de chaque type (depuis le tableau permutations ou les données véhicule)
-    const lastHE = permutations.filter(p => p.vehId === id && p.type === 'hiver-ete').sort((a,b) => b.date.localeCompare(a.date))[0];
-    const lastEH = permutations.filter(p => p.vehId === id && p.type === 'ete-hiver').sort((a,b) => b.date.localeCompare(a.date))[0];
+    const lastHE = permutations.filter(p => p.vehId === id && p.type === 'hiver-ete' && permutationEffective(p)).sort((a,b) => b.date.localeCompare(a.date))[0];
+    const lastEH = permutations.filter(p => p.vehId === id && p.type === 'ete-hiver' && permutationEffective(p)).sort((a,b) => b.date.localeCompare(a.date))[0];
     const dateHE = lastHE ? lastHE.date : v.permut_hiver_ete_date;
     const kmHE   = lastHE ? lastHE.km   : v.permut_hiver_ete_km;
     const dateEH = lastEH ? lastEH.date : v.permut_ete_hiver_date;
@@ -5321,7 +5353,7 @@ function renderPneuHistorique() {
         const v = vehicules.find(x => x.id === p.vehId);
         const typeStr = p.type === 'hiver-ete' ? '❄→☀ H→É' : '☀→❄ É→H';
         return `<tr>
-          <td>${formatDate(p.date)}</td>
+          <td>${formatDate(p.date)}${permutationEffective(p) ? '' : '<br><span class="badge warn" style="font-size:10px">⏳ planifiée</span>'}</td>
           <td style="font-size:12px">${v ? v.marque + ' ' + v.immat : p.vehId}</td>
           <td><span class="badge info" style="font-size:10px">${typeStr}</span></td>
           <td>${p.km ? parseInt(p.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
@@ -7377,6 +7409,7 @@ const AIDE_CONTENU = {
     <ol style="margin:0 0 10px;padding-left:20px">
       <li>Renseigner date, véhicule, type (hiver→été ou été→hiver), kilométrage, lieu, remarques.</li>
       <li><b>Date future</b> → un RV lié est créé automatiquement, visible dans le Calendrier et l'Historique des RV (catégorie 🛞 Pneumatiques).</li>
+      <li><b>Permutation planifiée</b> (RV lié) : elle apparaît « ⏳ planifiée » dans l'historique et ne compte comme faite (récapitulatif, fiche véhicule) qu'une fois son RV marqué effectué. Si le RV est annulé ou supprimé, la permutation planifiée disparaît ; s'il est reporté, sa date suit le nouveau RV.</li>
       <li><b>RV « permutation » marqué effectué</b> (✅ dans Prendre RV ou dans la fenêtre « En retard » au démarrage) alors qu'aucune permutation n'est enregistrée : une petite fenêtre propose d'enregistrer la permutation (type, date, km, lieu). Elle est alors créée, liée au RV, et la fiche du véhicule est mise à jour. Le choix « sans enregistrer » reste possible.</li>
       <li><b>Date du jour ou passée</b> → enregistrée directement comme faite, sans création de RV.</li>
       <li>Modifier la date d'une permutation déjà enregistrée répercute le changement sur son RV lié ; supprimer la permutation supprime aussi ce RV.</li>
@@ -10170,7 +10203,7 @@ function collecterEvenementsVehicule(vehId) {
   // "Maintenances enregistrées").
 
   // Permutations saisonnières de pneus
-  permutations.filter(p => p.vehId === vehId).forEach(p => {
+  permutations.filter(p => p.vehId === vehId && permutationEffective(p)).forEach(p => {
     evenements.push({
       date: p.date, categorie: 'pneus', icone: '\ud83d\udee1',
       titre: 'Permutation pneus (' + (p.type === 'hiver-ete' ? 'Hiver \u2192 \u00c9t\u00e9' : '\u00c9t\u00e9 \u2192 Hiver') + ')',
@@ -14003,9 +14036,9 @@ function confirmerPermutationEffectuee(id) {
     km: km ? parseInt(km) : null, lieu, rem: r.notes || '', rvLieeId: r.id };
   permutations.unshift(nouvelle);
   window.permutations = permutations;
-  recalculerCachePermutation(r.vehId, type);
   r.statut = 'effectue';
   window.rendezvous = rendezvous;
+  recalculerCachePermutation(r.vehId, type);
   const v = vehicules.find(x => x.id === r.vehId);
   logCreation('permutations',
     `Permutation pneus (depuis RV) : ${v ? v.immat : r.vehId} — ${type} — ${formatDate(date)}`,
@@ -14201,7 +14234,9 @@ function _marquerRVEffectueSimple(id) {
     window.db.collection('rendezvous').doc(String(id)).update({ statut: 'effectue' }).catch(() => {});
   }
   window.rendezvous = rendezvous;
+  propagerRVVersPermutation(r, 'effectue');
   saveAll();
+  try { renderPneuRecap(); renderPneuHistorique(); } catch(e) {}
   renderTableRV();
   renderAccueil();
   renderVehicules();
@@ -14297,6 +14332,7 @@ function confirmerAnnulation(id, type, nouvDate) {
 
   if (type === 'annule') {
     r.statut = 'annule';
+    propagerRVVersPermutation(r, 'annule');
     toast('RV annulé');
   } else {
     if (!nouvDate) { toast('Veuillez indiquer une date de report.'); return; }
@@ -14319,6 +14355,7 @@ function confirmerAnnulation(id, type, nouvDate) {
       createdAt: new Date().toISOString(),
     };
     rendezvous.unshift(nouveau);
+    propagerRVVersPermutation(r, 'reporte', nouveau);
     toast('RV annulé et reporté au ' + formatDate(nouvDate));
     // RV contrôle technique déplacé → redemander l'impression du bon
     if (nouveau.type === 'ct' && userIsAdmin()) {
@@ -14362,7 +14399,9 @@ function deleteRV(id) {
   if (!confirm('Supprimer définitivement ?\n\n' + descriptionRVConfirmation(rvASupprimer))) return;
   rendezvous = rendezvous.filter(x => x.id !== id);
   window.rendezvous = rendezvous;
+  propagerRVVersPermutation(rvASupprimer, 'supprime');
   saveAll();
+  try { renderPneuRecap(); renderPneuHistorique(); } catch(e) {}
   renderTableRV();
   renderAccueil();
   toast('RV supprimé');
@@ -14910,6 +14949,7 @@ function traiterRVDepasse(id, action) {
 
   r.statut = action; // 'effectue' ou 'annule'
   window.rendezvous = rendezvous;
+  propagerRVVersPermutation(r, action);
   saveAll();
   renderAccueil();
   renderTableRV();
@@ -15422,7 +15462,12 @@ function deleteHistItem(srcType, srcId) {
     window.maintenances = maintenances; // BUG CORRIGÉ (01/10) : sync immédiat manquant (idem deleteMaint)
   }
   if (srcType === 'ct')           ctEvents      = ctEvents.filter(x => x.id !== id);
-  if (srcType === 'rv')           rendezvous    = rendezvous.filter(x => x.id !== id);
+  if (srcType === 'rv') {
+    const _rvSup = rendezvous.find(x => x.id === id);
+    rendezvous = rendezvous.filter(x => x.id !== id);
+    window.rendezvous = rendezvous;
+    propagerRVVersPermutation(_rvSup, 'supprime');
+  }
   if (srcType === 'adblue')       adblues       = adblues.filter(x => x.id !== id);
   if (srcType === 'carwash')      carwashes     = carwashes.filter(x => x.id !== id);
   if (srcType === 'message')      messagesChauf = messagesChauf.filter(x => x.id !== id);
@@ -16696,7 +16741,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261007.1556';
+const APP_VERSION = '261007.1605';
 
 let _swRegistration = null;
 
