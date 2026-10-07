@@ -386,6 +386,8 @@
       },
       rendezvous:    d => { if(d&&d.length){ window.rendezvous      = d; } window._refreshUI?.(); },
       adblues:       d => { if(d&&d.length){ window.adblues         = d; } window._refreshUI?.(); },
+      permutations:  d => { if(d&&d.length){ window.permutations    = d; } window._refreshUI?.(); },
+      rechargesCle:  d => { if(d&&d.length){ window.rechargesCle    = d; } window._refreshUI?.(); },
       carwashes:     d => { if(d&&d.length){ window.carwashes       = d; } window._refreshUI?.(); },
       messagesChauf: d => {
         const ancien = window.messagesChauf || [];
@@ -648,6 +650,9 @@
       if (window._fbData_adblues)        adblues       = window._fbData_adblues;
       if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
       if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+      if (window._fbData_permutations)   permutations  = window._fbData_permutations;
+      if (window._fbData_rechargesCle)   rechargesCle  = window._fbData_rechargesCle;
+      window.permutations = permutations; window.rechargesCle = rechargesCle;
       if (window._fbData_commandesAdBlue) commandesAdBlue = window._fbData_commandesAdBlue;
       window.commandesAdBlue = commandesAdBlue;
       // Afficher l'app
@@ -1667,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1432</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1556</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -4032,6 +4037,8 @@ window.rendezvous     = rendezvous;
 window.adblues        = adblues;
 window.carwashes      = carwashes;
 window.messagesChauf  = messagesChauf;
+window.permutations   = permutations;
+window.rechargesCle   = rechargesCle;
 
 /* Rafraîchit l'UI quand Firebase pousse une mise à jour temps réel */
 let _refreshTimer = null;
@@ -4042,6 +4049,11 @@ window._refreshUI = function() {
   adblues       = window.adblues       || adblues;
   carwashes     = window.carwashes     || carwashes;
   messagesChauf = window.messagesChauf || messagesChauf;
+  permutations  = window.permutations  || permutations;
+  rechargesCle  = window.rechargesCle  || rechargesCle;
+  if (document.getElementById('page-pneus')?.classList.contains('active')) {
+    try { renderPneuRecap(); renderPneuHistorique(); } catch(e) {}
+  }
 
   if (window.vehicules && window.vehicules.length > 0) {
     vehicules = window.vehicules;
@@ -4179,6 +4191,10 @@ window._refreshUI = function() {
 
 /* Sauvegarde dans Firebase ET localStorage */
 async function saveAll() {
+  // Les tableaux permutations / rechargesCle sont parfois réaffectés (filter…) :
+  // on resynchronise la copie « window » pour que les écouteurs temps réel
+  // et _refreshUI ne remettent pas l'ancienne version.
+  window.permutations = permutations; window.rechargesCle = rechargesCle;
   // localStorage toujours (hors ligne / fallback)
   localStorage.setItem('mcr_maintenances', JSON.stringify(maintenances));
   localStorage.setItem('mcr_ct',           JSON.stringify(ctEvents));
@@ -7361,6 +7377,7 @@ const AIDE_CONTENU = {
     <ol style="margin:0 0 10px;padding-left:20px">
       <li>Renseigner date, véhicule, type (hiver→été ou été→hiver), kilométrage, lieu, remarques.</li>
       <li><b>Date future</b> → un RV lié est créé automatiquement, visible dans le Calendrier et l'Historique des RV (catégorie 🛞 Pneumatiques).</li>
+      <li><b>RV « permutation » marqué effectué</b> (✅ dans Prendre RV ou dans la fenêtre « En retard » au démarrage) alors qu'aucune permutation n'est enregistrée : une petite fenêtre propose d'enregistrer la permutation (type, date, km, lieu). Elle est alors créée, liée au RV, et la fiche du véhicule est mise à jour. Le choix « sans enregistrer » reste possible.</li>
       <li><b>Date du jour ou passée</b> → enregistrée directement comme faite, sans création de RV.</li>
       <li>Modifier la date d'une permutation déjà enregistrée répercute le changement sur son RV lié ; supprimer la permutation supprime aussi ce RV.</li>
     </ol>
@@ -13907,7 +13924,98 @@ function marquerRVEffectue(id) {
     return;
   }
 
+  // Permutation de pneus sans entrée liée : proposer de l'enregistrer
+  if (rvPermutationSansEntree(r) && userIsAdmin()) {
+    ouvrirModalPermutationEffectuee(id);
+    return;
+  }
+
   _marquerRVEffectueSimple(id);
+}
+
+/* ── RV « permutation » marqué effectué sans entrée Pneus liée ───────────
+   Ouvre une petite fenêtre (type, date, km, lieu) pour créer la permutation
+   réelle, la lier au RV et mettre à jour la fiche véhicule. */
+function rvPermutationSansEntree(r) {
+  return !!r && r.type === 'permutation'
+    && !permutations.some(p => String(p.rvLieeId) === String(r.id));
+}
+
+function ouvrirModalPermutationEffectuee(id) {
+  const r = rendezvous.find(x => String(x.id) === String(id));
+  if (!r) return;
+  document.getElementById('modal-perm-effectuee')?.remove();
+  const v = vehicules.find(x => x.id === r.vehId);
+  const vNom = v ? (v.marque + ' ' + v.immat) : r.vehId;
+  // Type deviné : la saison opposée à la dernière permutation connue
+  const derniere = permutations.filter(p => p.vehId === r.vehId)
+    .sort((a,b) => (b.date||'').localeCompare(a.date||''))[0];
+  let type = (derniere && derniere.type === 'hiver-ete') ? 'ete-hiver'
+           : (derniere ? 'hiver-ete' : ((new Date().getMonth() >= 8 || new Date().getMonth() <= 1) ? 'ete-hiver' : 'hiver-ete'));
+  if (/hiver/i.test(r.notes || '') && !/[eé]t[eé]/i.test(r.notes || '')) type = 'ete-hiver';
+  const dateInit = (r.date && r.date <= toLocalYMD(new Date())) ? r.date : toLocalYMD(new Date());
+  const esc = x => String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const div = document.createElement('div');
+  div.id = 'modal-perm-effectuee';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;'
+    + 'display:flex;align-items:center;justify-content:center;padding:16px';
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;'
+    + 'max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:4px">🛞 Permutation effectuée</div>'
+    + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">' + esc(vNom) + '</div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Type</label>'
+    + '<select id="pe-type"><option value="hiver-ete"' + (type==='hiver-ete'?' selected':'') + '>❄ → ☀ Hiver vers Été</option>'
+    + '<option value="ete-hiver"' + (type==='ete-hiver'?' selected':'') + '>☀ → ❄ Été vers Hiver</option></select></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Date *</label>'
+    + '<input type="date" id="pe-date" value="' + dateInit + '" /></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Kilométrage</label>'
+    + '<input type="number" id="pe-km" value="' + esc(r.km || v?.km || '') + '" /></div>'
+    + '<div class="form-group" style="margin-bottom:14px"><label>Lieu</label>'
+    + '<input type="text" id="pe-lieu" value="' + esc(r.garage || '') + '" /></div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<button class="btn primary" onclick="confirmerPermutationEffectuee(\'' + String(id).replace(/'/g,'') + '\')">💾 Enregistrer la permutation</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-perm-effectuee\').remove();_marquerRVEffectueSimple(\'' + String(id).replace(/'/g,'') + '\');_apresPermutationEffectuee()">Marquer effectué sans enregistrer</button>'
+    + '<button class="btn" onclick="document.getElementById(\'modal-perm-effectuee\').remove()">Annuler</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
+}
+
+function _apresPermutationEffectuee() {
+  // Retire la ligne du popup « En retard » s'il est ouvert
+  const rows = document.querySelectorAll('#rv-depasses-body [data-rvid]');
+  rows.forEach(row => {
+    const rv = rendezvous.find(x => String(x.id) === String(row.getAttribute('data-rvid')));
+    if (rv && rv.statut !== 'planifie') row.remove();
+  });
+  const body = document.getElementById('rv-depasses-body');
+  if (body && !body.querySelector('[data-rvid]')) document.getElementById('modal-rv-depasses')?.remove();
+}
+
+function confirmerPermutationEffectuee(id) {
+  const r = rendezvous.find(x => String(x.id) === String(id));
+  if (!r) return;
+  const type = document.getElementById('pe-type')?.value || 'hiver-ete';
+  const date = document.getElementById('pe-date')?.value;
+  const km   = document.getElementById('pe-km')?.value;
+  const lieu = document.getElementById('pe-lieu')?.value || '';
+  if (!date) { toast('Veuillez indiquer la date.'); return; }
+  const nouvelle = { id: Date.now(), date, vehId: r.vehId, type,
+    km: km ? parseInt(km) : null, lieu, rem: r.notes || '', rvLieeId: r.id };
+  permutations.unshift(nouvelle);
+  window.permutations = permutations;
+  recalculerCachePermutation(r.vehId, type);
+  r.statut = 'effectue';
+  window.rendezvous = rendezvous;
+  const v = vehicules.find(x => x.id === r.vehId);
+  logCreation('permutations',
+    `Permutation pneus (depuis RV) : ${v ? v.immat : r.vehId} — ${type} — ${formatDate(date)}`,
+    { vehId: r.vehId, date, type });
+  document.getElementById('modal-perm-effectuee')?.remove();
+  saveAll();
+  renderTableRV(); renderAccueil(); renderVehicules();
+  try { renderPneuRecap(); renderPneuHistorique(); } catch(e) {}
+  _apresPermutationEffectuee();
+  toast('✅ Permutation enregistrée — RV effectué');
 }
 
 /* ── Contrôle technique : résultat « carte verte » / « carte rouge » ─────
@@ -14792,6 +14900,11 @@ function traiterRVDepasse(id, action) {
   // (carte verte / rouge) — la date de validité est alors mise à jour.
   if (action === 'effectue' && r.type === 'ct' && userIsAdmin()) {
     ouvrirModalResultatCT(id);
+    return;
+  }
+
+  if (action === 'effectue' && rvPermutationSansEntree(r) && userIsAdmin()) {
+    ouvrirModalPermutationEffectuee(id);
     return;
   }
 
@@ -16583,7 +16696,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261007.1432';
+const APP_VERSION = '261007.1556';
 
 let _swRegistration = null;
 
@@ -16851,6 +16964,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window._fbData_adblues)        adblues       = window._fbData_adblues;
     if (window._fbData_carwashes)      carwashes     = window._fbData_carwashes;
     if (window._fbData_messagesChauf)  messagesChauf = window._fbData_messagesChauf;
+    if (window._fbData_permutations)   permutations  = window._fbData_permutations;
+    if (window._fbData_rechargesCle)   rechargesCle  = window._fbData_rechargesCle;
+    window.permutations = permutations; window.rechargesCle = rechargesCle;
     if (window._fbData_commandesAdBlue) commandesAdBlue = window._fbData_commandesAdBlue;
     window.commandesAdBlue = commandesAdBlue;
     // infosVehicules : depuis Firebase si disponible, sinon localStorage
