@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1327</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1551</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1723,7 +1723,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button class="tab-btn active" onclick="showPage('accueil',this)">📊 Tableau de bord</button>
   <button class="tab-btn" onclick="showPage('vehicules',this)">🚐 Véhicules</button>
   <button class="tab-btn" onclick="showPage('alertes',this)">🔔 Alertes</button>
-  <button class="tab-btn admin-only" onclick="showPage('kilometrage',this)" style="display:none">📈 Kilométrage</button>
+  <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
   <button class="tab-btn" onclick="showPage('calendrier',this)">📅 Calendrier</button>
   <button class="tab-btn" onclick="showPage('chauf',this)" id="tab-chauf">🚨 Signaler un problème</button>
   <button class="tab-btn" onclick="showPage('accident',this)">💡 Bon à savoir…</button>
@@ -7452,7 +7452,7 @@ const AIDE_CONTENU = {
     chauffeur: `<p>Alertes en cours (CT, entretien, extincteurs, assurance…) et échéances à venir, en consultation. La prise de rendez-vous est assurée par Angélique et Patrick.</p>`,
     admin: `<p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
   },
-  kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable.</p>`,
+  kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable. Consultation pour tous (chauffeurs compris, à titre d'information) : les chiffres viennent des relevés de maintenance mensuels saisis par Patrick.</p>`,
   calendrier: {
     chauffeur: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>`,
     admin: `<p>Échéances et RV du mois — CT, entretiens, réparations, pneus… Cliquer sur un jour affiche le détail des événements de ce jour.</p>`,
@@ -7656,7 +7656,7 @@ const PAGES_MODE_EMPLOI = [
   { id: 'accueil',     acces: () => true },
   { id: 'vehicules',   acces: () => true },
   { id: 'alertes',     acces: () => true },
-  { id: 'kilometrage', acces: () => userIsAdmin() },
+  { id: 'kilometrage', acces: () => true },   // consultation pour tous (chauffeurs compris, 08/10)
   { id: 'calendrier',  acces: () => true },
   { id: 'chauf',       acces: () => true },
   { id: 'accident',    acces: () => true },
@@ -16978,7 +16978,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261008.1327';
+const APP_VERSION = '261008.1551';
 
 let _swRegistration = null;
 
