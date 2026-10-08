@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261007.1625</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1104</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2813,7 +2813,11 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <div class="form-grid">
       <div class="form-group">
         <label>Date</label>
-        <input type="date" id="pneu-date" />
+        <input type="date" id="pneu-date" onchange="majKmPermutationForm()" />
+      </div>
+      <div class="form-group">
+        <label>Heure <span style="font-weight:400;color:var(--texte-sec)">(facultatif)</span></label>
+        <input type="time" id="pneu-heure" />
       </div>
       <div class="form-group">
         <label>Véhicule</label>
@@ -2832,6 +2836,9 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       <div class="form-group">
         <label>Kilométrage</label>
         <input type="number" id="pneu-km" placeholder="km au compteur" />
+        <div id="pneu-km-hint" style="display:none;margin-top:4px;font-size:12px;color:var(--texte-sec)">
+          📏 Relevé le jour de la permutation (demandé quand le RV sera marqué effectué).
+        </div>
       </div>
       <div class="form-group">
         <label>Lieu</label>
@@ -4820,6 +4827,7 @@ function preparerPermutationDepuisTour(vehId) {
   const selT = document.getElementById('pneu-type');
   if (selT && tour) selT.value = tour.type;
   majIndicationJantesPermutation();
+  majKmPermutationForm();
   selV?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
   toast('Formulaire prérempli — choisissez la date (future = RV planifié automatiquement).');
 }
@@ -5102,32 +5110,47 @@ function recalculerCachePermutation(vehId, type, garderSiVide) {
   }
 }
 
+/* Permutation future : le kilométrage n'est connu que le jour J → champ grisé
+   (et vidé) ; il sera demandé quand le RV sera marqué effectué. */
+function majKmPermutationForm() {
+  const date = document.getElementById('pneu-date')?.value;
+  const km = document.getElementById('pneu-km');
+  const hint = document.getElementById('pneu-km-hint');
+  if (!km) return;
+  const futur = !!date && date > toLocalYMD(new Date());
+  if (futur) km.value = '';
+  km.disabled = futur;
+  if (hint) hint.style.display = futur ? '' : 'none';
+}
+
 function savePermutation() {
   const editId = document.getElementById('pneu-edit-id')?.value;
   const date  = document.getElementById('pneu-date').value;
   const vehId = document.getElementById('pneu-veh').value;
   const type  = document.getElementById('pneu-type').value;
-  const km    = document.getElementById('pneu-km').value;
   const lieu  = document.getElementById('pneu-lieu').value;
   const rem   = document.getElementById('pneu-rem').value;
+  const heure = document.getElementById('pneu-heure')?.value || '';
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
 
   let ancienVehId = vehId, ancienType = type;
   const estFutur = date > toLocalYMD(new Date());
+  // Date future : km inconnu (relevé le jour J) — on ignore toute valeur résiduelle
+  const km    = estFutur ? '' : document.getElementById('pneu-km').value;
 
   if (editId) {
     const existante = permutations.find(p => String(p.id) === String(editId));
     if (existante) {
       ancienVehId = existante.vehId; ancienType = existante.type;
       existante.date = date; existante.vehId = vehId; existante.type = type;
-      existante.km = km ? parseInt(km) : null; existante.lieu = lieu; existante.rem = rem;
+      existante.km = km ? parseInt(km) : null; existante.lieu = lieu; existante.rem = rem; existante.heure = heure;
       // Garder le RV planifié éventuellement lié (voir plus bas) synchronisé
       // avec les nouvelles infos, ou le créer/retirer si la date passe du
       // futur au passé ou inversement.
-      synchroniserRVLiePermutation(existante, estFutur, { date, vehId, lieu, km, rem });
+      synchroniserRVLiePermutation(existante, estFutur, { date, vehId, lieu, km, rem, heure });
     }
   } else {
-    const nouvelle = { id: Date.now(), date, vehId, type, km: km ? parseInt(km) : null, lieu, rem };
+    const nouvelle = { id: Date.now(), date, vehId, type, km: km ? parseInt(km) : null, lieu, rem, heure };
     permutations.unshift(nouvelle);
     // Une permutation planifiée dans le futur est un rendez-vous comme un
     // autre : sans ceci, elle ne vivait que dans l'onglet Pneus et restait
@@ -5164,7 +5187,7 @@ function creerRVLiePermutation(permutation) {
   const rvId = permutation.id + 1; // distinct de l'id de la permutation
   rendezvous.unshift({
     id: rvId, vehId: permutation.vehId, type: 'permutation', date: permutation.date,
-    statut: 'planifie', heure: '', garage: permutation.lieu || '',
+    statut: 'planifie', heure: permutation.heure || '', garage: permutation.lieu || '',
     km: permutation.km || '', notes: permutation.rem || '',
     createdAt: new Date().toISOString(), auto: 'permutation',
   });
@@ -5189,6 +5212,7 @@ function synchroniserRVLiePermutation(permutation, estFutur, infos) {
     if (estFutur) {
       rvLiee.date = infos.date; rvLiee.vehId = infos.vehId;
       rvLiee.garage = infos.lieu || ''; rvLiee.km = infos.km || ''; rvLiee.notes = infos.rem || '';
+      rvLiee.heure = infos.heure || '';
     } else {
       rendezvous = rendezvous.filter(r => r.id !== rvLiee.id);
       window.rendezvous = rendezvous;
@@ -5209,6 +5233,8 @@ function modifierPermutation(id) {
   document.getElementById('pneu-km').value = p.km || '';
   document.getElementById('pneu-lieu').value = p.lieu || '';
   document.getElementById('pneu-rem').value = p.rem || '';
+  const hEl = document.getElementById('pneu-heure'); if (hEl) hEl.value = p.heure || '';
+  majKmPermutationForm();
   const btn = document.getElementById('pneu-btn-save');
   if (btn) btn.textContent = '💾 Mettre à jour';
   const pagePneus = document.getElementById('page-pneus');
@@ -5216,8 +5242,9 @@ function modifierPermutation(id) {
 }
 
 function clearPneuForm() {
-  ['pneu-km','pneu-rem'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['pneu-km','pneu-rem','pneu-heure'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('pneu-date').value = toLocalYMD(new Date());
+  majKmPermutationForm();
   document.getElementById('pneu-lieu').value = 'Culot pneus';
   const editIdEl = document.getElementById('pneu-edit-id'); if (editIdEl) editIdEl.value = '';
   const btn = document.getElementById('pneu-btn-save'); if (btn) btn.textContent = '💾 Enregistrer';
@@ -5459,10 +5486,10 @@ function renderPneuHistorique() {
         const v = vehicules.find(x => x.id === p.vehId);
         const typeStr = p.type === 'hiver-ete' ? '❄→☀ H→É' : '☀→❄ É→H';
         return `<tr>
-          <td>${formatDate(p.date)}${permutationEffective(p) ? '' : '<br><span class="badge warn" style="font-size:10px">⏳ planifiée</span>'}</td>
+          <td>${formatDate(p.date)}${p.heure ? ' <span style="font-size:11px;color:var(--texte-sec)">' + echapperHtml(p.heure) + '</span>' : ''}${permutationEffective(p) ? '' : '<br><span class="badge warn" style="font-size:10px">⏳ planifiée</span>'}</td>
           <td style="font-size:12px">${v ? v.marque + ' ' + v.immat : p.vehId}</td>
           <td><span class="badge info" style="font-size:10px">${typeStr}</span></td>
-          <td>${p.km ? parseInt(p.km).toLocaleString('fr-BE') + ' km' : '—'}</td>
+          <td>${p.km ? parseInt(p.km).toLocaleString('fr-BE') + ' km' : (permutationEffective(p) ? '<span class="badge warn" style="font-size:10px" title="Cliquer sur ✏️ pour compléter">km manquant</span>' : '<span style="font-size:11px;color:var(--texte-sec)">km à relever</span>')}</td>
           <td style="font-size:12px">${p.lieu || '—'}</td>
           <td style="font-size:12px;max-width:150px">${p.rem || '—'}</td>
           <td>
@@ -7519,7 +7546,8 @@ const AIDE_CONTENU = {
       <li><b>Tableau de bord</b> : pendant un tour, la puce « 🛞 N permutations sans RV » apparaît dans les Priorités du jour (Angélique et Patrick) et disparaît quand chaque véhicule est permuté ou a un RV.</li>
       <li><b>Pneus 4 saisons</b> : sur la fiche du véhicule (✏️ Modifier), cocher « 🌤 Pneus 4 saisons » l'exclut du tour, du récapitulatif et des listes de l'onglet Pneus. Les camionnettes (1RER037) sont exclues d'office. Décocher pour le remettre dans le suivi.</li>
       <li><b>Permutation planifiée</b> (RV lié) : elle apparaît « ⏳ planifiée » dans l'historique et ne compte comme faite (récapitulatif, fiche véhicule) qu'une fois son RV marqué effectué. Si le RV est annulé ou supprimé, la permutation planifiée disparaît ; s'il est reporté, sa date suit le nouveau RV.</li>
-      <li><b>RV « permutation » marqué effectué</b> (✅ dans Prendre RV ou dans la fenêtre « En retard » au démarrage) alors qu'aucune permutation n'est enregistrée : une petite fenêtre propose d'enregistrer la permutation (type, date, km, lieu). Elle est alors créée, liée au RV, et la fiche du véhicule est mise à jour. Le choix « sans enregistrer » reste possible.</li>
+      <li><b>Heure et kilométrage</b> : le formulaire comporte une <b>heure</b> facultative, copiée dans le RV lié (calendrier, tableau de bord, rappel 48 h). Pour une <b>date future</b>, le champ kilométrage est grisé : le compteur ne se relève que le jour de la permutation.</li>
+      <li><b>RV « permutation » marqué effectué</b> (✅ dans Prendre RV ou dans la fenêtre « En retard » au démarrage), qu'il ait ou non une permutation déjà planifiée : la fenêtre « 🛞 Permutation effectuée » s'ouvre (type, date, <b>kilométrage obligatoire</b>, lieu ; le dernier km connu est rappelé, et une confirmation est demandée si le km saisi est inférieur). La permutation est créée ou complétée, liée au RV, et la fiche du véhicule est mise à jour. Deux échappatoires : « Enregistrer sans km (à compléter dans l'historique) » — la ligne affiche alors « km manquant » et se complète avec ✏️ — ou « Marquer effectué sans enregistrer ».</li>
       <li><b>Date du jour ou passée</b> → enregistrée directement comme faite, sans création de RV.</li>
       <li>Modifier la date d'une permutation déjà enregistrée répercute le changement sur son RV lié ; supprimer la permutation supprime aussi ce RV.</li>
     </ol>
@@ -14094,8 +14122,11 @@ function marquerRVEffectue(id) {
    Ouvre une petite fenêtre (type, date, km, lieu) pour créer la permutation
    réelle, la lier au RV et mettre à jour la fiche véhicule. */
 function rvPermutationSansEntree(r) {
-  return !!r && r.type === 'permutation'
-    && !permutations.some(p => String(p.rvLieeId) === String(r.id));
+  // Vrai si le RV n'a pas de permutation liée, OU si la permutation liée
+  // n'a pas encore de kilométrage (relevé le jour J) → on demande le km.
+  if (!r || r.type !== 'permutation') return false;
+  const pm = permutations.find(p => p.rvLieeId && String(p.rvLieeId) === String(r.id));
+  return !pm || !pm.km;
 }
 
 function ouvrirModalPermutationEffectuee(id) {
@@ -14105,11 +14136,13 @@ function ouvrirModalPermutationEffectuee(id) {
   const v = vehicules.find(x => x.id === r.vehId);
   const vNom = v ? (v.marque + ' ' + v.immat) : r.vehId;
   // Type deviné : la saison opposée à la dernière permutation connue
+  const pmLiee = permutations.find(p => p.rvLieeId && String(p.rvLieeId) === String(r.id));
   const derniere = permutations.filter(p => p.vehId === r.vehId)
     .sort((a,b) => (b.date||'').localeCompare(a.date||''))[0];
   let type = (derniere && derniere.type === 'hiver-ete') ? 'ete-hiver'
            : (derniere ? 'hiver-ete' : ((new Date().getMonth() >= 8 || new Date().getMonth() <= 1) ? 'ete-hiver' : 'hiver-ete'));
   if (/hiver/i.test(r.notes || '') && !/[eé]t[eé]/i.test(r.notes || '')) type = 'ete-hiver';
+  if (pmLiee) type = pmLiee.type;
   const dateInit = (r.date && r.date <= toLocalYMD(new Date())) ? r.date : toLocalYMD(new Date());
   const esc = x => String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const div = document.createElement('div');
@@ -14125,12 +14158,15 @@ function ouvrirModalPermutationEffectuee(id) {
     + '<option value="ete-hiver"' + (type==='ete-hiver'?' selected':'') + '>☀ → ❄ Été vers Hiver</option></select></div>'
     + '<div class="form-group" style="margin-bottom:10px"><label>Date *</label>'
     + '<input type="date" id="pe-date" value="' + dateInit + '" /></div>'
-    + '<div class="form-group" style="margin-bottom:10px"><label>Kilométrage</label>'
-    + '<input type="number" id="pe-km" value="' + esc(r.km || v?.km || '') + '" /></div>'
+    + '<div class="form-group" style="margin-bottom:10px"><label>Kilométrage au compteur *</label>'
+    + '<input type="number" id="pe-km" inputmode="numeric" min="0" placeholder="relevé ce jour" value="' + esc(r.km || '') + '" style="font-size:16px;font-weight:700" />'
+    + (v && v.km ? '<div style="font-size:12px;color:var(--texte-sec);margin-top:4px">Dernier km connu : ' + parseInt(v.km).toLocaleString('fr-BE') + ' km</div>' : '')
+    + '</div>'
     + '<div class="form-group" style="margin-bottom:14px"><label>Lieu</label>'
     + '<input type="text" id="pe-lieu" value="' + esc(r.garage || '') + '" /></div>'
     + '<div style="display:flex;flex-direction:column;gap:8px">'
     + '<button class="btn primary" onclick="confirmerPermutationEffectuee(\'' + String(id).replace(/'/g,'') + '\')">💾 Enregistrer la permutation</button>'
+    + '<button class="btn" onclick="confirmerPermutationEffectuee(\'' + String(id).replace(/'/g,'') + '\', true)">Enregistrer sans km (à compléter dans l\'historique)</button>'
     + '<button class="btn" onclick="document.getElementById(\'modal-perm-effectuee\').remove();_marquerRVEffectueSimple(\'' + String(id).replace(/'/g,'') + '\');_apresPermutationEffectuee()">Marquer effectué sans enregistrer</button>'
     + '<button class="btn" onclick="document.getElementById(\'modal-perm-effectuee\').remove()">Annuler</button>'
     + '</div></div>';
@@ -14148,21 +14184,43 @@ function _apresPermutationEffectuee() {
   if (body && !body.querySelector('[data-rvid]')) document.getElementById('modal-rv-depasses')?.remove();
 }
 
-function confirmerPermutationEffectuee(id) {
+function confirmerPermutationEffectuee(id, sansKm) {
   const r = rendezvous.find(x => String(x.id) === String(id));
   if (!r) return;
   const type = document.getElementById('pe-type')?.value || 'hiver-ete';
   const date = document.getElementById('pe-date')?.value;
-  const km   = document.getElementById('pe-km')?.value;
+  const kmBrut = (document.getElementById('pe-km')?.value || '').trim();
   const lieu = document.getElementById('pe-lieu')?.value || '';
   if (!date) { toast('Veuillez indiquer la date.'); return; }
-  const nouvelle = { id: Date.now(), date, vehId: r.vehId, type,
-    km: km ? parseInt(km) : null, lieu, rem: r.notes || '', rvLieeId: r.id };
-  permutations.unshift(nouvelle);
+  let kmNum = null;
+  if (!sansKm) {
+    kmNum = parseInt(kmBrut, 10);
+    if (!kmBrut || isNaN(kmNum) || kmNum <= 0) {
+      toast('Le kilométrage est obligatoire (ou « Enregistrer sans km »).');
+      document.getElementById('pe-km')?.focus();
+      return;
+    }
+    const vK = vehicules.find(x => x.id === r.vehId);
+    const dernierKm = vK && parseInt(vK.km);
+    if (dernierKm && kmNum < dernierKm
+        && !confirm('Ce kilométrage (' + kmNum.toLocaleString('fr-BE') + ' km) est inférieur au dernier km connu ('
+          + dernierKm.toLocaleString('fr-BE') + ' km).\nL\'enregistrer quand même ?')) return;
+  }
+  const liee = permutations.find(p => p.rvLieeId && String(p.rvLieeId) === String(r.id));
+  const ancienType = liee ? liee.type : null;
+  if (liee) {
+    // Permutation déjà planifiée depuis l'onglet Pneus : on la complète
+    liee.date = date; liee.type = type; liee.km = kmNum; liee.lieu = lieu;
+    if (!liee.heure && r.heure) liee.heure = r.heure;
+  } else {
+    permutations.unshift({ id: Date.now(), date, vehId: r.vehId, type,
+      km: kmNum, lieu, rem: r.notes || '', rvLieeId: r.id, heure: r.heure || '' });
+  }
   window.permutations = permutations;
   r.statut = 'effectue';
   window.rendezvous = rendezvous;
   recalculerCachePermutation(r.vehId, type);
+  if (ancienType && ancienType !== type) recalculerCachePermutation(r.vehId, ancienType);
   const v = vehicules.find(x => x.id === r.vehId);
   logCreation('permutations',
     `Permutation pneus (depuis RV) : ${v ? v.immat : r.vehId} — ${type} — ${formatDate(date)}`,
@@ -16865,7 +16923,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261007.1625';
+const APP_VERSION = '261008.1104';
 
 let _swRegistration = null;
 
