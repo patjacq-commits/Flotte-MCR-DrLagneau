@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1104</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1314</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2732,7 +2732,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     <div class="form-group" id="rv-notes-wrap" style="margin-top:10px">
       <label>💬 Remarque (optionnelle)</label>
       <textarea id="rv-notes" placeholder="ex : + montage des pneus neige — penser à apporter les pneus" style="min-height:60px"></textarea>
-      <div style="font-size:11px;color:var(--texte-sec);margin-top:3px">Visible par tous dans les RV planifiés et rappelée à l'ouverture de l'app (48 h avant).</div>
+      <div style="font-size:11px;color:var(--texte-sec);margin-top:3px">Visible par Angélique et Patrick uniquement (jamais par les chauffeurs, qui voient seulement le motif du RV) ; rappelée à l'ouverture de l'app (48 h avant).</div>
     </div>
     <!-- Indicateur statut (passé/futur) -->
     <div id="rv-statut-info" style="display:none;margin:10px 0;padding:8px 12px;
@@ -5777,7 +5777,7 @@ function getEvenementsJour(dateStr) {
       detail: tl + ' — ' + (v?.marque||'') + ' ' + (v?.immat||r.vehId) +
         (r.heure ? ' à ' + r.heure : '') +
         (r.garage ? ' — ' + echapperHtml(r.garage) : '') +
-        (r.notes ? ' — 💬 ' + echapperHtml(r.notes) : '') });
+        (r.notes && userIsAdmin() ? ' — 💬 ' + echapperHtml(r.notes) : '') });
   });
 
   // Fallback ctEvents non encore migrés
@@ -7524,7 +7524,7 @@ const AIDE_CONTENU = {
     <p style="margin:0 0 8px"><b>Autres cas :</b></p>
     <ul style="margin:0;padding-left:20px">
       <li>Bouton « 🚨 Intervention urgente » : raccourci pour un cas prioritaire, hors planification classique.</li>
-      <li>Champ « 💬 Remarque » (tous types de RV, y compris entretien garage et contrôle technique) : ex. « + montage des pneus neige — penser à apporter les pneus ». Elle s'affiche en orange dans les RV planifiés (visible par tous), dans le Calendrier, et est rappelée dans la fenêtre d'ouverture de l'app 48 h avant le RV.</li>
+      <li>Champ « 💬 Remarque » (tous types de RV, y compris entretien garage et contrôle technique) : ex. « + montage des pneus neige — penser à apporter les pneus ». Elle s'affiche en orange dans les RV planifiés, dans le Calendrier (réservée à Angélique et Patrick : le chauffeur voit à la place le <b>motif</b> du RV — ex. « Entretien Garage — 120 000 km », « Contrôle Technique », « Permutation pneus »), et est rappelée dans la fenêtre d'ouverture de l'app 48 h avant le RV.</li>
       <li>Bouton « ➕ » : ajouter un nouveau type de RV à la liste déroulante.</li>
     </ul>
     <p style="margin:10px 0 8px"><b>📄 Bon de commande du contrôle technique (AutoSécurité) :</b></p>
@@ -9283,7 +9283,7 @@ function renderRVDashboard() {
       + jStr + '</div>'
       + '<div style="flex:1;min-width:0">'
       + '<div style="font-size:13px">' + vNom + hr + '</div>'
-      + '<div style="font-size:12px;color:var(--texte-sec)">' + tl + garage + '</div>'
+      + ligneMotifRVHtml(r, tl, garage)
       + motif + '</div>'
       + (_adm ? '<button class="btn btn-sm" onclick="allerAuxRV()" title="Gérer">✏️</button>' : '')
       + '</div>';
@@ -9659,7 +9659,7 @@ function renderAccueil() {
         + jStr + '</div>'
         + '<div style="flex:1;min-width:0">'
         + '<div style="font-size:13px">' + vNom + hr + '</div>'
-        + '<div style="font-size:12px;color:var(--texte-sec)">' + tl + garage + '</div>'
+        + ligneMotifRVHtml(r, tl, garage)
         + motif + '</div>'
         + (isAdmin ? '<button class="btn btn-sm" onclick="allerAuxRV()" title="Gérer">✏️</button>' : '')
         + '</div>';
@@ -10333,7 +10333,7 @@ function collecterEvenementsVehicule(vehId) {
       detail: [
         'Date : ' + formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : ''),
         r.garage ? 'Garage : ' + echapperHtml(r.garage) : '',
-        r.notes ? 'Notes : ' + echapperHtml(r.notes) : '',
+        r.notes && userIsAdmin() ? 'Notes : ' + echapperHtml(r.notes) : '',
       ].filter(Boolean).join(' \u2014 '),
     });
   });
@@ -11133,7 +11133,7 @@ function renderAlerte(a) {
       <div class="alerte-text" style="flex:1">
         <h4 style="color:#1a6b38">${a.titre}</h4>
         <p>${a.detail}</p>
-        ${r.notes ? remarqueRVHtml(r, 12) : ''}
+        ${remarqueRVHtml(r, 12)}
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
         <span class="badge ok" style="font-size:11px">✅ RV confirmé</span>
@@ -11798,7 +11798,7 @@ function openVehDetail(id) {
               const cl = j <= 1 ? 'var(--rouge)' : 'var(--bleu)';
               return '<tr><td style="padding:5px 0;font-size:12px;color:var(--texte-sec)">'
                 + formatDate(r.date)+hr+'<br><span style="font-size:11px;color:'+cl+'">'+jl+'</span></td>'
-                + '<td style="font-size:12px">'+tl+ga+(r.notes?'<br>'+remarqueRVHtml(r, 11):'')+'</td></tr>';
+                + '<td style="font-size:12px">'+(userIsAdmin() ? tl : '<b>'+echapperHtml(motifRVTexte(r))+'</b>')+ga+remarqueRVBr(r, 11)+'</td></tr>';
             }).join('');
       })()
     + '</table>';
@@ -14553,7 +14553,36 @@ function confirmerAnnulation(id, type, nouvDate) {
 /* Remarque d'un RV (ex. « + montage des pneus neige — penser à apporter les
    pneus ») mise en évidence — orange, 💬 — pour que Patrick/Angélique ne
    l'oublient pas. Échappée (texte libre). Visible de tous les utilisateurs. */
+/* Motif d'un RV pour les CHAUFFEURS : la raison du rendez-vous (« Entretien
+   Garage — 120 000 km », « Contrôle Technique », « Permutation pneus »…),
+   jamais la remarque interne (consignes pour Angélique/Patrick). Texte brut ;
+   à échapper à l'affichage. Le km n'est ajouté que pour l'entretien garage
+   (celui du RV, sinon le prochain entretien prévu du véhicule). */
+function motifRVTexte(r) {
+  if (!r) return 'RV';
+  let t = String(labelRV(r.type) || 'RV');
+  if (r.type === 'garage') {
+    const v = vehicules.find(x => x.id === r.vehId);
+    const km = parseInt(r.km) || parseInt(v && v.prochain_entretien_km) || 0;
+    if (km > 0) t += ' — ' + km.toLocaleString('fr-BE') + ' km';
+  }
+  return t;
+}
+/* Ligne « motif + garage » d'un RV selon le rôle : admin = type en gris
+   (comme avant), chauffeur = motif en évidence. */
+function ligneMotifRVHtml(r, tl, garageTxt) {
+  if (userIsAdmin()) return '<div style="font-size:12px;color:var(--texte-sec)">' + tl + garageTxt + '</div>';
+  return '<div style="font-size:13px;font-weight:700;color:var(--bleu)">' + echapperHtml(motifRVTexte(r)) + '</div>'
+    + (garageTxt ? '<div style="font-size:12px;color:var(--texte-sec)">' + garageTxt.replace(/^ — /, '') + '</div>' : '');
+}
+/* « <br> + remarque » seulement si la remarque est visible (admin) */
+function remarqueRVBr(r, fontSize) {
+  const h = remarqueRVHtml(r, fontSize);
+  return h ? '<br>' + h : '';
+}
+
 function remarqueRVHtml(r, fontSize) {
+  if (!userIsAdmin()) return '';   // la remarque est réservée à Angélique/Patrick
   const t = r && (r.notes || r.rem);
   if (!t) return '';
   return '<div style="font-size:' + (fontSize || 12) + 'px;font-weight:700;color:#7a4a00;background:var(--orange-clair);'
@@ -14840,7 +14869,7 @@ function verifierEntretiensUrgents() {
       badge: 'En retard', badgeCouleur: 'var(--rouge)', badgeFond: 'var(--rouge-clair)',
       titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
       detail: formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : '') + (r.garage ? ' \u2014 ' + echapperHtml(r.garage) : '')
-        + (r.notes ? '<br>' + remarqueRVHtml(r, 12) : ''),
+        + remarqueRVBr(r, 12),
       actionsHtml: '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
         + '<button class="btn btn-sm" style="background:var(--vert);color:#fff;border-color:var(--vert);flex:1"'
         + ' onclick="traiterRVDepasse(' + r.id + ',\'effectue\')">\u2705 Effectu\u00e9</button>'
@@ -14878,7 +14907,7 @@ function verifierEntretiensUrgents() {
       titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
       detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ' + heureHtml
         + (r.garage ? ' \u2014 ' + echapperHtml(r.garage) : '')
-        + (r.notes ? '<br>' + remarqueRVHtml(r, 12) : ''),
+        + remarqueRVBr(r, 12),
       actionsHtml: '',
     });
   });
@@ -15487,7 +15516,7 @@ function renderHistorique() {
         + ' ' + labelRV(r.type);
     const heureStr  = r.heure  ? ' ' + r.heure : '';
     const garageStr = r.garage ? ' — ' + r.garage : '';
-    const remStr    = r.notes  ? ' — ' + r.notes  : '';
+    const remStr    = (r.notes && userIsAdmin()) ? ' — ' + r.notes  : '';
     rows.push({
       date:    r.date + heureStr,
       veh:     v ? v.marque + ' ' + v.immat : r.vehId,
@@ -16923,7 +16952,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261008.1104';
+const APP_VERSION = '261008.1314';
 
 let _swRegistration = null;
 
