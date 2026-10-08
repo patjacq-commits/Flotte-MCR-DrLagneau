@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1723</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1758</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3240,7 +3240,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card" style="max-width:480px;margin-top:14px">
     <h3>🔔 Notifications push</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Recevez un résumé quotidien à <strong>7h00</strong> avec les alertes urgentes, RV du jour et infos véhicules — même si l'app est fermée.
+      Recevez un résumé quotidien à <strong>7h00</strong> avec les RV du jour, les infos véhicules et (pour Angélique et Patrick) les alertes urgentes — même si l'app est fermée.
     </p>
     <div id="notif-statut" style="font-size:13px;margin-bottom:12px"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -7437,7 +7437,7 @@ const AIDE_TITRES = {
 const AIDE_CONTENU = {
   accueil: {
     chauffeur: `<p>Cet onglet s'appelle « RV et infos véhicules » : en un coup d'œil, véhicules disponibles/indisponibles (la pastille « Véhicules » ouvre l'onglet du même nom), prochains RV confirmés (contrôle technique, garage, pneus…) et infos spéciales sur les véhicules, en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
-    admin: `<p>Vue d'ensemble : véhicules (in)disponibles, RV urgents à traiter, RV planifiés par catégorie, rubriques « À surveiller » (CT, entretien, extincteurs, assurance, SPW…).</p>
+    admin: `<p>Vue d'ensemble : « Priorités du jour », véhicules (in)disponibles, infos spéciales et RV planifiés par catégorie. Les pastilles <b>🚨 Urgent</b> et <b>⚠️ À surveiller</b> donnent le nombre d'alertes (CT, entretien, extincteurs, assurance, vignette SPW…) ; un clic ouvre la liste détaillée dans l'onglet 🔔 Alertes. Le détail des alertes n'est plus répété sur le tableau de bord.</p>
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
   },
   vehicules: {
@@ -7450,7 +7450,7 @@ const AIDE_CONTENU = {
   },
   alertes: {
     chauffeur: `<p>Cette rubrique est réservée à Angélique et Patrick, qui s'occupent du suivi des échéances (CT, entretien…) et de la prise des RV. Vous retrouvez les RV planifiés sur le tableau de bord et les dates de chaque véhicule dans « Véhicules ».</p>`,
-    admin: `<p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
+    admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
   },
   kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable. Consultation pour tous (chauffeurs compris, à titre d'information) : les chiffres viennent des relevés de maintenance mensuels saisis par Patrick.</p>`,
   calendrier: {
@@ -9343,6 +9343,12 @@ function renderRVDashboard() {
     + '</div>' + rows + '</div>';
 }
 
+/* Définition UNIQUE des deux catégories d'alertes (08/10) : les pastilles du
+   tableau de bord, l'onglet Alertes, son filtre, la pastille/clignotement de
+   l'onglet et le résumé de 7h comptent donc exactement les mêmes choses. */
+function alerteEstUrgente(a)    { return a.level === 'urgent' || !!a.carteRouge; }
+function alerteASurveiller(a)   { return !alerteEstUrgente(a) && (a.level === 'warn' || a.level === 'rv'); }
+
 function renderAccueil() {
   appliquerIndisponibilitesPrevues();
   // Forcer synchronisation depuis window
@@ -9350,8 +9356,8 @@ function renderAccueil() {
     rendezvous = window.rendezvous;
   }
   const alertes = buildAlertes();
-  const nbUrgent = alertes.filter(a => a.level === 'urgent').length;
-  const nbWarn   = alertes.filter(a => a.level === 'warn').length;
+  const nbUrgent = alertes.filter(alerteEstUrgente).length;
+  const nbWarn   = alertes.filter(alerteASurveiller).length;
   const nbOK     = vehicules.filter(v => {
     const j = daysUntil(v.ct_valid);
     const ent = entretienStatus(v);
@@ -9392,11 +9398,11 @@ function renderAccueil() {
 
     document.getElementById('summary-grid').innerHTML = `
     ${_cardVeh}
-    ${isAdmin ? `<div class="summary-card rouge" onclick="goToAlertesFilter('urgent')" title="Voir les alertes urgentes" ${urgentPulse}>
-      <div class="num">${nbUrgent}</div><div class="lbl">Alertes urgentes</div>
+    ${isAdmin ? `<div class="summary-card rouge" onclick="goToAlertesFilter('urgent')" title="Voir la liste des alertes urgentes (onglet Alertes)" ${urgentPulse}>
+      <div class="num">${nbUrgent}</div><div class="lbl">🚨 Urgent</div>
     </div>
-    <div class="summary-card orange" onclick="goToAlertesFilter('warn')" title="Voir les alertes à surveiller">
-      <div class="num">${nbWarn}</div><div class="lbl">Alertes à surveiller</div>
+    <div class="summary-card orange" onclick="goToAlertesFilter('warn')" title="Voir la liste des alertes à surveiller (onglet Alertes)">
+      <div class="num">${nbWarn}</div><div class="lbl">⚠️ À surveiller</div>
     </div>` : ''}
     <div class="summary-card bleu" onclick="toggleRVDashboard()" title="Afficher les RV planifiés" style="cursor:pointer">
       <div class="num">${nbRVprog}</div><div class="lbl">RV planifiés</div>
@@ -9492,7 +9498,7 @@ function renderAccueil() {
 
   // ════════════════════════════════════════════════════════════
   // DASHBOARD — 3 blocs dans l'ordre de priorité
-  // 1. RV urgents   2. RV planifiés   3. À surveiller
+  // Priorités du jour (admin) · Infos spéciales · RV planifiés  (le détail des alertes est dans l'onglet 🔔 Alertes)
   // ════════════════════════════════════════════════════════════
   const dash = document.getElementById('alertes-dashboard');
 
@@ -9608,22 +9614,11 @@ function renderAccueil() {
     }
   }
 
-  // ── 1. RV URGENTS ────────────────────────────────────────────
-  // Alertes urgentes CT/entretien = RV à prendre immédiatement
-  // + toutes les autres alertes urgentes (carte rouge, etc.)
-  // Réservé à l'admin : un chauffeur dispose déjà de l'onglet "Alertes"
-  // dédié pour ce même contenu — l'afficher aussi ici était redondant.
-  if (isAdmin) {
-    const urgentes = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
-    const htmlUrgentes = urgentes.length
-      ? urgentes.map(a => renderAlerte(a)).join('')
-      : '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucune alerte urgente ✅</p>';
-
-    dash.innerHTML = prioritesHtml + `<h3 style="margin-bottom:10px">🚨 RV urgents</h3>
-      <div class="alertes-list">${htmlUrgentes}</div>`;
-  } else {
-    dash.innerHTML = indiceIdeesHtml + prioritesHtml;
-  }
+  // ── Détail des alertes : plus affiché ici (08/10) ─────────────
+  // Les pastilles « 🚨 Urgent » / « ⚠️ À surveiller » ci-dessus donnent le
+  // total et ouvrent l'onglet 🔔 Alertes, seul endroit où la liste détaillée
+  // est affichée (évite le triple affichage de la même information).
+  dash.innerHTML = indiceIdeesHtml + prioritesHtml;
 
   // ── Infos spéciales (inchangé) ────────────────────────────────
   const infosActives = getInfosActives();
@@ -9765,40 +9760,6 @@ function renderAccueil() {
       + '</h3>' + rvContent + '</div>';
   }
 
-
-  // ── 3. À SURVEILLER — uniquement les rubriques concernées ───
-  // Réservé à l'admin, même logique que la section 1 (redondant avec Alertes
-  // pour un chauffeur).
-  if (isAdmin) {
-    const surveiller = alertes.filter(a => a.level === 'warn' || a.level === 'rv');
-    const CATS = [
-      { key:'ct',         label:'🏥 Contrôle Technique' },
-      { key:'entretien',  label:'🔧 Entretien garage' },
-      { key:'extincteur', label:'🧯 Extincteur' },
-      { key:'assurance',  label:'🛡 Assurance' },
-      { key:'spw',        label:'📋 Vignette SPW' },
-      { key:'pneus',      label:'🛞 Pneus' },
-      { key:null,         label:'⚠️ Autres' },
-    ];
-    let htmlSurv = '';
-    CATS.forEach(cat => {
-      const items = cat.key === null
-        ? surveiller.filter(a => !a.category || !CATS.slice(0,-1).map(c=>c.key).includes(a.category))
-        : surveiller.filter(a => a.category === cat.key);
-      if (!items.length) return;
-      htmlSurv += `<div style="margin-bottom:10px">
-        <div style="font-size:12px;font-weight:700;color:var(--texte-sec);text-transform:uppercase;
-          letter-spacing:0.5px;margin-bottom:6px;padding:4px 8px;background:var(--gris-clair);
-          border-radius:4px">${cat.label}</div>
-        <div class="alertes-list">${items.map(a => renderAlerte(a)).join('')}</div>
-      </div>`;
-    });
-
-    dash.innerHTML += `<div style="margin-top:18px">
-      <h3 style="margin-bottom:10px">⚠️ À surveiller</h3>
-      ${htmlSurv || '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucune alerte à surveiller ✅</p>'}
-    </div>`;
-  }
 
   updateTabAlertes();
 }
@@ -10950,6 +10911,7 @@ function updateTabChauf() {
 /* Navigation rapide vers l'onglet Alertes avec filtre de niveau */
 let _alerteFilter = '';
 function goToAlertesFilter(level) {
+  if (!userIsAdmin()) return;   // chauffeurs : pas d'onglet Alertes (et pas de filtre « fantôme » mémorisé)
   _alerteFilter = level;
   showPage('alertes', document.querySelectorAll('.tab-btn')[2]);
 }
@@ -11225,20 +11187,20 @@ function renderAlerte(a) {
 function renderAlertesFull() {
   let alertes = buildAlertes();
   if (_alerteFilter) {
-    alertes = alertes.filter(a => a.level === _alerteFilter);
+    alertes = alertes.filter(_alerteFilter === 'urgent' ? alerteEstUrgente : alerteASurveiller);
     _alerteFilter = '';
   }
 
   const container = document.getElementById('alertes-full');
   if (!container) return;
 
-  const urgentes     = alertes.filter(a => a.level === 'urgent' || a.carteRouge);
-  const surveiller   = alertes.filter(a => a.level === 'warn'   || a.level === 'rv');
+  const urgentes     = alertes.filter(alerteEstUrgente);
+  const surveiller   = alertes.filter(alerteASurveiller);
 
   let html = '';
 
   if (urgentes.length) {
-    html += '<h3 style="margin-bottom:10px">🔔 Alertes urgentes</h3>'
+    html += '<h3 style="margin-bottom:10px">🚨 Urgent</h3>'
           + '<div class="alertes-list">' + urgentes.map(a => renderAlerte(a)).join('') + '</div>';
   }
 
@@ -17029,7 +16991,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261008.1723';
+const APP_VERSION = '261008.1758';
 
 let _swRegistration = null;
 
@@ -17062,8 +17024,8 @@ function delaiJusquaSeptHeures() {
 function construireResumeQuotidien() {
   const alertes   = buildAlertes();
   const _adm      = userIsAdmin();   // les chauffeurs ne reçoivent ni alertes urgentes ni « à surveiller »
-  const urgentes  = _adm ? alertes.filter(a => a.level === 'urgent') : [];
-  const warns     = _adm ? alertes.filter(a => a.level === 'warn') : [];
+  const urgentes  = _adm ? alertes.filter(alerteEstUrgente) : [];
+  const warns     = _adm ? alertes.filter(alerteASurveiller) : [];
   const today     = toLocalYMD(new Date());
   const demain    = toLocalYMD(new Date(Date.now() + 86400000));
 
