@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1702</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1723</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1720,7 +1720,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 
 <!-- ONGLETS -->
 <div class="tabs">
-  <button class="tab-btn active" onclick="showPage('accueil',this)">📊 Tableau de bord</button>
+  <button class="tab-btn active" id="tab-accueil" onclick="showPage('accueil',this)">📊 Tableau de bord</button>
   <button class="tab-btn" onclick="showPage('vehicules',this)">🚐 Véhicules</button>
   <button class="tab-btn admin-only" onclick="showPage('alertes',this)" style="display:none">🔔 Alertes</button>
   <button class="tab-btn" onclick="showPage('kilometrage',this)">📈 Kilométrage</button>
@@ -7415,7 +7415,7 @@ function toggleInfoSection(bodyId, chevronId) {
 // changement de fonctionnalité sur une page.
 // ============================================================
 const AIDE_TITRES = {
-  accueil:      '📊 Tableau de bord',
+  get accueil() { return userIsAdmin() ? '📊 Tableau de bord' : '📅 RV et infos véhicules'; },   // chauffeurs : libellé adapté (08/10)
   vehicules:    '🚐 Véhicules',
   alertes:      '🔔 Alertes',
   kilometrage:  '📈 Kilométrage',
@@ -7436,7 +7436,7 @@ const AIDE_TITRES = {
 
 const AIDE_CONTENU = {
   accueil: {
-    chauffeur: `<p>Vue d'ensemble en un coup d'œil : véhicules disponibles/indisponibles, prochains RV confirmés (contrôle technique, garage, pneus…), en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
+    chauffeur: `<p>Cet onglet s'appelle « RV et infos véhicules » : en un coup d'œil, véhicules disponibles/indisponibles (la pastille « Véhicules » ouvre l'onglet du même nom), prochains RV confirmés (contrôle technique, garage, pneus…) et infos spéciales sur les véhicules, en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
     admin: `<p>Vue d'ensemble : véhicules (in)disponibles, RV urgents à traiter, RV planifiés par catégorie, rubriques « À surveiller » (CT, entretien, extincteurs, assurance, SPW…).</p>
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
   },
@@ -8352,6 +8352,10 @@ function appliquerDroits() {
   // Éléments admin-only et superadmin-only dans les pages
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdm ? '' : 'none');
   document.querySelectorAll('.superadmin-only').forEach(el => el.style.display = isSA ? '' : 'none');
+
+  // Onglet d'accueil : « Tableau de bord » pour Angélique/Patrick, « RV et infos véhicules » pour les chauffeurs
+  const tabAccueil = document.getElementById('tab-accueil');
+  if (tabAccueil) tabAccueil.textContent = isAdm ? '📊 Tableau de bord' : '📅 RV et infos véhicules';
 
   updateTabChauf();
   updateNavbarMaint();
@@ -17025,7 +17029,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261008.1702';
+const APP_VERSION = '261008.1723';
 
 let _swRegistration = null;
 
