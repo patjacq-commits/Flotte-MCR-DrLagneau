@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1314</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1327</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -5769,7 +5769,7 @@ function getEvenementsJour(dateStr) {
     if (clesRV.has(clé)) return;
     clesRV.add(clé);
     const v      = vehicules.find(x => x.id === r.vehId);
-    const tl     = labelRV(r.type);
+    const tl     = libelleRV(r);
     const coul   = couleurRV(r.type, r.statut, r.urgent);
     const prefix = r.urgent ? '🚨' : r.statut === 'planifie' ? '📅' : '✅';
     evts.push({ type: r.statut === 'planifie' ? 'rv' : 'ct', estCT: r.type === 'ct', couleur: coul,
@@ -7524,7 +7524,7 @@ const AIDE_CONTENU = {
     <p style="margin:0 0 8px"><b>Autres cas :</b></p>
     <ul style="margin:0;padding-left:20px">
       <li>Bouton « 🚨 Intervention urgente » : raccourci pour un cas prioritaire, hors planification classique.</li>
-      <li>Champ « 💬 Remarque » (tous types de RV, y compris entretien garage et contrôle technique) : ex. « + montage des pneus neige — penser à apporter les pneus ». Elle s'affiche en orange dans les RV planifiés, dans le Calendrier (réservée à Angélique et Patrick : le chauffeur voit à la place le <b>motif</b> du RV — ex. « Entretien Garage — 120 000 km », « Contrôle Technique », « Permutation pneus »), et est rappelée dans la fenêtre d'ouverture de l'app 48 h avant le RV.</li>
+      <li>Champ « 💬 Remarque » (tous types de RV, y compris entretien garage et contrôle technique) : ex. « + montage des pneus neige — penser à apporter les pneus ». Pour le type « 📝 Autre », le <b>motif</b> (ex. « Problème AdBlue ») est un champ à part, obligatoire, affiché à tous à la place de « Autre » (y compris dans les interventions urgentes) ; la remarque, elle, reste interne. Elle s'affiche en orange dans les RV planifiés, dans le Calendrier (réservée à Angélique et Patrick : le chauffeur voit à la place le <b>motif</b> du RV — ex. « Entretien Garage — 120 000 km », « Contrôle Technique », « Permutation pneus »), et est rappelée dans la fenêtre d'ouverture de l'app 48 h avant le RV.</li>
       <li>Bouton « ➕ » : ajouter un nouveau type de RV à la liste déroulante.</li>
     </ul>
     <p style="margin:10px 0 8px"><b>📄 Bon de commande du contrôle technique (AutoSécurité) :</b></p>
@@ -9266,7 +9266,7 @@ function renderRVDashboard() {
   const rows = rvs.map(r => {
     const v      = vehicules.find(x => x.id === r.vehId);
     const vNom   = v ? v.marque + ' <b>' + v.immat + '</b>' : r.vehId;
-    const tl     = labelRV(r.type);
+    const tl     = libelleRVHtml(r);
     const garage = r.garage ? ' — ' + r.garage : '';
     const hr     = r.heure  ? ' à <b>' + r.heure + '</b>' : '';
     const motif  = remarqueRVHtml(r, 12);
@@ -9641,7 +9641,7 @@ function renderAccueil() {
       const vNom   = v ? v.marque + ' <b>' + v.immat + '</b>' : r.vehId;
       const tl     = r.type && r.type.startsWith('libre_')
         ? r.type.replace('libre_', '')  // ancien format : motif dans le type
-        : (labelRV(r.type));
+        : libelleRVHtml(r);
       const garage = (r.garage||r.result) ? ' — ' + (r.garage||r.result) : '';
       const hr     = r.heure ? ' à <b>' + r.heure + '</b>' : '';
       const motif  = remarqueRVHtml(r, 12);
@@ -10329,7 +10329,7 @@ function collecterEvenementsVehicule(vehId) {
   rendezvous.filter(r => r.vehId === vehId).forEach(r => {
     evenements.push({
       date: r.date, categorie: 'rv', icone: iconeTypeRV(r.type),
-      titre: 'RV ' + libelleTypeRV(r.type) + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
+      titre: 'RV ' + (r.type === 'autre' ? libelleRVHtml(r) : libelleTypeRV(r.type)) + ' \u2014 ' + (RECAP_STATUTS_RV[r.statut] || r.statut),
       detail: [
         'Date : ' + formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : ''),
         r.garage ? 'Garage : ' + echapperHtml(r.garage) : '',
@@ -10606,8 +10606,8 @@ function executerRecherche() {
   // mènerait de toute façon à un refus d'accès.
   if (userIsAdmin()) rendezvous.filter(r=>r.statut!=='annule').forEach(r=>{
     const v=vehicules.find(x=>x.id===r.vehId);
-    if(![v?.immat,v?.marque,r.date,r.garage,r.notes].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
-    const lbl=CT_TYPE_LABELS?.[r.type]||r.type;
+    if(![v?.immat,v?.marque,r.date,r.garage,r.notes,r.motif].filter(Boolean).join(' ').toLowerCase().includes(q)) return;
+    const lbl=r.type==='autre' ? libelleRV(r) : (CT_TYPE_LABELS?.[r.type]||r.type);
     res.push({section:'📅 Rendez-vous',icon:'📅',titre:`RV ${v?v.immat:r.vehId} — ${lbl}`,
       detail:`${formatDate(r.date)}${r.heure?' à '+r.heure:''} • ${echapperHtml(r.garage||'')}`,action:'Modifier',
       fn:()=>{fermerRecherche();showPage('garages',document.querySelector('.tab-btn[onclick*="garages"]'));}});
@@ -11432,7 +11432,7 @@ function renderVehicules() {
               const bg      = urgent ? 'var(--rouge-clair)' : proche ? '#fef5e7' : 'var(--bleu-clair)';
               const border  = urgent ? 'var(--rouge)' : proche ? 'var(--orange)' : 'var(--bleu)';
               const anim    = urgent ? 'animation:rv-blink 1s ease infinite;' : '';
-              const tl      = CT_TYPE_LABELS?.[r.type] || r.type || 'RV';
+              const tl      = r.type === 'autre' ? libelleRVHtml(r) : (CT_TYPE_LABELS?.[r.type] || r.type || 'RV');
               const garage  = (r.garage||r.result) ? ' — ' + (r.garage||r.result) : '';
               const quand   = j === 0 ? ' 🔴 AUJOURD\'HUI' : j === 1 ? ' 🔴 DEMAIN' : j === 2 ? ' ⚠️ Après-demain' : '';
               return '<div style="display:flex;justify-content:space-between;align-items:center;'
@@ -11790,7 +11790,7 @@ function openVehDetail(id) {
         return '<tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;font-size:13px;'
           + 'border-top:1px solid var(--gris-bord)">📅 Rendez-vous à venir</td></tr>'
           + rvAv.map(r => {
-              const tl = labelRV(r.type);
+              const tl = libelleRVHtml(r);
               const ga = r.garage ? ' — '+r.garage : '';
               const hr = r.heure ? ' à '+r.heure : '';
               const j  = Math.round((new Date(r.date)-new Date())/86400000);
@@ -12492,7 +12492,7 @@ function ouvrirModalIndisponible(vehId) {
     ? '<div style="background:var(--orange-clair);border:1px solid var(--orange);border-radius:8px;'
       + 'padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--texte)">'
       + '⚠️ <strong>' + rvPlanifies.length + ' RV déjà planifié' + (rvPlanifies.length>1?'s':'') + '</strong> pour ce véhicule :<br>'
-      + rvPlanifies.map(r => '• ' + labelRV(r.type) + ' — ' + formatDate(r.date) + (r.garage ? ' (' + r.garage + ')' : '')).join('<br>')
+      + rvPlanifies.map(r => '• ' + libelleRVHtml(r) + ' — ' + formatDate(r.date) + (r.garage ? ' (' + r.garage + ')' : '')).join('<br>')
       + '<br><span style="color:var(--texte-sec)">Pensez à vérifier s\'ils restent valables une fois le véhicule de nouveau disponible.</span>'
       + '</div>'
     : '';
@@ -13979,11 +13979,13 @@ function sauvegarderRV() {
   const statut = date < today ? 'effectue' : 'planifie';
 
   let notes = document.getElementById('rv-notes')?.value || '';
+  let motifAutre = '';
   if (type === 'autre') {
-    const motif = document.getElementById('rv-autre-motif')?.value?.trim() || '';
-    if (!motif) { toast('Précisez le motif.'); return; }
-    enregistrerMotifLibre(motif);
-    notes = motif + (notes ? ' — ' + notes : '');
+    // Le motif est un champ à part (visible des chauffeurs) ; la remarque,
+    // elle, reste interne (Angélique/Patrick).
+    motifAutre = document.getElementById('rv-autre-motif')?.value?.trim() || '';
+    if (!motifAutre) { toast('Précisez le motif.'); return; }
+    enregistrerMotifLibre(motifAutre);
   }
 
   const rec = {
@@ -13995,6 +13997,7 @@ function sauvegarderRV() {
     notes,
     createdAt: new Date().toISOString(),
   };
+  if (motifAutre) rec.motif = motifAutre;
 
   rendezvous.unshift(rec);
   window.rendezvous = rendezvous; // sync immédiat pour éviter écrasement par _refreshUI
@@ -14558,9 +14561,23 @@ function confirmerAnnulation(id, type, nouvDate) {
    jamais la remarque interne (consignes pour Angélique/Patrick). Texte brut ;
    à échapper à l'affichage. Le km n'est ajouté que pour l'entretien garage
    (celui du RV, sinon le prochain entretien prévu du véhicule). */
+/* Libellé d'un RV (texte brut) : le type, ou — pour le type « Autre » — le
+   motif précis saisi (ex. « 📝 Problème AdBlue »). Anciennes données (motif
+   collé au début de la remarque, avant « — ») : on le récupère de là. */
+function libelleRV(r) {
+  if (!r) return 'RV';
+  if (r.type === 'autre') {
+    let m = (r.motif || '').trim();
+    if (!m && r.notes) m = String(r.notes).split(' — ')[0].trim().slice(0, 60);
+    return '📝 ' + (m || 'Autre');
+  }
+  return String(labelRV(r.type) || 'RV');
+}
+function libelleRVHtml(r) { return echapperHtml(libelleRV(r)); }
+
 function motifRVTexte(r) {
   if (!r) return 'RV';
-  let t = String(labelRV(r.type) || 'RV');
+  let t = libelleRV(r);
   if (r.type === 'garage') {
     const v = vehicules.find(x => x.id === r.vehId);
     const km = parseInt(r.km) || parseInt(v && v.prochain_entretien_km) || 0;
@@ -14670,7 +14687,7 @@ function renderTableRV() {
 
   tbody.innerHTML = rows.map(r => {
     const v   = vehicules.find(x => x.id === r.vehId);
-    const tl  = RV_TYPES[r.type] || r.type;
+    const tl  = r.type === 'autre' ? libelleRVHtml(r) : (RV_TYPES[r.type] || r.type);
     const hr  = r.heure ? ' ' + r.heure : '';
     const clsSt = r.statut === 'planifie' ? 'badge info'
                 : r.statut === 'effectue' ? 'badge ok'
@@ -14867,7 +14884,7 @@ function verifierEntretiensUrgents() {
       _dateRef: new Date(r.date + 'T' + (r.heure || '00:00')),
       _icone: iconeTypeRV(r.type),
       badge: 'En retard', badgeCouleur: 'var(--rouge)', badgeFond: 'var(--rouge-clair)',
-      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
+      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + (r.type === 'autre' ? libelleRVHtml(r) : libelleTypeRV(r.type)),
       detail: formatDateCourt(r.date) + (r.heure ? ' \u00e0 ' + r.heure : '') + (r.garage ? ' \u2014 ' + echapperHtml(r.garage) : '')
         + remarqueRVBr(r, 12),
       actionsHtml: '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
@@ -14904,7 +14921,7 @@ function verifierEntretiensUrgents() {
       badge: sous24h ? '\ud83d\udd34 <24h' : '48h',
       badgeCouleur: sous24h ? 'var(--rouge)' : 'var(--orange)',
       badgeFond: sous24h ? 'var(--rouge-clair)' : '#fef5e7',
-      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + libelleTypeRV(r.type),
+      titre: (v ? v.marque + ' \u2014 ' + v.immat : r.vehId) + ' \u2014 ' + (r.type === 'autre' ? libelleRVHtml(r) : libelleTypeRV(r.type)),
       detail: (r.heure ? formatDate(r.date) + ' \u00e0 ' + r.heure : formatDate(r.date)) + ' \u2014 dans ' + heureHtml
         + (r.garage ? ' \u2014 ' + echapperHtml(r.garage) : '')
         + remarqueRVBr(r, 12),
@@ -15340,7 +15357,7 @@ function ouvrirInterventionUrgente(vehId) {
 
       <div class="form-group" style="margin-bottom:10px">
         <label>Type d'intervention</label>
-        <select id="interv-type" style="width:100%;border:1.5px solid var(--gris-bord);
+        <select id="interv-type" onchange="document.getElementById('interv-autre-wrap').style.display = this.value === 'autre' ? '' : 'none'" style="width:100%;border:1.5px solid var(--gris-bord);
           border-radius:6px;padding:9px 10px;font-size:14px">
           <option value="crevaison">🔩 Crevaison / Pneu crevé</option>
           <option value="reparation">🔨 Réparation urgente</option>
@@ -15352,6 +15369,11 @@ function ouvrirInterventionUrgente(vehId) {
           <option value="lift">🔩 Problème lift / rampe</option>
           <option value="autre">📝 Autre…</option>
         </select>
+      </div>
+      <div class="form-group" id="interv-autre-wrap" style="margin-bottom:10px;display:none">
+        <label>Motif *</label>
+        <input type="text" id="interv-autre-motif" placeholder="ex: Problème AdBlue"
+          style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:9px 10px;font-size:14px" />
       </div>
 
       <div class="form-group" style="margin-bottom:10px">
@@ -15406,6 +15428,8 @@ function enregistrerInterventionUrgente(vehId) {
   const notes  = document.getElementById('interv-notes')?.value || '';
 
   if (!date) { toast('Indiquez une date.'); return; }
+  const motifUrg = (type === 'autre') ? (document.getElementById('interv-autre-motif')?.value || '').trim() : '';
+  if (type === 'autre' && !motifUrg) { toast('Précisez le motif.'); return; }
 
   // ID basé sur date+heure pour intercalation correcte dans l'historique
   const heureNum = heure.replace(':','') || '0000';
@@ -15423,6 +15447,7 @@ function enregistrerInterventionUrgente(vehId) {
     urgent:    true,
     createdAt: new Date().toISOString(),
   };
+  if (motifUrg) rec.motif = motifUrg;
 
   rendezvous.push(rec);
   // Trier par date+heure pour intercalation correcte
@@ -15511,9 +15536,9 @@ function renderHistorique() {
     const v         = vehicules.find(x => x.id === r.vehId);
     const isUrgent  = r.urgent === true;
     const typeLabel = isUrgent
-      ? '🚨 ' + labelRV(r.type)
+      ? '🚨 ' + libelleRV(r)
       : (r.statut === 'planifie' ? '📅' : r.statut === 'effectue' ? '✅' : '❌')
-        + ' ' + labelRV(r.type);
+        + ' ' + libelleRV(r);
     const heureStr  = r.heure  ? ' ' + r.heure : '';
     const garageStr = r.garage ? ' — ' + r.garage : '';
     const remStr    = (r.notes && userIsAdmin()) ? ' — ' + r.notes  : '';
@@ -15781,6 +15806,7 @@ function editHistItem(srcType, srcId) {
       { label:'Date',    type:'date', key:'date',   val: r.date },
       { label:'Heure',   type:'time', key:'heure',  val: r.heure  || '' },
       { label:'Garage',  type:'text', key:'garage', val: r.garage || '' },
+      ...(r.type === 'autre' ? [{ label:'📝 Motif (visible des chauffeurs)', type:'text', key:'motif', val: r.motif || '' }] : []),
       { label:'💬 Remarque', type:'text', key:'notes',  val: r.notes  || '' },
     ], (changes) => {
       const ancienneDate = r.date, ancienImprime = bonCtEstValide(r);
@@ -16952,7 +16978,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261008.1314';
+const APP_VERSION = '261008.1327';
 
 let _swRegistration = null;
 
@@ -17135,7 +17161,7 @@ function updateStatutNotif() {
 /* Envoie une notification immédiate via le SW */
 function notifRV(rv, vehicule) {
   if (!('serviceWorker' in navigator) || Notification.permission !== 'granted') return;
-  const typeLabel = labelRV(rv.type);
+  const typeLabel = libelleRV(rv);
   const heureStr  = rv.heure ? ` à ${rv.heure}` : '';
   const garageStr = rv.garage ? ` — ${rv.garage}` : '';
   const vNom = vehicule ? `${vehicule.marque} ${vehicule.immat}` : rv.vehId;
