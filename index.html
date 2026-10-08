@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1551</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1619</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -7473,7 +7473,12 @@ const AIDE_CONTENU = {
     <p>Le 112 et le numéro de Patrick restent aussi joignables sans connexion via la petite icône 🆘 en bas à droite de l'écran de connexion.</p>`,
   histmaint: {
     chauffeur: `<p>Consultation des maintenances de l'année (filtrable par véhicule), commentaires garage, impression PDF.</p>`,
-    admin: `<p>Consultation + bouton « ➕ Ajouter un commentaire garage » (notes libres sur les dépôts Curfoz/Bouillon/Opont, indépendantes d'un véhicule précis).</p>`,
+    admin: `<p>Consultation + bouton « ➕ Ajouter un commentaire garage » (notes libres sur les dépôts Curfoz/Bouillon/Opont, indépendantes d'un véhicule précis).</p>
+      <ul style="margin:6px 0 0 18px;padding:0">
+        <li>✏️ <b>Modifier</b> un commentaire (dépôt, date, texte) en cas d'oubli : il est mis à jour sur place, avec la mention « modifié le … ».</li>
+        <li>🗑 <b>Supprimer</b> demande une confirmation qui rappelle le dépôt, la date et le texte, pour éviter une suppression par erreur.</li>
+        <li>🔒 Case « Réservé à Angélique et Patrick » : le commentaire est alors <b>masqué aux chauffeurs</b> (badge « 🔒 Privé » pour vous). À cocher pour les notes qui ne les concernent pas (ex. un achat de matériel).</li>
+      </ul>`,
   },
   maintenance: `<p style="margin:0 0 8px">Formulaire complet de saisie mensuelle, réservé à Patrick (Angélique consulte via « Historique maintenances », sans pouvoir éditer) :</p>
     <p style="margin:0 0 8px"><b>Pour faire le tour mensuel des véhicules :</b></p>
@@ -7489,6 +7494,7 @@ const AIDE_CONTENU = {
       <li>Modifier ou supprimer une entrée se fait depuis « Historique » ou « Historique maintenances » ; la carte de progression se met à jour en conséquence.</li>
       <li>⚠️ Les photos sont conservées uniquement dans ce navigateur (stockage local) : elles ne sont pas synchronisées entre appareils ni envoyées sur le serveur. Pour les consulter ailleurs, faire une impression/export PDF depuis cet appareil.</li>
       <li>Le kilométrage affiché sur la fiche véhicule provient toujours de la maintenance la plus récente ; l'« Entretien garage » (onglet Prendre RV) est un suivi séparé et indépendant.</li>
+    <li>🏭 <b>Commentaires garage</b> (en bas de page) : ✏️ Modifier en cas d'oubli, 🗑 Supprimer avec confirmation détaillée, et case « 🔒 Réservé à Angélique et Patrick » pour masquer un commentaire aux chauffeurs.</li>
     </ul>`,
   garages: `<p style="margin:0 0 8px"><b>Pour prendre un nouveau RV :</b></p>
     <ol style="margin:0 0 10px;padding-left:20px">
@@ -8721,7 +8727,12 @@ async function renderCommentairesGarage() {
 
   try {
     const snap = await db.collection('commentairesGarage').get();
-    const tousItems = snap.docs.map(d => d.data()).sort((a,b) => b.date.localeCompare(a.date));
+    let tousItems = snap.docs.map(d => d.data()).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+    // Mémorise tout (pour l'édition) puis masque aux chauffeurs les
+    // commentaires marqués « privés » (réservés à Angélique/Patrick).
+    window._commentairesGarageCache = {};
+    tousItems.forEach(c => { window._commentairesGarageCache[String(c.id)] = c; });
+    if (!isAdmin) tousItems = tousItems.filter(c => !c.prive);
 
     containers.forEach(container => {
       // Filtre propre à CETTE page (sibling dans la même carte)
@@ -8736,17 +8747,22 @@ async function renderCommentairesGarage() {
 
       container.innerHTML = items.map(c => {
         const adminBtns = isAdmin
-          ? `<button class="btn btn-sm" style="margin-top:8px;font-size:11px;padding:3px 8px;
+          ? `<div style="display:flex;gap:6px;margin-top:8px">
+             <button class="btn btn-sm" style="font-size:11px;padding:3px 8px"
+               onclick="ouvrirModalCommentaireGarage(${c.id})">✏️ Modifier</button>
+             <button class="btn btn-sm" style="font-size:11px;padding:3px 8px;
              color:var(--rouge);border-color:var(--rouge-clair)"
-             onclick="supprimerCommentaireGarage(${c.id})">🗑 Supprimer</button>`
+             onclick="supprimerCommentaireGarage(${c.id})">🗑 Supprimer</button></div>`
           : '';
+        const badgePrive = (isAdmin && c.prive)
+          ? ' <span class="badge warn" style="font-size:10px" title="Masqué aux chauffeurs">🔒 Privé</span>' : '';
         return `<div class="form-card" style="padding:10px 14px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px">
-            <span class="badge info" style="font-size:11px">🏭 ${echapperHtml(c.garage)}</span>
+            <span><span class="badge info" style="font-size:11px">🏭 ${echapperHtml(c.garage)}</span>${badgePrive}</span>
             <span style="font-size:11px;color:var(--texte-sec);white-space:nowrap">${formatDateCourt(c.date)}</span>
           </div>
           <div style="font-size:13px">${echapperHtml(c.texte)}</div>
-          <div style="font-size:11px;color:var(--texte-sec);margin-top:4px">— ${echapperHtml(c.auteur || '')}</div>
+          <div style="font-size:11px;color:var(--texte-sec);margin-top:4px">— ${echapperHtml(c.auteur || '')}${c.modifieLe ? ' · modifié le ' + formatDateCourt(c.modifieLe.slice(0,10)) : ''}</div>
           ${adminBtns}
         </div>`;
       }).join('');
@@ -8756,29 +8772,36 @@ async function renderCommentairesGarage() {
   }
 }
 
-function ouvrirModalCommentaireGarage() {
+function ouvrirModalCommentaireGarage(editId) {
   if (!userIsAdmin()) return;
   const ex = document.getElementById('modal-commentaire-garage');
   if (ex) ex.remove();
+  const edit = editId ? (window._commentairesGarageCache || {})[String(editId)] : null;
+  if (editId && !edit) { toast('Commentaire introuvable — rechargez la liste.'); return; }
+  const escA = x => String(x == null ? '' : x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const div = document.createElement('div');
   div.id = 'modal-commentaire-garage';
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;'
     + 'display:flex;align-items:center;justify-content:center;padding:16px';
   div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;'
     + 'box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
-    + '<div style="font-size:16px;font-weight:700;margin-bottom:14px">🏭 Nouveau commentaire</div>'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:14px">' + (edit ? '✏️ Modifier le commentaire' : '🏭 Nouveau commentaire') + '</div>'
+    + '<input type="hidden" id="cg-edit-id" value="' + (edit ? escA(edit.id) : '') + '" />'
     + '<div class="form-group" style="margin-bottom:12px"><label>Dépôt</label>'
     + '<select id="cg-garage" style="width:100%">'
-    + GARAGES_COMMENTAIRE.map(g => '<option value="' + g + '">' + g + '</option>').join('')
+    + GARAGES_COMMENTAIRE.map(g => '<option value="' + g + '"' + (edit && edit.garage === g ? ' selected' : '') + '>' + g + '</option>').join('')
     + '</select></div>'
     + '<div class="form-group" style="margin-bottom:12px"><label>Date</label>'
-    + '<input type="date" id="cg-date" value="' + toLocalYMD(new Date()) + '" style="width:100%" /></div>'
-    + '<div class="form-group" style="margin-bottom:16px"><label>Commentaire</label>'
+    + '<input type="date" id="cg-date" value="' + (edit ? escA(edit.date) : toLocalYMD(new Date())) + '" style="width:100%" /></div>'
+    + '<div class="form-group" style="margin-bottom:12px"><label>Commentaire</label>'
     + '<textarea id="cg-texte" rows="3" placeholder="ex: déposé 1L d\'huile moteur…"'
     + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;'
-    + 'font-size:14px;resize:vertical"></textarea></div>'
+    + 'font-size:14px;resize:vertical">' + (edit ? escA(edit.texte) : '') + '</textarea></div>'
+    + '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:16px;cursor:pointer">'
+    + '<input type="checkbox" id="cg-prive"' + (edit && edit.prive ? ' checked' : '') + ' style="width:18px;height:18px;margin-top:1px;cursor:pointer" />'
+    + '<span>🔒 Réservé à Angélique et Patrick <span style="color:var(--texte-sec)">(masqué aux chauffeurs)</span></span></label>'
     + '<div style="display:flex;gap:8px">'
-    + '<button class="btn primary" onclick="ajouterCommentaireGarage()">Enregistrer</button>'
+    + '<button class="btn primary" onclick="ajouterCommentaireGarage()">' + (edit ? 'Mettre à jour' : 'Enregistrer') + '</button>'
     + '<button class="btn" onclick="document.getElementById(\'modal-commentaire-garage\').remove()">Annuler</button>'
     + '</div></div>';
   document.body.appendChild(div);
@@ -8789,13 +8812,28 @@ async function ajouterCommentaireGarage() {
   const garage = document.getElementById('cg-garage')?.value;
   const date   = document.getElementById('cg-date')?.value;
   const texte  = document.getElementById('cg-texte')?.value?.trim();
+  const prive  = !!document.getElementById('cg-prive')?.checked;
+  const editId = document.getElementById('cg-edit-id')?.value || '';
   if (!garage || !date || !texte) { toast('Veuillez remplir tous les champs.'); return; }
 
-  const rec = { id: Date.now(), garage, date, texte, auteur: currentUser?.nom || '' };
+  let rec;
+  if (editId) {
+    const ancien = (window._commentairesGarageCache || {})[String(editId)];
+    if (!ancien) { toast('Commentaire introuvable — rechargez la liste.'); return; }
+    // On garde l'id et l'auteur d'origine ; on note qui a modifié et quand
+    rec = Object.assign({}, ancien, { garage, date, texte, prive,
+      modifieLe: new Date().toISOString(), modifiePar: currentUser?.nom || '' });
+  } else {
+    rec = { id: Date.now(), garage, date, texte, prive, auteur: currentUser?.nom || '' };
+  }
   try {
     await db.collection('commentairesGarage').doc(String(rec.id)).set(rec);
     document.getElementById('modal-commentaire-garage')?.remove();
-    toast('✅ Commentaire ajouté');
+    try {
+      if (editId) logModification('commentairesGarage', `Commentaire dépôt ${garage} modifié`, null, { id: rec.id, garage, date });
+      else logCreation('commentairesGarage', `Commentaire dépôt ${garage} ajouté`, { id: rec.id, garage, date });
+    } catch(e) {}
+    toast(editId ? '✅ Commentaire modifié' : '✅ Commentaire ajouté');
     renderCommentairesGarage();
   } catch(e) {
     toast('❌ Erreur : ' + e.message);
@@ -8804,9 +8842,13 @@ async function ajouterCommentaireGarage() {
 
 async function supprimerCommentaireGarage(id) {
   if (!userIsAdmin()) return;
-  if (!confirm('Supprimer ce commentaire ?')) return;
+  const c = (window._commentairesGarageCache || {})[String(id)];
+  const apercu = c ? '\n\n🏭 ' + c.garage + ' — ' + formatDateCourt(c.date) + '\n« ' + String(c.texte || '').slice(0, 160) + (String(c.texte || '').length > 160 ? '…' : '') + ' »' : '';
+  if (!confirm('Supprimer définitivement ce commentaire ?' + apercu + '\n\nCette action est irréversible.')) return;
   try {
     await db.collection('commentairesGarage').doc(String(id)).delete();
+    try { logSuppression && logSuppression('commentairesGarage', 'Commentaire dépôt supprimé' + (c ? ' : ' + c.garage + ' ' + c.date : ''), c || null); } catch(e) {}
+    toast('Commentaire supprimé');
     renderCommentairesGarage();
   } catch(e) {
     toast('❌ Erreur : ' + e.message);
@@ -16978,7 +17020,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261008.1551';
+const APP_VERSION = '261008.1619';
 
 let _swRegistration = null;
 
