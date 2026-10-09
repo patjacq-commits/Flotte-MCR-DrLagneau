@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.1003</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.1445</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -7497,7 +7497,7 @@ const AIDE_CONTENU = {
   },
   alertes: {
     chauffeur: `<p>Cette rubrique est réservée à Angélique et Patrick, qui s'occupent du suivi des échéances (CT, entretien…) et de la prise des RV. Vous retrouvez les RV planifiés sur le tableau de bord et les dates de chaque véhicule dans « Véhicules ».</p>`,
-    admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
+    admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Une permutation de pneus effectuée depuis 2 jours ou plus sans kilométrage y apparaît aussi (« Km de permutation manquant », rubrique 🛞 Pneus) jusqu'à ce que le km soit complété avec ✏️ dans l'historique des permutations. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
   },
   kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable. Consultation pour tous (chauffeurs compris, à titre d'information) : les chiffres viennent des relevés de maintenance mensuels saisis par Patrick.</p>`,
   calendrier: {
@@ -11094,6 +11094,22 @@ function buildAlertes() {
     }
   });
 
+  // ── Permutation effectuée depuis 2 jours ou plus sans kilométrage ─────
+  // Le km est demandé le jour J mais peut être sauté (« Enregistrer sans km »)
+  // ou oublié ; sans ce rappel, seul le badge « km manquant » de l'historique
+  // Pneus le signalait. L'alerte disparaît dès que le km est complété (✏️).
+  (typeof permutations !== 'undefined' ? permutations : []).forEach(p => {
+    if (!p || p.km || !p.date || !permutationEffective(p)) return;
+    const jP = daysUntil(p.date);
+    if (jP === null || jP > -2) return;
+    const vP = vehicules.find(x => x.id === p.vehId);
+    if (!vP || vP.archive) return;
+    const sens = p.type === 'ete-hiver' ? 'Été → Hiver' : 'Hiver → Été';
+    alertes.push({ level:'warn', icon:'🛞', category:'pneus', vehId:vP.id, typeRV:null,
+      titre:`Km de permutation manquant — ${vP.marque} ${vP.immat}`,
+      detail:`Permutation ${sens} du ${formatDate(p.date)} (il y a ${Math.abs(jP)} jours) sans kilométrage. À compléter dans Pneus → Historique des permutations (✏️).` });
+  });
+
   alertes.sort((a,b) => {
     const o = { urgent:0, warn:1, rv:2, info:3 };
     // Les cartes rouges CT en tout premier
@@ -11206,6 +11222,7 @@ function renderAlertesFull() {
       { key:'entretien',  label:'🔧 Entretien garage' },
       { key:'extincteur', label:'🧯 Extincteurs' },
       { key:'assurance',  label:'🛡 Assurance' },
+      { key:'pneus',      label:'🛞 Pneus' },
       { key:'spw',        label:'📋 Vignette SPW' },
       { key:undefined,    label:'⚠️ Autres' },
     ];
@@ -17026,7 +17043,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261009.1003';
+const APP_VERSION = '261009.1445';
 
 let _swRegistration = null;
 
