@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0943</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.1003</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -7483,15 +7483,15 @@ const AIDE_TITRES = {
 
 const AIDE_CONTENU = {
   accueil: {
-    chauffeur: `<p>Cet onglet s'appelle « RV et infos véhicules » : en un coup d'œil, véhicules disponibles/indisponibles (la pastille « Véhicules » ouvre l'onglet du même nom), prochains RV confirmés (contrôle technique, garage, pneus…) et infos spéciales sur les véhicules, en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
+    chauffeur: `<p>Cet onglet s'appelle « RV et infos véhicules » : en un coup d'œil, véhicules disponibles/indisponibles (la pastille « Véhicules » donne le nombre de véhicules en service et, pour chaque véhicule immobilisé, la plaque, le motif et la date de fin ou la durée estimée ; un clic ouvre l'onglet du même nom), prochains RV confirmés (contrôle technique, garage, pneus…) et infos spéciales sur les véhicules, en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
     admin: `<p>Vue d'ensemble : « Priorités du jour » (ce qu'il faut faire maintenant : 💬 signalements, 📋 RV à prendre, 🛞 permutations sans RV, 🔴 véhicules indisponibles avec plaque, motif et durée), puis infos spéciales et RV planifiés par catégorie. Les pastilles du haut sont des raccourcis : « RV planifiés » et « Infos spéciales » font défiler jusqu'à leur bloc, « Véhicules » ouvre l'onglet du même nom. Les pastilles <b>🚨 Urgent</b> et <b>⚠️ À surveiller</b> donnent le nombre d'alertes (CT, entretien, extincteurs, assurance, vignette SPW…) ; un clic ouvre la liste détaillée dans l'onglet 🔔 Alertes. Le détail des alertes n'est plus répété sur le tableau de bord.</p>
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
   },
   vehicules: {
-    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif).</p>`,
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date.</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
         <li>✏️ Modifier les informations d'un véhicule, dont la case « 🛞 Pneus été et neige montés sur jantes » (TLAN633, TLAN910 et TLAN527 sont cochés d'office) : une pastille « 🛞 Sur jantes » apparaît alors sur la fiche — visible uniquement par Angélique et Patrick.</li>
-        <li>🔴/🟢 Marquer un véhicule (in)disponible : choisir un motif, ou « Autre » pour le préciser en texte libre (ex. « pneu éventré, en attente de livraison »), et indiquer si possible une durée estimée. La fiche affiche le motif et la durée estimée, avec « ⏰ N jours ! » au-delà de 5 jours d'immobilisation (sans date). Le champ « À partir du » (facultatif) permet de programmer l'immobilisation : jusqu'à cette date le véhicule reste disponible (hors « Priorités du jour ») et la fiche affiche seulement « 🗓 Immobilisation prévue le … » (✕ pour annuler) ; le jour dit, il passe automatiquement en indisponible.</li>
+        <li>🔴/🟢 Marquer un véhicule (in)disponible : choisir un motif, ou « Autre » pour le préciser en texte libre (ex. « pneu éventré, en attente de livraison »), et indiquer si possible une durée estimée. La fiche affiche le motif et la durée estimée, avec « ⏰ N jours ! » au-delà de 5 jours d'immobilisation (sans date). Le champ « À partir du » (facultatif) permet de programmer l'immobilisation : jusqu'à cette date le véhicule reste disponible (hors « Priorités du jour ») et la fiche affiche seulement « 🗓 Immobilisation prévue le … » (✕ pour annuler) ; le jour dit, il passe automatiquement en indisponible. Le champ « Jusqu'au (inclus) » (facultatif) fixe le dernier jour d'immobilisation : le lendemain, le véhicule redevient automatiquement disponible (l'historique des indisponibilités est conservé). Exemple : du 20/10 au 22/10 → indisponible les 20, 21 et 22, disponible dès le 23. Exception de sécurité : si le CT est dépassé ou la carte rouge non levée, le véhicule reste immobilisé (« fin prévue dépassée ! ») jusqu'à votre confirmation manuelle 🟢. Sans date de fin, il reste indisponible jusqu'à ce que vous le remettiez disponible vous-même.</li>
         <li>🗑 Archiver ou supprimer définitivement un véhicule ; réactiver un véhicule archivé.</li>
       </ul>`,
   },
@@ -9387,14 +9387,18 @@ function renderAccueil() {
   // volontairement via "🔴 Marquer indisponible"), jamais déduite du
   // contenu d'une note libre (infoSpec) — c'était la source du bug où une
   // simple remarque mentionnant une date déclenchait à tort ce badge.
-  const _immob   = vehicules.filter(v => v.indisponible);
+  // Véhicules ACTIFS seulement (09/10) : un véhicule archivé n'est plus compté ni signalé immobilisé.
+  const _actifs  = vehicules.filter(v => !v.archive);
+  const _immob   = _actifs.filter(v => v.indisponible);
   const _nbImm   = _immob.length;
   const _coulVeh = _nbImm > 0 ? 'var(--orange)' : 'var(--bleu)';
-  const _lblVeh  = 'Véhicule' + (vehicules.length > 1 ? 's' : '')
+  const _lblVeh  = 'Véhicule' + (_actifs.length > 1 ? 's' : '')
     + (_nbImm > 0 ? ' <span style="color:var(--orange)">(' + _nbImm + ' immo.)</span>' : '');
+  // Une ligne par véhicule immobilisé : plaque, motif réel, et date de fin ou durée estimée si connue.
   const _subVeh  = _nbImm > 0
-    ? _immob.map(v => '<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3;margin-top:2px">'
-        + v.immat + ' au garage</div>').join('')
+    ? _immob.map(v => '<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3;margin-top:2px;overflow-wrap:anywhere">'
+        + echapperHtml(v.immat) + ' : ' + echapperHtml(v.motifIndisponible || 'indisponible')
+        + (texteFinIndispo(v) ? ' — ' + echapperHtml(texteFinIndispo(v)) : '') + '</div>').join('')
     : '';
   const _ttipVeh = _nbImm > 0
     ? _immob.map(v => v.immat + (v.motifIndisponible ? ' : ' + v.motifIndisponible : '')).join(' | ')
@@ -9402,7 +9406,7 @@ function renderAccueil() {
   const _cardVeh = '<div class="summary-card" style="cursor:pointer;border-color:' + _coulVeh + '"'
     + ' onclick="showPage(\'vehicules\', document.querySelectorAll(\'.tab-btn\')[1])"'
     + ' title="' + _ttipVeh.replace(/"/g,"'") + '">'
-    + '<div class="num" style="color:' + _coulVeh + '">' + vehicules.length + '</div>'
+    + '<div class="num" style="color:' + _coulVeh + '">' + _actifs.length + '</div>'
     + '<div class="lbl">' + _lblVeh + '</div>'
     + _subVeh + '</div>';
 
@@ -9577,7 +9581,7 @@ function renderAccueil() {
              <b style="color:var(--rouge)">${nbIndisponibles}</b> 🔴 indisponible${nbIndisponibles>1?'s':''}
              <span style="color:var(--texte-sec);min-width:0">(${vehiculesIndispo.map(v =>
                '<b>' + echapperHtml(v.immat) + '</b>' + (v.motifIndisponible ? ' : ' + echapperHtml(v.motifIndisponible) : '')
-               + ' — ' + (v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : 'durée ?')
+               + ' — ' + (texteFinIndispo(v) ? echapperHtml(texteFinIndispo(v)) : 'durée ?')
              ).join(' ; ')})</span>
            </div>` : '';
 
@@ -11350,18 +11354,20 @@ function renderVehicules() {
     return `<div class="veh-card${v.indisponible ? ' indisponible-clignote' : ''}">
       ${pastilleRV}
       ${(!v.indisponible && v.indispoPrevue) ? `<div style="background:#fff3e0;color:#8a4b00;padding:5px 14px;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;overflow-wrap:anywhere">
-          🗓 Immobilisation prévue le ${formatDate(v.indispoPrevue.depuis)} — ${echapperHtml(v.indispoPrevue.motif || 'Autre')}${v.indispoPrevue.duree ? ' (' + echapperHtml(v.indispoPrevue.duree) + ')' : ''}
+          🗓 Immobilisation prévue le ${formatDate(v.indispoPrevue.depuis)}${v.indispoPrevue.jusqua ? ' au ' + formatDate(v.indispoPrevue.jusqua) : ''} — ${echapperHtml(v.indispoPrevue.motif || 'Autre')}${v.indispoPrevue.duree ? ' (' + echapperHtml(v.indispoPrevue.duree) + ')' : ''}
           ${userIsAdmin() ? `<button onclick="annulerIndisponibilitePrevue('${v.id}')" title="Annuler" style="border:none;background:none;cursor:pointer;color:#8a4b00;font-weight:700">✕</button>` : ''}
         </div>` : ''}
       ${v.indisponible ? (() => {
         const jInd = Math.round((new Date(toLocalYMD(new Date()) + 'T00:00:00') - new Date(v.indisponibleDepuis + 'T00:00:00')) / 86400000);
-        const longue = jInd >= 5;
+        // Avec une date de fin connue, « longue » = fin dépassée (retour bloqué, ex. CT) ; sinon ≥ 5 jours sans date.
+        const longue = v.indisponibleJusqua ? (v.indisponibleJusqua < toLocalYMD(new Date())) : (jInd >= 5);
         return `<div style="background:${longue?'#8b0000':'var(--rouge)'};color:#fff;padding:6px 14px;
           font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${longue ? '⏰🔴' : '🔴'} Indisponible — ${echapperHtml(v.motifIndisponible || 'Autre')}
           <span style="font-weight:${longue?'700':'400'};opacity:0.95">
-            ${longue ? '(' + jInd + ' jours !)' : ''}
-            ${v.dureeEstimeeIndisponible ? ' — durée estimée : ' + echapperHtml(v.dureeEstimeeIndisponible) : ''}
+            ${longue ? (v.indisponibleJusqua ? '(fin prévue dépassée !)' : '(' + jInd + ' jours !)') : ''}
+            ${v.indisponibleJusqua ? ' — ' + echapperHtml(texteFinIndispo(v)) + (v.dureeEstimeeIndisponible ? ' (' + echapperHtml(v.dureeEstimeeIndisponible) + ')' : '')
+              : (v.dureeEstimeeIndisponible ? ' — durée estimée : ' + echapperHtml(v.dureeEstimeeIndisponible) : '')}
           </span>
         </div>`;
       })() : ''}
@@ -12523,6 +12529,11 @@ function ouvrirModalIndisponible(vehId) {
     + '<input type="date" id="indispo-debut" min="' + toLocalYMD(new Date()) + '"'
     + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" />'
     + '<div style="font-size:11px;color:var(--texte-sec);margin-top:3px">Avant cette date, le véhicule reste disponible ; il passe automatiquement en indisponible le jour choisi.</div></div>'
+    + '<div class="form-group" style="margin-bottom:14px"><label>Jusqu\'au (inclus) '
+    + '<span style="font-weight:400;color:var(--texte-sec)">(optionnel — vide = jusqu\'à ce que vous le remettiez disponible)</span></label>'
+    + '<input type="date" id="indispo-fin" min="' + toLocalYMD(new Date()) + '"'
+    + ' style="width:100%;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px" />'
+    + '<div style="font-size:11px;color:var(--texte-sec);margin-top:3px">Le lendemain de cette date, le véhicule redevient automatiquement disponible (sauf si son CT est dépassé : il reste alors immobilisé jusqu\'à votre confirmation).</div></div>'
     + '<div class="form-group" style="margin-bottom:18px"><label>Durée estimée '
     + '<span style="font-weight:400;color:var(--texte-sec)">(optionnel)</span></label>'
     + '<input type="text" id="indispo-duree" placeholder="ex: 2-3 jours, 1 semaine, indéterminé…"'
@@ -12549,22 +12560,26 @@ function marquerVehiculeIndisponible(vehId) {
   }
   const duree = document.getElementById('indispo-duree')?.value?.trim() || '';
   const debut = document.getElementById('indispo-debut')?.value || '';
+  const fin   = document.getElementById('indispo-fin')?.value || '';
+  const premierJour = (debut && debut > toLocalYMD(new Date())) ? debut : toLocalYMD(new Date());
+  if (fin && fin < premierJour) { toast('La date « Jusqu\'au » ne peut pas précéder le début de l\'immobilisation.'); document.getElementById('indispo-fin')?.focus(); return; }
   if (debut && debut > toLocalYMD(new Date())) {
     // Immobilisation PRÉVUE : le véhicule reste disponible jusqu'à cette date
     // (voir appliquerIndisponibilitesPrevues, qui la déclenche le jour dit).
-    v.indispoPrevue = { depuis: debut, motif, duree };
+    v.indispoPrevue = { depuis: debut, motif, duree, jusqua: fin };
     document.getElementById('modal-indisponible')?.remove();
     window.vehicules = vehicules;
     saveAll();
     renderVehicules();
     renderAccueil();
-    logCreation('vehicules', `${v.marque} ${v.immat} : immobilisation prévue le ${formatDate(debut)} (${motif}${duree ? ' — ' + duree : ''})`, { vehId, motif, duree, debut });
+    logCreation('vehicules', `${v.marque} ${v.immat} : immobilisation prévue le ${formatDate(debut)}${fin ? ' au ' + formatDate(fin) : ''} (${motif}${duree ? ' — ' + duree : ''})`, { vehId, motif, duree, fin, debut });
     toast(`🗓 ${v.immat} : immobilisation prévue le ${formatDate(debut)}`);
     return;
   }
   v.indisponible = true;
   v.motifIndisponible = motif;
   v.dureeEstimeeIndisponible = duree;
+  v.indisponibleJusqua = fin;
   v.indisponibleDepuis = toLocalYMD(new Date());
   document.getElementById('modal-indisponible')?.remove();
   window.vehicules = vehicules;
@@ -12572,7 +12587,7 @@ function marquerVehiculeIndisponible(vehId) {
   renderVehicules();
   renderAccueil();
   logCreation('vehicules', `${v.marque} ${v.immat} marqué indisponible (${motif}${duree ? ' — ' + duree : ''})`, { vehId, motif, duree });
-  toast(`🔴 ${v.immat} marqué indisponible`);
+  toast(`🔴 ${v.immat} marqué indisponible${fin ? ' jusqu\'au ' + formatDate(fin) : ''}`);
 }
 
 /* Déclenche les immobilisations prévues dont la date est arrivée. Appelée à
@@ -12588,8 +12603,22 @@ function appliquerIndisponibilitesPrevues() {
     v.indisponible = true;
     v.motifIndisponible = p.motif || 'Autre';
     v.dureeEstimeeIndisponible = p.duree || '';
+    v.indisponibleJusqua = p.jusqua || '';
     v.indisponibleDepuis = p.depuis;
     delete v.indispoPrevue;
+    change = true;
+  });
+  // Retour automatique (09/10) : le lendemain de la date « Jusqu'au », le véhicule redevient disponible.
+  // Jamais si son CT est dépassé / carte rouge non levée : il reste alors immobilisé jusqu'à la confirmation manuelle.
+  (vehicules || []).forEach(v => {
+    if (!v.indisponible || !v.indisponibleJusqua || v.indisponibleJusqua >= today) return;
+    if (causeBlocageRemiseEnService(v)) return;
+    const fin = v.indisponibleJusqua;
+    const motifAvant = v.motifIndisponible;
+    remettreDisponibleCore(v, fin);
+    if (typeof userIsAdmin === 'function' && userIsAdmin()) {
+      try { logCreation('vehicules', `${v.marque} ${v.immat} redevenu disponible automatiquement le ${formatDate(fin)} (était : ${motifAvant || '—'})`, { vehId: v.id }); } catch(e) {}
+    }
     change = true;
   });
   if (change && typeof userIsAdmin === 'function' && userIsAdmin()) {
@@ -12613,39 +12642,53 @@ function annulerIndisponibilitePrevue(vehId) {
   toast('Immobilisation prévue annulée');
 }
 
-function marquerVehiculeDisponible(vehId) {
-  const v = vehicules.find(x => x.id === vehId);
-  if (!v) return;
-  // Garde-fou CT (07/10) : ne pas remettre en service un véhicule dont le CT
-  // est dépassé ou dont la carte rouge est expirée sans le signaler.
-  {
-    const jCT = v.ct_valid ? daysUntil(v.ct_valid) : null;
-    const jCR = v.ct_carte_rouge ? daysUntil(v.ct_carte_rouge) : null;
-    const cause = (jCR !== null && jCR < 0) ? 'Délai de carte rouge dépassé (' + formatDate(v.ct_carte_rouge) + ').'
-      : (v.ct_carte_rouge ? 'Carte rouge en cours : repassage non confirmé.'
-      : (jCT !== null && jCT < 0 ? 'CT dépassé depuis ' + Math.abs(jCT) + ' jour(s) (' + formatDate(v.ct_valid) + ').' : ''));
-    if (cause && !confirm('⚠️ ' + v.marque + ' ' + v.immat + '\n\n' + cause + '\n\nRemettre quand même en service ?')) return;
-  }
+/* Cause qui interdit une remise en service « silencieuse » (CT dépassé, carte rouge non levée) ; '' si aucune. */
+function causeBlocageRemiseEnService(v) {
+  const jCT = v.ct_valid ? daysUntil(v.ct_valid) : null;
+  const jCR = v.ct_carte_rouge ? daysUntil(v.ct_carte_rouge) : null;
+  return (jCR !== null && jCR < 0) ? 'Délai de carte rouge dépassé (' + formatDate(v.ct_carte_rouge) + ').'
+    : (v.ct_carte_rouge ? 'Carte rouge en cours : repassage non confirmé.'
+    : (jCT !== null && jCT < 0 ? 'CT dépassé depuis ' + Math.abs(jCT) + ' jour(s) (' + formatDate(v.ct_valid) + ').' : ''));
+}
+
+/* Remet un véhicule disponible et conserve l'historique des indisponibilités (motif, période, durée).
+   jusquA = dernier jour d'immobilisation (aujourd'hui en manuel, la date « Jusqu'au » en automatique). */
+function remettreDisponibleCore(v, jusquA) {
   const motifPrecedent = v.motifIndisponible;
   const depuisPrecedent = v.indisponibleDepuis;
-
-  // Point 8 : conserver un historique des indisponibilités (motif, période,
-  // durée) — sans ça, l'info disparaît dès que le véhicule redevient
-  // disponible et aucune statistique n'est possible.
   if (depuisPrecedent) {
     if (!Array.isArray(v.historiqueIndisponibilites)) v.historiqueIndisponibilites = [];
-    const jusquA = toLocalYMD(new Date());
     const duree = Math.max(1, Math.round((new Date(jusquA) - new Date(depuisPrecedent)) / 86400000) + 1);
     v.historiqueIndisponibilites.push({
       motif: motifPrecedent, depuis: depuisPrecedent, jusqua: jusquA, dureeJours: duree,
       dureeEstimee: v.dureeEstimeeIndisponible || '',
     });
   }
-
   v.indisponible = false;
   v.motifIndisponible = '';
   v.dureeEstimeeIndisponible = '';
+  v.indisponibleJusqua = '';
   v.indisponibleDepuis = '';
+}
+
+/* Texte « jusqu'au 22/10/2026 » si une date de fin est connue, sinon la durée estimée saisie en texte libre. */
+function texteFinIndispo(v) {
+  if (v.indisponibleJusqua) return 'jusqu\'au ' + formatDate(v.indisponibleJusqua);
+  return v.dureeEstimeeIndisponible || '';
+}
+
+function marquerVehiculeDisponible(vehId) {
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  // Garde-fou CT (07/10) : ne pas remettre en service un véhicule dont le CT
+  // est dépassé ou dont la carte rouge est expirée sans le signaler.
+  {
+    const cause = causeBlocageRemiseEnService(v);
+    if (cause && !confirm('⚠️ ' + v.marque + ' ' + v.immat + '\n\n' + cause + '\n\nRemettre quand même en service ?')) return;
+  }
+  const motifPrecedent = v.motifIndisponible;
+  remettreDisponibleCore(v, toLocalYMD(new Date()));
+
   window.vehicules = vehicules;
   saveAll();
   renderVehicules();
@@ -16285,7 +16328,7 @@ async function exporterExcel() {
         v.prochain_entretien_km || '', v.interval_entretien_km || '', v.ct_valid || '', v.garage || '',
         v.dim_ete || '', v.pneus_ete || '', v.dim_hiver || '', v.pneus_hiver || '',
         v.permut_hiver_ete_date || '', v.permut_hiver_ete_km || '', v.permut_ete_hiver_date || '', v.permut_ete_hiver_km || '',
-        v.indisponible ? 'Indisponible' : 'Disponible', v.motifIndisponible || '', v.dureeEstimeeIndisponible || '',
+        v.indisponible ? 'Indisponible' : 'Disponible', v.motifIndisponible || '', (v.indisponibleJusqua ? 'jusqu\'au ' + v.indisponibleJusqua + (v.dureeEstimeeIndisponible ? ' (' + v.dureeEstimeeIndisponible + ')' : '') : (v.dureeEstimeeIndisponible || '')),
         v.mise_circulation || '', v.equipement || '',
       ]),
     ]);
@@ -16983,7 +17026,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261009.0943';
+const APP_VERSION = '261009.1003';
 
 let _swRegistration = null;
 
