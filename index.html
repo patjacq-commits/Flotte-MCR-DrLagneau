@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261008.1758</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0815</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1865,8 +1865,8 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   </div>
 </div>
 <div id="page-chauf" class="page">
-  <h2 style="margin-bottom:4px">🚨 Signaler un problème</h2>
-  <p style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">3 taps suffisent.</p>
+  <h2 id="chauf-titre-page" style="margin-bottom:4px">🚨 Signaler un problème</h2>
+  <p id="chauf-sous-titre-page" style="font-size:13px;color:var(--texte-sec);margin-bottom:14px">3 taps suffisent.</p>
 
   <!-- AJOUTÉ (02/10) : contact direct de Patrick, toujours visible (pas
        caché dans un accordéon) — pour un problème urgent sur la route, où
@@ -7420,7 +7420,7 @@ const AIDE_TITRES = {
   alertes:      '🔔 Alertes',
   kilometrage:  '📈 Kilométrage',
   calendrier:   '📅 Calendrier',
-  chauf:        '🚨 Signaler un problème',
+  get chauf() { return userIsAdmin() ? '🚨 Signalements chauffeurs' : '🚨 Signaler un problème'; },   // Angélique/Patrick : ils reçoivent et traitent (09/10)
   accident:     '💡 Bon à savoir…',
   histmaint:    '📋 Historique maintenances',
   maintenance:  '🔧 Maintenance mensuelle',
@@ -7466,8 +7466,8 @@ const AIDE_CONTENU = {
         <li>Ajouter une note générale et, si utile, une ou plusieurs photos, puis envoyer après relecture du récapitulatif.</li>
       </ol>
       <p>Le fil de vos propres signalements est visible (filtrable par statut/véhicule). Dès que Patrick ou Angélique répond, une notification (💬 + onglet qui clignote) apparaît si l'app est ouverte, et la réponse reste visible dans « En cours » tant que vous ne l'avez pas consultée — elle bascule ensuite dans « ✅ Traités ».</p>`,
-    admin: `<p>Vous pouvez créer un signalement comme un chauffeur, et vous répondez aux signalements reçus — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné, qui est notifié (si l'app est ouverte) et voit la réponse rester dans son fil « En cours » jusqu'à ce qu'il l'ait consultée.</p>`,
-    superadmin: `<p>Le formulaire de création de signalement est masqué pour vous : vous consultez le fil des signalements et pouvez y répondre.</p>`,
+    admin: `<p>Cet onglet s'appelle « Signalements chauffeurs » pour vous (les chauffeurs, eux, y voient « Signaler un problème »). Le badge rouge indique le nombre de signalements non traités. Vous pouvez créer un signalement comme un chauffeur, et vous répondez aux signalements reçus — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné, qui est notifié (si l'app est ouverte) et voit la réponse rester dans son fil « En cours » jusqu'à ce qu'il l'ait consultée.</p>`,
+    superadmin: `<p>L'onglet s'appelle « Signalements chauffeurs ». Le formulaire de création de signalement est masqué pour vous : vous consultez le fil des signalements et pouvez y répondre.</p>`,
   },
   accident: `<p>Que faire en cas d'accident, déclaration de sinistre auto, PV/amende de stationnement, codes des cartes carburant par véhicule, numéros d'urgence belges (112, Ethias Assistance…).</p>
     <p>Le 112 et le numéro de Patrick restent aussi joignables sans connexion via la petite icône 🆘 en bas à droite de l'écran de connexion.</p>`,
@@ -8354,6 +8354,20 @@ function appliquerDroits() {
   document.querySelectorAll('.superadmin-only').forEach(el => el.style.display = isSA ? '' : 'none');
 
   // Onglet d'accueil : « Tableau de bord » pour Angélique/Patrick, « RV et infos véhicules » pour les chauffeurs
+  // Onglet signalements : « Signalements chauffeurs » pour Angélique/Patrick (ils reçoivent et traitent),
+  // « Signaler un problème » pour les chauffeurs (ils envoient). Le badge (nombre) est un <span> à part : on ne touche qu'au texte.
+  const tabChaufLbl = document.getElementById('tab-chauf');
+  if (tabChaufLbl) {
+    const noeud = [...tabChaufLbl.childNodes].find(n => n.nodeType === 3);
+    const txt = isAdm ? '🚨 Signalements chauffeurs' : '🚨 Signaler un problème';
+    if (noeud) noeud.nodeValue = txt; else tabChaufLbl.insertBefore(document.createTextNode(txt), tabChaufLbl.firstChild);
+  }
+  const h2Chauf = document.getElementById('chauf-titre-page');
+  if (h2Chauf) h2Chauf.textContent = isAdm ? '🚨 Signalements chauffeurs' : '🚨 Signaler un problème';
+  const pChauf = document.getElementById('chauf-sous-titre-page');
+  if (pChauf) pChauf.textContent = !isAdm ? '3 taps suffisent.'
+    : (isSA ? 'Signalements reçus des chauffeurs : consultez-les et répondez-y.'
+            : 'Signalements reçus des chauffeurs : consultez-les et répondez-y. Vous pouvez aussi en créer un vous-même.');
   const tabAccueil = document.getElementById('tab-accueil');
   if (tabAccueil) tabAccueil.textContent = isAdm ? '📊 Tableau de bord' : '📅 RV et infos véhicules';
 
@@ -16991,7 +17005,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261008.1758';
+const APP_VERSION = '261009.0815';
 
 let _swRegistration = null;
 
