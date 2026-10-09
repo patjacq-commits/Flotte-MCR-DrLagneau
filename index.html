@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0843</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0900</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3216,7 +3216,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       </div>
       <div class="form-group">
         <label>Nouveau mot de passe</label>
-        <input type="password" id="chauf-pwd-nouveau" placeholder="Minimum 6 caractères"
+        <input type="password" id="chauf-pwd-nouveau" placeholder="Minimum 8 caractères"
           autocomplete="new-password" />
       </div>
       <div class="form-group">
@@ -3239,7 +3239,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div class="form-card" style="max-width:480px;margin-top:14px">
     <h3>🔔 Notifications push</h3>
     <p style="font-size:13px;color:var(--texte-sec);margin-bottom:12px">
-      Recevez un résumé quotidien à <strong>7h00</strong> avec les RV du jour, les infos véhicules et (pour Angélique et Patrick) les alertes urgentes — même si l'app est fermée.
+      Recevez un résumé quotidien à <strong>7h00</strong> avec les RV d'aujourd'hui et de demain, les infos véhicules et (pour Angélique et Patrick) les alertes urgentes — même si l'app est fermée.
     </p>
     <div id="notif-statut" style="font-size:13px;margin-bottom:12px"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -4412,6 +4412,11 @@ function normaliserDateMaint(d) {
    l'utilisateur (messages, remarques, notes) avant insertion dans le DOM via
    innerHTML — évite qu'un texte contenant <, >, etc. soit interprété comme
    du HTML/JS actif par le navigateur de la personne qui le consulte. */
+/* Argument texte sûr à placer dans un onclick="…" : littéral JS entre guillemets, puis échappé pour l'attribut HTML. */
+function jsArg(x) { return echapperHtml(JSON.stringify(String(x === null || x === undefined ? '' : x))); }
+/* Identifiant numérique sûr (les ids viennent de documents Firestore modifiables par leur auteur) */
+function idSur(x) { const n = Number(x); return Number.isFinite(n) ? n : 0; }
+
 function echapperHtml(texte) {
   if (texte === null || texte === undefined) return '';
   return String(texte)
@@ -6038,7 +6043,7 @@ function renderMessagesChauf() {
 
   list.innerHTML = rappelDouxHtml + msgs.map(m => {
     const v       = vehicules.find(x => x.id === m.vehId);
-    const vNom    = v ? `${v.marque} — ${v.immat}` : m.vehId;
+    const vNom    = v ? `${v.marque} — ${v.immat}` : echapperHtml(m.vehId);
     const dateStr = new Date(m.date).toLocaleString('fr-BE',
       { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
     const isNonLu   = !m.statut || m.statut === 'nonlu';
@@ -6053,9 +6058,9 @@ function renderMessagesChauf() {
       const rDate = new Date(r.date).toLocaleString('fr-BE',
         { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
       return `<div class="msg-reponse">
-        <span class="msg-rep-auteur">↩ ${r.auteur}</span>
+        <span class="msg-rep-auteur">↩ ${echapperHtml(r.auteur)}</span>
         <span class="msg-rep-date">${rDate}</span>
-        <div class="msg-rep-texte">${r.texte}</div>
+        <div class="msg-rep-texte">${echapperHtml(r.texte)}</div>
       </div>`;
     }).join('');
 
@@ -6064,12 +6069,12 @@ function renderMessagesChauf() {
       // Chercher le téléphone du chauffeur dans roles
       const tel = window._rolesTelephones?.[m.uid] || '';
       const telHtml = tel
-        ? `<a href="tel:${tel.replace(/\s/g,'')}"
+        ? `<a href="tel:${echapperHtml(String(tel).replace(/\s/g,''))}"
              style="display:inline-flex;align-items:center;gap:6px;
                     background:var(--vert);color:#fff;border-radius:8px;
                     padding:8px 14px;font-size:14px;font-weight:700;
                     text-decoration:none;margin-bottom:8px">
-             📱 Rappeler ${echapperHtml(m.auteur)} — ${tel}
+             📱 Rappeler ${echapperHtml(m.auteur)} — ${echapperHtml(tel)}
            </a><br>`
         : `<span style="font-size:12px;color:var(--texte-sec);margin-bottom:8px;display:block">
              📱 Numéro non renseigné par le chauffeur
@@ -6078,17 +6083,17 @@ function renderMessagesChauf() {
       // Bouton 👁 Vu — si pas encore vu
       const btnVu = (m.statut === 'nonlu' || !m.statut)
         ? `<button class="btn btn-sm" style="color:var(--bleu);border-color:var(--bleu)"
-               onclick="markChaufVu(${m.id})">👁 Vu</button>`
+               onclick="markChaufVu(${idSur(m.id)})">👁 Vu</button>`
         : m.statut === 'vu'
           ? `<span style="font-size:12px;color:var(--bleu);padding:4px 6px">👁 Vu</span>`
           : '';
 
       // Bouton ✅ Traité
       const btnTraite = `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
-               onclick="markChaufLu(${m.id})">✅ Traité</button>`;
+               onclick="markChaufLu(${idSur(m.id)})">✅ Traité</button>`;
 
       const btnDel = `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-               onclick="deleteChauf(${m.id})">🗑</button>`;
+               onclick="deleteChauf(${idSur(m.id)})">🗑</button>`;
 
       return telHtml + btnVu + ' ' + btnTraite + ' ' + btnDel;
     })() : '';
@@ -6116,7 +6121,7 @@ function renderMessagesChauf() {
     // Bouton supprimer chauffeur — uniquement sur les messages traités
     const chaufDeleteBtn = !userIsAdmin() && isTraite
       ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-           onclick="deleteChauf(${m.id})">🗑 Supprimer</button>`
+           onclick="deleteChauf(${idSur(m.id)})">🗑 Supprimer</button>`
       : '';
 
     const photosLS  = JSON.parse(localStorage.getItem('mcr_photos_msg') || '{}');
@@ -6135,34 +6140,34 @@ function renderMessagesChauf() {
           pls[m.id] = p;
           localStorage.setItem('mcr_photos_msg', JSON.stringify(pls));
           // Injecter dans le DOM sans tout redessiner
-          const el = document.getElementById('photos-msg-' + m.id);
+          const el = document.getElementById('photos-msg-' + idSur(m.id));
           if (el) el.innerHTML = p.map(ph =>
-            '<img src="' + ph.data + '" style="width:80px;height:60px;object-fit:cover;'
+            '<img src="' + echapperHtml(ph.data) + '" style="width:80px;height:60px;object-fit:cover;'
             + 'border-radius:6px;border:1.5px solid var(--gris-bord);cursor:pointer;margin:2px"'
             + ' onclick="window.open(this.src,\'_blank\')" />').join('');
         }).catch(() => {});
     }
 
     const photosHtml = photosSync.length
-      ? '<div id="photos-msg-' + m.id + '" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
+      ? '<div id="photos-msg-' + idSur(m.id) + '" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
         + photosSync.map(p =>
-            '<img src="' + (p.url||p.data) + '" alt="photo"'
+            '<img src="' + echapperHtml(p.url||p.data) + '" alt="photo"'
             + ' style="width:80px;height:60px;object-fit:cover;border-radius:6px;'
             + 'border:1.5px solid var(--gris-bord);cursor:pointer"'
             + ' onclick="window.open(this.src,\'_blank\')" />').join('')
         + '</div>'
       : m.nbPhotos > 0
-        ? '<div id="photos-msg-' + m.id + '" style="color:var(--texte-sec);font-size:12px;'
+        ? '<div id="photos-msg-' + idSur(m.id) + '" style="color:var(--texte-sec);font-size:12px;'
           + 'margin-top:4px">📷 ' + m.nbPhotos + ' photo(s) — chargement…</div>'
         : '';
 
     // Formulaire de réponse — admin uniquement
     const replyFormHtml = userIsAdmin()
       ? `<div style="display:flex;gap:6px;margin-top:8px">
-           <input type="text" id="reponse-input-${m.id}" placeholder="Répondre au chauffeur…"
+           <input type="text" id="reponse-input-${idSur(m.id)}" placeholder="Répondre au chauffeur…"
              style="flex:1;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 8px;font-size:13px"
-             onkeydown="if(event.key==='Enter'){event.preventDefault();repondreMessage(${m.id});}" />
-           <button class="btn btn-sm primary" onclick="repondreMessage(${m.id})">↩️ Répondre</button>
+             onkeydown="if(event.key==='Enter'){event.preventDefault();repondreMessage(${idSur(m.id)});}" />
+           <button class="btn btn-sm primary" onclick="repondreMessage(${idSur(m.id)})">↩️ Répondre</button>
          </div>`
       : '';
 
@@ -7603,7 +7608,7 @@ const AIDE_CONTENU = {
     </ul>`,
   profil: {
     chauffeur: `<ul style="margin:0;padding-left:20px">
-        <li>Mode gros caractères, numéro de portable (pour être rappelé en cas de besoin), changement de mot de passe (mot de passe oublié : « Mot de passe oublié ? » sur l'écran de connexion — l'e-mail de réinitialisation est en français).</li>
+        <li>Mode gros caractères, numéro de portable (pour être rappelé en cas de besoin), changement de mot de passe (8 caractères minimum ; mot de passe oublié : « Mot de passe oublié ? » sur l'écran de connexion — l'e-mail de réinitialisation est en français).</li>
         <li>Activation des notifications (résumé quotidien à 7h).</li>
         <li>💡 Boîte à idées : envoyer une suggestion ou une remarque à Patrick, avec l'historique de vos propres envois.</li>
       </ul>`,
@@ -7870,7 +7875,7 @@ function afficherEcranConnexion() {
       <input type="email" id="insc-email" placeholder="Adresse e-mail *"
         autocomplete="email" inputmode="email"
         onkeydown="if(event.key==='Enter')document.getElementById('insc-pwd').focus()" />
-      <input type="password" id="insc-pwd" placeholder="Mot de passe (min. 6 caractères) *"
+      <input type="password" id="insc-pwd" placeholder="Mot de passe (min. 8 caractères) *"
         autocomplete="new-password"
         onkeydown="if(event.key==='Enter')document.getElementById('insc-pwd2').focus()" />
       <input type="password" id="insc-pwd2" placeholder="Confirmer le mot de passe *"
@@ -8054,7 +8059,7 @@ async function sInscrire() {
     affErr('❌ Adresse email invalide — vérifiez qu\'elle contient bien un "@" et un domaine (ex: nom@exemple.be).');
     return;
   }
-  if (pwd.length < 6)    { affErr('❌ Le mot de passe doit comporter au moins 6 caractères.'); return; }
+  if (pwd.length < 8)    { affErr('❌ Le mot de passe doit comporter au moins 8 caractères.'); return; }
   if (pwd !== pwd2)      { affErr('❌ Les deux mots de passe ne correspondent pas.'); return; }
 
   errEl.style.display = 'none';
@@ -8103,7 +8108,7 @@ async function sInscrire() {
     let msg = 'Erreur lors de la création du compte.';
     if (e.code === 'auth/email-already-in-use') msg = '❌ Cette adresse email est déjà utilisée.';
     if (e.code === 'auth/invalid-email')         msg = '❌ Adresse email invalide.';
-    if (e.code === 'auth/weak-password')          msg = '❌ Mot de passe trop faible (min. 6 caractères).';
+    if (e.code === 'auth/weak-password')          msg = '❌ Mot de passe trop faible (min. 8 caractères).';
     affErr(msg);
   } finally {
     window._inscriptionEnCours = false;
@@ -8231,8 +8236,8 @@ async function changerMotDePasse() {
   if (!actuel || !nouveau || !confirm) {
     afficherMsg('❌ Veuillez remplir tous les champs.', false); return;
   }
-  if (nouveau.length < 6) {
-    afficherMsg('❌ Le nouveau mot de passe doit comporter au moins 6 caractères.', false); return;
+  if (nouveau.length < 8) {
+    afficherMsg('❌ Le nouveau mot de passe doit comporter au moins 8 caractères.', false); return;
   }
   if (nouveau !== confirm) {
     afficherMsg('❌ Les deux nouveaux mots de passe ne correspondent pas.', false); return;
@@ -8261,7 +8266,7 @@ async function changerMotDePasse() {
   } catch(e) {
     let msg = 'Erreur lors de la modification.';
     if (e.code === 'auth/wrong-password')         msg = '❌ Mot de passe actuel incorrect.';
-    if (e.code === 'auth/weak-password')           msg = '❌ Nouveau mot de passe trop faible (min 6 caractères).';
+    if (e.code === 'auth/weak-password')           msg = '❌ Nouveau mot de passe trop faible (min 8 caractères).';
     if (e.code === 'auth/requires-recent-login')   msg = '❌ Reconnectez-vous puis réessayez.';
     if (e.code === 'auth/too-many-requests')       msg = '❌ Trop de tentatives, réessayez plus tard.';
     afficherMsg(msg, false);
@@ -8399,7 +8404,7 @@ async function creerCompteChaufeur(nom, email, pwd) {
   } catch(e) {
     let msg = e.message;
     if (e.code === 'auth/email-already-in-use') msg = 'Cet email est déjà utilisé.';
-    if (e.code === 'auth/weak-password') msg = 'Mot de passe trop faible (min 6 caractères).';
+    if (e.code === 'auth/weak-password') msg = 'Mot de passe trop faible (min 8 caractères).';
     toast(`❌ Erreur : ${msg}`);
     return false;
   }
@@ -8448,15 +8453,15 @@ async function renderGestionComptes() {
         return `<div style="display:flex;align-items:center;justify-content:space-between;
                   flex-wrap:wrap;gap:8px;padding:8px 0;border-top:0.5px solid rgba(230,126,34,0.3)">
           <div>
-            <div style="font-weight:700">${c.nom || '—'}</div>
-            <div style="font-size:12px;color:var(--texte-sec)">${c.email}</div>
+            <div style="font-weight:700">${echapperHtml(c.nom) || '—'}</div>
+            <div style="font-size:12px;color:var(--texte-sec)">${echapperHtml(c.email)}</div>
             <div style="font-size:11px;color:var(--texte-sec)">Inscrit le ${dateInsc}</div>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)"
-              onclick="approuverChaufeur('${c.uid}','${c.nom}')">✅ Approuver</button>
+              onclick="approuverChaufeur(${jsArg(c.uid)},${jsArg(c.nom)})">✅ Approuver</button>
             <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-              onclick="refuserChaufeur('${c.uid}','${c.nom}')">❌ Refuser</button>
+              onclick="refuserChaufeur(${jsArg(c.uid)},${jsArg(c.nom)})">❌ Refuser</button>
           </div>
         </div>`;
       }).join('');
@@ -8474,11 +8479,11 @@ async function renderGestionComptes() {
         <div style="display:flex;align-items:center;justify-content:space-between;
                   flex-wrap:wrap;gap:8px;padding:8px 0;border-top:0.5px solid #ddd;opacity:0.75">
           <div>
-            <div style="font-weight:700">${c.nom || '—'}</div>
-            <div style="font-size:12px;color:var(--texte-sec)">${c.email}</div>
+            <div style="font-weight:700">${echapperHtml(c.nom) || '—'}</div>
+            <div style="font-size:12px;color:var(--texte-sec)">${echapperHtml(c.email)}</div>
           </div>
           <button class="btn btn-sm superadmin-only" style="color:var(--vert);border-color:var(--vert)"
-            onclick="reactiverCompte('${c.uid}','${c.nom}')">▶️ Réactiver</button>
+            onclick="reactiverCompte(${jsArg(c.uid)},${jsArg(c.nom)})">▶️ Réactiver</button>
         </div>`).join('');
       html += '</div>';
     }
@@ -8496,11 +8501,11 @@ async function renderGestionComptes() {
           return `<div class="form-card" style="padding:10px 14px;display:flex;
                     align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
             <div>
-              <div style="font-weight:700;font-size:14px">${c.nom || '—'}</div>
-              <div style="font-size:12px;color:var(--texte-sec)">${c.email}</div>
+              <div style="font-weight:700;font-size:14px">${echapperHtml(c.nom) || '—'}</div>
+              <div style="font-size:12px;color:var(--texte-sec)">${echapperHtml(c.email)}</div>
               <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap">
                 <span class="badge ${c.role==='superadmin'?'urgent':c.role==='admin'?'info':'ok'}"
-                  style="font-size:10px">${ROLES_LABELS[c.role]||c.role}</span>
+                  style="font-size:10px">${echapperHtml(ROLES_LABELS[c.role]||c.role)}</span>
                 <span style="font-size:11px;color:var(--texte-sec)">🕐 ${dernConn}</span>
               </div>
             </div>
@@ -8508,12 +8513,12 @@ async function renderGestionComptes() {
               <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-sm superadmin-only"
                   style="color:#e67e22;border-color:#f0c896"
-                  onclick="if(confirm('Suspendre le compte de ${c.nom} ?\\nIl ne pourra plus se connecter jusqu\\'à réactivation.')) suspendreCompte('${c.uid}','${c.nom}')">
+                  onclick="if(confirm(${jsArg('Suspendre le compte de ' + c.nom + ' ?\nIl ne pourra plus se connecter jusqu\'à réactivation.')})) suspendreCompte(${jsArg(c.uid)},${jsArg(c.nom)})">
                   ⏸ Suspendre
                 </button>
                 <button class="btn btn-sm superadmin-only"
                   style="color:var(--rouge);border-color:var(--rouge-clair)"
-                  onclick="if(confirm('Supprimer le compte de ${c.nom} ?')) supprimerCompteChaufeur('${c.uid}')">
+                  onclick="if(confirm(${jsArg('Supprimer le compte de ' + c.nom + ' ?')})) supprimerCompteChaufeur(${jsArg(c.uid)})">
                   🗑 Supprimer
                 </button>
               </div>` : ''}
@@ -8624,9 +8629,9 @@ function renderSessionsActives() {
           <div style="width:10px;height:10px;border-radius:50%;background:var(--vert);
             flex-shrink:0;animation:pulse-info 1.5s ease infinite"></div>
           <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:14px">${s.nom||s.email}</div>
+            <div style="font-weight:700;font-size:14px">${echapperHtml(s.nom||s.email)}</div>
             <div style="font-size:12px;color:${ROLE_COLORS[s.role]||'var(--texte)'};font-weight:600">
-              ${ROLE_LABELS[s.role]||s.role}</div>
+              ${echapperHtml(ROLE_LABELS[s.role]||s.role)}</div>
             <div style="font-size:11px;color:var(--texte-sec)">Depuis le ${fmtDate(s.connexion_debut)}</div>
           </div>
           <span style="background:var(--vert);color:#fff;border-radius:12px;
@@ -8649,9 +8654,9 @@ function renderSessionsActives() {
           border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">
           <div style="width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
-            <span style="font-weight:600;font-size:13px">${s.nom||s.email}</span>
+            <span style="font-weight:600;font-size:13px">${echapperHtml(s.nom||s.email)}</span>
             <span style="font-size:11px;color:var(--texte-sec);margin-left:8px">
-              ${ROLE_LABELS[s.role]||s.role}</span>
+              ${echapperHtml(ROLE_LABELS[s.role]||s.role)}</span>
           </div>
           <span style="font-size:11px;color:var(--texte-sec);white-space:nowrap">
             🕐 ${fmtDate(s.derniere_activite)}</span>
@@ -8712,11 +8717,11 @@ async function renderHistoriqueLog() {
       return `<div style="display:flex;gap:10px;padding:8px 4px;border-bottom:0.5px solid var(--gris-bord);align-items:flex-start">
         <div style="font-size:16px;flex-shrink:0;margin-top:1px">${icon}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px">${l.description}</div>
+          <div style="font-size:13px">${echapperHtml(l.description)}</div>
           <div style="font-size:11px;color:var(--texte-sec);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap">
-            <span style="color:${color};font-weight:600">${l.action}</span>
+            <span style="color:${color};font-weight:600">${echapperHtml(l.action)}</span>
             <span>${dateStr}</span>
-            <span>👤 ${ROLE_LABELS[l.role] || l.nom || l.uid}</span>
+            <span>👤 ${echapperHtml(ROLE_LABELS[l.role] || l.nom || l.uid)}</span>
           </div>
         </div>
       </div>`;
@@ -8900,10 +8905,10 @@ async function renderSuggestionsChauf() {
         : '';
       const replyFormHtml = m.statut !== 'repondu'
         ? '<div style="display:flex;gap:6px;margin-top:8px">'
-          + '<input type="text" id="reponse-idee-' + m.id + '" placeholder="Répondre…"'
+          + '<input type="text" id="reponse-idee-' + idSur(m.id) + '" placeholder="Répondre…"'
           + ' style="flex:1;border:1.5px solid var(--gris-bord);border-radius:6px;padding:6px 8px;font-size:13px"'
-          + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();repondreSuggestion(' + m.id + ');}" />'
-          + '<button class="btn btn-sm primary" onclick="repondreSuggestion(' + m.id + ')">↩️ Répondre</button>'
+          + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();repondreSuggestion(' + idSur(m.id) + ');}" />'
+          + '<button class="btn btn-sm primary" onclick="repondreSuggestion(' + idSur(m.id) + ')">↩️ Répondre</button>'
           + '</div>'
         : '';
 
@@ -8917,7 +8922,7 @@ async function renderSuggestionsChauf() {
         + reponseHtml
         + replyFormHtml
         + '<button class="btn btn-sm" style="margin-top:8px;font-size:11px;padding:3px 8px;'
-        + 'color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerSuggestion(' + m.id + ')">🗑 Supprimer</button>'
+        + 'color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerSuggestion(' + idSur(m.id) + ')">🗑 Supprimer</button>'
         + '</div>';
     }).join('');
 
@@ -8928,7 +8933,7 @@ async function renderSuggestionsChauf() {
     });
 
   } catch(e) {
-    container.innerHTML = '<p style="color:var(--rouge)">Erreur : ' + e.message + '</p>';
+    container.innerHTML = '<p style="color:var(--rouge)">Erreur : ' + echapperHtml(e.message) + '</p>';
   }
 }
 
@@ -8994,14 +8999,14 @@ async function renderErreursApp() {
       return `<div style="border:1px solid var(--gris-bord);border-left:3px solid var(--rouge);
         border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff8f8">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:4px">
-          <span style="font-size:12px;font-weight:700;color:var(--rouge)">🐞 ${e.message || 'Erreur inconnue'}</span>
+          <span style="font-size:12px;font-weight:700;color:var(--rouge)">🐞 ${echapperHtml(e.message || 'Erreur inconnue')}</span>
           <span style="font-size:11px;color:var(--texte-sec)">${dateStr}</span>
         </div>
         <div style="font-size:11px;color:var(--texte-sec)">
-          ${e.nom ? '👤 ' + e.nom + ' — ' : ''}${e.source || ''}${e.ligne ? ':' + e.ligne : ''}
+          ${e.nom ? '👤 ' + echapperHtml(e.nom) + ' — ' : ''}${echapperHtml(e.source || '')}${e.ligne ? ':' + echapperHtml(e.ligne) : ''}
         </div>
         <button class="btn btn-sm" style="margin-top:6px;font-size:11px;padding:3px 8px"
-          onclick="supprimerErreurApp('${e.id}')">🗑 Marquer comme traitée</button>
+          onclick="supprimerErreurApp(${jsArg(e.id)})">🗑 Marquer comme traitée</button>
       </div>`;
     }).join('');
 
@@ -9045,11 +9050,12 @@ async function ouvrirModalNouveauChaufeur() {
   openEditModal('➕ Nouveau chauffeur', [
     { label: 'Nom complet',   type: 'text',     key: 'nom',   val: '' },
     { label: 'Email',         type: 'text',     key: 'email', val: '' },
-    { label: 'Mot de passe (min 6 car.)', type: 'text', key: 'pwd', val: '' },
+    { label: 'Mot de passe (min 8 car.)', type: 'text', key: 'pwd', val: '' },
   ], async (changes) => {
     if (!changes.nom || !changes.email || !changes.pwd) {
       toast('❌ Tous les champs sont obligatoires.'); return;
     }
+    if (String(changes.pwd).length < 8) { toast('❌ Mot de passe : 8 caractères minimum.'); return; }
     const ok = await creerCompteChaufeur(changes.nom, changes.email, changes.pwd);
     if (ok) renderGestionComptes();
   });
@@ -9440,8 +9446,8 @@ function renderAccueil() {
           <div style="display:flex;align-items:center;justify-content:center;gap:5px;margin-top:3px">
             <span style="width:7px;height:7px;border-radius:50%;background:var(--vert);flex-shrink:0;
               animation:pulse-info 1.5s ease infinite"></span>
-            <span style="font-size:13px;font-weight:700;color:var(--vert)">${s.nom || s.email?.split('@')[0] || '?'}</span>
-            <span style="font-size:10px;color:var(--texte-sec)">${ROLE_LABELS_DASH[s.role] || ''}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--vert)">${echapperHtml(s.nom || s.email?.split('@')[0] || '?')}</span>
+            <span style="font-size:10px;color:var(--texte-sec)">${echapperHtml(ROLE_LABELS_DASH[s.role] || '')}</span>
           </div>`).join('');
       } else {
         numEl.innerHTML  = `<span style="font-size:22px">👥</span>`;
@@ -16930,7 +16936,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261009.0843';
+const APP_VERSION = '261009.0900';
 
 let _swRegistration = null;
 
@@ -16969,9 +16975,12 @@ function construireResumeQuotidien() {
   const demain    = toLocalYMD(new Date(Date.now() + 86400000));
 
   // RV du jour et de demain
+  // Seulement les RV d'AUJOURD'HUI et de DEMAIN (09/10) : avant, tout RV planifié —
+  // même dans plusieurs semaines — était listé et marqué « auj. ».
   const rvProches = [...rendezvous, ...ctEvents]
-    .filter(r => r.statut === 'planifie')
-    .slice(0, 3);
+    .filter(r => r.statut === 'planifie' && (r.date === today || r.date === demain))
+    .sort((a, b) => (a.date + (a.heure || '00:00')).localeCompare(b.date + (b.heure || '00:00')))
+    .slice(0, 4);
 
   // Infos véhicules actives
   const infosActives = getInfosActives();
@@ -16989,7 +16998,7 @@ function construireResumeQuotidien() {
     rvProches.forEach(r => {
       const v = vehicules.find(x => x.id === r.vehId);
       const estDemain = r.date === demain;
-      lignes.push(`   • ${v?.immat||r.vehId} ${r.type} — ${estDemain ? 'demain' : 'auj.'}${r.heure ? ' ' + r.heure : ''}`);
+      lignes.push(`   • ${v?.immat||r.vehId} ${libelleRV(r.type ? r : { ...r, type: 'ct' })} — ${estDemain ? 'demain' : 'auj.'}${r.heure ? ' ' + r.heure : ''}`);
     });
   }
 
