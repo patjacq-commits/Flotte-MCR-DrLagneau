@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0900</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0943</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -2855,13 +2855,13 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
   </div>
 
-  <!-- Remplacement ponctuel d'UN SEUL pneu — distinct d'une permutation
+  <!-- Remplacement ponctuel de pneu(s) — distinct d'une permutation
        complète du train, ne touche à aucun compteur/rappel existant. -->
   <div class="form-card">
-    <h3>🔧 Remplacement ponctuel d'un pneu</h3>
+    <h3>🔧 Remplacement ponctuel de pneu(s)</h3>
     <p style="font-size:12px;color:var(--texte-sec);margin-bottom:10px">
-      Un seul pneu remplacé (éventré, crevaison, accident) — pas le train complet.
-      N'affecte pas le suivi des permutations saisonnières ci-dessus.
+      Un ou plusieurs pneus remplacés ou réorganisés (éventré, crevaison, accident, usure, bruit…) — pas la permutation saisonnière.
+      N'affecte pas le suivi des permutations saisonnières ci-dessus. Tous les véhicules sont proposés, y compris ceux en pneus 4 saisons.
     </p>
     <div class="form-grid">
       <div class="form-group">
@@ -2877,16 +2877,22 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
         <select id="rp-saison">
           <option value="ete">☀ Été</option>
           <option value="hiver">❄ Hiver</option>
+          <option value="4saisons">🌦 4 saisons</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Position</label>
-        <select id="rp-position">
-          <option value="AVG">AVG — Avant gauche</option>
-          <option value="AVD">AVD — Avant droite</option>
-          <option value="ARG">ARG — Arrière gauche</option>
-          <option value="ARD">ARD — Arrière droite</option>
-        </select>
+        <label>Position(s) <span style="font-weight:400;color:var(--texte-sec)">(cocher un ou plusieurs pneus)</span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:6px">
+          <label style="display:flex;align-items:center;gap:5px;font-weight:400"><input type="checkbox" id="rp-pos-AVG" style="width:auto"> AVG — Avant gauche</label>
+          <label style="display:flex;align-items:center;gap:5px;font-weight:400"><input type="checkbox" id="rp-pos-AVD" style="width:auto"> AVD — Avant droite</label>
+          <label style="display:flex;align-items:center;gap:5px;font-weight:400"><input type="checkbox" id="rp-pos-ARG" style="width:auto"> ARG — Arrière gauche</label>
+          <label style="display:flex;align-items:center;gap:5px;font-weight:400"><input type="checkbox" id="rp-pos-ARD" style="width:auto"> ARD — Arrière droite</label>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-sm" onclick="rpCocherPositions(['AVG','AVD'])">Les 2 avant</button>
+          <button type="button" class="btn btn-sm" onclick="rpCocherPositions(['ARG','ARD'])">Les 2 arrière</button>
+          <button type="button" class="btn btn-sm" onclick="rpCocherPositions(['AVG','AVD','ARG','ARD'])">Les 4</button>
+        </div>
       </div>
       <div class="form-group">
         <label>Marque</label>
@@ -2903,6 +2909,8 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
             <option value="eventre">Pneu éventré</option>
             <option value="crevaison">Crevaison</option>
             <option value="accident">Accident</option>
+            <option value="usure_bruit">Usure / bruit</option>
+            <option value="remplacement_reorg">Remplacement et réorganisation des pneus</option>
             <option value="__other__">Autre…</option>
           </select>
           <input type="text" id="rp-motif-custom" placeholder="préciser" style="display:none;flex:1" />
@@ -2985,7 +2993,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Véhicule</th><th>Saison</th><th>Position</th><th>Marque</th><th>Dimensions</th><th>Motif</th><th>Km</th><th>Lieu</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Véhicule</th><th>Saison</th><th>Position</th><th>Marque</th><th>Dimensions</th><th>Motif</th><th>Km</th><th>Lieu</th><th>Remarques</th><th>Action</th></tr></thead>
         <tbody id="rp-hist-tbody"></tbody>
       </table>
     </div>
@@ -5011,8 +5019,8 @@ function initPneus() {
   // on reconstruit les listes déroulantes, construites une seule fois sinon.
   const sigPneus = vehiculesPneus.join(',');
   if (window._pneuVehSig !== undefined && window._pneuVehSig !== sigPneus) {
-    ['pneu-veh','rp-veh'].forEach(i => { const e = document.getElementById(i); if (e) e.innerHTML = ''; });
-    ['pneu-filter-veh','rp-filter-veh'].forEach(i => { const e = document.getElementById(i); if (e) while (e.options.length > 1) e.remove(1); });
+    ['pneu-veh'].forEach(i => { const e = document.getElementById(i); if (e) e.innerHTML = ''; });
+    ['pneu-filter-veh'].forEach(i => { const e = document.getElementById(i); if (e) while (e.options.length > 1) e.remove(1); });
   }
   window._pneuVehSig = sigPneus;
   const selVeh = document.getElementById('pneu-veh');
@@ -5035,17 +5043,25 @@ function initPneus() {
   document.getElementById('pneu-date').value = toLocalYMD(new Date());
   majIndicationJantesPermutation();
 
-  // Remplacement ponctuel d'un pneu — mêmes véhicules éligibles
+  // Remplacement ponctuel de pneu(s) — TOUS les véhicules non archivés (09/10) : un véhicule en pneus
+  // 4 saisons (1RER037, camionnette) n'a pas de permutation mais peut avoir un remplacement de pneus.
+  const idsRp = vehicules.filter(v => !v.archive).map(v => v.id);
+  const sigRp = idsRp.join(',');
   const selVehRp = document.getElementById('rp-veh');
+  const selFiltRp = document.getElementById('rp-filter-veh');
+  if (window._rpVehSig !== sigRp) {
+    if (selVehRp) selVehRp.innerHTML = '';
+    if (selFiltRp) while (selFiltRp.options.length > 1) selFiltRp.remove(1);
+    window._rpVehSig = sigRp;
+  }
   if (selVehRp && selVehRp.options.length <= 0) {
-    selVehRp.innerHTML = vehiculesPneus.map(id => {
+    selVehRp.innerHTML = idsRp.map(id => {
       const v = vehicules.find(x => x.id === id);
-      return v ? `<option value="${v.id}">${v.marque} — ${v.immat}</option>` : '';
+      return v ? `<option value="${v.id}">${echapperHtml(v.marque)} — ${echapperHtml(v.immat)}</option>` : '';
     }).join('');
   }
-  const selFiltRp = document.getElementById('rp-filter-veh');
   if (selFiltRp && selFiltRp.options.length <= 1) {
-    vehiculesPneus.forEach(id => {
+    idsRp.forEach(id => {
       const v = vehicules.find(x => x.id === id);
       if (!v) return;
       const opt = document.createElement('option');
@@ -5286,7 +5302,30 @@ let _remplacementsPneu = [];
 
 const MOTIFS_REMPLACEMENT_PNEU = {
   eventre: 'Pneu éventré', crevaison: 'Crevaison', accident: 'Accident',
+  usure_bruit: 'Usure / bruit',
+  remplacement_reorg: 'Remplacement et réorganisation des pneus',
 };
+
+/* Positions et saison d'un remplacement (09/10) : plusieurs pneus possibles, saison « 4 saisons ».
+   Les anciennes fiches (une seule position dans r.position, saison été/hiver) restent lues telles quelles. */
+const RP_POSITIONS = ['AVG', 'AVD', 'ARG', 'ARD'];
+function positionsRemplacement(r) {
+  if (r && Array.isArray(r.positions) && r.positions.length) return r.positions.filter(x => RP_POSITIONS.includes(x));
+  const brut = String((r && r.position) || '');
+  return RP_POSITIONS.filter(x => brut.includes(x));
+}
+function libellePositionsRemplacement(r) {
+  const ps = positionsRemplacement(r);
+  if (ps.length === 4) return 'Les 4 pneus';
+  return ps.length ? ps.join(' + ') : (String((r && r.position) || '') || '—');
+}
+function libelleSaisonPneu(s) { return s === 'ete' ? '☀ Été' : s === '4saisons' ? '🌦 4 saisons' : '❄ Hiver'; }
+function rpCocherPositions(liste) {
+  RP_POSITIONS.forEach(x => { const cb = document.getElementById('rp-pos-' + x); if (cb) cb.checked = liste.includes(x); });
+}
+function rpPositionsCochees() {
+  return RP_POSITIONS.filter(x => document.getElementById('rp-pos-' + x)?.checked);
+}
 
 async function chargerRemplacementsPneu() {
   try {
@@ -5306,7 +5345,8 @@ async function saveRemplacementPneu() {
   const date      = document.getElementById('rp-date')?.value;
   const vehId     = document.getElementById('rp-veh')?.value;
   const saison    = document.getElementById('rp-saison')?.value;
-  const position  = document.getElementById('rp-position')?.value;
+  const positions = rpPositionsCochees();
+  const position  = positions.join(' + ');
   const marque    = document.getElementById('rp-marque')?.value?.trim();
   const dimensions = document.getElementById('rp-dimensions')?.value?.trim();
   const motif     = getSelectVal('rp-motif', 'rp-motif-custom');
@@ -5315,10 +5355,11 @@ async function saveRemplacementPneu() {
   const rem       = document.getElementById('rp-rem')?.value;
 
   if (!date || !vehId) { toast('Veuillez remplir la date et le véhicule.'); return; }
+  if (!positions.length) { toast('Cochez au moins un pneu (position).'); return; }
   if (!motif) { toast('Veuillez préciser le motif.'); return; }
 
   const rec = {
-    id: editId ? Number(editId) : Date.now(), date, vehId, saison, position,
+    id: editId ? Number(editId) : Date.now(), date, vehId, saison, position, positions,
     marque: marque || '', dimensions: dimensions || '', motif,
     km: km ? parseInt(km) : null, lieu, rem, auteur: currentUser?.nom || '',
   };
@@ -5351,7 +5392,7 @@ function modifierRemplacementPneu(id) {
   document.getElementById('rp-date').value = r.date;
   document.getElementById('rp-veh').value = r.vehId;
   document.getElementById('rp-saison').value = r.saison;
-  document.getElementById('rp-position').value = r.position;
+  rpCocherPositions(positionsRemplacement(r));
   document.getElementById('rp-marque').value = r.marque || '';
   document.getElementById('rp-dimensions').value = r.dimensions || '';
   document.getElementById('rp-km').value = r.km || '';
@@ -5382,6 +5423,7 @@ function clearRemplacementPneuForm() {
   const motifCustom = document.getElementById('rp-motif-custom');
   if (motifCustom) { motifCustom.value = ''; motifCustom.style.display = 'none'; }
   const motifSel = document.getElementById('rp-motif'); if (motifSel) motifSel.value = 'eventre';
+  rpCocherPositions([]);
   const editIdEl = document.getElementById('rp-edit-id'); if (editIdEl) editIdEl.value = '';
   const btn = document.getElementById('rp-btn-save'); if (btn) btn.textContent = '💾 Enregistrer';
 }
@@ -5395,14 +5437,14 @@ function renderRemplacementsPneu() {
     .sort((a,b) => b.date.localeCompare(a.date));
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--texte-sec);padding:16px">Aucun remplacement ponctuel enregistré.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--texte-sec);padding:16px">Aucun remplacement ponctuel enregistré.</td></tr>';
     return;
   }
 
   tbody.innerHTML = rows.map(r => {
     const v = vehicules.find(x => x.id === r.vehId);
     const motifLabel = MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif;
-    const saisonLabel = r.saison === 'ete' ? '☀ Été' : '❄ Hiver';
+    const saisonLabel = libelleSaisonPneu(r.saison);
     const actions = userIsAdmin()
       ? `<button class="btn btn-sm" onclick="modifierRemplacementPneu(${r.id})">✏️</button>
          <button class="btn btn-sm" style="color:var(--rouge)" onclick="deleteRemplacementPneu(${r.id})">🗑</button>`
@@ -5411,12 +5453,13 @@ function renderRemplacementsPneu() {
       <td>${formatDateCourt(r.date)}</td>
       <td>${v ? v.marque + ' — ' + v.immat : r.vehId}</td>
       <td>${saisonLabel}</td>
-      <td><b>${r.position}</b></td>
+      <td><b>${echapperHtml(libellePositionsRemplacement(r))}</b></td>
       <td>${echapperHtml(r.marque || '—')}</td>
       <td>${echapperHtml(r.dimensions || '—')}</td>
       <td>${echapperHtml(motifLabel)}</td>
       <td>${r.km ? r.km.toLocaleString('fr-BE') + ' km' : '—'}</td>
       <td>${echapperHtml(r.lieu || '')}</td>
+      <td style="font-size:12px;max-width:220px">${echapperHtml(r.rem || '')}</td>
       <td>${actions}</td>
     </tr>`;
   }).join('');
@@ -5460,7 +5503,7 @@ function renderPneuRecap() {
     if (dernierRemplacement) {
       const jours = Math.round((new Date() - new Date(dernierRemplacement.date)) / 86400000);
       if (jours <= 90) {
-        iconeRemplacement = ` <span title="${dernierRemplacement.position} remplacé le ${formatDateCourt(dernierRemplacement.date)}" style="cursor:help">🔧</span>`;
+        iconeRemplacement = ` <span title="${echapperHtml(libellePositionsRemplacement(dernierRemplacement))} remplacé(s) le ${formatDateCourt(dernierRemplacement.date)}" style="cursor:help">🔧</span>`;
       }
     }
 
@@ -7561,9 +7604,13 @@ const AIDE_CONTENU = {
       <li><b>Date du jour ou passée</b> → enregistrée directement comme faite, sans création de RV.</li>
       <li>Modifier la date d'une permutation déjà enregistrée répercute le changement sur son RV lié ; supprimer la permutation supprime aussi ce RV.</li>
     </ol>
-    <p style="margin:0 0 8px"><b>Remplacement ponctuel d'un seul pneu</b> (crevaison, usure localisée…) :</p>
+    <p style="margin:0 0 8px"><b>Remplacement ponctuel de pneu(s)</b> (crevaison, usure localisée, pneus bruyants, remplacement à l'avant avec remontage des anciens à l'arrière…) :</p>
     <ul style="margin:0 0 10px;padding-left:20px">
-      <li>Position (avant/arrière, gauche/droit), marque, dimensions, motif.</li>
+      <li>Tous les véhicules sont proposés, y compris ceux en pneus 4 saisons (1RER037, camionnette).</li>
+      <li>Saison : ☀ Été, ❄ Hiver ou 🌦 4 saisons.</li>
+      <li>Position(s) : cocher un ou plusieurs pneus (AVG, AVD, ARG, ARD) ou utiliser les raccourcis « Les 2 avant », « Les 2 arrière », « Les 4 ». Une seule fiche couvre toute l'opération.</li>
+      <li>Motif : éventré, crevaison, accident, usure / bruit, « remplacement et réorganisation des pneus » ou « Autre… » en texte libre. Détails (ex. « anciens pneus avant remontés à l'arrière ») dans les remarques.</li>
+      <li>Marque, dimensions, kilométrage au compteur, lieu.</li>
       <li>N'est jamais lié à un RV — à réserver à une intervention isolée, pas à la permutation saisonnière complète.</li>
     </ul>
     <p style="margin:0 0 8px"><b>Suivi des commandes :</b></p>
@@ -10316,7 +10363,7 @@ function collecterEvenementsVehicule(vehId) {
   (window._remplacementsPneuRecap || _remplacementsPneu || []).filter(r => r.vehId === vehId).forEach(r => {
     evenements.push({
       date: r.date, categorie: 'pneus', icone: '\ud83d\udd27',
-      titre: 'Remplacement pneu ' + r.position + ' (' + (r.saison === 'ete' ? '\u00c9t\u00e9' : 'Hiver') + ')',
+      titre: 'Remplacement pneu ' + libellePositionsRemplacement(r) + ' (' + libelleSaisonPneu(r.saison).replace(/^\S+\s/, '') + ')',
       detail: [
         'Date : ' + formatDateCourt(r.date),
         r.km ? 'Km : ' + parseInt(r.km).toLocaleString('fr-BE') + ' km' : '',
@@ -16309,12 +16356,12 @@ async function exporterExcel() {
 
     const wsPneusGarages = XLSX.utils.aoa_to_sheet([
       ['— Remplacements ponctuels de pneus —'],
-      ['Date','Véhicule','Saison','Position','Marque','Dimensions','Motif','Km','Lieu'],
+      ['Date','Véhicule','Saison','Position','Marque','Dimensions','Motif','Km','Lieu','Remarques'],
       ...remplacementsSnap.docs.map(d => {
         const r = d.data();
         const v = vehicules.find(x => x.id === r.vehId);
-        return [r.date || '', v ? v.immat : r.vehId, r.saison || '', r.position || '',
-          r.marque || '', r.dimensions || '', MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif || '', r.km || '', r.lieu || ''];
+        return [r.date || '', v ? v.immat : r.vehId, r.saison || '', libellePositionsRemplacement(r),
+          r.marque || '', r.dimensions || '', MOTIFS_REMPLACEMENT_PNEU[r.motif] || r.motif || '', r.km || '', r.lieu || '', r.rem || ''];
       }),
       [],
       ['— Commentaires garages (Curfoz / Bouillon / Opont) —'],
@@ -16936,7 +16983,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261009.0900';
+const APP_VERSION = '261009.0943';
 
 let _swRegistration = null;
 
