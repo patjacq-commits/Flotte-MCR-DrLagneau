@@ -1672,7 +1672,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0815</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.0843</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1752,7 +1752,6 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   </div>
   <div class="summary-grid" id="summary-grid"></div>
   <div id="alertes-dashboard"></div>
-  <div id="rv-dashboard-panel" style="display:none;margin-top:14px"></div>
 </div>
 
 <!-- PAGE VEHICULES -->
@@ -7437,7 +7436,7 @@ const AIDE_TITRES = {
 const AIDE_CONTENU = {
   accueil: {
     chauffeur: `<p>Cet onglet s'appelle « RV et infos véhicules » : en un coup d'œil, véhicules disponibles/indisponibles (la pastille « Véhicules » ouvre l'onglet du même nom), prochains RV confirmés (contrôle technique, garage, pneus…) et infos spéciales sur les véhicules, en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
-    admin: `<p>Vue d'ensemble : « Priorités du jour », véhicules (in)disponibles, infos spéciales et RV planifiés par catégorie. Les pastilles <b>🚨 Urgent</b> et <b>⚠️ À surveiller</b> donnent le nombre d'alertes (CT, entretien, extincteurs, assurance, vignette SPW…) ; un clic ouvre la liste détaillée dans l'onglet 🔔 Alertes. Le détail des alertes n'est plus répété sur le tableau de bord.</p>
+    admin: `<p>Vue d'ensemble : « Priorités du jour » (ce qu'il faut faire maintenant : 💬 signalements, 📋 RV à prendre, 🛞 permutations sans RV, 🔴 véhicules indisponibles avec plaque, motif et durée), puis infos spéciales et RV planifiés par catégorie. Les pastilles du haut sont des raccourcis : « RV planifiés » et « Infos spéciales » font défiler jusqu'à leur bloc, « Véhicules » ouvre l'onglet du même nom. Les pastilles <b>🚨 Urgent</b> et <b>⚠️ À surveiller</b> donnent le nombre d'alertes (CT, entretien, extincteurs, assurance, vignette SPW…) ; un clic ouvre la liste détaillée dans l'onglet 🔔 Alertes. Le détail des alertes n'est plus répété sur le tableau de bord.</p>
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
   },
   vehicules: {
@@ -9294,67 +9293,11 @@ function _construirePDF(maints, vLabel, labelPeriode) {
 }
 
 
-function toggleRVDashboard() {
-  const panel = document.getElementById('rv-dashboard-panel');
-  if (!panel) return;
-  if (panel.style.display === 'none') {
-    renderRVDashboard();
-    panel.style.display = '';
-    panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
-  } else {
-    panel.style.display = 'none';
-  }
-}
-
-function renderRVDashboard() {
-  const panel = document.getElementById('rv-dashboard-panel');
-  if (!panel) return;
-  const today = toLocalYMD(new Date());
-
-  // Chauffeurs : tous les RV planifiés sont visibles (CT compris), mais sans
-  // crayon ni gestion — le bon de commande CT est réservé à Angélique/Patrick.
-  const _adm = userIsAdmin();
-  const rvs = rendezvous
-    .filter(r => r.statut === 'planifie')
-    .sort((a,b) => (a.date+(a.heure||'00:00')).localeCompare(b.date+(b.heure||'00:00')));
-
-  if (!rvs.length) {
-    panel.innerHTML = '<div class="form-card" style="padding:14px;color:var(--texte-sec);font-size:13px">Aucun RV planifié.</div>';
-    return;
-  }
-
-  const rows = rvs.map(r => {
-    const v      = vehicules.find(x => x.id === r.vehId);
-    const vNom   = v ? v.marque + ' <b>' + v.immat + '</b>' : r.vehId;
-    const tl     = libelleRVHtml(r);
-    const garage = r.garage ? ' — ' + r.garage : '';
-    const hr     = r.heure  ? ' à <b>' + r.heure + '</b>' : '';
-    const motif  = remarqueRVHtml(r, 12);
-    const j      = Math.round((new Date(r.date) - new Date(today)) / 86400000);
-    const jStr   = j < 0  ? '<span style="color:var(--texte-sec);font-size:11px">Hier</span>'
-                 : j === 0 ? '<span style="color:var(--rouge);font-weight:700;font-size:11px">Aujourd\'hui !</span>'
-                 : j === 1 ? '<span style="color:var(--orange);font-weight:700;font-size:11px">Demain</span>'
-                 : '<span style="color:var(--texte-sec);font-size:11px">dans ' + j + 'j</span>';
-    const rowBg  = j <= 0 ? 'background:var(--gris-clair);' : j === 1 ? 'background:var(--orange-clair);' : '';
-    return '<div style="' + rowBg + 'display:flex;align-items:flex-start;gap:12px;padding:9px 14px;'
-      + 'border-bottom:0.5px solid var(--gris-bord);flex-wrap:wrap">'
-      + '<div style="min-width:76px;flex-shrink:0;text-align:center">'
-      + '<div style="font-size:12px;font-weight:700;color:var(--bleu)">' + formatDate(r.date) + '</div>'
-      + jStr + '</div>'
-      + '<div style="flex:1;min-width:0">'
-      + '<div style="font-size:13px">' + vNom + hr + '</div>'
-      + ligneMotifRVHtml(r, tl, garage)
-      + motif + '</div>'
-      + (_adm ? '<button class="btn btn-sm" onclick="allerAuxRV()" title="Gérer">✏️</button>' : '')
-      + '</div>';
-  }).join('');
-
-  panel.innerHTML = '<div class="form-card" style="padding:0;overflow:hidden">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;'
-    + 'padding:10px 14px;border-bottom:1px solid var(--gris-bord)">'
-    + '<h3 style="margin:0">📅 RV planifiés (' + rvs.length + ')</h3>'
-    + '<button class="btn btn-sm" onclick="toggleRVDashboard()">✕ Fermer</button>'
-    + '</div>' + rows + '</div>';
+/* Pastille « RV planifiés » : fait défiler jusqu'au bloc « 📅 RV planifiés » du tableau de bord
+   (09/10 : l'ancien panneau qui dupliquait cette liste a été supprimé). */
+function scrollToRVBloc() {
+  const el = document.getElementById('bloc-rv-planifies');
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
 }
 
 /* Définition UNIQUE des deux catégories d'alertes (08/10) : les pastilles du
@@ -9418,7 +9361,7 @@ function renderAccueil() {
     <div class="summary-card orange" onclick="goToAlertesFilter('warn')" title="Voir la liste des alertes à surveiller (onglet Alertes)">
       <div class="num">${nbWarn}</div><div class="lbl">⚠️ À surveiller</div>
     </div>` : ''}
-    <div class="summary-card bleu" onclick="toggleRVDashboard()" title="Afficher les RV planifiés" style="cursor:pointer">
+    <div class="summary-card bleu" onclick="scrollToRVBloc()" title="Aller à la liste des RV planifiés" style="cursor:pointer">
       <div class="num">${nbRVprog}</div><div class="lbl">RV planifiés</div>
     </div>
     <div class="summary-card" id="card-infos-spec"
@@ -9580,27 +9523,10 @@ function renderAccueil() {
              flex-wrap:wrap;overflow-wrap:anywhere">
              <b style="color:var(--rouge)">${nbIndisponibles}</b> 🔴 indisponible${nbIndisponibles>1?'s':''}
              <span style="color:var(--texte-sec);min-width:0">(${vehiculesIndispo.map(v =>
-               v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : '?'
-             ).join(', ')})</span>
+               '<b>' + echapperHtml(v.immat) + '</b>' + (v.motifIndisponible ? ' : ' + echapperHtml(v.motifIndisponible) : '')
+               + ' — ' + (v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : 'durée ?')
+             ).join(' ; ')})</span>
            </div>` : '';
-
-      // Détail des véhicules indisponibles — condensé sur UNE seule ligne
-      // par véhicule (plaque, motif et durée), plus de bloc à deux lignes.
-      const detailIndispo = vehiculesIndispo.length
-        ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
-            ${vehiculesIndispo.map(v => `<div onclick="showPage('vehicules', document.querySelector('.tab-btn[onclick*=\\'vehicules\\']'))"
-              style="display:flex;justify-content:space-between;align-items:center;gap:8px;
-              background:var(--rouge-clair);border-radius:6px;padding:4px 10px;
-              cursor:pointer;font-size:12px;overflow:hidden;flex-wrap:wrap;overflow-wrap:anywhere">
-              <span style="min-width:0">
-                🔴 <b>${v.immat}</b> — ${echapperHtml(v.motifIndisponible || 'Motif non précisé')}
-              </span>
-              <span style="color:var(--texte-sec);min-width:0">
-                ${v.dureeEstimeeIndisponible ? echapperHtml(v.dureeEstimeeIndisponible) : 'durée inconnue'}
-              </span>
-            </div>`).join('')}
-          </div>`
-        : '';
 
       // Pulsation continue et discrète du liseré (réutilise l'animation déjà
       // définie pour les cartes véhicules indisponibles) — garde ce cadre
@@ -9618,11 +9544,10 @@ function renderAccueil() {
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${puce(nbSignalements, '💬', 'signalement' + (nbSignalements>1?'s':''), 'chauf')}
-          ${puce(nbRVUrgents, '📋', 'RV urgent' + (nbRVUrgents>1?'s':''), 'garages')}
+          ${puce(nbRVUrgents, '📋', 'RV à prendre', 'garages')}
           ${puce(nbPermutSansRV, '🛞', 'permutation' + (nbPermutSansRV>1?'s':'') + ' sans RV', 'pneus')}
           ${puceIndispo}
         </div>
-        ${detailIndispo}
         <div id="export-excel-inline"></div>
       </div>`;
     }
@@ -9766,7 +9691,7 @@ function renderAccueil() {
       rvContent = '<p style="color:var(--texte-sec);font-size:13px;padding:4px 0">Aucun RV planifié ✅</p>';
     }
 
-    dash.innerHTML += '<div style="margin-top:18px">'
+    dash.innerHTML += '<div id="bloc-rv-planifies" style="margin-top:18px">'
       + '<h3 style="margin-bottom:10px' + (isAdmin ? ';cursor:pointer' : '') + '"'
       + (isAdmin ? ' onclick="allerAuxRV()"' : '') + '>'
       + '📅 RV planifiés' + (rvProg.length ? ' (' + rvProg.length + ')' : '')
@@ -17005,7 +16930,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261009.0815';
+const APP_VERSION = '261009.0843';
 
 let _swRegistration = null;
 
