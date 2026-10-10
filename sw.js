@@ -3,7 +3,7 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v261010.2015';
+const CACHE_NAME = 'mcr-flotte-v261010.2130';
 const CACHE_ASSETS = ['./icon-192.png', './manifest.json', './index.html'];
 // Photos des véhicules : mises en cache « au mieux » (une photo absente ne doit pas empêcher
 // le reste d'être mis en cache).

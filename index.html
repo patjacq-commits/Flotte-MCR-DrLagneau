@@ -666,6 +666,7 @@
     } else {
       // Non connecté → afficher l'écran de connexion
       currentUser = null;
+      window._journalVeh = []; window._journalChecked = false;   // jamais de données admin conservées après déconnexion
       document.getElementById('app-wrapper').style.display = 'none';
       afficherEcranConnexion();
     }
@@ -1683,7 +1684,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261010.2015</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261010.2130</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3695,6 +3696,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
           <button class="btn btn-sm" data-cat="carwash" onclick="changerFiltreRecapVeh('carwash')">Car Wash</button>
           <button class="btn btn-sm" data-cat="signalement" onclick="changerFiltreRecapVeh('signalement')">Signalements</button>
           <button class="btn btn-sm" data-cat="indispo" onclick="changerFiltreRecapVeh('indispo')">Indisponibilités</button>
+          <button class="btn btn-sm admin-only" style="display:none" data-cat="journal" onclick="changerFiltreRecapVeh('journal')">📓 Journal</button>
           <button class="btn primary btn-sm" onclick="imprimerRecapVehicule()">🖨 Imprimer</button>
         </div>
       </div>
@@ -3739,6 +3741,48 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
       <button class="btn primary" style="flex:1" id="rp-perso-btn-save" onclick="enregistrerRappelPerso()">💾 Enregistrer</button>
       <button class="btn" onclick="closeModal('modal-rappel-perso')">Annuler</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL JOURNAL DU VÉHICULE (admins) -->
+<div class="modal-overlay" id="modal-journal-veh">
+  <div class="modal" style="max-width:640px">
+    <button class="modal-close" onclick="closeModal('modal-journal-veh')">✕</button>
+    <h2 id="jv-titre">📓 Journal du véhicule</h2>
+    <p style="font-size:12px;color:var(--texte-sec);margin:0 0 10px">Notes réservées à Angélique et Patrick. Une note « 🔶 À suivre » reste dans les alertes (⚠️ À surveiller) jusqu'à ce qu'elle soit marquée réglée.</p>
+    <div class="form-card" style="padding:12px;margin-bottom:12px">
+      <h3 id="jv-form-titre" style="margin:0 0 8px;font-size:14px">➕ Noter un événement</h3>
+      <input type="hidden" id="jv-veh-id" value="" />
+      <input type="hidden" id="jv-edit-id" value="" />
+      <input type="hidden" id="jv-msg-id" value="" />
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <div class="form-group" style="flex:1;min-width:130px;margin:0"><label>Date</label><input type="date" id="jv-date" /></div>
+        <div class="form-group" style="flex:1;min-width:150px;margin:0"><label>Catégorie</label>
+          <select id="jv-cat">
+            <option value="voyant">⚠️ Voyant / message</option>
+            <option value="incident">💥 Incident</option>
+            <option value="meca">🔧 Mécanique</option>
+            <option value="constat">🚗 Constat</option>
+            <option value="autre">📝 Autre</option>
+          </select></div>
+        <div class="form-group" style="flex:1;min-width:110px;margin:0"><label>Km (facultatif)</label><input type="number" id="jv-km" min="0" max="2000000" inputmode="numeric" /></div>
+      </div>
+      <div class="form-group" style="margin-bottom:8px"><label>Ce qui s'est passé</label>
+        <textarea id="jv-texte" maxlength="1500" style="min-height:80px" placeholder="ex : message orange « problème injection » au tableau de bord, disparu après redémarrage"></textarea></div>
+      <div class="form-group" style="margin-bottom:8px"><label>📷 Photo (facultatif)</label>
+        <input type="file" id="jv-photo-input" accept="image/*" onchange="journalPhotoChoisie(this)" />
+        <div id="jv-photo-prev" style="margin-top:6px"></div></div>
+      <div class="form-group" style="margin-bottom:10px"><label>Suivi</label>
+        <select id="jv-statut">
+          <option value="suivre">🔶 À suivre (rappel dans les alertes)</option>
+          <option value="regle">✅ Simple note / déjà réglé</option>
+        </select></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn primary" style="flex:1" id="jv-btn-save" onclick="enregistrerJournalVeh()">💾 Enregistrer</button>
+        <button class="btn" id="jv-btn-annuler" style="display:none" onclick="reinitFormJournal()">Annuler la modification</button>
+      </div>
+    </div>
+    <div id="jv-liste"></div>
   </div>
 </div>
 
@@ -4192,6 +4236,12 @@ window._refreshUI = function() {
     }, 300);
   }
 
+  // Journal des véhicules (admins) — chargé tôt pour alimenter les alertes « à suivre »
+  if (!window._journalChecked && window.vehicules?.length && userIsAdmin()) {
+    window._journalChecked = true;
+    setTimeout(function() { if (typeof chargerJournalVeh === 'function') chargerJournalVeh(); }, 400);
+  }
+
   // Réinitialiser le flag quand l'app revient au premier plan
   // → le modal se réaffiche à chaque ouverture tant qu'il y a des RV dépassés
   if (!window._visibilityListenerAdded) {
@@ -4202,6 +4252,7 @@ window._refreshUI = function() {
         window._rappelsRVChecked = false;
         window._exportExcelChecked = false;
         window._rappelsPersoChecked = false;
+        window._journalChecked = false;
         window._bonsCtChecked = false;
       }
     });
@@ -5611,6 +5662,257 @@ function backfillPermutationsManquantes() {
 }
 
 // ============================================================
+// JOURNAL DU VÉHICULE — notes datées (voyant, incident…) avec suivi « À suivre / Réglé »
+// Collection Firestore « journalVehicule » : lecture ET écriture réservées aux admins
+// (voir firestore.rules). Les chauffeurs ne la chargent jamais.
+// ============================================================
+window._journalVeh = [];
+const JOURNAL_CATS = { voyant:'⚠️ Voyant / message', incident:'💥 Incident', meca:'🔧 Mécanique', constat:'🚗 Constat', autre:'📝 Autre' };
+let _jvPhoto = null;   // null = inchangée · false = retirée · 'data:image/jpeg…' = nouvelle
+
+function journalCatLabel(c) { return JOURNAL_CATS[c] || JOURNAL_CATS.autre; }
+function journalDuVeh(vehId) { return (window._journalVeh || []).filter(j => j.vehId === vehId); }
+function journalASuivre(vehId) { return journalDuVeh(vehId).filter(j => j.statut === 'suivre'); }
+/* Une photo n'est affichée que si c'est bien une image JPEG encodée (défense en profondeur) */
+function journalPhotoSure(d) { return (typeof d === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(d)) ? d : ''; }
+
+async function chargerJournalVeh() {
+  if (!userIsAdmin() || !window.db) return;
+  try {
+    const snap = await db.collection('journalVehicule').get();
+    window._journalVeh = snap.docs.map(d => d.data());
+  } catch(e) { console.warn('Erreur chargement journalVehicule:', e); return; }
+  rafraichirApresJournal();
+}
+function rafraichirApresJournal() {
+  try { renderAccueil(); } catch(e) {}
+  try { renderVehicules(); } catch(e) {}
+  try { if (document.getElementById('page-alertes')?.classList.contains('active')) renderAlertesFull(); } catch(e) {}
+}
+
+function ouvrirJournalVeh(vehId, prefill) {
+  if (!userIsAdmin()) return;
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  document.getElementById('jv-veh-id').value = vehId;
+  document.getElementById('jv-titre').textContent = '📓 Journal — ' + v.marque + ' — ' + v.immat;
+  reinitFormJournal(prefill);
+  renderJournalVeh();
+  document.getElementById('modal-journal-veh').classList.add('open');
+}
+
+function reinitFormJournal(prefill) {
+  prefill = (prefill && typeof prefill === 'object' && !(prefill instanceof Event)) ? prefill : {};
+  document.getElementById('jv-date').value   = prefill.date || toLocalYMD(new Date());
+  document.getElementById('jv-cat').value    = prefill.categorie || 'voyant';
+  document.getElementById('jv-texte').value  = prefill.texte || '';
+  document.getElementById('jv-km').value     = '';
+  document.getElementById('jv-statut').value = 'suivre';
+  document.getElementById('jv-edit-id').value = '';
+  document.getElementById('jv-msg-id').value  = prefill.msgId ? String(idSur(prefill.msgId)) : '';
+  const fi = document.getElementById('jv-photo-input'); if (fi) fi.value = '';
+  _jvPhoto = null;
+  majPreviewPhotoJournal();
+  document.getElementById('jv-form-titre').textContent = '➕ Noter un événement';
+  document.getElementById('jv-btn-save').textContent = '💾 Enregistrer';
+  document.getElementById('jv-btn-annuler').style.display = 'none';
+}
+
+function majPreviewPhotoJournal() {
+  const el = document.getElementById('jv-photo-prev'); if (!el) return;
+  const editId = document.getElementById('jv-edit-id').value;
+  const exist = editId ? (window._journalVeh || []).find(j => String(j.id) === editId) : null;
+  const src = (_jvPhoto === null) ? journalPhotoSure(exist && exist.photo) : (_jvPhoto ? journalPhotoSure(_jvPhoto) : '');
+  el.innerHTML = src
+    ? '<img src="' + src + '" style="max-width:140px;max-height:100px;border-radius:6px;border:1px solid var(--gris-bord);vertical-align:middle"> '
+      + '<button type="button" class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="journalRetirerPhoto()">✕ Retirer</button>'
+    : '';
+}
+function journalRetirerPhoto() {
+  _jvPhoto = false;
+  const fi = document.getElementById('jv-photo-input'); if (fi) fi.value = '';
+  majPreviewPhotoJournal();
+}
+function journalPhotoChoisie(input) {
+  const f = input && input.files && input.files[0];
+  if (!f) return;
+  if (!/^image\//.test(f.type)) { toast('Choisissez une image.'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 900;
+      const ratio = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * ratio)); c.height = Math.max(1, Math.round(img.height * ratio));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      let q = 0.6, data = c.toDataURL('image/jpeg', q);
+      while (data.length > 220000 && q > 0.3) { q -= 0.1; data = c.toDataURL('image/jpeg', q); }
+      _jvPhoto = data;
+      majPreviewPhotoJournal();
+    };
+    img.onerror = () => toast('Image illisible.');
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(f);
+}
+
+async function sauverJournalRec(rec) {
+  try {
+    await db.collection('journalVehicule').doc(String(rec.id)).set(rec);
+  } catch(e) { console.warn('Erreur enregistrement journal:', e); toast('❌ Enregistrement impossible (réseau ou droits).'); return false; }
+  const i = window._journalVeh.findIndex(j => String(j.id) === String(rec.id));
+  if (i > -1) window._journalVeh[i] = rec; else window._journalVeh.unshift(rec);
+  return true;
+}
+
+async function enregistrerJournalVeh() {
+  if (!userIsAdmin()) return;
+  const vehId  = document.getElementById('jv-veh-id').value;
+  const date   = document.getElementById('jv-date').value;
+  const cat    = document.getElementById('jv-cat').value;
+  const texte  = document.getElementById('jv-texte').value.trim();
+  const kmRaw  = document.getElementById('jv-km').value.trim();
+  const statut = document.getElementById('jv-statut').value === 'regle' ? 'regle' : 'suivre';
+  const editId = document.getElementById('jv-edit-id').value;
+  const msgId  = document.getElementById('jv-msg-id').value;
+  const v = vehicules.find(x => x.id === vehId);
+  if (!v) return;
+  if (!date) { toast('Indiquez la date.'); return; }
+  if (date > toLocalYMD(new Date())) { toast('La date ne peut pas être dans le futur.'); return; }
+  if (!texte) { toast('Décrivez ce qui s\'est passé.'); return; }
+  if (texte.length > 1500) { toast('Texte trop long (1500 caractères max).'); return; }
+  let km = null;
+  if (kmRaw !== '') {
+    km = parseInt(kmRaw, 10);
+    if (!(km >= 0) || km > 2000000) { toast('Kilométrage invalide.'); return; }
+  }
+  const existant = editId ? window._journalVeh.find(j => String(j.id) === editId) : null;
+  const rec = existant
+    ? { ...existant }
+    : { id: Date.now(), creeLe: new Date().toISOString(), auteur: (currentUser && (currentUser.nom || currentUser.email)) || '' };
+  rec.vehId = vehId; rec.date = date; rec.categorie = JOURNAL_CATS[cat] ? cat : 'autre';
+  rec.texte = texte; rec.km = km; rec.statut = statut;
+  if (statut === 'regle') { rec.dateRegle = rec.dateRegle || toLocalYMD(new Date()); rec.solution = rec.solution || ''; }
+  else { rec.dateRegle = null; rec.solution = ''; }
+  if (_jvPhoto === false) rec.photo = null;
+  else if (typeof _jvPhoto === 'string') rec.photo = journalPhotoSure(_jvPhoto) || null;
+  else if (!('photo' in rec)) rec.photo = null;
+  if (!existant && msgId) rec.msgId = idSur(msgId);
+  if (!(await sauverJournalRec(rec))) return;
+  const desc = 'Journal véhicule : ' + v.immat + ' — ' + journalCatLabel(rec.categorie) + ' — ' + formatDate(rec.date);
+  try { if (existant) logModification('journalVehicule', desc, null, { vehId, date, categorie: rec.categorie, statut });
+        else logCreation('journalVehicule', desc, { vehId, date, categorie: rec.categorie, statut }); } catch(e) {}
+  toast(existant ? '✅ Note modifiée' : (statut === 'suivre' ? '✅ Note enregistrée — à suivre dans les alertes' : '✅ Note enregistrée'));
+  reinitFormJournal();
+  renderJournalVeh();
+  rafraichirApresJournal();
+}
+
+function renderJournalVeh() {
+  const el = document.getElementById('jv-liste'); if (!el) return;
+  const vehId = document.getElementById('jv-veh-id').value;
+  const liste = journalDuVeh(vehId).sort((a, b) =>
+    (a.statut === 'suivre' ? 0 : 1) - (b.statut === 'suivre' ? 0 : 1)
+    || (b.date || '').localeCompare(a.date || '') || (b.id - a.id));
+  if (!liste.length) { el.innerHTML = '<p style="color:var(--texte-sec);font-size:13px;text-align:center;padding:12px">Aucune note pour ce véhicule.</p>'; return; }
+  el.innerHTML = liste.map(j => {
+    const suivre = j.statut === 'suivre';
+    const jours = Math.max(0, -(daysUntil(j.date) ?? 0));
+    const ph = journalPhotoSure(j.photo);
+    return '<div class="form-card" style="padding:10px 12px;margin-bottom:8px;border-left:4px solid ' + (suivre ? 'var(--orange)' : 'var(--vert)') + '">'
+      + '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'
+      + '<b style="font-size:13px">' + echapperHtml(journalCatLabel(j.categorie)) + '</b>'
+      + '<span style="font-size:12px;color:var(--texte-sec)">' + echapperHtml(formatDate(j.date)) + (j.km ? ' · ' + echapperHtml(Number(j.km).toLocaleString('fr-BE')) + ' km' : '') + '</span>'
+      + '<span class="badge ' + (suivre ? 'warn' : 'ok') + '" style="margin-left:auto;font-size:11px">' + (suivre ? '🔶 À suivre' + (jours > 0 ? ' (' + jours + ' j)' : ' (aujourd\'hui)') : '✅ Réglé') + '</span>'
+      + '</div>'
+      + '<div style="font-size:13px;margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere">' + echapperHtml(j.texte) + '</div>'
+      + (ph ? '<img src="' + ph + '" style="width:90px;height:68px;object-fit:cover;border-radius:6px;margin-top:6px;cursor:zoom-in;border:1px solid var(--gris-bord)" onclick="agrandirPhotoJournal(' + idSur(j.id) + ')" title="Agrandir">' : '')
+      + (!suivre && (j.dateRegle || j.solution) ? '<div style="font-size:12px;color:var(--vert);margin-top:4px">✅ Réglé' + (j.dateRegle ? ' le ' + echapperHtml(formatDate(j.dateRegle)) : '') + (j.solution ? ' — ' + echapperHtml(j.solution) : '') + '</div>' : '')
+      + (j.msgId ? '<div style="font-size:11px;color:var(--texte-sec);margin-top:3px">issu d\'un signalement chauffeur</div>' : '')
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
+      + (suivre
+          ? '<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="marquerJournalRegle(' + idSur(j.id) + ')">✅ Marquer réglé</button>'
+          : '<button class="btn btn-sm" onclick="rouvrirJournal(' + idSur(j.id) + ')">↩ Rouvrir</button>')
+      + '<button class="btn btn-sm" onclick="modifierJournal(' + idSur(j.id) + ')">✏️</button>'
+      + '<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerJournal(' + idSur(j.id) + ')">🗑</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+function agrandirPhotoJournal(id) {
+  const j = (window._journalVeh || []).find(x => String(x.id) === String(id));
+  const ph = j && journalPhotoSure(j.photo);
+  if (!ph) return;
+  fermerPhotoVeh();
+  const o = document.createElement('div');
+  o.className = 'photo-overlay'; o.id = 'photo-overlay-veh';
+  o.onclick = fermerPhotoVeh;
+  o.innerHTML = '<img src="' + ph + '" alt="Photo du journal"><div class="photo-fermer">Toucher pour fermer</div>';
+  document.body.appendChild(o);
+}
+
+async function marquerJournalRegle(id) {
+  if (!userIsAdmin()) return;
+  const j = window._journalVeh.find(x => String(x.id) === String(id)); if (!j) return;
+  const sol = prompt('Qu\'est-ce qui a réglé le problème ? (facultatif — ex : « bougie remplacée chez Albert »)', '');
+  if (sol === null) return;
+  const rec = { ...j, statut: 'regle', dateRegle: toLocalYMD(new Date()), solution: String(sol).trim().slice(0, 500) };
+  if (!(await sauverJournalRec(rec))) return;
+  const v = vehicules.find(x => x.id === rec.vehId);
+  try { logModification('journalVehicule', 'Journal véhicule réglé : ' + (v ? v.immat : rec.vehId) + ' — ' + journalCatLabel(rec.categorie), null, { vehId: rec.vehId, statut: 'regle' }); } catch(e) {}
+  toast('✅ Marqué réglé');
+  renderJournalVeh(); rafraichirApresJournal();
+}
+async function rouvrirJournal(id) {
+  if (!userIsAdmin()) return;
+  const j = window._journalVeh.find(x => String(x.id) === String(id)); if (!j) return;
+  const rec = { ...j, statut: 'suivre', dateRegle: null, solution: '' };
+  if (!(await sauverJournalRec(rec))) return;
+  toast('↩ Remise à suivre');
+  renderJournalVeh(); rafraichirApresJournal();
+}
+function modifierJournal(id) {
+  if (!userIsAdmin()) return;
+  const j = window._journalVeh.find(x => String(x.id) === String(id)); if (!j) return;
+  document.getElementById('jv-edit-id').value = String(idSur(j.id));
+  document.getElementById('jv-msg-id').value = '';
+  document.getElementById('jv-date').value = j.date || toLocalYMD(new Date());
+  document.getElementById('jv-cat').value = JOURNAL_CATS[j.categorie] ? j.categorie : 'autre';
+  document.getElementById('jv-texte').value = j.texte || '';
+  document.getElementById('jv-km').value = j.km || '';
+  document.getElementById('jv-statut').value = j.statut === 'regle' ? 'regle' : 'suivre';
+  const fi = document.getElementById('jv-photo-input'); if (fi) fi.value = '';
+  _jvPhoto = null; majPreviewPhotoJournal();
+  document.getElementById('jv-form-titre').textContent = '✏️ Modifier la note';
+  document.getElementById('jv-btn-save').textContent = '💾 Enregistrer les modifications';
+  document.getElementById('jv-btn-annuler').style.display = '';
+  document.getElementById('jv-texte').focus();
+}
+async function supprimerJournal(id) {
+  if (!userIsAdmin()) return;
+  const j = window._journalVeh.find(x => String(x.id) === String(id)); if (!j) return;
+  if (!confirm('Supprimer définitivement cette note ?\n\n' + journalCatLabel(j.categorie) + ' — ' + formatDate(j.date) + '\n' + String(j.texte || '').slice(0, 120))) return;
+  try { await db.collection('journalVehicule').doc(String(j.id)).delete(); }
+  catch(e) { console.warn(e); toast('❌ Suppression impossible (réseau ou droits).'); return; }
+  window._journalVeh = window._journalVeh.filter(x => String(x.id) !== String(j.id));
+  const v = vehicules.find(x => x.id === j.vehId);
+  try { logSuppression && logSuppression('journalVehicule', 'Journal véhicule supprimé : ' + (v ? v.immat : j.vehId) + ' — ' + formatDate(j.date), { vehId: j.vehId }); } catch(e) {}
+  toast('Note supprimée');
+  reinitFormJournal(); renderJournalVeh(); rafraichirApresJournal();
+}
+
+/* Bouton « 📓 Ajouter au journal » d'un signalement chauffeur : ouvre le journal du
+   véhicule avec le texte et la date du signalement pré-remplis. */
+function ajouterSignalementAuJournal(msgId) {
+  if (!userIsAdmin()) return;
+  const m = messagesChauf.find(x => String(x.id) === String(msgId)); if (!m) return;
+  const texte = ('Signalé par ' + (m.auteur || 'un chauffeur') + ' : ' + (m.msg || '')).slice(0, 1500);
+  const cat = /voyant|t[ée]moin|message|tableau|injection|moteur/i.test(m.msg || '') ? 'voyant' : 'incident';
+  ouvrirJournalVeh(m.vehId, { date: toLocalYMD(new Date(m.date)), categorie: cat, texte, msgId: m.id });
+}
+
+// ============================================================
 // RAPPELS PERSONNELS — libres, liés ou non à un véhicule
 // ============================================================
 
@@ -6150,7 +6452,11 @@ function renderMessagesChauf() {
       const btnDel = `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
                onclick="deleteChauf(${idSur(m.id)})">🗑</button>`;
 
-      return telHtml + btnVu + ' ' + btnTraite + ' ' + btnDel;
+      const jExist = (window._journalVeh || []).some(j => String(j.msgId) === String(m.id));
+      const btnJournal = jExist
+        ? `<button class="btn btn-sm" style="color:#7a4a00;border-color:var(--orange)" onclick="ouvrirJournalVeh(${jsArg(m.vehId)})">📓 Au journal ✔</button>`
+        : `<button class="btn btn-sm" style="color:#7a4a00;border-color:var(--orange)" onclick="ajouterSignalementAuJournal(${idSur(m.id)})">📓 Ajouter au journal</button>`;
+      return telHtml + btnVu + ' ' + btnTraite + ' ' + btnJournal + ' ' + btnDel;
     })() : '';
 
     // Afficher le statut côté chauffeur
@@ -7502,6 +7808,7 @@ const AIDE_CONTENU = {
   vehicules: {
     chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date.</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
+        <li>📓 <b>Journal</b> : le bouton « 📓 Journal » de la fiche permet de noter un événement sur le véhicule (voyant ou message au tableau de bord, incident, constat du garage…) avec la date, le km (facultatif) et une photo réduite (facultatif). Choisir « 🔶 À suivre » garde la note dans les alertes (⚠️ À surveiller, rubrique « 📓 Journal véhicule », avec le nombre de jours écoulés) jusqu'à ce que vous cliquiez sur « ✅ Marquer réglé » (la date et la solution du garage sont conservées). « ↩ Rouvrir » remet la note à suivre ; ✏️ la modifie ; 🗑 la supprime. Les notes apparaissent aussi dans le Récapitulatif du véhicule (filtre « 📓 Journal »). Réservé à Angélique et Patrick : les chauffeurs ne voient jamais ces notes.</li>
         <li>📷 Photo : quand un véhicule a sa photo, une vignette s'affiche à gauche de son nom (fiche et récapitulatif) ; un clic l'agrandit, un nouveau clic la ferme. Les photos sont ajoutées par le développeur : envoyez-lui la photo du véhicule (de préférence de trois quarts avant, en plein jour).</li>
         <li>✏️ Modifier les informations d'un véhicule, dont la case « 🛞 Pneus été et neige montés sur jantes » (TLAN633, TLAN910 et TLAN527 sont cochés d'office) : une pastille « 🛞 Sur jantes » apparaît alors sur la fiche — visible uniquement par Angélique et Patrick.</li>
         <li>🔴/🟢 Marquer un véhicule (in)disponible : choisir un motif, ou « Autre » pour le préciser en texte libre (ex. « pneu éventré, en attente de livraison »), et indiquer si possible une durée estimée. La fiche affiche le motif et la durée estimée, avec « ⏰ N jours ! » au-delà de 5 jours d'immobilisation (sans date). Le champ « À partir du » (facultatif) permet de programmer l'immobilisation : jusqu'à cette date le véhicule reste disponible (hors « Priorités du jour ») et la fiche affiche seulement « 🗓 Immobilisation prévue le … » (✕ pour annuler) ; le jour dit, il passe automatiquement en indisponible. Le champ « Jusqu'au (inclus) » (facultatif) fixe le dernier jour d'immobilisation : le lendemain, le véhicule redevient automatiquement disponible (l'historique des indisponibilités est conservé). Exemple : du 20/10 au 22/10 → indisponible les 20, 21 et 22, disponible dès le 23. Exception de sécurité : si le CT est dépassé ou la carte rouge non levée, le véhicule reste immobilisé (« fin prévue dépassée ! ») jusqu'à votre confirmation manuelle 🟢. Sans date de fin, il reste indisponible jusqu'à ce que vous le remettiez disponible vous-même.</li>
@@ -7510,7 +7817,7 @@ const AIDE_CONTENU = {
   },
   alertes: {
     chauffeur: `<p>Cette rubrique est réservée à Angélique et Patrick, qui s'occupent du suivi des échéances (CT, entretien…) et de la prise des RV. Vous retrouvez les RV planifiés sur le tableau de bord et les dates de chaque véhicule dans « Véhicules ».</p>`,
-    admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Une permutation de pneus effectuée depuis 2 jours ou plus sans kilométrage y apparaît aussi (« Km de permutation manquant », rubrique 🛞 Pneus) jusqu'à ce que le km soit complété avec ✏️ dans l'historique des permutations. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
+    admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés et les notes « 🔶 À suivre » du journal des véhicules). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Une permutation de pneus effectuée depuis 2 jours ou plus sans kilométrage y apparaît aussi (« Km de permutation manquant », rubrique 🛞 Pneus) jusqu'à ce que le km soit complété avec ✏️ dans l'historique des permutations. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
   },
   kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable. Consultation pour tous (chauffeurs compris, à titre d'information) : les chiffres viennent des relevés de maintenance mensuels saisis par Patrick.</p>`,
   calendrier: {
@@ -7526,8 +7833,8 @@ const AIDE_CONTENU = {
         <li>Ajouter une note générale et, si utile, une ou plusieurs photos, puis envoyer après relecture du récapitulatif.</li>
       </ol>
       <p>Le fil de vos propres signalements est visible (filtrable par statut/véhicule). Dès que Patrick ou Angélique répond, une notification (💬 + onglet qui clignote) apparaît si l'app est ouverte, et la réponse reste visible dans « En cours » tant que vous ne l'avez pas consultée — elle bascule ensuite dans « ✅ Traités ».</p>`,
-    admin: `<p>Cet onglet s'appelle « Signalements chauffeurs » pour vous (les chauffeurs, eux, y voient « Signaler un problème »). Le badge rouge indique le nombre de signalements non traités. Vous pouvez créer un signalement comme un chauffeur, et vous répondez aux signalements reçus — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné, qui est notifié (si l'app est ouverte) et voit la réponse rester dans son fil « En cours » jusqu'à ce qu'il l'ait consultée.</p>`,
-    superadmin: `<p>L'onglet s'appelle « Signalements chauffeurs ». Le formulaire de création de signalement est masqué pour vous : vous consultez le fil des signalements et pouvez y répondre.</p>`,
+    admin: `<p>Cet onglet s'appelle « Signalements chauffeurs » pour vous (les chauffeurs, eux, y voient « Signaler un problème »). Le badge rouge indique le nombre de signalements non traités. Vous pouvez créer un signalement comme un chauffeur, et vous répondez aux signalements reçus — la réponse passe le statut à « lu » et apparaît dans l'historique du chauffeur concerné, qui est notifié (si l'app est ouverte) et voit la réponse rester dans son fil « En cours » jusqu'à ce qu'il l'ait consultée.</p><p>Le bouton « 📓 Ajouter au journal » de chaque signalement ouvre le journal du véhicule avec le texte et la date déjà remplis : la note reste alors dans l'historique du véhicule et dans les alertes tant qu'elle est « À suivre », même une fois le signalement traité.</p>`,
+    superadmin: `<p>L'onglet s'appelle « Signalements chauffeurs ». Le formulaire de création de signalement est masqué pour vous : vous consultez le fil des signalements et pouvez y répondre. Le bouton « 📓 Ajouter au journal » conserve un signalement dans le journal du véhicule (historique et alertes « À suivre »).</p>`,
   },
   accident: `<p>Que faire en cas d'accident, déclaration de sinistre auto, PV/amende de stationnement, codes des cartes carburant par véhicule, numéros d'urgence belges (112, Ethias Assistance…).</p>
     <p>Le 112 et le numéro de Patrick restent aussi joignables sans connexion via la petite icône 🆘 en bas à droite de l'écran de connexion.</p>`,
@@ -8266,6 +8573,8 @@ async function seDeconnecter() {
   window._rappelsRVChecked       = false;
   window._exportExcelChecked     = false;
   window._rappelsPersoChecked    = false;
+  window._journalChecked         = false;
+  window._journalVeh             = [];   // jamais de données admin conservées pour le compte suivant
   window._bonsCtChecked          = false;
   window._jantesMigChecked       = false;
 
@@ -10470,6 +10779,21 @@ function collecterEvenementsVehicule(vehId) {
     });
   });
 
+  // Journal du véhicule (admins uniquement)
+  if (userIsAdmin()) {
+    (window._journalVeh || []).filter(j => j.vehId === vehId).forEach(j => {
+      evenements.push({
+        date: j.date, categorie: 'journal', icone: '\ud83d\udcd3',
+        titre: 'Journal \u2014 ' + echapperHtml(journalCatLabel(j.categorie)) + (j.statut === 'suivre' ? ' (\u00e0 suivre)' : ' (r\u00e9gl\u00e9)'),
+        detail: [
+          echapperHtml(j.texte || ''),
+          j.km ? 'Km : ' + echapperHtml(Number(j.km).toLocaleString('fr-BE')) : '',
+          (j.statut !== 'suivre' && (j.dateRegle || j.solution)) ? 'R\u00e9gl\u00e9' + (j.dateRegle ? ' le ' + echapperHtml(formatDateCourt(j.dateRegle)) : '') + (j.solution ? ' : ' + echapperHtml(j.solution) : '') : '',
+        ].filter(Boolean).join(' \u2014 '),
+      });
+    });
+  }
+
   // Périodes d'indisponibilité passées
   (v?.historiqueIndisponibilites || []).forEach(h => {
     evenements.push({
@@ -11158,6 +11482,18 @@ function buildAlertes() {
       detail:`Permutation ${sens} du ${formatDate(p.date)} (il y a ${Math.abs(jP)} jours) sans kilométrage. À compléter dans Pneus → Historique des permutations (✏️).` });
   });
 
+  // ── Journal du véhicule : notes « 🔶 À suivre » (admins uniquement : les chauffeurs ne chargent jamais le journal)
+  (window._journalVeh || []).forEach(j => {
+    if (!j || j.statut !== 'suivre') return;
+    const vJ = vehicules.find(x => x.id === j.vehId);
+    if (!vJ || vJ.archive) return;
+    const jJ = Math.max(0, -(daysUntil(j.date) ?? 0));
+    const t = String(j.texte || '');
+    alertes.push({ level:'warn', icon:'📓', category:'journal', vehId:vJ.id, typeRV:null,
+      titre: echapperHtml('Journal à suivre — ' + vJ.marque + ' ' + vJ.immat),
+      detail: echapperHtml(journalCatLabel(j.categorie) + ' du ' + formatDate(j.date) + (jJ > 0 ? ' (il y a ' + jJ + ' j)' : '') + ' : ' + (t.length > 140 ? t.slice(0, 140) + '…' : t)) });
+  });
+
   alertes.sort((a,b) => {
     const o = { urgent:0, warn:1, rv:2, info:3 };
     // Les cartes rouges CT en tout premier
@@ -11271,6 +11607,7 @@ function renderAlertesFull() {
       { key:'extincteur', label:'🧯 Extincteurs' },
       { key:'assurance',  label:'🛡 Assurance' },
       { key:'pneus',      label:'🛞 Pneus' },
+      { key:'journal',    label:'📓 Journal véhicule' },
       { key:'spw',        label:'📋 Vignette SPW' },
       { key:undefined,    label:'⚠️ Autres' },
     ];
@@ -11552,6 +11889,8 @@ function renderVehicules() {
         <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
         <button class="btn btn-sm" onclick="ouvrirRecapVehicule('${v.id}')">🗂 Récapitulatif</button>
         ${isAdmin ? `<button class="btn btn-sm primary" onclick="openVehEdit('${v.id}')">✏️ Modifier</button>` : ''}
+        ${isAdmin ? (() => { const nJ = journalASuivre(v.id).length;
+          return `<button class="btn btn-sm" style="${nJ ? 'color:#7a4a00;border-color:var(--orange);background:var(--orange-clair);font-weight:700' : ''}" onclick="ouvrirJournalVeh(${jsArg(v.id)})" title="Noter un événement ou un problème sur ce véhicule">📓 Journal${nJ ? ' (' + nJ + ' à suivre)' : ''}</button>`; })() : ''}
         ${isAdmin ? (v.indisponible
           ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="marquerVehiculeDisponible('${v.id}')">🟢 Marquer disponible</button>`
           : `<button class="btn btn-sm" style="color:#e67e22;border-color:#f0c896" onclick="ouvrirModalIndisponible('${v.id}')">🔴 Marquer indisponible</button>`) : ''}
@@ -16599,7 +16938,7 @@ async function exportBackupJSON() {
   // pneu, commentaires garage, réglages, historique, et — pour Patrick
   // seul — commandes AdBlue, suggestions, comptes). Une collection
   // illisible (droits) est simplement notée dans _meta.indisponibles.
-  const extra = ['commandesPneus', 'rappelsPerso', 'remplacementsPneu', 'commentairesGarage', 'config', 'historique'];
+  const extra = ['commandesPneus', 'rappelsPerso', 'remplacementsPneu', 'journalVehicule', 'commentairesGarage', 'config', 'historique'];
   if (userIsSuperAdmin()) extra.push('commandesAdBlue', 'suggestionsChauf', 'roles');
   backup._meta.indisponibles = [];
   if (window.db && navigator.onLine) {
@@ -17117,7 +17456,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261010.2015';
+const APP_VERSION = '261010.2130';
 
 let _swRegistration = null;
 
