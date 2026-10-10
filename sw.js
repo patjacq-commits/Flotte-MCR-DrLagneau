@@ -3,14 +3,18 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v261009.1545';
+const CACHE_NAME = 'mcr-flotte-v261010.1900';
 const CACHE_ASSETS = ['./icon-192.png', './manifest.json', './index.html'];
+// Photos des véhicules : mises en cache « au mieux » (une photo absente ne doit pas empêcher
+// le reste d'être mis en cache).
+const CACHE_PHOTOS = ['./photos/TLAM294_t.jpg', './photos/TLAM294.jpg', './photos/TLAN910_t.jpg', './photos/TLAN910.jpg', './photos/1RER037_t.jpg', './photos/1RER037.jpg', './photos/TLAJ108_t.jpg', './photos/TLAJ108.jpg', './photos/TLAN633_t.jpg', './photos/TLAN633.jpg'];
 
 // ── Installation ──────────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(CACHE_ASSETS))
+      .then(cache => cache.addAll(CACHE_ASSETS)
+        .then(() => Promise.allSettled(CACHE_PHOTOS.map(u => cache.add(u)))))
       .catch(e => console.warn('SW cache partiel:', e))
   );
   // Forcer le nouveau SW à prendre le contrôle immédiatement

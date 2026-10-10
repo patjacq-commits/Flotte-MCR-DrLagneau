@@ -866,6 +866,14 @@ body.role-chauffeur #tab-chauf { order: -1; }
   display: flex; align-items: center; gap: 10px;
   border-bottom: 1px solid var(--gris-bord);
 }
+/* Photo du véhicule : vignette cliquable (remplace l'icône), agrandissement en plein écran */
+.veh-photo { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+  cursor: zoom-in; border: 1px solid var(--gris-bord); background: var(--gris-clair); display: block; }
+.photo-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.88);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px; cursor: zoom-out; }
+.photo-overlay img { max-width: 100%; max-height: 82vh; border-radius: 8px; object-fit: contain; }
+.photo-overlay .photo-legende { color: #fff; font-size: 14px; font-weight: 600; margin-top: 10px; text-align: center; }
+.photo-overlay .photo-fermer { color: #ddd; font-size: 12px; margin-top: 4px; }
 .veh-icon {
   width: 40px; height: 40px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
@@ -1674,7 +1682,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261009.1545</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261010.1900</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -3696,6 +3704,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
         <p id="recap-veh-print-soustitre" style="font-size:13px;color:#555;margin-bottom:16px"></p>
       </div>
 
+      <div id="recap-veh-photo" class="no-print" style="margin-bottom:10px"></div>
       <div id="recap-veh-contenu"></div>
     </div>
   </div>
@@ -7490,8 +7499,9 @@ const AIDE_CONTENU = {
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
   },
   vehicules: {
-    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date.</p>`,
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date.</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
+        <li>📷 Photo : quand un véhicule a sa photo, une vignette s'affiche à gauche de son nom (fiche et récapitulatif) ; un clic l'agrandit, un nouveau clic la ferme. Les photos sont ajoutées par le développeur : envoyez-lui la photo du véhicule (de préférence de trois quarts avant, en plein jour).</li>
         <li>✏️ Modifier les informations d'un véhicule, dont la case « 🛞 Pneus été et neige montés sur jantes » (TLAN633, TLAN910 et TLAN527 sont cochés d'office) : une pastille « 🛞 Sur jantes » apparaît alors sur la fiche — visible uniquement par Angélique et Patrick.</li>
         <li>🔴/🟢 Marquer un véhicule (in)disponible : choisir un motif, ou « Autre » pour le préciser en texte libre (ex. « pneu éventré, en attente de livraison »), et indiquer si possible une durée estimée. La fiche affiche le motif et la durée estimée, avec « ⏰ N jours ! » au-delà de 5 jours d'immobilisation (sans date). Le champ « À partir du » (facultatif) permet de programmer l'immobilisation : jusqu'à cette date le véhicule reste disponible (hors « Priorités du jour ») et la fiche affiche seulement « 🗓 Immobilisation prévue le … » (✕ pour annuler) ; le jour dit, il passe automatiquement en indisponible. Le champ « Jusqu'au (inclus) » (facultatif) fixe le dernier jour d'immobilisation : le lendemain, le véhicule redevient automatiquement disponible (l'historique des indisponibilités est conservé). Exemple : du 20/10 au 22/10 → indisponible les 20, 21 et 22, disponible dès le 23. Exception de sécurité : si le CT est dépassé ou la carte rouge non levée, le véhicule reste immobilisé (« fin prévue dépassée ! ») jusqu'à votre confirmation manuelle 🟢. Sans date de fin, il reste indisponible jusqu'à ce que vous le remettiez disponible vous-même.</li>
         <li>🗑 Archiver ou supprimer définitivement un véhicule ; réactiver un véhicule archivé.</li>
@@ -10486,6 +10496,8 @@ async function ouvrirRecapVehicule(vehId) {
 
   document.getElementById('recap-veh-titre').textContent = '\ud83d\uddc2 R\u00e9capitulatif \u2014 ' + v.marque + ' \u2014 ' + v.immat;
   document.getElementById('modal-recap-veh').classList.add('open');
+  const _ph = document.getElementById('recap-veh-photo');
+  if (_ph) _ph.innerHTML = htmlVignetteVeh(v, 72);
 
   // S'assurer que remplacementsPneu est disponible même si l'onglet Pneus
   // n'a jamais été visité cette session — sans ça, l'historique serait
@@ -11295,6 +11307,32 @@ let ORDRE_VEHICULES = ['TLAM294','TLAN633','TLAJ108','TLAJ109','TLAM789','TLAM94
 // Véhicules équipés AdBlue (let pour permettre ajout dynamique)
 let VEHICULES_ADBLUE = ['TLAM294','TLAN633','TLAM789','TLAM941','TLAN527','TLAN910'];
 
+/* Photos des véhicules (dossier photos/ : <id>.jpg en grand, <id>_t.jpg en vignette).
+   Seuls les véhicules listés ici ont une photo ; les autres gardent l'icône. */
+const PHOTOS_VEHICULES = { 'TLAM294': true, 'TLAN910': true, '1RER037': true, 'TLAJ108': true, 'TLAN633': true };
+function photoVehiculeDispo(v) { return !!(v && Object.prototype.hasOwnProperty.call(PHOTOS_VEHICULES, v.id) && PHOTOS_VEHICULES[v.id]); }
+function htmlVignetteVeh(v, taille) {
+  if (!photoVehiculeDispo(v)) return '';
+  const t = taille || 64;
+  return '<img class="veh-photo" src="photos/' + encodeURIComponent(v.id) + '_t.jpg" alt="' + echapperHtml(v.marque + ' ' + v.immat) + '"'
+    + ' loading="lazy" style="width:' + t + 'px;height:' + t + 'px" title="Agrandir la photo"'
+    + ' onclick="agrandirPhotoVeh(' + jsArg(v.id) + ')" onerror="this.style.display=\'none\'">';
+}
+function agrandirPhotoVeh(vehId) {
+  const v = (typeof vehicules !== 'undefined' ? vehicules : []).find(x => x.id === vehId);
+  if (!photoVehiculeDispo(v)) return;
+  fermerPhotoVeh();
+  const o = document.createElement('div');
+  o.className = 'photo-overlay'; o.id = 'photo-overlay-veh';
+  o.onclick = fermerPhotoVeh;
+  o.innerHTML = '<img src="photos/' + encodeURIComponent(v.id) + '.jpg" alt="' + echapperHtml(v.marque + ' ' + v.immat) + '">'
+    + '<div class="photo-legende">' + echapperHtml(v.marque) + ' — ' + echapperHtml(v.immat) + '</div>'
+    + '<div class="photo-fermer">Toucher pour fermer</div>';
+  document.body.appendChild(o);
+}
+function fermerPhotoVeh() { const o = document.getElementById('photo-overlay-veh'); if (o) o.remove(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fermerPhotoVeh(); });
+
 function renderVehicules() {
   appliquerIndisponibilitesPrevues();
   // Nettoyer l'éventuel bouton "Ajouter" précédent pour éviter les doublons
@@ -11424,10 +11462,10 @@ function renderVehicules() {
         </div>`;
       })() : ''}
       <div class="veh-card-header">
-        <div class="veh-icon ${isCamion?'camion':'vsl'}">${isCamion?'🚐':'🚑'}</div>
+        ${htmlVignetteVeh(v) || `<div class="veh-icon ${isCamion?'camion':'vsl'}">${isCamion?'🚐':'🚑'}</div>`}
         <div class="veh-info" style="flex:1;min-width:0">
-          <h3>${v.marque}</h3>
-          <span class="immat">${v.immat}</span>
+          <h3>${echapperHtml(v.marque)}</h3>
+          <span class="immat">${echapperHtml(v.immat)}</span>
           ${equipBadge}
           ${jantesBadge}
           ${saisonsBadge}
@@ -17078,7 +17116,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261009.1545';
+const APP_VERSION = '261010.1900';
 
 let _swRegistration = null;
 
