@@ -1684,7 +1684,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261011.1545</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261011.1620</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -6071,13 +6071,18 @@ function traiterImageSignature(file) {
           // on garde l'alpha près des traits retenus (bords adoucis), 0 ailleurs
           let near = keep[i];
           if (!near) { for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2; dx++) { const yy = y + minY + dy, xx = x + minX + dx; if (yy >= 0 && xx >= 0 && yy < H && xx < W && keep[yy*W+xx]) { near = 1; break; } } }
-          od.data[k] = 25; od.data[k+1] = 20; od.data[k+2] = 70; od.data[k+3] = near ? alpha[i] : 0;
+          od.data[k] = 25; od.data[k+1] = 20; od.data[k+2] = 70; od.data[k+3] = near ? Math.min(255, Math.round(alpha[i] / 17) * 17) : 0;   // alpha par paliers : PNG bien plus léger
         }
         ox.putImageData(od, 0, 0);
-        let res = out;
-        if (cw > 700) { res = document.createElement('canvas'); res.width = 700; res.height = Math.max(1, Math.round(ch * 700 / cw)); res.getContext('2d').drawImage(out, 0, 0, res.width, res.height); }
-        const png = res.toDataURL('image/png');
-        if (png.length > 250000) return reject(new Error('Image trop lourde'));
+        // Réduit au besoin jusqu'à passer sous la limite de stockage (largeurs de plus en plus petites)
+        let png = '';
+        for (const lmax of [700, 520, 380, 280, 200]) {
+          let res = out;
+          if (cw > lmax) { res = document.createElement('canvas'); res.width = lmax; res.height = Math.max(1, Math.round(ch * lmax / cw)); res.getContext('2d').drawImage(out, 0, 0, res.width, res.height); }
+          png = res.toDataURL('image/png');
+          if (png.length <= 200000) break;
+        }
+        if (png.length > 250000) return reject(new Error('Photo trop chargée (lignes, carreaux, ombres…) : utilisez une feuille blanche unie et recadrez sur la signature'));
         resolve(png);
       } catch (e) { reject(e); }
     };
@@ -17703,7 +17708,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261011.1545';
+const APP_VERSION = '261011.1620';
 
 let _swRegistration = null;
 
