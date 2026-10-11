@@ -666,7 +666,7 @@
     } else {
       // Non connecté → afficher l'écran de connexion
       currentUser = null;
-      window._journalVeh = []; window._journalChecked = false;   // jamais de données admin conservées après déconnexion
+      window._signatureCT = undefined; window._signatureCTBrouillon = null; window._journalVeh = []; window._journalChecked = false;   // jamais de données admin conservées après déconnexion
       document.getElementById('app-wrapper').style.display = 'none';
       afficherEcranConnexion();
     }
@@ -1684,7 +1684,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261010.2130</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261011.1030</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -5913,6 +5913,216 @@ function ajouterSignalementAuJournal(msgId) {
 }
 
 // ============================================================
+// SIGNATURE MANUSCRITE du bon de commande CT (par admin)
+// Stockée dans Firestore (signatures/{uid}, lecture/écriture réservées à
+// cet admin) — jamais dans le code de l'app, qui est public.
+// ============================================================
+window._signatureCT = undefined;   // undefined = pas chargée · null = aucune · 'data:image/png;base64,…'
+window._signatureCTBrouillon = null;
+
+async function chargerSignatureCT(force) {
+  if (!userIsAdmin() || !currentUser || !currentUser.uid) return null;
+  if (!force && window._signatureCT !== undefined) return window._signatureCT;
+  try {
+    const doc = await db.collection('signatures').doc(String(currentUser.uid)).get();
+    const png = doc.exists && doc.data() ? doc.data().png : null;
+    window._signatureCT = (typeof png === 'string' && /^data:image\/png;base64,[A-Za-z0-9+\/=]+$/.test(png)) ? png : null;
+  } catch (e) {
+    console.warn('Signature : lecture impossible', e);
+    return null;   // erreur réseau : on n'écrase pas le cache, le bon sort sans signature
+  }
+  return window._signatureCT;
+}
+
+function renderBlocSignatureCT() {
+  const z = document.getElementById('bonct-signature');
+  if (!z) return;
+  const bouton = (txt, fn, cls) => '<button class="btn btn-sm' + (cls ? ' ' + cls : '') + '" onclick="' + fn + '">' + txt + '</button>';
+  const fichier = '<input type="file" id="bonct-sig-file" accept="image/*" style="display:none" onchange="choisirSignatureCT(event)" />';
+  const brouillon = window._signatureCTBrouillon;
+  if (brouillon) {
+    z.innerHTML = '<div style="font-weight:600;margin-bottom:6px">✍️ Aperçu de votre signature</div>'
+      + '<div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:6px;margin-bottom:8px;text-align:center"><img src="' + brouillon + '" alt="Aperçu signature" style="max-width:100%;max-height:90px"></div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap">' + bouton('✅ Enregistrer', 'enregistrerSignatureCT()', 'primary')
+      + '<label class="btn btn-sm" style="cursor:pointer;margin:0">📷 Autre photo' + fichier + '</label>'
+      + bouton('Annuler', 'annulerSignatureCT()') + '</div>';
+    return;
+  }
+  const sig = window._signatureCT;
+  if (sig) {
+    z.innerHTML = '<div style="font-weight:600;margin-bottom:6px">✍️ Votre signature et votre fonction seront ajoutées automatiquement (cachet à faire à la main).</div>'
+      + '<div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:6px;margin-bottom:8px;text-align:center"><img src="' + sig + '" alt="Votre signature" style="max-width:100%;max-height:60px"></div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap"><label class="btn btn-sm" style="cursor:pointer;margin:0">📷 Remplacer' + fichier + '</label>'
+      + bouton('🗑 Supprimer', 'supprimerSignatureCT()') + '</div>';
+  } else {
+    z.innerHTML = '<div style="margin-bottom:6px">✍️ Aucune signature enregistrée : signature et fonction sont à écrire à la main sur la feuille imprimée.</div>'
+      + '<label class="btn btn-sm" style="cursor:pointer;margin:0">📷 Ajouter ma signature' + fichier + '</label>';
+  }
+}
+
+// Photo (signature + fonction écrites sur papier blanc) → PNG transparent à l'encre bleu nuit, recadré
+function traiterImageSignature(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+    img.onload = () => {
+      try {
+        URL.revokeObjectURL(url);
+        const ratio = Math.min(1, 1000 / Math.max(img.naturalWidth, img.naturalHeight));
+        const W = Math.max(1, Math.round(img.naturalWidth * ratio)), H = Math.max(1, Math.round(img.naturalHeight * ratio));
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H); cx.drawImage(img, 0, 0, W, H);   // fond blanc : un PNG transparent reste lisible
+        const data = cx.getImageData(0, 0, W, H), px = data.data;
+        const lum = new Float32Array(W * H);
+        for (let i = 0; i < W * H; i++) lum[i] = 0.299 * px[i*4] + 0.587 * px[i*4+1] + 0.114 * px[i*4+2];
+        // Luminosité du papier, estimée par blocs (90e centile) puis interpolée
+        const B = 24, gw = Math.ceil(W / B), gh = Math.ceil(H / B), grid = new Float32Array(gw * gh);
+        for (let by = 0; by < gh; by++) for (let bx = 0; bx < gw; bx++) {
+          const vals = [];
+          for (let y = by*B; y < Math.min(H, (by+1)*B); y += 2) for (let x = bx*B; x < Math.min(W, (bx+1)*B); x += 2) vals.push(lum[y*W+x]);
+          vals.sort((a, b) => a - b);
+          grid[by*gw+bx] = vals[Math.floor(vals.length * 0.9)] || 255;
+        }
+        const bgAt = (x, y) => {
+          const fx = Math.min(gw - 1, Math.max(0, x / B - 0.5)), fy = Math.min(gh - 1, Math.max(0, y / B - 0.5));
+          const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(gw - 1, x0 + 1), y1 = Math.min(gh - 1, y0 + 1), tx = fx - x0, ty = fy - y0;
+          return (grid[y0*gw+x0]*(1-tx) + grid[y0*gw+x1]*tx) * (1-ty) + (grid[y1*gw+x0]*(1-tx) + grid[y1*gw+x1]*tx) * ty;
+        };
+        const alpha = new Uint8Array(W * H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const a = (bgAt(x, y) - lum[y*W+x] - 28) / (75 - 28);
+          alpha[y*W+x] = a <= 0 ? 0 : a >= 1 ? 255 : Math.round(a * 255);
+        }
+        // Limite la détection à la feuille : zone claire la plus grande (seuil d'Otsu), rognée de quelques % pour écarter
+        // ombres, bords et fond de la photo. Les traits d'encre (« trous » sombres dans le papier) restent dedans.
+        {
+          const hist = new Float64Array(256); for (let i = 0; i < W * H; i++) hist[Math.max(0, Math.min(255, Math.round(lum[i])))]++;
+          let sum = 0; for (let t = 0; t < 256; t++) sum += t * hist[t];
+          let wB = 0, sB = 0, best = -1, seuil = 128;
+          for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = W * H - wB; if (!wF) break; sB += t * hist[t];
+            const v = wB * wF * Math.pow(sB / wB - (sum - sB) / wF, 2); if (v > best) { best = v; seuil = t; } }
+          const clair = new Uint8Array(W * H); for (let i = 0; i < W * H; i++) clair[i] = lum[i] > seuil ? 1 : 0;
+          const vu = new Uint8Array(W * H), pile = new Int32Array(W * H); let meilleur = null, nMax = 0;
+          for (let i0 = 0; i0 < W * H; i0++) {
+            if (vu[i0] || !clair[i0]) continue;
+            const comp = []; let sp = 0; pile[sp++] = i0; vu[i0] = 1;
+            while (sp) { const i = pile[--sp]; comp.push(i); const x = i % W, y = (i - x) / W;
+              if (x > 0 && !vu[i-1] && clair[i-1]) { vu[i-1] = 1; pile[sp++] = i-1; }
+              if (x < W-1 && !vu[i+1] && clair[i+1]) { vu[i+1] = 1; pile[sp++] = i+1; }
+              if (y > 0 && !vu[i-W] && clair[i-W]) { vu[i-W] = 1; pile[sp++] = i-W; }
+              if (y < H-1 && !vu[i+W] && clair[i+W]) { vu[i+W] = 1; pile[sp++] = i+W; } }
+            if (comp.length > nMax) { nMax = comp.length; meilleur = comp; }
+          }
+          if (meilleur && nMax > W * H * 0.15) {
+            const m = Math.max(6, Math.round(0.03 * Math.min(W, H)));
+            const rMin = new Int32Array(H).fill(W), rMax = new Int32Array(H).fill(-1); let y0 = H, y1 = -1;
+            const cMin = new Int32Array(W).fill(H), cMax = new Int32Array(W).fill(-1);
+            for (const i of meilleur) { const x = i % W, y = (i - x) / W; if (x < rMin[y]) rMin[y] = x; if (x > rMax[y]) rMax[y] = x; if (y < cMin[x]) cMin[x] = y; if (y > cMax[x]) cMax[x] = y; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+            // marge plus large (2m) le long des bords : un bord de feuille un peu penché laisse sinon une bande d'ombre
+            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+              if (y < y0 + m || y > y1 - m || x < rMin[y] + 2*m || x > rMax[y] - 2*m || y < cMin[x] + 2*m || y > cMax[x] - 2*m) alpha[y*W+x] = 0;
+            }
+          }
+        }
+        // Retire les petites taches isolées (grain du papier, poussière)
+        // Intégrale des pixels « d'encre » : sert à repérer les plages pleines (ombre, bord de feuille) que ne fait jamais un trait de stylo
+        const ii = new Int32Array((W + 1) * (H + 1));
+        for (let y = 0; y < H; y++) { let ligne = 0; for (let x = 0; x < W; x++) { ligne += alpha[y*W+x] >= 100 ? 1 : 0; ii[(y+1)*(W+1)+x+1] = ii[y*(W+1)+x+1] + ligne; } }
+        const pleinAutour = (x, y) => { const r = 3; if (x < r || y < r || x >= W - r || y >= H - r) return false;
+          return ii[(y+r+1)*(W+1)+x+r+1] - ii[(y-r)*(W+1)+x+r+1] - ii[(y+r+1)*(W+1)+x-r] + ii[(y-r)*(W+1)+x-r] === (2*r+1) * (2*r+1); };
+        const keep = new Uint8Array(W * H), seen = new Uint8Array(W * H), stack = new Int32Array(W * H);
+        let minX = W, minY = H, maxX = -1, maxY = -1;
+        const minTaille = Math.max(25, Math.round(W * H / 20000));
+        for (let i0 = 0; i0 < W * H; i0++) {
+          if (seen[i0] || alpha[i0] < 90) continue;
+          let n = 0, sp = 0; stack[sp++] = i0; seen[i0] = 1; const comp = [];
+          while (sp) {
+            const i = stack[--sp]; comp.push(i); n++;
+            const x = i % W, y = (i - x) / W;
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+              const nx = x + dx, ny = y + dy;
+              if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+              const j = ny * W + nx;
+              if (!seen[j] && alpha[j] >= 90) { seen[j] = 1; stack[sp++] = j; }
+            }
+          }
+          let plein = 0; for (const i of comp) { if (alpha[i] >= 150 && pleinAutour(i % W, (i - i % W) / W)) plein++; }
+          if (plein > Math.max(100, W * H * 0.0002)) continue;   // plage pleine ≠ écriture
+          if (n >= minTaille) for (const i of comp) {
+            keep[i] = 1; const x = i % W, y = (i - x) / W;
+            if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+        if (maxX < 0) return reject(new Error('Aucune écriture détectée'));
+        const pad = 6; minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad); maxX = Math.min(W - 1, maxX + pad); maxY = Math.min(H - 1, maxY + pad);
+        const cw = maxX - minX + 1, ch = maxY - minY + 1;
+        const out = document.createElement('canvas'); out.width = cw; out.height = ch;
+        const ox = out.getContext('2d'), od = ox.createImageData(cw, ch);
+        for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+          const i = (y + minY) * W + (x + minX), k = (y * cw + x) * 4;
+          // on garde l'alpha près des traits retenus (bords adoucis), 0 ailleurs
+          let near = keep[i];
+          if (!near) { for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2; dx++) { const yy = y + minY + dy, xx = x + minX + dx; if (yy >= 0 && xx >= 0 && yy < H && xx < W && keep[yy*W+xx]) { near = 1; break; } } }
+          od.data[k] = 25; od.data[k+1] = 20; od.data[k+2] = 70; od.data[k+3] = near ? alpha[i] : 0;
+        }
+        ox.putImageData(od, 0, 0);
+        let res = out;
+        if (cw > 700) { res = document.createElement('canvas'); res.width = 700; res.height = Math.max(1, Math.round(ch * 700 / cw)); res.getContext('2d').drawImage(out, 0, 0, res.width, res.height); }
+        const png = res.toDataURL('image/png');
+        if (png.length > 250000) return reject(new Error('Image trop lourde'));
+        resolve(png);
+      } catch (e) { reject(e); }
+    };
+    img.src = url;
+  });
+}
+
+async function choisirSignatureCT(ev) {
+  const f = ev && ev.target && ev.target.files && ev.target.files[0];
+  if (!f) return;
+  if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
+  try {
+    toast('⏳ Traitement de la photo…');
+    window._signatureCTBrouillon = await traiterImageSignature(f);
+  } catch (e) {
+    window._signatureCTBrouillon = null;
+    toast('⚠️ ' + (e && e.message ? e.message : 'Photo inutilisable') + ' — essayez sur papier blanc, bien éclairé');
+  }
+  renderBlocSignatureCT();
+}
+
+function annulerSignatureCT() { window._signatureCTBrouillon = null; renderBlocSignatureCT(); }
+
+async function enregistrerSignatureCT() {
+  if (!userIsAdmin() || !currentUser || !currentUser.uid) { toast('⛔ Réservé aux administrateurs'); return; }
+  const png = window._signatureCTBrouillon;
+  if (!png) return;
+  try {
+    await db.collection('signatures').doc(String(currentUser.uid)).set({ png: png, uid: String(currentUser.uid), maj: new Date().toISOString() });
+    window._signatureCT = png; window._signatureCTBrouillon = null;
+    try { logAction('modification', 'signatureCT', 'Signature du bon de commande CT enregistrée'); } catch (e) {}
+    toast('✅ Signature enregistrée');
+  } catch (e) {
+    console.warn('Signature : enregistrement impossible', e);
+    toast('❌ Enregistrement impossible (droits Firestore ? règles à publier)');
+  }
+  renderBlocSignatureCT();
+}
+
+async function supprimerSignatureCT() {
+  if (!userIsAdmin() || !currentUser || !currentUser.uid) return;
+  if (!confirm('Supprimer votre signature enregistrée ?')) return;
+  try {
+    await db.collection('signatures').doc(String(currentUser.uid)).delete();
+    window._signatureCT = null;
+    try { logAction('suppression', 'signatureCT', 'Signature du bon de commande CT supprimée'); } catch (e) {}
+    toast('🗑 Signature supprimée');
+  } catch (e) { toast('❌ Suppression impossible'); }
+  renderBlocSignatureCT();
+}
+
+// ============================================================
 // RAPPELS PERSONNELS — libres, liés ou non à un véhicule
 // ============================================================
 
@@ -7903,6 +8113,7 @@ const AIDE_CONTENU = {
     <p style="margin:10px 0 8px"><b>📄 Bon de commande du contrôle technique (AutoSécurité) :</b></p>
     <ul style="margin:0;padding-left:20px">
       <li>Bouton « 🖨 Bon de commande CT » (formulaire) ou 🖨 sur la ligne du RV : génère le PDF d'origine pré-rempli (station, plaque, date du RV) à imprimer ou télécharger. Le bouton « 📄 Formulaire vierge (sans données) » donne le bon à remplir à la main.</li>
+      <li><b>✍️ Signature automatique :</b> dans la fenêtre du bon, « 📷 Ajouter ma signature » : photographiez votre signature + votre fonction écrites sur une feuille blanche bien éclairée (rien d'autre sur la feuille). L'app enlève le fond, vous montre l'aperçu, puis « ✅ Enregistrer ». Ensuite chaque bon généré porte automatiquement votre signature dans les deux volets (le cachet de la station reste à part). « 📷 Remplacer » / « 🗑 Supprimer » à tout moment. Chaque admin a sa propre signature, visible de lui seul ; sans signature enregistrée, le bon sort comme avant (zones vides à signer à la main).</li>
       <li><b>À l'enregistrement d'un RV CT</b>, l'app demande si vous imprimez le bon maintenant. Trop tôt (souvent 30 à 40 jours avant) ? « ⏰ Plus tard » : elle vous le rappellera à l'ouverture de l'app à partir de <b>5 jours avant le RV</b>, jusqu'à impression.</li>
       <li>Une fois imprimé (ou « ✅ Déjà imprimé »), la ligne du RV (tableau « Prendre RV ») affiche en vert « ✅ Bon imprimé le … » et le rappel disparaît ; tant qu'il n'est pas imprimé, elle affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> « 📎 Remplir bon de commande » ; le ↩ à côté permet d'annuler ce marquage.</li>
       <li><b>RV déplacé</b> (avant ou après) : le bon déjà imprimé n'est plus valable (« ⚠️ à refaire ») et l'app redemande si vous voulez le réimprimer pour la nouvelle date.</li>
@@ -8574,6 +8785,7 @@ async function seDeconnecter() {
   window._exportExcelChecked     = false;
   window._rappelsPersoChecked    = false;
   window._journalChecked         = false;
+  window._signatureCT = undefined; window._signatureCTBrouillon = null;
   window._journalVeh             = [];   // jamais de données admin conservées pour le compte suivant
   window._bonsCtChecked          = false;
   window._jantesMigChecked       = false;
@@ -14062,6 +14274,12 @@ const BON_CT_DATES = [
 ];
 let _bonCtUrlBlob = null;
 
+// Zones « Signature et fonction de la personne qui établit le bon de commande »
+// (volet du haut, volet du bas) — mêmes unités que les tables ci-dessus (points PDF, origine en haut).
+const BON_CT_SIGNATURES = [
+  { x0: 92, x1: 238, top: 319, bottom: 369 },
+  { x0: 90, x1: 250, top: 632, bottom: 690 },
+];
 function _bonCtBytesVierge() {
   const bin = atob(BON_CT_PDF_B64);
   const bytes = new Uint8Array(bin.length);
@@ -14247,14 +14465,15 @@ function ouvrirBonCommandeCT(rvId) {
     + '<input type="date" id="bonct-date" value="' + echapperHtml(date || toLocalYMD(new Date())) + '" /></div>'
     + '<div class="form-group" style="margin-bottom:14px"><label>Station de contrôle (à entourer)</label>'
     + '<select id="bonct-station">' + optsSta + '</select></div>'
-    + '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:14px;background:var(--bleu-clair);padding:10px;border-radius:8px">'
-    + '✍️ Signature, fonction et cachet restent à compléter à la main sur la feuille imprimée.</div>'
+    + '<div id="bonct-signature" style="font-size:12px;color:var(--texte-sec);margin-bottom:14px;background:var(--bleu-clair);padding:10px;border-radius:8px">⏳ Signature…</div>'
     + '<div id="bonct-resultat" style="display:flex;flex-direction:column;gap:8px">'
     + '<button class="btn primary" onclick="genererBonCommandeCT()">📄 Générer le PDF</button>'
     + '<button class="btn" onclick="genererBonCommandeCTVierge()">📄 Formulaire vierge (sans données)</button>'
     + '<button class="btn" onclick="document.getElementById(\'modal-bon-ct\').remove()">Annuler</button>'
     + '</div></div>';
   document.body.appendChild(div);
+  renderBlocSignatureCT();
+  chargerSignatureCT().then(renderBlocSignatureCT);
 }
 
 // Formulaire d'origine non rempli (tout à compléter à la main) — n'a besoin
@@ -14325,6 +14544,19 @@ async function genererBonCommandeCT() {
         borderColor: rgb(0.78, 0.05, 0.05), borderWidth: 1.4,
       });
     }
+    // Signature + fonction manuscrites de l'admin connecté (facultatif : sans signature, zones vides)
+    try {
+      const sig = await chargerSignatureCT();
+      if (sig) {
+        const img = await doc.embedPng(sig);
+        BON_CT_SIGNATURES.forEach(b => {
+          const bw = b.x1 - b.x0, bh = b.bottom - b.top;
+          const sc = Math.min(bw / img.width, bh / img.height);
+          const w = img.width * sc, h = img.height * sc;
+          page.drawImage(img, { x: b.x0, y: H - b.bottom + (bh - h) / 2, width: w, height: h });
+        });
+      }
+    } catch (e) { console.warn('Bon CT : signature non ajoutée', e); }
     bytes = await doc.save();
     complet = true;
   } catch (e) {
@@ -17456,7 +17688,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261010.2130';
+const APP_VERSION = '261011.1030';
 
 let _swRegistration = null;
 
