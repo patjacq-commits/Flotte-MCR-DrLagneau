@@ -1684,7 +1684,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261011.1620</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261011.1650</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -6040,7 +6040,7 @@ function traiterImageSignature(file) {
         // Retire les petites taches isolées (grain du papier, poussière)
         const keep = new Uint8Array(W * H), seen = new Uint8Array(W * H), stack = new Int32Array(W * H);
         let minX = W, minY = H, maxX = -1, maxY = -1;
-        const minTaille = Math.max(25, Math.round(W * H / 20000));
+        const minTaille = Math.max(25, Math.round(W * H / 20000)), candidats = [];
         for (let i0 = 0; i0 < W * H; i0++) {
           if (seen[i0] || alpha[i0] < 90) continue;
           let n = 0, sp = 0, coupe = false; stack[sp++] = i0; seen[i0] = 1; const comp = [];
@@ -6056,9 +6056,23 @@ function traiterImageSignature(file) {
             }
           }
           if (coupe) continue;   // trait collé au bord rogné de la feuille = ombre / bord, pas une écriture
-          if (n >= minTaille) for (const i of comp) {
-            keep[i] = 1; const x = i % W, y = (i - x) / W;
-            if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+          let bx0 = W, bx1 = 0, by0 = H, by1 = 0;
+          for (const i of comp) { const x = i % W, y = (i - x) / W; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+          const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+          if (bw > 0.25 * W && bw > 5 * bh) continue;   // bande très large et plate (bord de feuille, ombre, pli) : jamais une écriture
+          if (n >= minTaille) candidats.push({ comp, n, bx0, bx1, by0, by1 });
+        }
+        // Garde l'écriture principale et ce qui l'entoure de près ; écarte les traits isolés loin d'elle (bord, pli, ombre)
+        if (candidats.length) {
+          const pr = candidats.reduce((m, c) => c.n > m.n ? c : m, candidats[0]);
+          const portee = Math.max(pr.bx1 - pr.bx0, pr.by1 - pr.by0) * 1.0;
+          for (const c of candidats) {
+            const ecartX = Math.max(0, c.bx0 - pr.bx1, pr.bx0 - c.bx1), ecartY = Math.max(0, c.by0 - pr.by1, pr.by0 - c.by1);
+            if (Math.max(ecartX, ecartY) > portee) continue;
+            for (const i of c.comp) {
+              keep[i] = 1; const x = i % W, y = (i - x) / W;
+              if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
           }
         }
         if (maxX < 0) return reject(new Error('Aucune écriture détectée'));
@@ -17708,7 +17722,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261011.1620';
+const APP_VERSION = '261011.1650';
 
 let _swRegistration = null;
 
