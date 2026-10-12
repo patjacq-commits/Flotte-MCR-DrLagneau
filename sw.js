@@ -3,11 +3,11 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v261012.1600';
+const CACHE_NAME = 'mcr-flotte-v261012.1730';
 const CACHE_ASSETS = ['./icon-192.png', './manifest.json', './index.html'];
 // Photos des véhicules : mises en cache « au mieux » (une photo absente ne doit pas empêcher
 // le reste d'être mis en cache).
-const CACHE_PHOTOS = ['./photos/TLAM294_t.webp', './photos/TLAM294.webp', './photos/TLAN910_t.webp', './photos/TLAN910.webp', './photos/1RER037_t.webp', './photos/1RER037.webp', './photos/TLAJ108_t.webp', './photos/TLAJ108.webp', './photos/TLAN633_t.webp', './photos/TLAN633.webp', './photos/TLAM789_t.webp', './photos/TLAM789.webp'];
+const CACHE_PHOTOS = ['./photos/TLAM294_t.webp', './photos/TLAM294.webp', './photos/TLAN910_t.webp', './photos/TLAN910.webp', './photos/1RER037_t.webp', './photos/1RER037.webp', './photos/TLAJ108_t.webp', './photos/TLAJ108.webp', './photos/TLAN633_t.webp', './photos/TLAN633.webp', './photos/TLAM789_t.webp', './photos/TLAM789.webp', './photos/TLAJ109_t.webp', './photos/TLAJ109.webp'];
 
 // ── Installation ──────────────────────────────────────────────
 self.addEventListener('install', event => {
