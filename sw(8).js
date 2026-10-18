@@ -3,19 +3,21 @@
 // STRATÉGIE : HTML toujours depuis le réseau, assets en cache
 // ============================================================
 
-const CACHE_NAME = 'mcr-flotte-v260623.1853';
-const CACHE_ASSETS = ['./icon-192.png', './manifest.json'];
-
-let rappelsProgrammes = [];
-let timerResumeQuotidien = null;
+const CACHE_NAME = 'mcr-flotte-v261018.1030';
+const CACHE_ASSETS = ['./icon-192.png', './manifest.json', './index.html'];
+// Photos des véhicules : mises en cache « au mieux » (une photo absente ne doit pas empêcher
+// le reste d'être mis en cache).
+const CACHE_PHOTOS = ['./photos/TLAM294_t.webp', './photos/TLAM294.webp', './photos/TLAN910_t.webp', './photos/TLAN910.webp', './photos/1RER037_t.webp', './photos/1RER037.webp', './photos/TLAJ108_t.webp', './photos/TLAJ108.webp', './photos/TLAN633_t.webp', './photos/TLAN633.webp', './photos/TLAM789_t.webp', './photos/TLAM789.webp', './photos/TLAJ109_t.webp', './photos/TLAJ109.webp'];
 
 // ── Installation ──────────────────────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(CACHE_ASSETS))
+      .then(cache => cache.addAll(CACHE_ASSETS)
+        .then(() => Promise.allSettled(CACHE_PHOTOS.map(u => cache.add(u)))))
       .catch(e => console.warn('SW cache partiel:', e))
   );
+  // Forcer le nouveau SW à prendre le contrôle immédiatement
   self.skipWaiting();
 });
 
@@ -24,9 +26,24 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k !== CACHE_NAME).map(k => {
+          console.log('SW: suppression ancien cache', k);
+          return caches.delete(k);
+        })
       ))
-      .then(() => self.clients.claim())
+      .then(() => {
+        console.log('SW: activation ' + CACHE_NAME + ' — prise de contrôle');
+        return self.clients.claim();
+      })
+      .then(() => {
+        // Forcer le rechargement de tous les clients ouverts
+        return self.clients.matchAll({ type: 'window' });
+      })
+      .then(clients => {
+        clients.forEach(client => {
+          client.postMessage({ type: 'SW_UPDATED', version: CACHE_NAME });
+        });
+      })
   );
 });
 
@@ -38,12 +55,23 @@ self.addEventListener('fetch', event => {
       url.includes('googleapis') || url.includes('gstatic') ||
       url.includes('google.com')) return;
 
-  // HTML principal + vérification version → toujours réseau, jamais en cache
+  // HTML principal → priorité réseau (toujours la version la plus fraîche),
+  // mais on garde une copie en cache pour pouvoir répondre si le réseau est
+  // totalement indisponible (ouverture de l'app en zone blanche par exemple).
+  // Sans cette mise en cache, le fallback ci-dessous ne trouvait jamais rien
+  // et l'app ne se chargeait pas du tout hors-ligne.
   const isHTML = url.includes('.html') || url.includes('nocache=') ||
                  url.endsWith('/') || url === self.location.origin + '/';
   if (isHTML) {
     event.respondWith(
       fetch(event.request, { cache: 'no-store' })
+        .then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+          }
+          return response;
+        })
         .catch(() => caches.match(event.request))
     );
     return;
@@ -63,4 +91,11 @@ self.addEventListener('fetch', event => {
         });
       })
   );
+});
+
+// ── Message handler ──────────────────────────────────────────
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
