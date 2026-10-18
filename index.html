@@ -1684,7 +1684,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261017.1830</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261018.1030</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -4653,8 +4653,8 @@ function clearCWForm() {
 
 function deleteCW(id) {
   if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
-  if (!confirm('Supprimer ce lavage ?')) return;
   const cwDel = carwashes.find(c => c.id === id);
+  if (!confirm('Supprimer ce lavage ?\n\n' + resumeSuppression(cwDel, [cwDel && cwDel.lieu, cwDel && cwDel.montant ? cwDel.montant + ' €' : '']))) return;
   const vCW2  = cwDel ? vehicules.find(v => v.id === cwDel.vehId) : null;
   carwashes = carwashes.filter(c => c.id !== id);
   saveAll();
@@ -4769,7 +4769,8 @@ function clearCWKForm() {
 
 function deleteCWK(id) {
   if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
-  if (!confirm('Supprimer cette recharge ?')) return;
+  const _rcDel = rechargesCle.find(r => r.id === id);
+  if (!confirm('Supprimer cette recharge de clé ?\n\n' + resumeSuppression(_rcDel, [_rcDel && _rcDel.lieu, _rcDel && _rcDel.totalCredite ? 'crédité : ' + _rcDel.totalCredite + ' €' : '']))) return;
   rechargesCle = rechargesCle.filter(r => r.id !== id);
   saveAll(); renderCWKTable(); toast('Entrée supprimée');
 }
@@ -5060,7 +5061,8 @@ function marquerCommandePneu(id) {
 }
 
 function supprimerCommandePneu(id) {
-  if (!confirm('Supprimer cette commande ?')) return;
+  const _cpDel = commandesPneus.find(x => String(x.id) === String(id));
+  if (!confirm('Supprimer cette commande de pneus ?\n\n' + resumeSuppression(_cpDel, [_cpDel && _cpDel.type, _cpDel && _cpDel.dim, _cpDel && _cpDel.qte ? '× ' + _cpDel.qte : '']))) return;
   commandesPneus = commandesPneus.filter(x => String(x.id) !== String(id));
   sauvegarderCommandesPneus();
   renderCommandesPneus();
@@ -5334,8 +5336,11 @@ function clearPneuForm() {
 }
 
 function deletePermutation(id) {
-  if (!confirm('Supprimer cette permutation ?')) return;
   const p = permutations.find(x => x.id === id);
+  const _rvCascade = (p && p.rvLieeId) ? rendezvous.find(r => r.id === p.rvLieeId) : null;
+  const _rvSera = !!(_rvCascade && _rvCascade.statut === 'planifie' && _rvCascade.auto === 'permutation');
+  if (!confirm('Supprimer cette permutation ?\n\n' + resumeSuppression(p, [p && p.type])
+      + (_rvSera ? '\n\n⚠️ Le RV planifié lié (' + formatDate(_rvCascade.date) + ') sera AUSSI supprimé.' : ''))) return;
   permutations = permutations.filter(x => x.id !== id);
   if (p) {
     recalculerCachePermutation(p.vehId, p.type);
@@ -5530,7 +5535,8 @@ function renderRemplacementsPneu() {
 
 async function deleteRemplacementPneu(id) {
   if (!userIsAdmin()) return;
-  if (!confirm('Supprimer ce remplacement ?')) return;
+  const _rpDel = _remplacementsPneu.find(r => r.id === id);
+  if (!confirm('Supprimer ce remplacement de pneus ?\n\n' + resumeSuppression(_rpDel, [_rpDel && _rpDel.saison, _rpDel && _rpDel.motif]))) return;
   try {
     await db.collection('remplacementsPneu').doc(String(id)).delete();
     _remplacementsPneu = _remplacementsPneu.filter(r => r.id !== id);
@@ -6247,7 +6253,8 @@ async function marquerRappelPersoTraite(id) {
 
 async function supprimerRappelPerso(id) {
   if (!userIsAdmin()) return;
-  if (!confirm('Supprimer ce rappel ?')) return;
+  const _rpDel2 = window._rappelsPerso.find(r => String(r.id) === String(id));
+  if (!confirm('Supprimer ce rappel ?\n\n' + (_rpDel2 ? '« ' + _rpDel2.titre + ' » — ' + resumeSuppression(_rpDel2) : '(entrée introuvable)'))) return;
   try {
     await db.collection('rappelsPerso').doc(String(id)).delete();
     window._rappelsPerso = window._rappelsPerso.filter(r => String(r.id) !== String(id));
@@ -7599,8 +7606,8 @@ function clearABForm() {
 
 function deleteAdBlueOnglet(id) {
   if (!userIsAdmin()) { toast('⛔ Réservé aux administrateurs'); return; }
-  if (!confirm('Supprimer cette entrée ?')) return;
   const abD = adblues.find(a => a.id === id);
+  if (!confirm('Supprimer cette entrée AdBlue ?\n\n' + resumeSuppression(abD, [abD && abD.litre ? abD.litre + ' L' : '', abD && abD.prixTotal ? abD.prixTotal + ' €' : '']))) return;
   const vABd = abD ? vehicules.find(v => v.id === abD.vehId) : null;
   adblues = adblues.filter(a => a.id !== id);
   logSuppression('adblues', `Suppression AdBlue ${vABd ? vABd.immat : abD?.vehId||'?'} — ${abD ? formatDate(abD.date) : ''}`, abD);
@@ -7809,7 +7816,8 @@ function modifierCommandeAdBlue(id) {
 
 function deleteCommandeAdBlue(id) {
   if (!userIsSuperAdmin()) return;
-  if (!confirm('Supprimer cette commande ?')) return;
+  const _caDel = commandesAdBlue.find(c => String(c.id) === String(id));
+  if (!confirm('Supprimer cette commande AdBlue ?\n\n' + resumeSuppression(_caDel, [_caDel && _caDel.fournisseur, _caDel && _caDel.volume ? _caDel.volume + ' L' : '', _caDel && _caDel.totalTvac ? _caDel.totalTvac + ' € TVAC' : ''])) ) return;
   commandesAdBlue = commandesAdBlue.filter(c => String(c.id) !== String(id));
   window.commandesAdBlue = commandesAdBlue;
   saveAll();
@@ -8207,7 +8215,7 @@ const AIDE_CONTENU = {
       <li>« 🕐 En attente de validation » : ✅ approuver (le chauffeur peut alors se connecter) ou ❌ refuser (le compte est supprimé).</li>
       <li>Un compte actif peut ensuite être ⏸ suspendu ou 🗑 supprimé à tout moment.</li>
       <li>« Connectés en ce moment » : qui est en ligne, en temps réel.</li>
-      <li>« Historique des modifications » : journal de toutes les actions, filtrable.</li>
+      <li>« Historique des modifications » : journal de toutes les actions, filtrable par <b>année et mois</b> (mois en cours par défaut ; « Toutes périodes » = les 200 dernières) puis par action et par type. Il n'est <b>jamais purgé automatiquement</b> : une ligne indique la plus ancienne entrée, et au-delà de 5 ans l'app vous propose (sans rien supprimer sans votre accord) de nettoyer les plus anciennes.</li>
       <li>« Boîte à idées des chauffeurs » (tout en bas de la page) : toutes les suggestions reçues, avec possibilité de répondre. À chaque nouveau message, un <b>badge orange</b> s'affiche sur l'onglet 👥 Comptes (qui clignote), une bannière apparaît en haut de la page (un appui y mène directement) et une notification s'affiche si l'app est ouverte.</li>
       <li>« Erreurs techniques signalées » : journal automatique des erreurs JS rencontrées.</li>
     </ul>`,
@@ -9021,6 +9029,8 @@ async function creerCompteChaufeur(nom, email, pwd) {
 async function supprimerCompteChaufeur(uid) {
   try {
     const roleDoc = await db.collection('roles').doc(uid).get().catch(()=>null);
+    const _cc = roleDoc?.exists ? roleDoc.data() : null;
+    if (!confirm('Supprimer le compte de ' + (_cc ? _cc.nom + ' (' + (_cc.email || '') + ')' : uid) + ' ?\n\nLe chauffeur ne pourra plus se connecter tant qu\'il n\'est pas ré-approuvé.')) return;
     await db.collection('roles').doc(uid).delete();
     if (roleDoc?.exists) logSuppression('roles', `Compte supprimé : ${roleDoc.data().nom} (${roleDoc.data().email})`, roleDoc.data());
     toast('Compte supprimé de la liste ✅');
@@ -9126,7 +9136,7 @@ async function renderGestionComptes() {
                 </button>
                 <button class="btn btn-sm superadmin-only"
                   style="color:var(--rouge);border-color:var(--rouge-clair)"
-                  onclick="if(confirm(${jsArg('Supprimer le compte de ' + c.nom + ' ?')})) supprimerCompteChaufeur(${jsArg(c.uid)})">
+                  onclick="supprimerCompteChaufeur(${jsArg(c.uid)})">
                   🗑 Supprimer
                 </button>
               </div>` : ''}
@@ -9278,24 +9288,76 @@ function renderSessionsActives() {
   });
 }
 
+const MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+/* Menus Année / Mois du journal d'activité : mois en cours par défaut. */
+function initFiltresPeriodeHistorique() {
+  const sa = document.getElementById('hist-log-annee'), sm = document.getElementById('hist-log-mois');
+  if (!sa || !sm || sa.options.length) return;
+  const now = new Date(), an = now.getFullYear();
+  let h = '<option value="">Toutes périodes (200 dernières)</option>';
+  for (let y = an; y >= 2024; y--) h += '<option value="' + y + '">' + y + '</option>';
+  sa.innerHTML = h; sa.value = String(an);
+  sm.innerHTML = '<option value="">Tous les mois</option>' + MOIS_FR.map((m, i) => '<option value="' + (i + 1) + '">' + m + '</option>').join('');
+  sm.value = String(now.getMonth() + 1);
+  majMoisHistoriqueLog();
+}
+function majMoisHistoriqueLog() {
+  const sa = document.getElementById('hist-log-annee'), sm = document.getElementById('hist-log-mois');
+  if (!sa || !sm) return;
+  sm.disabled = !sa.value;
+  if (!sa.value) sm.value = '';
+}
+/* Bornes ISO [début, fin[ de la période choisie (heure locale), ou null = « toutes périodes » */
+function periodeHistoriqueLog() {
+  const a = parseInt(document.getElementById('hist-log-annee')?.value || '', 10);
+  const m = parseInt(document.getElementById('hist-log-mois')?.value || '', 10);
+  if (!a) return null;
+  if (m >= 1 && m <= 12) return { debut: new Date(a, m - 1, 1).toISOString(), fin: new Date(a, m, 1).toISOString(), libelle: MOIS_FR[m - 1] + ' ' + a };
+  return { debut: new Date(a, 0, 1).toISOString(), fin: new Date(a + 1, 0, 1).toISOString(), libelle: 'année ' + a };
+}
+/* Ligne d'info : entrée la plus ancienne (rien n'est supprimé automatiquement) */
+async function infoAncienneteHistorique() {
+  const el = document.getElementById('hist-log-info');
+  if (!el) return;
+  try {
+    const sn = await db.collection('historique').orderBy('date', 'asc').limit(1).get();
+    const d = sn.docs[0] && sn.docs[0].data();
+    if (!d || !d.date) { el.textContent = 'Historique vide. Aucune suppression automatique.'; return; }
+    const ms = Date.now() - new Date(d.date).getTime();
+    const ans = Math.floor(ms / (365.25 * 86400000)), mois = Math.floor((ms / (365.25 * 86400000) - ans) * 12);
+    el.textContent = 'Entrée la plus ancienne : ' + formatDate(String(d.date).slice(0, 10)) + ' (' + (ans ? ans + ' an' + (ans > 1 ? 's' : '') + ' ' : '') + mois + ' mois). Aucune suppression automatique : l\'historique est conservé.';
+  } catch (e) { el.textContent = ''; }
+}
+
 async function renderHistoriqueLog() {
   const container = document.getElementById('hist-log-container');
   if (!container) return;
+  initFiltresPeriodeHistorique();
   container.innerHTML = '<p style="color:var(--texte-sec)">Chargement…</p>';
 
   const filtAction = document.getElementById('hist-log-action')?.value || '';
   const filtCol    = document.getElementById('hist-log-col')?.value || '';
+  const periode    = periodeHistoriqueLog();
+  const LIMITE_PERIODE = 1000;
 
   try {
-    let query = db.collection('historique').orderBy('date', 'desc').limit(200);
+    let query = periode
+      ? db.collection('historique').where('date', '>=', periode.debut).where('date', '<', periode.fin).orderBy('date', 'desc').limit(LIMITE_PERIODE)
+      : db.collection('historique').orderBy('date', 'desc').limit(200);
     const snap = await query.get();
+    const nbBrut = snap.docs.length;
     let logs = snap.docs.map(d => d.data());
 
     if (filtAction) logs = logs.filter(l => l.action === filtAction);
     if (filtCol)    logs = logs.filter(l => l.collection === filtCol);
+    infoAncienneteHistorique();
+    const notePeriode = (periode ? 'Période : ' + periode.libelle + ' — ' : 'Toutes périodes — ') + logs.length + ' entrée' + (logs.length > 1 ? 's' : '')
+      + (!periode && nbBrut >= 200 ? ' (200 dernières ; choisissez une année / un mois pour remonter plus loin)' : '')
+      + (periode && nbBrut >= LIMITE_PERIODE ? ' (limité aux ' + LIMITE_PERIODE + ' plus récentes de la période : choisissez un mois)' : '');
 
     if (!logs.length) {
-      container.innerHTML = '<p style="color:var(--texte-sec);text-align:center;padding:20px">Aucune entrée trouvée.</p>';
+      container.innerHTML = '<p style="color:var(--texte-sec);text-align:center;padding:20px">Aucune entrée trouvée' + (periode ? ' pour ' + echapperHtml(periode.libelle) : '') + '.</p>';
       return;
     }
 
@@ -9315,7 +9377,7 @@ async function renderHistoriqueLog() {
     };
     const ROLE_LABELS = { superadmin:'Patrick', admin:'Angélique', chauffeur:'Chauffeur' };
 
-    container.innerHTML = logs.map(l => {
+    container.innerHTML = '<div style="font-size:12px;color:var(--texte-sec);margin-bottom:6px">' + echapperHtml(notePeriode) + '</div>' + logs.map(l => {
       const dateStr = new Date(l.date).toLocaleDateString('fr-BE', {
         day:'2-digit', month:'2-digit', year:'numeric',
         hour:'2-digit', minute:'2-digit', hour12:false
@@ -9565,7 +9627,10 @@ async function repondreSuggestion(id) {
 
 async function supprimerSuggestion(id) {
   if (!userIsSuperAdmin()) return;
-  if (!confirm('Supprimer ce message ?')) return;
+  let _sgApercu = '';
+  try { const _sg = await db.collection('suggestionsChauf').doc(String(id)).get(); const _d = _sg && _sg.exists ? _sg.data() : null;
+        if (_d) _sgApercu = '\n\n' + (_d.auteur || _d.nom || '') + ' — « ' + String(_d.texte || _d.message || _d.msg || '').slice(0, 120) + ' »'; } catch(e) {}
+  if (!confirm('Supprimer ce message de la boîte à idées ?' + _sgApercu)) return;
   try {
     await db.collection('suggestionsChauf').doc(String(id)).delete();
     renderSuggestionsChauf();
@@ -9624,6 +9689,7 @@ async function renderErreursApp() {
 }
 
 function supprimerErreurApp(id) {
+  if (!confirm('Marquer cette erreur technique comme traitée ?\n\nElle sera supprimée de la liste.')) return;
   db.collection('erreursApp').doc(id).delete()
     .then(() => renderErreursApp())
     .catch(() => toast('Erreur lors de la suppression'));
@@ -14090,8 +14156,8 @@ function renderMaintTable() {
 }
 
 function deleteMaint(id) {
-  if (!confirm('Supprimer cette entrée ?')) return;
   const mDel = maintenances.find(m => m.id === id);
+  if (!confirm('Supprimer cette maintenance ?\n\n' + resumeSuppression(mDel))) return;
   const vDel = mDel ? vehicules.find(v => v.id === mDel.vehId) : null;
   maintenances = maintenances.filter(m => m.id !== id);
   window.maintenances = maintenances; // BUG CORRIGÉ (01/10) : sync immédiat manquant, qui pouvait
@@ -15255,6 +15321,7 @@ function annulerRV(id) {
   div.innerHTML = `
     <div style="background:#fff;border-radius:12px;padding:20px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
       <h3 style="margin:0 0 14px">❌ Annuler le RV</h3>
+      ${permutationLieeARV(r) ? '<div style="font-size:12px;color:var(--rouge);background:#fdecea;border-radius:8px;padding:8px 10px;margin-bottom:10px">⚠️ « Annulé » (sans report) supprime AUSSI la permutation de pneus liée à ce RV. En cas de report, la permutation suit le nouveau RV.</div>' : ''}
       <div style="display:flex;flex-direction:column;gap:10px">
         <button class="btn" style="text-align:left;padding:12px 16px;border:2px solid var(--gris-bord);border-radius:8px"
           onclick="confirmerAnnulation(${id},'annule',null)">
@@ -15389,9 +15456,30 @@ function descriptionRVConfirmation(r) {
     + (r.statut ? '\nStatut : ' + r.statut : '');
 }
 
+/* Résumé d'un enregistrement pour les fenêtres de confirmation de suppression : véhicule — date — km — extras */
+function resumeSuppression(rec, extras) {
+  if (!rec) return '(entrée introuvable)';
+  const v = rec.vehId ? vehicules.find(x => x.id === rec.vehId) : null;
+  const p = [];
+  if (rec.vehId) p.push(v ? v.marque + ' ' + v.immat : String(rec.vehId));
+  const d = rec.date || rec.datePrevue || rec.dateCommande;
+  if (d) p.push(formatDate(d));
+  if (rec.km) p.push(Number(rec.km).toLocaleString('fr-BE') + ' km');
+  (extras || []).forEach(e => { if (e !== null && e !== undefined && e !== '') p.push(String(e)); });
+  return p.join(' — ');
+}
+
+/* Permutation liée à un RV (suppression / annulation en cascade) — null si aucune ou si le RV a déjà eu lieu */
+function permutationLieeARV(r) {
+  if (!r || r.type !== 'permutation' || r.statut === 'effectue') return null;
+  return permutations.find(x => x.rvLieeId && String(x.rvLieeId) === String(r.id)) || null;
+}
+
 function deleteRV(id) {
   const rvASupprimer = rendezvous.find(x => x.id === id);
-  if (!confirm('Supprimer définitivement ?\n\n' + descriptionRVConfirmation(rvASupprimer))) return;
+  const _pmCascade = permutationLieeARV(rvASupprimer);
+  if (!confirm('Supprimer définitivement ?\n\n' + descriptionRVConfirmation(rvASupprimer)
+      + (_pmCascade ? '\n\n⚠️ La permutation de pneus liée à ce RV sera AUSSI supprimée (' + resumeSuppression(_pmCascade) + ').' : ''))) return;
   rendezvous = rendezvous.filter(x => x.id !== id);
   window.rendezvous = rendezvous;
   propagerRVVersPermutation(rvASupprimer, 'supprime');
@@ -16726,24 +16814,54 @@ function exportCSV() {
  * @param {object} [avant]   - état avant (optionnel)
  * @param {object} [apres]   - état après (optionnel)
  */
-// ── Nettoyage automatique historique > 90 jours ──────────────
-async function nettoyerHistorique() {
+// L'historique n'est PLUS purgé automatiquement (décision du 18/10) : voir verifierHistorique5Ans() ci-dessous.
+
+/* Rappel (superadmin) quand l'historique dépasse 5 ans : propose de supprimer les plus anciennes entrées.
+   Rien n'est supprimé sans accord ; « Non » = silence 30 jours, « Plus tard » = 1 jour. */
+async function verifierHistorique5Ans() {
+  if (!userIsSuperAdmin() || !window.db) return;
+  const CLE = 'mcr_hist5ans_silence';
+  try { const sil = localStorage.getItem(CLE); if (sil && Date.now() < Number(sil)) return; } catch (e) {}
+  if (document.getElementById('modal-hist5ans')) return;
+  const limite = new Date(); limite.setFullYear(limite.getFullYear() - 5);
+  let plusAncienne = null;
   try {
-    const limite = new Date();
-    limite.setDate(limite.getDate() - 90);
-    const limiteStr = limite.toISOString();
-    const snap = await db.collection('historique')
-      .where('date', '<', limiteStr)
-      .limit(100)
-      .get();
-    if (snap.empty) return;
-    const batch = db.batch();
-    snap.docs.forEach(doc => batch.delete(doc.ref));
-    await batch.commit();
-    console.log(`Historique : ${snap.size} entrée(s) supprimée(s) (> 90 jours)`);
-  } catch(e) {
-    console.warn('Nettoyage historique échoué:', e);
-  }
+    const sn = await db.collection('historique').orderBy('date', 'asc').limit(1).get();
+    plusAncienne = sn.docs[0] && sn.docs[0].data() && sn.docs[0].data().date;
+  } catch (e) { return; }
+  if (!plusAncienne || new Date(plusAncienne).getTime() >= limite.getTime()) return;
+  const silence = (jours) => { try { localStorage.setItem(CLE, String(Date.now() + jours * 86400000)); } catch (e) {} };
+  const div = document.createElement('div');
+  div.id = 'modal-hist5ans';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  window._hist5Rep = async (rep) => {
+    if (rep === 'supprimer') {
+      try {
+        const sn = await db.collection('historique').where('date', '<', limite.toISOString()).get();
+        const n = sn.docs.length;
+        if (!n) { div.remove(); return; }
+        if (!confirm('Supprimer DÉFINITIVEMENT ' + n + ' entrée' + (n > 1 ? 's' : '') + ' de l\'historique datant d\'avant le ' + formatDate(toLocalYMD(limite)) + ' ?\n\nCette action est irréversible.')) return;
+        for (let k = 0; k < sn.docs.length; k += 400) {
+          const b = db.batch(); sn.docs.slice(k, k + 400).forEach(d => b.delete(d.ref)); await b.commit();
+        }
+        try { logSuppression('historique', n + ' entrée(s) de l\'historique de plus de 5 ans supprimée(s) (avant le ' + formatDate(toLocalYMD(limite)) + ')', { nombre: n }); } catch (e) {}
+        toast('🗑 ' + n + ' entrée(s) supprimée(s)');
+        silence(30); div.remove();
+        try { renderHistoriqueLog(); } catch (e) {}
+      } catch (e) { toast('❌ Suppression impossible : ' + e.message); }
+      return;
+    }
+    silence(rep === 'non' ? 30 : 1); div.remove();
+  };
+  div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:6px">📋 Historique de plus de 5 ans</div>'
+    + '<div style="font-size:13px;margin-bottom:12px">Le journal d\'activité contient des entrées vieilles de plus de 5 ans (la plus ancienne date du ' + echapperHtml(formatDate(String(plusAncienne).slice(0, 10))) + '). Voulez-vous supprimer celles de plus de 5 ans ? Rien n\'est supprimé sans votre accord.</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px">'
+    + '<button class="btn" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="window._hist5Rep(\'supprimer\')">🗑 Supprimer les entrées de plus de 5 ans…</button>'
+    + '<button class="btn primary" onclick="window._hist5Rep(\'non\')">Non, tout conserver (me le redemander dans 30 jours)</button>'
+    + '<button class="btn" onclick="window._hist5Rep(\'plus-tard\')">⏰ Plus tard</button>'
+    + '</div></div>';
+  document.body.appendChild(div);
 }
 
 /* Nettoyage générique par ancienneté — réutilisé pour erreursApp et
@@ -17745,7 +17863,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261017.1830';
+const APP_VERSION = '261018.1030';
 
 let _swRegistration = null;
 
@@ -18104,7 +18222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Note : verifierEntretiensUrgents() est déclenchée via le flag
     // _entretienUrgentChecked dans _refreshUI, dès que vehicules + rendezvous
     // sont chargés — pas ici, pour éviter un double affichage du modal.
-    setTimeout(nettoyerHistorique, 10000); // nettoyage en arrière-plan après 10s
+    setTimeout(verifierHistorique5Ans, 10000); // rappel (superadmin) si l'historique dépasse 5 ans — rien n'est supprimé sans accord
     setTimeout(nettoyerPhotosAnciennes, 12000); // nettoyage photos > 12 mois
     setTimeout(() => nettoyerCollectionAncienne('erreursApp', 90, 'Erreurs techniques'), 14000);
     setTimeout(() => nettoyerCollectionAncienne('suggestionsChauf', 180, 'Boîte à idées'), 16000);
@@ -18159,6 +18277,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
       <h3>📋 Historique des modifications</h3>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="hist-log-annee" onchange="majMoisHistoriqueLog(); renderHistoriqueLog()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px"></select>
+        <select id="hist-log-mois" onchange="renderHistoriqueLog()"
+          style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px"></select>
         <select id="hist-log-action" onchange="renderHistoriqueLog()"
           style="border:1.5px solid var(--gris-bord);border-radius:6px;padding:5px 8px;font-size:12px">
           <option value="">Toutes les actions</option>
@@ -18178,12 +18300,14 @@ document.addEventListener('DOMContentLoaded', () => {
           <option value="adblues">AdBlue</option>
           <option value="permutations">Pneus</option>
           <option value="infoSpec">Infos véhicule</option>
+          <option value="journalVehicule">Journal véhicule</option>
           <option value="roles">Comptes</option>
           <option value="backup">Backup</option>
         </select>
         <button class="btn btn-sm" onclick="renderHistoriqueLog()">🔄</button>
       </div>
     </div>
+    <div id="hist-log-info" style="font-size:11px;color:var(--texte-sec);margin-bottom:8px"></div>
     <div id="hist-log-container">
       <p style="color:var(--texte-sec)">Chargement…</p>
     </div>
