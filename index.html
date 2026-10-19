@@ -178,7 +178,6 @@
 
   function userIsSuperAdmin() { return currentUser?.role === 'superadmin'; }
   function userIsAdmin()      { return currentUser?.role === 'admin' || userIsSuperAdmin(); }
-  function userIsAuth()       { return currentUser !== null; }
 
   // ── Persistence offline ─────────────────────────────────────
   db.enablePersistence({ synchronizeTabs: true })
@@ -1625,7 +1624,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <div style="display:flex;align-items:center;justify-content:space-between;
        gap:8px;flex-wrap:wrap;max-width:600px;margin:0 auto">
     <div style="font-size:13px;font-weight:600;flex:1;min-width:180px">
-      🔄 Nouvelle version disponible
+      🔄 Nouvelle version disponible — appuyez sur « Mettre à jour »
       <span id="bandeau-maj-version" style="font-size:11px;opacity:0.8;margin-left:4px"></span>
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0">
@@ -1684,7 +1683,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261018.1030</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261019.1100</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -6334,8 +6333,6 @@ function calendrierSuivant() {
 }
 
 function calendrierAujourdhui() { _calDate = new Date(); renderCalendrier(); }
-function calendrierMoisPrecedent() { _calDate.setMonth(_calDate.getMonth()-1); renderCalendrier(); }
-function calendrierMoisSuivant()   { _calDate.setMonth(_calDate.getMonth()+1); renderCalendrier(); }
 
 function getEvenementsJour(dateStr) {
   const evts = [];
@@ -6443,11 +6440,11 @@ function renderCalendrier() {
 
       const evtsHtml = evts.map(e =>
         `<div class="cal-event-mini" style="background:${e.couleur};cursor:pointer;white-space:normal;margin:1px 0;padding:2px 4px;font-size:10px;border-radius:3px"
-          onclick="afficherDetailJour('${dateStr}')">${e.label}</div>`
+          onclick="afficherDetailJour(${jsArg(dateStr)})">${e.label}</div>`
       ).join('');
 
       const classes = ['cal-day', isToday ? 'today' : '', evts.length ? 'has-events' : ''].filter(Boolean).join(' ');
-      grid.innerHTML += `<div class="${classes}" style="min-height:80px;cursor:pointer" onclick="afficherDetailJour('${dateStr}')">
+      grid.innerHTML += `<div class="${classes}" style="min-height:80px;cursor:pointer" onclick="afficherDetailJour(${jsArg(dateStr)})">
         <div class="cal-jour-num ${isToday?'today-num':''}">${d.getDate()}</div>
         ${evtsHtml}
       </div>`;
@@ -6481,7 +6478,7 @@ function renderCalendrier() {
       `<span class="cal-event-mini" style="background:${e.couleur}">${e.label}</span>`).join('');
 
     const classes = ['cal-day', isToday ? 'today' : '', hasEvts ? 'has-events' : ''].filter(Boolean).join(' ');
-    grid.innerHTML += `<div class="${classes}" onclick="afficherDetailJour('${dateStr}')">
+    grid.innerHTML += `<div class="${classes}" onclick="afficherDetailJour(${jsArg(dateStr)})">
       <div class="cal-jour-num ${isToday?'today-num':''}">${j}</div>
       ${dotsHtml}
     </div>`;
@@ -6853,14 +6850,6 @@ function markChaufVu(id) {
   toast('👁 Message marqué comme vu — le chauffeur en est informé');
 }
 
-function markChaufNonLu(id) {
-  const m = messagesChauf.find(x => x.id === id);
-  if (!m) return;
-  m.statut = 'nonlu';
-  saveAll();
-  renderMessagesChauf();
-  updateTabChauf();
-}
 
 function marquerMessagesVus() {
   let modifie = false;
@@ -8215,7 +8204,7 @@ const AIDE_CONTENU = {
       <li>« 🕐 En attente de validation » : ✅ approuver (le chauffeur peut alors se connecter) ou ❌ refuser (le compte est supprimé).</li>
       <li>Un compte actif peut ensuite être ⏸ suspendu ou 🗑 supprimé à tout moment.</li>
       <li>« Connectés en ce moment » : qui est en ligne, en temps réel.</li>
-      <li>« Historique des modifications » : journal de toutes les actions, filtrable par <b>année et mois</b> (mois en cours par défaut ; « Toutes périodes » = les 200 dernières) puis par action et par type. Il n'est <b>jamais purgé automatiquement</b> : une ligne indique la plus ancienne entrée, et au-delà de 5 ans l'app vous propose (sans rien supprimer sans votre accord) de nettoyer les plus anciennes.</li>
+      <li>« Historique des modifications » : journal de toutes les actions, filtrable par <b>année et mois</b> (mois en cours par défaut ; « Toutes périodes » = les 200 dernières) puis par action et par type. Il n'est <b>jamais purgé automatiquement</b> : une ligne indique la plus ancienne entrée, et au-delà de 5 ans l'app vous propose (sans rien supprimer sans votre accord, et après avoir téléchargé une sauvegarde .json) de nettoyer les plus anciennes.</li>
       <li>« Boîte à idées des chauffeurs » (tout en bas de la page) : toutes les suggestions reçues, avec possibilité de répondre. À chaque nouveau message, un <b>badge orange</b> s'affiche sur l'onglet 👥 Comptes (qui clignote), une bannière apparaît en haut de la page (un appui y mène directement) et une notification s'affiche si l'app est ouverte.</li>
       <li>« Erreurs techniques signalées » : journal automatique des erreurs JS rencontrées.</li>
     </ul>`,
@@ -9736,9 +9725,12 @@ async function ouvrirModalNouveauChaufeur() {
 }
 
 // ── Détection de nouvelle version ────────────────────────
-async function verifierMaj() {
-  if (userIsSuperAdmin()) return;
-
+let _verifMajEnCours = false, _verifMajDerniere = 0;
+async function verifierMaj(force) {
+  // Pour tous les rôles (superadmin compris). Limité à 1 contrôle / 10 min sauf demande explicite.
+  if (!currentUser || _verifMajEnCours) return;
+  if (!force && Date.now() - _verifMajDerniere < 10 * 60 * 1000) return;
+  _verifMajEnCours = true; _verifMajDerniere = Date.now();
   try {
     // Fetch direct de l'app sur GitHub Pages en ignorant tout cache
     // ?nocache=timestamp force le navigateur à ne pas utiliser le SW
@@ -9764,8 +9756,12 @@ async function verifierMaj() {
       const vA = parseFloat(APP_VERSION.replace('.', ''));
       if (vS > vA) afficherBandeauMaj(versionServeur);
     } catch(e2) {}
-  }
+  } finally { _verifMajEnCours = false; }
 }
+
+/* Re-contrôle quand l'app revient au premier plan et toutes les 30 minutes (app laissée ouverte) */
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') verifierMaj(); });
+setInterval(() => { if (document.visibilityState === 'visible') verifierMaj(); }, 30 * 60 * 1000);
 
 function afficherBandeauMaj(versionServeur) {
   const bandeau = document.getElementById('bandeau-maj');
@@ -9911,7 +9907,6 @@ function _genererPDFAdmin() {
   _construirePDF(maints, vLabel, labelPeriode);
 }
 
-function genererRapportPDF() { ouvrirModalRapportPDF(); }
 
 function _construirePDF(maints, vLabel, labelPeriode) {
   const LABELS = { lg:'Lave-glace', hm:'Huile moteur', hf:'Huile frein', lr:'Liquide refroid.', ecl:'Eclairage', pneus:'Pneus', ext:'Extincteur' };
@@ -10221,7 +10216,7 @@ function renderAccueil() {
       // Puces compactes en ligne (au lieu de grandes tuiles) — icône + nombre
       // + libellé court, tout tient sur une seule ligne de hauteur réduite.
       const puce = (nb, icone, label, page) => nb > 0
-        ? `<div onclick="showPage('${page}', document.querySelector('.tab-btn[onclick*=\\'${page}\\']'))"
+        ? `<div onclick="showPage(${jsArg(page)}, document.querySelector('.tab-btn[onclick*=\\'${page}\\']'))"
              style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--gris-bord);
              border-radius:20px;padding:4px 11px;cursor:pointer;font-size:12px;white-space:nowrap">
              <b style="color:var(--rouge)">${nb}</b> ${icone} ${label}
@@ -10292,7 +10287,7 @@ function renderAccueil() {
           <div style="font-size:11px;color:var(--texte-sec);margin-top:2px">Ajouté le ${formatDate(info.dateAjout)}</div>
         </div>
         ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)"
-          onclick="supprimerInfoVeh('${info.vehId}')">✕</button>` : ''}
+          onclick="supprimerInfoVeh(${jsArg(info.vehId)})">✕</button>` : ''}
       </div>`;
     }).join('');
     dash.innerHTML += `<div id="bloc-infos-veh" style="margin-top:14px">
@@ -11243,7 +11238,7 @@ function afficherRaccourcis() {
 
   document.getElementById('search-results').innerHTML = `
     <div class="search-shortcuts">
-      ${raccourcis.map(r => `<button class="search-shortcut" onclick="rechercheRaccourci('${r.type}')">${r.label}</button>`).join('')}
+      ${raccourcis.map(r => `<button class="search-shortcut" onclick="rechercheRaccourci(${jsArg(r.type)})">${r.label}</button>`).join('')}
     </div>`;
 }
 function rechercheRaccourci(type) {
@@ -11406,9 +11401,6 @@ function getInfosActives() {
   }).map(v => ({ vehId: v.id, texte: v.infoSpec, dateAjout: v.infoSpecDate || '' }));
 }
 
-function sauvegarderInfoVeh(vehId, texte) {   // gardé pour compatibilité : même chemin que la fenêtre Info
-  return appliquerChangementInfoVeh(vehId, texte);
-}
 
 function supprimerInfoVeh(vehId) {   // bouton ✕ des « Infos spéciales »
   return appliquerChangementInfoVeh(vehId, '');
@@ -12110,7 +12102,7 @@ function renderVehicules() {
       ${pastilleRV}
       ${(!v.indisponible && v.indispoPrevue) ? `<div style="background:#fff3e0;color:#8a4b00;padding:5px 14px;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;overflow-wrap:anywhere">
           🗓 Immobilisation prévue le ${formatDate(v.indispoPrevue.depuis)}${v.indispoPrevue.jusqua ? ' au ' + formatDate(v.indispoPrevue.jusqua) : ''} — ${echapperHtml(v.indispoPrevue.motif || 'Autre')}${v.indispoPrevue.duree ? ' (' + echapperHtml(v.indispoPrevue.duree) + ')' : ''}
-          ${userIsAdmin() ? `<button onclick="annulerIndisponibilitePrevue('${v.id}')" title="Annuler" style="border:none;background:none;cursor:pointer;color:#8a4b00;font-weight:700">✕</button>` : ''}
+          ${userIsAdmin() ? `<button onclick="annulerIndisponibilitePrevue(${jsArg(v.id)})" title="Annuler" style="border:none;background:none;cursor:pointer;color:#8a4b00;font-weight:700">✕</button>` : ''}
         </div>` : ''}
       ${v.indisponible ? (() => {
         const jInd = Math.round((new Date(toLocalYMD(new Date()) + 'T00:00:00') - new Date(v.indisponibleDepuis + 'T00:00:00')) / 86400000);
@@ -12213,15 +12205,15 @@ function renderVehicules() {
         })()}
       </div>
       <div class="veh-actions">
-        <button class="btn btn-sm" onclick="openVehDetail('${v.id}')">📋 Détail</button>
-        <button class="btn btn-sm" onclick="ouvrirRecapVehicule('${v.id}')">🗂 Récapitulatif</button>
-        ${isAdmin ? `<button class="btn btn-sm primary" onclick="openVehEdit('${v.id}')">✏️ Modifier</button>` : ''}
+        <button class="btn btn-sm" onclick="openVehDetail(${jsArg(v.id)})">📋 Détail</button>
+        <button class="btn btn-sm" onclick="ouvrirRecapVehicule(${jsArg(v.id)})">🗂 Récapitulatif</button>
+        ${isAdmin ? `<button class="btn btn-sm primary" onclick="openVehEdit(${jsArg(v.id)})">✏️ Modifier</button>` : ''}
         ${isAdmin ? (() => { const nJ = journalASuivre(v.id).length;
           return `<button class="btn btn-sm" style="${nJ ? 'color:#7a4a00;border-color:var(--orange);background:var(--orange-clair);font-weight:700' : ''}" onclick="ouvrirJournalVeh(${jsArg(v.id)})" title="Noter un événement ou un problème sur ce véhicule">📓 Journal${nJ ? ' (' + nJ + ' à suivre)' : ''}</button>`; })() : ''}
         ${isAdmin ? (v.indisponible
-          ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="marquerVehiculeDisponible('${v.id}')">🟢 Marquer disponible</button>`
-          : `<button class="btn btn-sm" style="color:#e67e22;border-color:#f0c896" onclick="ouvrirModalIndisponible('${v.id}')">🔴 Marquer indisponible</button>`) : ''}
-        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule('${v.id}')">🗑</button>` : ''}
+          ? `<button class="btn btn-sm" style="color:var(--vert);border-color:var(--vert)" onclick="marquerVehiculeDisponible(${jsArg(v.id)})">🟢 Marquer disponible</button>`
+          : `<button class="btn btn-sm" style="color:#e67e22;border-color:#f0c896" onclick="ouvrirModalIndisponible(${jsArg(v.id)})">🔴 Marquer indisponible</button>`) : ''}
+        ${isAdmin ? `<button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="supprimerVehicule(${jsArg(v.id)})">🗑</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -13034,7 +13026,7 @@ function renderProgressionMaintenance() {
     return fait
       ? `<span style="font-size:12px;font-weight:600;background:var(--vert-clair);color:var(--vert);` +
         `padding:4px 10px;border-radius:12px;white-space:nowrap">✅ ${v.immat}</span>`
-      : `<button onclick="document.getElementById('maint-veh').value='${v.id}';changerVehiculeMaint()" ` +
+      : `<button onclick="document.getElementById('maint-veh').value=${jsArg(v.id)};changerVehiculeMaint()" ` +
         `style="font-size:12px;font-weight:600;background:var(--gris-clair);color:var(--texte-sec);` +
         `border:1.5px dashed var(--gris-bord);padding:3px 9px;border-radius:12px;cursor:pointer;white-space:nowrap">⬜ ${v.immat}</button>`;
   }).join('');
@@ -13545,10 +13537,6 @@ function getSelectVal(selId, customId) {
   return sel.value;
 }
 
-/* Affiche/masque les champs Car Wash lieu et montant */
-function toggleCWFields() {
-  // CW supprimé du formulaire maintenance — fonction conservée pour compatibilité
-}
 
 // ── Photos maintenance ────────────────────────────────────────
 // Stockage temporaire des photos (base64) en mémoire pendant la saisie
@@ -13613,7 +13601,7 @@ function rafraichirPreviewPhotos() {
   preview.innerHTML = _photosEnCours.map((p, i) => `
     <div class="photo-wrap">
       <img src="${p.data}" title="${p.name}"
-        onclick="voirPhoto('${p.url||p.data}','${p.name}')"
+        onclick="voirPhoto(${jsArg(p.url||p.data)},${jsArg(p.name)})"
         style="cursor:pointer" />
       <button class="photo-del" onclick="supprimerPhoto(${i})" title="Supprimer cette photo">✕</button>
     </div>`).join('');
@@ -14116,7 +14104,7 @@ function renderMaintTable() {
             photos.map(p => `<img src="${p.url||p.data}" title="${p.name}"
               style="width:44px;height:34px;object-fit:cover;border-radius:4px;
                      cursor:pointer;border:1px solid var(--gris-bord)"
-              onclick="voirPhoto('${p.url||p.data}','${p.name}')" />`).join('') +
+              onclick="voirPhoto(${jsArg(p.url||p.data)},${jsArg(p.name)})" />`).join('') +
             `</div>`
           : '<span style="color:#ccc">—</span>';
 
@@ -15599,19 +15587,6 @@ function renderTableRV() {
 }
 
 // ── Rappel entretien garage + CT urgent + RV dans 48h + RV dépassés ──
-function categorieTypeRV(type) {
-  if (type === 'ct') return { key:'ct', label:'\ud83c\udfe5 Contr\u00f4le technique' };
-  if (type === 'garage' || type === 'reparation' || type === 'rappel-marque')
-    return { key:'garage', label:'\ud83d\udd27 Entretien garage' };
-  if (type === 'rep-parebrise' || type === 'rempl-parebrise')
-    return { key:'vitrage', label:'\ud83e\ude9f Vitrage' };
-  if (['permutation','pneus-av','pneus-ar','pneus-4','geometrie','crevaison'].includes(type))
-    return { key:'pneus', label:'\ud83d\udee1 Pneumatiques' };
-  if (['entretien-lift','reparation-lift','enrouleur','treuil'].includes(type))
-    return { key:'recht', label:'\u2696 Recht' };
-  if (type === 'marquage') return { key:'cparlon', label:'\ud83d\udccb CP Arlon' };
-  return { key:'autre', label:'\ud83d\udcdd Autre' };
-}
 
 /* Rythme kilométrique réel d'un véhicule (km/semaine), calculé entre le
    premier et le dernier relevé de maintenance disponible. Renvoie null si
@@ -16258,7 +16233,7 @@ function ouvrirInterventionUrgente(vehId) {
 
       <div style="display:flex;gap:10px">
         <button class="btn primary" style="flex:1;background:var(--rouge);border-color:var(--rouge);
-          font-weight:700;padding:12px" onclick="enregistrerInterventionUrgente('${vehId || ''}')">
+          font-weight:700;padding:12px" onclick="enregistrerInterventionUrgente(${jsArg(vehId || '')})">
           💾 Enregistrer l'intervention
         </button>
         <button class="btn" onclick="document.getElementById('modal-interv-urgente').remove()">
@@ -16411,8 +16386,8 @@ function renderHistorique() {
   rows.sort((a,b) => b.date.localeCompare(a.date));
 
   const adminBtns = (srcType, srcId) => isAdmin ? `
-    <button class="btn btn-sm" onclick="editHistItem('${srcType}',${srcId})" title="Modifier">✏️</button>
-    <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteHistItem('${srcType}',${srcId})" title="Supprimer">✕</button>` : '';
+    <button class="btn btn-sm" onclick="editHistItem(${jsArg(srcType)},${srcId})" title="Modifier">✏️</button>
+    <button class="btn btn-sm" style="color:var(--rouge);border-color:var(--rouge-clair)" onclick="deleteHistItem(${jsArg(srcType)},${srcId})" title="Supprimer">✕</button>` : '';
 
   document.getElementById('hist-tbody').innerHTML = rows.length
     ? rows.map(r => `<tr>
@@ -16514,7 +16489,7 @@ function renderHistMaintDetail(filterVeh, dateDebut, dateFin) {
     const photos = photosLS[m.id] || m.photosData || [];
     const photosHtml = photos.length
       ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${photos.map(p =>
-          `<img src="${p.url||p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="voirPhoto('${p.url||p.data}','${p.name}')" />`).join('')}</div>`
+          `<img src="${p.url||p.data}" title="${p.name}" style="width:60px;height:45px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--gris-bord)" onclick="voirPhoto(${jsArg(p.url||p.data)},${jsArg(p.name)})" />`).join('')}</div>`
       : '';
 
     const adminBtns = isAdmin
@@ -16840,7 +16815,15 @@ async function verifierHistorique5Ans() {
         const sn = await db.collection('historique').where('date', '<', limite.toISOString()).get();
         const n = sn.docs.length;
         if (!n) { div.remove(); return; }
-        if (!confirm('Supprimer DÉFINITIVEMENT ' + n + ' entrée' + (n > 1 ? 's' : '') + ' de l\'historique datant d\'avant le ' + formatDate(toLocalYMD(limite)) + ' ?\n\nCette action est irréversible.')) return;
+        if (!confirm('Supprimer DÉFINITIVEMENT ' + n + ' entrée' + (n > 1 ? 's' : '') + ' de l\'historique datant d\'avant le ' + formatDate(toLocalYMD(limite)) + ' ?\n\nUn fichier de sauvegarde (.json) de ces entrées sera d\'abord téléchargé.\nLa suppression est ensuite irréversible.')) return;
+        // Sauvegarde obligatoire avant suppression : si le téléchargement échoue, on ne supprime rien.
+        try {
+          const blob = new Blob([JSON.stringify(sn.docs.map(d => d.data()), null, 1)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob), a = document.createElement('a');
+          a.href = url; a.download = 'historique-avant-' + toLocalYMD(limite) + '.json';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+        } catch (eExp) { toast('❌ Sauvegarde impossible : rien n\'a été supprimé'); return; }
         for (let k = 0; k < sn.docs.length; k += 400) {
           const b = db.batch(); sn.docs.slice(k, k + 400).forEach(d => b.delete(d.ref)); await b.commit();
         }
@@ -17863,7 +17846,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261018.1030';
+const APP_VERSION = '261019.1100';
 
 let _swRegistration = null;
 
