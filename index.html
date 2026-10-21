@@ -1725,7 +1725,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261021.1800</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261021.1930</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -1782,7 +1782,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button class="tab-btn" onclick="showPage('accident',this)">💡 Bon à savoir…</button>
   <button class="tab-btn chauf-only" onclick="showPage('histmaint',this)" style="display:none">📋 Historique maintenances</button>
   <button class="tab-btn" onclick="showPage('maintenance',this)" style="display:none">🔧 Maintenance</button>
-  <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 Prendre RV</button>
+  <button class="tab-btn admin-only" onclick="showPage('garages',this)" style="display:none">📋 Rendez-Vous</button>
   <button class="tab-btn" onclick="showPage('carwash',this)" style="display:none">🚿 Car Wash</button>
   <button class="tab-btn admin-only" onclick="showPage('pneus',this)" style="display:none">🛞 Pneus</button>
   <button class="tab-btn" onclick="showPage('adblue',this)" style="display:none">💧 AdBlue</button>
@@ -2667,7 +2667,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
 <!-- PAGE GARAGES/CT (admin) -->
 <div id="page-garages" class="page">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-    <h2 style="margin:0">📋 Prendre RV</h2>
+    <h2 style="margin:0">📋 Rendez-Vous</h2>
     <button class="btn primary" style="background:var(--rouge);border-color:var(--rouge);font-weight:700"
       onclick="ouvrirInterventionUrgente()">🚨 Intervention urgente</button>
   </div>
@@ -8116,7 +8116,7 @@ const AIDE_TITRES = {
   accident:     '💡 Bon à savoir…',
   histmaint:    '📋 Historique maintenances',
   maintenance:  '🔧 Maintenance mensuelle',
-  garages:      '📋 Prendre RV',
+  garages:      '📋 Rendez-Vous',
   carwash:      '🚿 Car Wash',
   pneus:        '🛞 Pneus',
   adblue:       '💧 AdBlue',
@@ -8130,7 +8130,7 @@ const AIDE_CONTENU = {
   accueil: {
     chauffeur: `<p>Cet onglet s'appelle « RV et infos véhicules » : en un coup d'œil, véhicules disponibles/indisponibles (la pastille « Véhicules » donne le nombre de véhicules en service et, pour chaque véhicule immobilisé, la plaque, le motif et la date de fin ou la durée estimée ; un clic ouvre l'onglet du même nom), la pastille « 📅 Prochains RV » (à droite des pastilles, pour information : elle n'est pas cliquable) qui rappelle les 3 prochains RV planifiés avec date, heure, plaque, motif et garage, puis la liste complète des RV (contrôle technique, garage, pneus…) et infos spéciales sur les véhicules, en consultation : la prise et la gestion des RV sont assurées par Angélique et Patrick.</p>`,
     admin: `<p>Vue d'ensemble : « Priorités du jour » (ce qu'il faut faire maintenant : 💬 signalements, 📋 RV à prendre, 🛞 permutations sans RV, 🔴 véhicules indisponibles avec plaque, motif et durée), puis infos spéciales et RV planifiés par catégorie (la pastille <b>📅 Prochains RV</b>, tout à droite des pastilles, rappelle pour information — elle n'est pas cliquable — les 3 prochains RV avec date, heure, plaque, motif, garage et remarque 💬 ; ces RV restent aussi dans la liste complète). Les pastilles du haut sont des raccourcis : « RV planifiés » et « Infos spéciales » font défiler jusqu'à leur bloc, « Véhicules » ouvre l'onglet du même nom. Les pastilles <b>🚨 Urgent</b> et <b>⚠️ À surveiller</b> donnent le nombre d'alertes (CT, entretien, extincteurs, assurance, vignette SPW…) ; un clic ouvre la liste détaillée dans l'onglet 🔔 Alertes. Le détail des alertes n'est plus répété sur le tableau de bord.</p>
-      <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Prendre RV »).</p>`,
+      <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Rendez-Vous »).</p>`,
   },
   vehicules: {
     chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date.</p>`,
@@ -8191,7 +8191,7 @@ const AIDE_CONTENU = {
       <li>Changer de véhicule sans avoir enregistré conserve automatiquement un brouillon par véhicule (sauvegardé dans ce navigateur) — rien n'est perdu en passant de l'un à l'autre.</li>
       <li>Modifier ou supprimer une entrée se fait depuis « Historique » ou « Historique maintenances » ; la carte de progression se met à jour en conséquence.</li>
       <li>⚠️ Les photos sont conservées uniquement dans ce navigateur (stockage local) : elles ne sont pas synchronisées entre appareils ni envoyées sur le serveur. Pour les consulter ailleurs, faire une impression/export PDF depuis cet appareil.</li>
-      <li>Le kilométrage affiché sur la fiche véhicule provient toujours de la maintenance la plus récente ; l'« Entretien garage » (onglet Prendre RV) est un suivi séparé et indépendant.</li>
+      <li>Le kilométrage affiché sur la fiche véhicule provient toujours de la maintenance la plus récente ; l'« Entretien garage » (onglet Rendez-Vous) est un suivi séparé et indépendant.</li>
     <li>🏭 <b>Commentaires garage</b> (en bas de page) : ✏️ Modifier en cas d'oubli, 🗑 Supprimer avec confirmation détaillée, et case « 🔒 Réservé à Angélique et Patrick » pour masquer un commentaire aux chauffeurs.</li>
     </ul>`,
   garages: `<p style="margin:0 0 8px"><b>Pour prendre un nouveau RV :</b></p>
@@ -8236,7 +8236,7 @@ const AIDE_CONTENU = {
       <li>Bouton « 🖨 Bon de commande CT » (formulaire) ou 🖨 sur la ligne du RV : génère le PDF d'origine pré-rempli (station, plaque, date du RV) à imprimer ou télécharger. Le bouton « 📄 Formulaire vierge (sans données) » donne le bon à remplir à la main.</li>
       <li><b>✍️ Signature automatique :</b> dans la fenêtre du bon, « 📷 Ajouter ma signature » : photographiez votre signature seule (sans la fonction) sur une feuille blanche bien éclairée (rien d'autre sur la feuille). L'app enlève le fond, vous montre l'aperçu, puis « ✅ Enregistrer ». Ensuite chaque bon généré porte automatiquement votre signature suivie de « responsable véhicules » (texte imprimé) dans les deux volets (le cachet de la station reste à part). « 📷 Remplacer » / « 🗑 Supprimer » à tout moment. Chaque admin a sa propre signature, visible de lui seul ; sans signature enregistrée, le bon sort comme avant (zones vides à signer à la main).</li>
       <li><b>À l'enregistrement d'un RV CT</b>, l'app demande si vous imprimez le bon maintenant. Trop tôt (souvent 30 à 40 jours avant) ? « ⏰ Plus tard » : elle vous le rappellera à l'ouverture de l'app à partir de <b>5 jours avant le RV</b>, jusqu'à impression.</li>
-      <li>Une fois imprimé (ou « ✅ Déjà imprimé »), la ligne du RV (tableau « Prendre RV ») affiche en vert « ✅ Bon imprimé le … » et le rappel disparaît ; tant qu'il n'est pas imprimé, elle affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> « 📎 Remplir bon de commande » ; le ↩ à côté permet d'annuler ce marquage.</li>
+      <li>Une fois imprimé (ou « ✅ Déjà imprimé »), la ligne du RV (tableau « Rendez-Vous ») affiche en vert « ✅ Bon imprimé le … » et le rappel disparaît ; tant qu'il n'est pas imprimé, elle affiche en <span style="color:#ff00c8;font-weight:800">rose fluo</span> « 📎 Remplir bon de commande » ; le ↩ à côté permet d'annuler ce marquage.</li>
       <li><b>RV déplacé</b> (avant ou après) : le bon déjà imprimé n'est plus valable (« ⚠️ à refaire ») et l'app redemande si vous voulez le réimprimer pour la nouvelle date.</li>
     </ul>`,
   carwash: {
@@ -8252,7 +8252,7 @@ const AIDE_CONTENU = {
       <li><b>Pneus 4 saisons</b> : sur la fiche du véhicule (✏️ Modifier), cocher « 🌤 Pneus 4 saisons » l'exclut du tour, du récapitulatif et des listes de l'onglet Pneus. Les camionnettes (1RER037) sont exclues d'office. Décocher pour le remettre dans le suivi.</li>
       <li><b>Permutation planifiée</b> (RV lié) : elle apparaît « ⏳ planifiée » dans l'historique et ne compte comme faite (récapitulatif, fiche véhicule) qu'une fois son RV marqué effectué. Si le RV est annulé ou supprimé, la permutation planifiée disparaît ; s'il est reporté, sa date suit le nouveau RV.</li>
       <li><b>Heure et kilométrage</b> : le formulaire comporte une <b>heure</b> facultative, copiée dans le RV lié (calendrier, tableau de bord, rappel 48 h). Pour une <b>date future</b>, le champ kilométrage est grisé : le compteur ne se relève que le jour de la permutation.</li>
-      <li><b>RV « permutation » marqué effectué</b> (✅ dans Prendre RV ou dans la fenêtre « En retard » au démarrage), qu'il ait ou non une permutation déjà planifiée : la fenêtre « 🛞 Permutation effectuée » s'ouvre (type, date, <b>kilométrage obligatoire</b>, lieu ; le dernier km connu est rappelé, et une confirmation est demandée si le km saisi est inférieur). La permutation est créée ou complétée, liée au RV, et la fiche du véhicule est mise à jour. Deux échappatoires : « Enregistrer sans km (à compléter dans l'historique) » — la ligne affiche alors « km manquant » et se complète avec ✏️ — ou « Marquer effectué sans enregistrer ».</li>
+      <li><b>RV « permutation » marqué effectué</b> (✅ dans Rendez-Vous ou dans la fenêtre « En retard » au démarrage), qu'il ait ou non une permutation déjà planifiée : la fenêtre « 🛞 Permutation effectuée » s'ouvre (type, date, <b>kilométrage obligatoire</b>, lieu ; le dernier km connu est rappelé, et une confirmation est demandée si le km saisi est inférieur). La permutation est créée ou complétée, liée au RV, et la fiche du véhicule est mise à jour. Deux échappatoires : « Enregistrer sans km (à compléter dans l'historique) » — la ligne affiche alors « km manquant » et se complète avec ✏️ — ou « Marquer effectué sans enregistrer ».</li>
       <li><b>Date du jour ou passée</b> → enregistrée directement comme faite, sans création de RV.</li>
       <li>Modifier la date d'une permutation déjà enregistrée répercute le changement sur son RV lié ; supprimer la permutation supprime aussi ce RV.</li>
     </ol>
@@ -8272,7 +8272,7 @@ const AIDE_CONTENU = {
       <li>Les deux historiques (permutations et remplacements) restent modifiables/supprimables à tout moment.</li>
     </ul>
     <p>🛞 <b>Véhicules sur jantes</b> (case cochée dans la fiche véhicule) : une indication s'affiche sous le champ Véhicule lors d'une permutation (on change les roues complètes, sans démonter les pneus), la case « Sur jantes » est cochée d'office dans « Commande pneus à prévoir » et une pastille figure dans le récapitulatif.</p>
-    <p>👉 Besoin de planifier une permutation ou une crevaison à l'avance ? Cet onglet est le seul endroit pour le faire — le menu « Prendre RV » n'en propose plus l'option et y renvoie directement.</p>`,
+    <p>👉 Besoin de planifier une permutation ou une crevaison à l'avance ? Cet onglet est le seul endroit pour le faire — le menu « Rendez-Vous » n'en propose plus l'option et y renvoie directement.</p>`,
   adblue: {
     chauffeur: `<p>Consultation uniquement — récapitulatif annuel par véhicule et historique des pleins. La saisie d'un plein est réservée à Angélique et Patrick.</p>`,
     admin: `<p style="margin:0 0 4px"><b>Plein par véhicule</b> (« Enregistrer un ajout AdBlue ») : date, véhicule, volume, kilométrage (optionnel).</p>
@@ -8351,7 +8351,7 @@ function afficherAidePage() {
 // qu'à construire ce sommaire — appliquerDroits() masquait séparément le
 // BOUTON d'onglet correspondant, mais rien n'empêchait un appel direct à
 // showPage(id) d'afficher quand même la page. Un chauffeur a pu atteindre
-// "Prendre RV" via la recherche globale (🔍), qui appelle showPage('garages')
+// "Rendez-Vous" via la recherche globale (🔍), qui appelle showPage('garages')
 // sans passer par le bouton d'onglet, et y enregistrer un rendez-vous.
 // PAGES_MODE_EMPLOI sert donc maintenant AUSSI de source unique de vérité
 // pour le contrôle d'accès : voir la garde ajoutée en tête de showPage()
@@ -11012,7 +11012,7 @@ function imprimerApercuKmComplet() {
 
 /* Libellés des types de RV — deux vocabulaires coexistent dans la
    collection "rendezvous" selon le formulaire d'origine : le sélecteur
-   principal "Prendre RV" (#rv-type, ex: rep-parebrise, permutation…) et le
+   principal "Rendez-Vous" (#rv-type, ex: rep-parebrise, permutation…) et le
    formulaire "intervention urgente" issu d'un signalement chauffeur
    (#interv-type, ex: vitre, radiateur, batterie…) — deux vocabulaires
    partiellement différents. Le récapitulatif véhicule les réduisait tous à
@@ -11311,7 +11311,7 @@ function fermerRecherche() {
 // BUG DE SÉCURITÉ CORRIGÉ (01/10) : ces raccourcis s'affichaient sans
 // aucune vérification de rôle et menaient (via rechercheRaccourci() ci-
 // dessous) directement à showPage('maintenance'/'garages'/'pneus'/
-// 'historique'…) — un chauffeur pouvait ainsi atteindre "Prendre RV" (et
+// 'historique'…) — un chauffeur pouvait ainsi atteindre "Rendez-Vous" (et
 // créer un vrai rendez-vous), "Nouvelle maintenance" ou "Pneus" depuis la
 // recherche globale, alors que ces pages lui sont fermées partout ailleurs.
 // showPage() est désormais bloqué à la source pour ces pages (voir
@@ -11373,7 +11373,7 @@ function executerRecherche() {
       fn:()=>{fermerRecherche();showPage(pageMaint,document.querySelector(`.tab-btn[onclick*="${pageMaint}"]`));}});
   });
   // BUG DE SÉCURITÉ CORRIGÉ (01/10) : ces résultats menaient vers 'garages'
-  // (Prendre RV), désormais réservé admin/superadmin — ils n'apparaissent
+  // (Rendez-Vous), désormais réservé admin/superadmin — ils n'apparaissent
   // donc plus que pour ces rôles, pour éviter un résultat de recherche qui
   // mènerait de toute façon à un refus d'accès.
   if (userIsAdmin()) rendezvous.filter(r=>r.statut!=='annule').forEach(r=>{
@@ -11978,7 +11978,7 @@ function renderAlerte(a) {
     </div>`;
   }
 
-  // Alerte normale — le bouton "Prendre RV" n'a de sens que pour les
+  // Alerte normale — le bouton "Rendez-Vous" n'a de sens que pour les
   // alertes réellement liées à un rendez-vous (CT ou entretien garage,
   // typeRV renseigné) — pas pour un extincteur manquant, des pneus à
   // commander, une assurance ou une carte total expirée, qui n'ont rien à
@@ -12873,7 +12873,7 @@ let _rvVehId = null;
 
 /* Met à jour garage + visibilité km quand le type change dans le formulaire */
 function openRV(vehId, typeRV) {
-  // Rediriger simplement vers l'onglet Prendre RV
+  // Rediriger simplement vers l'onglet Rendez-Vous
   const btn = document.querySelector('.tab-btn[onclick*="garages"]');
   showPage('garages', btn);
   // Pré-remplir le véhicule et le type si fournis
@@ -12888,7 +12888,7 @@ function openRV(vehId, typeRV) {
   }
 }
 
-// AJOUTÉ (01/10) : lien rapide depuis "Prendre RV" vers le module dédié
+// AJOUTÉ (01/10) : lien rapide depuis "Rendez-Vous" vers le module dédié
 // "🛞 Pneus" pour les permutations et crevaisons (voir note sous le champ
 // Catégorie/Type du formulaire RV).
 function allerPagePneus() {
@@ -14362,7 +14362,7 @@ function enregistrerMotifLibre(motif) {
 }
 
 // ── Peuplement du select véhicules ──────────────────────────
-/* Liste, en haut de "Prendre RV", les véhicules dont le CT ou l'entretien est
+/* Liste, en haut de "Rendez-Vous", les véhicules dont le CT ou l'entretien est
    urgent ET qui n'ont pas encore de RV planifié pour ce motif — cliquer sur
    une entrée pré-remplit directement le formulaire ci-dessous (véhicule +
    type). Remplace la pastille "URGENT" qui était affichée sur les cartes de
@@ -14404,7 +14404,7 @@ function renderVehiculesUrgentsRV() {
         + '</div>'
         + '<div style="text-align:right">'
         + '<div style="font-size:12px;font-weight:700;color:var(--rouge)">' + echapperHtml(it.detail) + '</div>'
-        + '<div style="font-size:11px;color:var(--bleu);font-weight:600">📋 Prendre RV →</div>'
+        + '<div style="font-size:11px;color:var(--bleu);font-weight:600">📋 Rendez-Vous →</div>'
         + '</div></div>').join('')
     + '</div>';
 }
@@ -16413,7 +16413,7 @@ function ouvrirInterventionUrgente(vehId) {
 }
 
 function enregistrerInterventionUrgente(vehId) {
-  // Si le véhicule n'était pas pré-sélectionné (ouvert depuis "Prendre RV"),
+  // Si le véhicule n'était pas pré-sélectionné (ouvert depuis "Rendez-Vous"),
   // le lire depuis le sélecteur ajouté dans le modal.
   const selVeh = document.getElementById('interv-veh');
   if (selVeh) vehId = selVeh.value;
@@ -18014,7 +18014,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261021.1800';
+const APP_VERSION = '261021.1930';
 
 let _swRegistration = null;
 
