@@ -180,6 +180,9 @@
   function userIsAdmin()      { return currentUser?.role === 'admin' || userIsSuperAdmin(); }
 
   // ── Persistence offline ─────────────────────────────────────
+  // Un champ « undefined » dans un enregistrement faisait échouer TOUTE l'écriture de la liste concernée
+  // (refus du SDK) : on les ignore désormais. À appeler avant toute autre opération Firestore.
+  try { db.settings({ ignoreUndefinedProperties: true, merge: true }); } catch (e) { console.warn('Firestore settings:', e); }
   db.enablePersistence({ synchronizeTabs: true })
     .catch(e => console.warn('Firebase persistence:', e.code));
 
@@ -277,9 +280,11 @@
           if (o.t === 'set') base.set(o.id, o.j); else base.delete(o.id);
         });
       }
+      if (window._syncErreurs) delete window._syncErreurs[colName];
       return !gardeDeclenche;
     } catch(e) {
       console.warn('Firebase write error:', colName, e);
+      (window._syncErreurs = window._syncErreurs || {})[colName] = (e && (e.code || e.message)) || 'erreur';
       return false;
     }
   }
@@ -1683,7 +1688,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261021.1540</div>
+  <div id="version-badge" style="font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261021.1700</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -4339,8 +4344,16 @@ async function saveAll() {
     if (estSuperAdmin) {
       ecrituresBase.push(fbSaveCollection('commandesAdBlue', ensureId(commandesAdBlue, 'cab')));
     }
-    const resultats = await Promise.all(ecrituresBase)
-      .catch(e => { console.warn('Firebase saveAll error:', e); return []; });
+    const toutes = Promise.all(ecrituresBase).catch(e => { console.warn('Firebase saveAll error:', e); return ['rejet']; });
+    const resultats = await Promise.race([toutes, new Promise(r => setTimeout(() => r('delai'), 20000))]);
+    if (resultats === 'delai') {
+      // Pas de confirmation du cloud au bout de 20 s (réseau lent/coupé) : on prévient, et on efface l'alerte si ça aboutit ensuite.
+      afficherBandeauSync('Pas de confirmation du cloud (réseau lent ou coupé).');
+      toutes.then(res => { if (res.every(r => r === true)) effacerBandeauSync(); else afficherBandeauSync(detailEchecSync()); });
+      return;
+    }
+    if (resultats.every(r => r === true) && !window._fbGarde) effacerBandeauSync();
+    else if (resultats.some(r => r === false || r === 'rejet')) afficherBandeauSync(detailEchecSync());
 
     // fbSaveCollection ne rejette jamais (elle catch en interne et renvoie
     // false) — sans cette vérification explicite, un échec réseau en cours
@@ -4350,18 +4363,61 @@ async function saveAll() {
     if (window._fbGarde) {
       const col = window._fbGarde; window._fbGarde = null;
       toast('⚠️ Suppression massive refusée dans « ' + col + ' » (protection). Rechargez la page si vous vouliez vraiment tout supprimer.');
-    } else if (resultats.some(r => r === false)) {
+    } else if (resultats.some(r => r === false || r === 'rejet')) {
       toast('⚠️ Sauvegarde locale OK, mais la synchronisation cloud a échoué (réseau ?). Réessayez dans un instant.');
     }
   }
 }
+
+/* ── Alerte persistante : modifications NON confirmées par le cloud ─────────────
+   Reste affichée (rouge, en haut) tant que l'envoi n'a pas réussi ; « Réessayer »
+   renvoie tout (seules les différences sont écrites). Nouvel essai automatique au
+   retour du réseau et au retour dans l'app. */
+function detailEchecSync() {
+  const e = window._syncErreurs || {};
+  const liste = Object.keys(e).map(k => k + ' (' + e[k] + ')').join(', ');
+  return liste ? 'Liste(s) concernée(s) : ' + liste + '.' : 'Envoi au cloud non confirmé.';
+}
+function afficherBandeauSync(detail) {
+  window._syncEchec = true;
+  try { updateSyncBadge(); } catch (e) {}
+  let b = document.getElementById('bandeau-sync-echec');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'bandeau-sync-echec';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#c0392b;color:#fff;padding:10px 14px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.3);display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+    b.innerHTML = '<div style="flex:1;min-width:200px"><b>⚠️ Vos dernières modifications ne sont PAS enregistrées dans le cloud.</b><br>'
+      + '<span id="bandeau-sync-detail" style="font-size:12px;opacity:.95"></span><br>'
+      + '<span style="font-size:12px">Ne fermez pas l\'app : elles risquent d\'être perdues (les autres appareils ne les voient pas).</span></div>'
+      + '<button id="btn-sync-reessayer" style="background:#fff;color:#c0392b;font-weight:700;border:none;padding:8px 14px;border-radius:8px;cursor:pointer">🔄 Réessayer</button>';
+    document.body.appendChild(b);
+    document.getElementById('btn-sync-reessayer').onclick = reessayerSync;
+  }
+  const d = document.getElementById('bandeau-sync-detail'); if (d) d.textContent = detail || '';
+}
+function effacerBandeauSync() {
+  window._syncEchec = false;
+  const b = document.getElementById('bandeau-sync-echec'); if (b) b.remove();
+  try { updateSyncBadge(); } catch (e) {}
+}
+async function reessayerSync() {
+  const btn = document.getElementById('btn-sync-reessayer'); if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi…'; }
+  try { await saveAll(); } finally { const b2 = document.getElementById('btn-sync-reessayer'); if (b2) { b2.disabled = false; b2.textContent = '🔄 Réessayer'; } }
+  if (!window._syncEchec) toast('✅ Modifications enregistrées dans le cloud');
+}
+window.addEventListener('online', () => { if (window._syncEchec) reessayerSync(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && window._syncEchec && navigator.onLine) reessayerSync(); });
+window.addEventListener('beforeunload', (e) => { if (window._syncEchec) { e.preventDefault(); e.returnValue = ''; } });
 
 /* Indicateur visuel de synchronisation */
 /* Badge de connectivité — 🟢 en ligne / 🔴 hors ligne, avec flash ✅ après sauvegarde */
 function updateSyncBadge() {
   const el = document.getElementById('sync-indicator');
   if (!el) return;
-  if (navigator.onLine) {
+  if (window._syncEchec) {
+    el.textContent = '🟠';
+    el.title = 'Modifications en attente d\'envoi au cloud — appuyez sur « Réessayer »';
+  } else if (navigator.onLine) {
     el.textContent = '🟢';
     el.title = 'En ligne — synchronisé avec le cloud';
   } else {
@@ -8045,6 +8101,7 @@ const AIDE_CONTENU = {
         <li>📓 <b>Journal</b> : le bouton « 📓 Journal » de la fiche permet de noter un événement sur le véhicule (voyant ou message au tableau de bord, incident, constat du garage…) avec la date, le km (facultatif) et une photo réduite (facultatif). Choisir « 🔶 À suivre » garde la note dans les alertes (⚠️ À surveiller, rubrique « 📓 Journal véhicule », avec le nombre de jours écoulés) jusqu'à ce que vous cliquiez sur « ✅ Marquer réglé » (la date et la solution du garage sont conservées). « ↩ Rouvrir » remet la note à suivre ; ✏️ la modifie ; 🗑 la supprime. Les notes apparaissent aussi dans le Récapitulatif du véhicule (filtre « 📓 Journal »). Réservé à Angélique et Patrick : les chauffeurs ne voient jamais ces notes.</li>
         <li>📷 Photo : quand un véhicule a sa photo, une vignette s'affiche à gauche de son nom (fiche et récapitulatif) ; un clic l'agrandit, un nouveau clic la ferme. Les photos sont ajoutées par le développeur : envoyez-lui la photo du véhicule (de préférence de trois quarts avant, en plein jour).</li>
         <li>✏️ Modifier les informations d'un véhicule, dont la case « 🛞 Pneus été et neige montés sur jantes » (TLAN633, TLAN910 et TLAN527 sont cochés d'office) : une pastille « 🛞 Sur jantes » apparaît alors sur la fiche — visible uniquement par Angélique et Patrick.</li>
+        <li>🟠 / bandeau rouge « Vos dernières modifications ne sont PAS enregistrées dans le cloud » : l'envoi vers le cloud n'a pas été confirmé (réseau lent ou coupé, ou refus). Ne fermez pas l'app : appuyez sur « 🔄 Réessayer » (nouvel essai aussi automatique au retour du réseau). Il disparaît dès que le cloud confirme ; vérifiez ensuite sur un autre appareil.</li>
         <li>🔴/🟢 Marquer un véhicule (in)disponible : choisir un motif, ou « Autre » pour le préciser en texte libre (ex. « pneu éventré, en attente de livraison »), et indiquer si possible une durée estimée. La fiche affiche le motif et la durée estimée, avec « ⏰ N jours ! » au-delà de 5 jours d'immobilisation (sans date). Le champ « À partir du » (facultatif) permet de programmer l'immobilisation : jusqu'à cette date le véhicule reste disponible (hors « Priorités du jour ») et la fiche affiche seulement « 🗓 Immobilisation prévue le … » (✕ pour annuler) ; le jour dit, il passe automatiquement en indisponible. Le champ « Jusqu'au (inclus) » (facultatif) fixe le dernier jour d'immobilisation : le lendemain, le véhicule redevient automatiquement disponible (l'historique des indisponibilités est conservé). Exemple : du 20/10 au 22/10 → indisponible les 20, 21 et 22, disponible dès le 23. Exception de sécurité : si le CT est dépassé ou la carte rouge non levée, le véhicule reste immobilisé (« fin prévue dépassée ! ») jusqu'à votre confirmation manuelle 🟢. Sans date de fin, il reste indisponible jusqu'à ce que vous le remettiez disponible vous-même.</li>
         <li>🗑 Archiver ou supprimer définitivement un véhicule ; réactiver un véhicule archivé.</li>
       </ul>`,
@@ -17846,7 +17903,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261021.1540';
+const APP_VERSION = '261021.1700';
 
 let _swRegistration = null;
 
