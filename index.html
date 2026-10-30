@@ -1741,7 +1741,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261030.1830</div>
+  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261030.1850</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -8148,6 +8148,7 @@ const AIDE_CONTENU = {
         <li>📓 <b>Journal</b> : le bouton « 📓 Journal » de la fiche permet de noter un événement sur le véhicule (voyant ou message au tableau de bord, incident, constat du garage…) avec la date, le km (facultatif) et une photo réduite (facultatif). Choisir « 🔶 À suivre » garde la note dans les alertes (⚠️ À surveiller, rubrique « 📓 Journal véhicule », avec le nombre de jours écoulés) jusqu'à ce que vous cliquiez sur « ✅ Marquer réglé » (la date et la solution du garage sont conservées). « ↩ Rouvrir » remet la note à suivre ; ✏️ la modifie ; 🗑 la supprime. Les notes apparaissent aussi dans le Récapitulatif du véhicule (filtre « 📓 Journal »). Réservé à Angélique et Patrick : les chauffeurs ne voient jamais ces notes.</li>
         <li>📷 Photo : quand un véhicule a sa photo, une vignette s'affiche à gauche de son nom (fiche et récapitulatif) ; un clic l'agrandit, un nouveau clic la ferme. Les photos sont ajoutées par le développeur : envoyez-lui la photo du véhicule (de préférence de trois quarts avant, en plein jour).</li>
         <li>✏️ Modifier les informations d'un véhicule, dont la case « 🛞 Pneus été et neige montés sur jantes » (TLAN633, TLAN910 et TLAN527 sont cochés d'office) : une pastille « 🛞 Sur jantes » apparaît alors sur la fiche — visible uniquement par Angélique et Patrick.</li>
+        <li>💧 / 🚿 <b>Après l'enregistrement d'une maintenance</b> : si « AdBlue fait » ou « Car Wash fait » n'est pas coché, une fenêtre le rappelle (la maintenance est déjà enregistrée) : « ✅ Oui, enregistrer… » ouvre l'onglet AdBlue ou Car Wash avec le véhicule choisi, « Non, plus tard » ferme simplement la fenêtre. Les cases « Moteur » et « Mouches » ne déclenchent aucun rappel.</li>
         <li>📋 <b>Maintenances enregistrées</b> (onglet Maintenance) : sur smartphone, chaque maintenance s'affiche sous forme de <b>carte</b> (une ligne par contrôle, les champs vides sont masqués) pour que rien ne soit coupé ; sur PC, le tableau garde ses colonnes. L'en-tête du tableau n'est plus « collé » en haut de l'écran : il pouvait recouvrir les premières lignes. La « Progression du tour » compte une maintenance pour la tournée à laquelle elle appartient (celle de septembre datée du 03/10 reste septembre).</li>
         <li>🔄 <b>Mise à jour de l'app</b> : quand une nouvelle version est publiée, une fenêtre « Une nouvelle version est disponible » propose « Mettre à jour maintenant » ou « Plus tard » (un bandeau reste alors affiché en bas). Le contrôle se fait à l'ouverture, au retour dans l'app et toutes les 5 minutes. Pour vérifier à la demande, appuyez sur le <b>numéro de version</b> en haut de l'écran.</li>
         <li>📋 <b>Historique des RV</b> (onglet « Rendez-Vous », en bas de page) : par défaut tous les RV (planifiés en premier) ; choisissez la période avec les menus <b>Année / Mois</b> et les flèches ‹ › pour avancer ou reculer. Cochez les <b>véhicules</b> à afficher (« Tout cocher / Tout décocher »), filtrez par statut (planifiés, effectués, annulés, urgents, maintenances) et choisissez la présentation : liste simple, regroupement <b>par mois</b> ou <b>par véhicule</b> (avec le nombre de RV de chaque groupe). Le bouton <b>🖨 Imprimer</b> imprime exactement la liste affichée (sans les boutons d'action), avec la période et les véhicules choisis en en-tête.</li>
@@ -14037,25 +14038,45 @@ async function saveMaintenance() {
   rappelAdBlueCarWash(vehId, rec);
 }
 
-// Décision du 04/10 : les 2 confirmations restent séquentielles (AdBlue
-// d'abord, puis Car Wash) plutôt qu'un message groupé. Si la personne
-// répond "Oui" pour l'AdBlue, elle quitte la fiche Maintenance tout de
-// suite pour aller enregistrer le plein — le rappel Car Wash n'est donc
-// pas posé à ce moment-là ; il se représentera lors d'une prochaine
-// maintenance (choix explicite de Patrick, qui gère le Car Wash "à une
-// prochaine visite" dans ce cas).
-function rappelAdBlueCarWash(vehId, rec) {
+/* Petite fenêtre Oui / Non de l'app (remplace confirm() dont les boutons « OK / Annuler » prêtent à confusion).
+   Renvoie une promesse : true = « Oui », false = « Non, plus tard » (ou fermeture hors de la fenêtre). */
+function demanderOuiNon(titre, message, libelleOui, libelleNon) {
+  return new Promise(resolve => {
+    const div = document.createElement('div');
+    div.className = 'dialogue-oui-non';
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:16px';
+    div.innerHTML = '<div style="background:#fff;border-radius:14px;padding:20px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.3)">'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:8px">' + echapperHtml(titre) + '</div>'
+      + '<div style="font-size:13px;color:var(--texte-sec);margin-bottom:16px;white-space:pre-line">' + echapperHtml(message) + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px">'
+      + '<button class="btn primary" data-rep="oui">' + echapperHtml(libelleOui) + '</button>'
+      + '<button class="btn" data-rep="non">' + echapperHtml(libelleNon) + '</button></div></div>';
+    div.addEventListener('click', e => {
+      const rep = e.target && e.target.getAttribute && e.target.getAttribute('data-rep');
+      if (!rep) return;
+      div.remove(); resolve(rep === 'oui');
+    });
+    document.body.appendChild(div);
+  });
+}
+
+// Décision du 04/10 : les 2 questions restent séquentielles (AdBlue d'abord, puis Car Wash) plutôt qu'un
+// message groupé. Si la personne répond « Oui » pour l'AdBlue, elle quitte la fiche Maintenance tout de suite
+// pour aller enregistrer le plein — le rappel Car Wash n'est donc pas posé à ce moment-là ; il se
+// représentera lors d'une prochaine maintenance (choix explicite de Patrick).
+// MODIFIÉ (30/10) : fenêtre Oui / Non explicite (la maintenance est DÉJÀ enregistrée) au lieu de confirm().
+async function rappelAdBlueCarWash(vehId, rec) {
   const v     = vehicules.find(x => x.id === vehId);
   const vNom  = v ? v.marque + ' ' + v.immat : vehId;
 
-  // AdBlue : uniquement pour les véhicules équipés (voir VEHICULES_ADBLUE,
-  // même liste que pour le bouton raccourci de l'onglet Maintenance).
+  // AdBlue : uniquement pour les véhicules équipés (voir VEHICULES_ADBLUE).
   if (!rec.adblueFait && VEHICULES_ADBLUE.includes(vehId)) {
-    const allerAdBlue = confirm(
-      `💧 La case "AdBlue fait" n'a pas été cochée pour ${vNom}.\n\n` +
-      `Enregistrer le plein AdBlue maintenant ?`
-    );
+    const allerAdBlue = await demanderOuiNon(
+      '✅ Maintenance enregistrée — 💧 AdBlue ?',
+      `La case "AdBlue fait" n'a pas été cochée pour ${vNom}.\nEnregistrer le plein AdBlue maintenant ?`,
+      '✅ Oui, enregistrer le plein', 'Non, plus tard');
     if (allerAdBlue) {
+      document.getElementById('modal-recap-maint')?.remove();
       window._adbluePreselectVeh = vehId;
       showPage('adblue', document.querySelector('.tab-btn[onclick*="adblue"]'));
       return;
@@ -14064,11 +14085,12 @@ function rappelAdBlueCarWash(vehId, rec) {
 
   // Car Wash : tous les véhicules (pas de liste de restriction côté Car Wash).
   if (!rec.carwashFait) {
-    const allerCarWash = confirm(
-      `🚿 La case "Car Wash fait" n'a pas été cochée pour ${vNom}.\n\n` +
-      `Enregistrer le lavage maintenant ?`
-    );
+    const allerCarWash = await demanderOuiNon(
+      '✅ Maintenance enregistrée — 🚿 Car Wash ?',
+      `La case "Car Wash fait" n'a pas été cochée pour ${vNom}.\nEnregistrer le lavage maintenant ?`,
+      '✅ Oui, enregistrer le lavage', 'Non, plus tard');
     if (allerCarWash) {
+      document.getElementById('modal-recap-maint')?.remove();
       window._carwashPreselectVeh = vehId;
       showPage('carwash', document.querySelector('.tab-btn[onclick*="carwash"]'));
     }
@@ -18149,7 +18171,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261030.1830';
+const APP_VERSION = '261030.1850';
 
 let _swRegistration = null;
 
