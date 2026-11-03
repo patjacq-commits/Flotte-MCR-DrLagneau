@@ -1741,7 +1741,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261103.1750</div>
+  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261103.1810</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -8142,7 +8142,7 @@ const AIDE_CONTENU = {
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Rendez-Vous »).</p>`,
   },
   vehicules: {
-    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date. Le n° de châssis s'affiche sous la plaque, directement sur la carte du véhicule.</p>`,
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date. Le n° de châssis s'affiche sous la plaque, directement sur la carte du véhicule, sous la forme « VF1… (châssis) ». Il se saisit à la création du véhicule, ou une seule fois dans « ✏️ Modifier » (champ « 🔢 N° de châssis ») ; une fois rempli il est verrouillé (🔓 pour corriger une faute de frappe).</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
         <li>ℹ️ <b>Info / Immobilisation véhicule</b> (texte libre affiché dans « Infos spéciales ») : quand vous <b>remplacez ou effacez</b> une info déjà écrite (bouton ℹ️ de la fiche ou ✕ des Infos spéciales), l'app demande « Conserver l'ancienne info ? ». <b>Oui</b> : elle est rangée dans le 📓 Journal du véhicule (« Ancienne info », date d'origine, déjà « réglée », visible aussi dans le récapitulatif) ; <b>Non</b> : remplacée sans trace ; <b>Annuler</b> : rien ne change. Chaque changement est aussi écrit dans l'historique avec le texte complet.</li>
         <li>📓 <b>Journal</b> : le bouton « 📓 Journal » de la fiche permet de noter un événement sur le véhicule (voyant ou message au tableau de bord, incident, constat du garage…) avec la date, le km (facultatif) et une photo réduite (facultatif). Choisir « 🔶 À suivre » garde la note dans les alertes (⚠️ À surveiller, rubrique « 📓 Journal véhicule », avec le nombre de jours écoulés) jusqu'à ce que vous cliquiez sur « ✅ Marquer réglé » (la date et la solution du garage sont conservées). « ↩ Rouvrir » remet la note à suivre ; ✏️ la modifie ; 🗑 la supprime. Les notes apparaissent aussi dans le Récapitulatif du véhicule (filtre « 📓 Journal »). Réservé à Angélique et Patrick : les chauffeurs ne voient jamais ces notes.</li>
@@ -12277,7 +12277,7 @@ function renderVehicules() {
           ${equipBadge}
           ${jantesBadge}
           ${saisonsBadge}
-          ${v.chassis ? `<div class="veh-chassis" style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:3px;word-break:break-all">N° châssis : ${echapperHtml(v.chassis)}</div>` : ''}
+          ${v.chassis ? `<div class="veh-chassis" style="font-family:monospace;font-size:11px;color:var(--texte-sec);margin-top:3px;word-break:break-all">${echapperHtml(v.chassis)} (châssis)</div>` : ''}
         </div>
         <div class="veh-badges" style="flex-shrink:0">
           <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls==='urgent'?'CT':'CT '+ct.cls.toUpperCase()}</span>
@@ -12764,7 +12764,24 @@ function openVehEdit(id) {
       + 'font-size:14px;background:var(--gris-clair);color:var(--texte-sec);cursor:not-allowed" /></div>';
   }
 
+  // N° de châssis : ne change jamais -> saisi une fois ; verrouillé ensuite (🔓 pour corriger une faute de frappe)
+  function fieldChassis(val) {
+    const rempli = !!val;
+    return '<div class="form-group"><label style="font-size:13px">🔢 N° de châssis</label>'
+      + '<div style="display:flex;gap:6px;align-items:center">'
+      + '<input type="text" id="veh-edit-chassis" data-key="chassis" value="' + echapperHtml(val || '') + '" placeholder="ex : VF1RFK00X69093954"'
+      + (rempli ? ' readonly' : '')
+      + ' style="flex:1;min-width:0;font-family:monospace;text-transform:uppercase;border:1.5px solid var(--gris-bord);border-radius:6px;padding:8px 10px;font-size:14px'
+      + (rempli ? ';background:var(--gris-clair);color:var(--texte-sec)' : '') + '" />'
+      + (rempli ? '<button type="button" class="btn btn-sm" title="Corriger une faute de frappe"'
+        + ' onclick="const i=document.getElementById(\'veh-edit-chassis\');i.readOnly=false;i.style.background=\'\';i.style.color=\'\';i.focus();this.remove()">🔓</button>' : '')
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--texte-sec);margin-top:3px">'
+      + (rempli ? 'Un n° de châssis ne change jamais : 🔓 uniquement pour corriger une faute de frappe.' : 'À compléter une seule fois (il s\'affichera sous la plaque).') + '</div></div>';
+  }
+
   let body = '<div id="veh-edit-fields" class="form-grid">'
+    + fieldChassis(v.chassis)
     + field('CT valable jusqu\'au',           'date',  'ct_valid',            v.ct_valid)
     + field('🔴 Carte rouge CT jusqu\'au',   'date',  'ct_carte_rouge',       v.ct_carte_rouge,    'Laisser vide si aucune')
     + field('Intervalle CT (mois)',          'number','ct_intervalle_mois',   v.ct_intervalle_mois, 'défaut : ' + ctIntervalleMois({ type: v.type }) + ' (modifiable)')
@@ -12854,7 +12871,8 @@ async function saveVehEdit(vehId) {
     const fields = document.querySelectorAll('#veh-edit-fields input[data-key]');
     fields.forEach(f => {
       const key = f.dataset.key;
-      const val = f.value.trim();
+      let val = f.value.trim();
+      if (key === 'chassis') val = val.replace(/\s+/g, '').toUpperCase();
       if (f.type === 'number') {
         v[key] = val === '' ? null : parseInt(val);
       } else {
@@ -18173,7 +18191,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261103.1750';
+const APP_VERSION = '261103.1810';
 
 let _swRegistration = null;
 
