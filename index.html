@@ -1741,7 +1741,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261030.1850</div>
+  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261103.1340</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -8161,7 +8161,8 @@ const AIDE_CONTENU = {
   },
   alertes: {
     chauffeur: `<p>Cette rubrique est réservée à Angélique et Patrick, qui s'occupent du suivi des échéances (CT, entretien…) et de la prise des RV. Vous retrouvez les RV planifiés sur le tableau de bord et les dates de chaque véhicule dans « Véhicules ».</p>`,
-    admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés et les notes « 🔶 À suivre » du journal des véhicules). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Une permutation de pneus effectuée depuis 2 jours ou plus sans kilométrage y apparaît aussi (« Km de permutation manquant », rubrique 🛞 Pneus) jusqu'à ce que le km soit complété avec ✏️ dans l'historique des permutations. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
+    admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés et les notes « 🔶 À suivre » du journal des véhicules). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Une permutation de pneus effectuée depuis 2 jours ou plus sans kilométrage y apparaît aussi (« Km de permutation manquant », rubrique 🛞 Pneus) jusqu'à ce que le km soit complété avec ✏️ dans l'historique des permutations. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p>
+      <p>🛡 <b>Assurance</b> : un seul rappel (la date est la même pour tous les véhicules), <b>15 jours avant l'échéance</b> ; il reste affiché, signalé « expirée », tant que la date n'est pas mise à jour dans les fiches.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
   },
   kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable. Consultation pour tous (chauffeurs compris, à titre d'information) : les chiffres viennent des relevés de maintenance mensuels saisis par Patrick.</p>`,
   calendrier: {
@@ -11917,22 +11918,23 @@ function buildAlertes() {
     }
     } // fin else manquant
 
-    // ── Assurance ─────────────────────────────────────────────
-    const jAss = daysUntil(v.assurance_valid);
-    if (jAss !== null && jAss < 0) {
-      alertes.push({ level:'warn', icon:'🛡', category:'assurance', vehId:null, typeRV:null,
-        titre:`Assurance expirée — ${v.marque} ${v.immat}`,
-        detail:`Assurance expirée depuis ${Math.abs(jAss)} jours !` });
-    } else if (jAss !== null && jAss <= 30) {
-      alertes.push({ level:'warn', icon:'🛡', category:'assurance', vehId:null, typeRV:null,
-        titre:`Assurance urgente — ${v.immat}`,
-        detail:`Expire le ${formatDate(v.assurance_valid)} (dans ${jAss} jour${jAss>1?'s':''}).` });
-    } else if (jAss !== null && jAss <= 90) {
-      alertes.push({ level:'warn', icon:'🛡', category:'assurance', vehId:null, typeRV:null,
-        titre:`Assurance à renouveler — ${v.immat}`,
-        detail:`Expire le ${formatDate(v.assurance_valid)} (dans ${jAss} jours).` });
-    }
   });
+
+  // ── Assurance : un seul rappel, 15 jours avant l'échéance (la date est la même pour tous les véhicules) ──
+  {
+    const vAss = vehicules.filter(v => !v.archive && v.assurance_valid).map(v => ({ v, j: daysUntil(v.assurance_valid) })).filter(x => x.j !== null && x.j <= 15);
+    const parDate = new Map();
+    vAss.forEach(x => { if (!parDate.has(x.v.assurance_valid)) parDate.set(x.v.assurance_valid, []); parDate.get(x.v.assurance_valid).push(x); });
+    const nbAvecDate = vehicules.filter(v => !v.archive && v.assurance_valid).length;
+    parDate.forEach((liste, date) => {
+      const j = liste[0].j;
+      const qui = liste.length === nbAvecDate ? 'tous les véhicules' : liste.map(x => x.v.immat).join(', ');
+      alertes.push({ level:'warn', icon:'🛡', category:'assurance', vehId:null, typeRV:null,
+        titre: j < 0 ? `Assurance expirée — ${qui}` : `Assurance à renouveler — ${qui}`,
+        detail: j < 0 ? `Assurance expirée depuis ${Math.abs(j)} jour${Math.abs(j) > 1 ? 's' : ''} (échéance le ${formatDate(date)}) !`
+                      : `Expire le ${formatDate(date)} (dans ${j} jour${j > 1 ? 's' : ''}).` });
+    });
+  }
 
   // ── Permutation effectuée depuis 2 jours ou plus sans kilométrage ─────
   // Le km est demandé le jour J mais peut être sauté (« Enregistrer sans km »)
@@ -12597,7 +12599,7 @@ function openVehDetail(id) {
   const cartA = va(v.carte_total_valid);
   const spwA  = va(v.spw_valid);
   const extA  = va(v.extincteur_valid);
-  const assA  = va(v.assurance_valid);
+  const assA  = (() => { const j = daysUntil(v.assurance_valid); if (j === null) return null; return j < 0 ? { cls:'urgent', txt:'EXPIRÉ' } : j <= 15 ? { cls:'urgent', txt:'Expire dans ' + j + 'j' } : null; })();  // assurance : rappel 15 jours avant
 
   const carteRougeRow = v.ct_carte_rouge
     ? dr('🔴 Carte rouge jusqu\'au', formatDate(v.ct_carte_rouge), 'urgent', 'CARTE ROUGE')
@@ -18171,7 +18173,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261030.1850';
+const APP_VERSION = '261103.1340';
 
 let _swRegistration = null;
 
