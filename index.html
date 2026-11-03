@@ -1741,7 +1741,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261103.1830</div>
+  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261103.1900</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -8162,7 +8162,8 @@ const AIDE_CONTENU = {
   alertes: {
     chauffeur: `<p>Cette rubrique est réservée à Angélique et Patrick, qui s'occupent du suivi des échéances (CT, entretien…) et de la prise des RV. Vous retrouvez les RV planifiés sur le tableau de bord et les dates de chaque véhicule dans « Véhicules ».</p>`,
     admin: `<p>Liste détaillée, en deux parties : <b>🚨 Urgent</b> (CT refusé/expiré, carte rouge, entretien dépassé…) puis <b>⚠️ À surveiller</b> (échéances proches, groupées par rubrique, y compris les RV déjà planifiés et les notes « 🔶 À suivre » du journal des véhicules). Les chiffres des pastilles du tableau de bord correspondent exactement à ces deux listes. Une permutation de pneus effectuée depuis 2 jours ou plus sans kilométrage y apparaît aussi (« Km de permutation manquant », rubrique 🛞 Pneus) jusqu'à ce que le km soit complété avec ✏️ dans l'historique des permutations. Cliquer sur une pastille ouvre cet onglet déjà filtré. L'onglet clignote et affiche une pastille (🚨 🔶 🔧) quand un RV est à prendre.</p>
-      <p>🛡 <b>Assurance</b> : un seul rappel (la date est la même pour tous les véhicules), <b>15 jours avant l'échéance</b> ; il reste affiché, signalé « expirée », tant que la date n'est pas mise à jour dans les fiches.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
+      <p>🛡 <b>Assurance</b> : un seul rappel (la date est la même pour tous les véhicules), <b>15 jours avant l'échéance</b> ; il reste affiché, signalé « expirée », tant que la date n'est pas mise à jour dans les fiches.</p>
+      <p>🎂 <b>10 ans du véhicule</b> : un rappel apparaît <b>1 mois avant</b> le 10ᵉ anniversaire de la mise en circulation (date de la fiche véhicule) et disparaît après la date. Il s'affiche dans les Alertes (« À surveiller »), dans la fenêtre de rappels à l'ouverture de l'app et dans la notification du résumé du jour. Le Peugeot 1RER037 (transport de matériel paramédical) n'est pas concerné.</p><p>Chaque alerte propose un raccourci « 📋 Prendre RV » qui ouvre directement le formulaire de RV pré-rempli.</p>`,
   },
   kilometrage: `<p>Graphique mensuel et tableau croisé des kilomètres par véhicule/année, imprimable. Consultation pour tous (chauffeurs compris, à titre d'information) : les chiffres viennent des relevés de maintenance mensuels saisis par Patrick.</p>`,
   calendrier: {
@@ -11760,6 +11761,26 @@ function goToAlertesFilter(level) {
 /* Retourne le RV actif (planifié, non annulé) le plus récent pour un véhicule + type */
 
 
+/* ── Rappel « 10 ans » : 1 mois avant le 10e anniversaire de la mise en circulation (jusqu'à la date, incluse) ──
+   Le Peugeot 1RER037 (transport de matériel paramédical, pas un taxi) n'est pas concerné. */
+const VEHICULES_SANS_RAPPEL_10_ANS = ['1RER037'];
+function vehiculesBientot10Ans() {
+  const auj = new Date(); auj.setHours(0, 0, 0, 0);
+  const finMois = (a, m) => new Date(a, m + 1, 0).getDate();           // dernier jour du mois m (0-11) de l'année a
+  const res = [];
+  vehicules.forEach(v => {
+    if (!v || v.archive || VEHICULES_SANS_RAPPEL_10_ANS.includes(v.id)) return;
+    const d = parseDate(v.mise_en_circulation);
+    if (!d) return;
+    const a = d.getFullYear() + 10, m = d.getMonth();
+    const anniv = new Date(a, m, Math.min(d.getDate(), finMois(a, m)));
+    const mDeb = m === 0 ? 11 : m - 1, aDeb = m === 0 ? a - 1 : a;       // même jour, un mois plus tôt
+    const debut = new Date(aDeb, mDeb, Math.min(d.getDate(), finMois(aDeb, mDeb)));
+    if (auj >= debut && auj <= anniv) res.push({ v, anniv, jours: Math.round((anniv - auj) / 86400000) });
+  });
+  return res;
+}
+
 function buildAlertes() {
   const alertes = [];
   vehicules.forEach(v => {
@@ -11936,6 +11957,13 @@ function buildAlertes() {
     });
   }
 
+  // ── Véhicule qui atteint 10 ans dans le mois ──
+  vehiculesBientot10Ans().forEach(x => {
+    alertes.push({ level:'warn', icon:'🎂', category:'age10', vehId:null, typeRV:null,
+      titre:`Bientôt 10 ans — ${x.v.marque} ${x.v.immat}`,
+      detail:`Mise en circulation le ${formatDate(x.v.mise_en_circulation)} : ${x.jours === 0 ? 'a 10 ans aujourd\'hui' : `10 ans le ${formatDate(toLocalYMD(x.anniv))} (dans ${x.jours} jour${x.jours > 1 ? 's' : ''})`}.` });
+  });
+
   // ── Permutation effectuée depuis 2 jours ou plus sans kilométrage ─────
   // Le km est demandé le jour J mais peut être sauté (« Enregistrer sans km »)
   // ou oublié ; sans ce rappel, seul le badge « km manquant » de l'historique
@@ -12076,6 +12104,7 @@ function renderAlertesFull() {
       { key:'entretien',  label:'🔧 Entretien garage' },
       { key:'extincteur', label:'🧯 Extincteurs' },
       { key:'assurance',  label:'🛡 Assurance' },
+      { key:'age10',      label:'🎂 Véhicule de bientôt 10 ans' },
       { key:'pneus',      label:'🛞 Pneus' },
       { key:'journal',    label:'📓 Journal véhicule' },
       { key:'spw',        label:'📋 Vignette SPW' },
@@ -16135,6 +16164,19 @@ function verifierEntretiensUrgents() {
     });
   }
 
+  // ── Véhicules qui atteignent 10 ans dans le mois ──
+  vehiculesBientot10Ans().forEach(x => {
+    items.push({
+      v: x.v, type: 'age10', priorite: PRIORITE.planifier,
+      _dateRef: x.anniv,
+      _icone: '\ud83c\udf82',
+      badge: '\u00c0 savoir', badgeCouleur: 'var(--orange)', badgeFond: '#fef5e7',
+      titre: x.v.marque + ' \u2014 ' + x.v.immat,
+      detail: x.jours === 0 ? 'A <b>10 ans aujourd\'hui</b>' : 'Atteint <b>10 ans</b> le ' + formatDate(toLocalYMD(x.anniv)) + ' (dans ' + x.jours + ' jour' + (x.jours > 1 ? 's' : '') + ')',
+      actionsHtml: '',
+    });
+  });
+
   // ── Rappels personnels (créés par Patrick/Angélique, liés ou non à un
   //    véhicule) — affichés dès que leur date prévue est atteinte, tant
   //    qu'ils ne sont pas marqués traités. Même popup, même tri chronologique.
@@ -18191,7 +18233,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261103.1830';
+const APP_VERSION = '261103.1900';
 
 let _swRegistration = null;
 
@@ -18264,12 +18306,15 @@ function construireResumeQuotidien() {
     });
   }
 
-  if (!urgentes.length && !rvProches.length && !infosActives.length) {
+  const age10 = _adm ? vehiculesBientot10Ans() : [];
+  age10.forEach(x => lignes.push(`🎂 ${x.v.immat} : 10 ans ${x.jours === 0 ? 'aujourd\'hui' : 'le ' + formatDate(toLocalYMD(x.anniv))}`));
+
+  if (!urgentes.length && !rvProches.length && !infosActives.length && !age10.length) {
     lignes.push(_adm ? '✅ Aucune alerte — tout est en ordre' : '✅ Rien de particulier aujourd\'hui');
     if (warns.length) lignes.push(`⚠️ ${warns.length} point${warns.length > 1 ? 's' : ''} à surveiller`);
   }
 
-  const nbTotal = urgentes.length + rvProches.length + infosActives.length;
+  const nbTotal = urgentes.length + rvProches.length + infosActives.length + age10.length;
   const titre   = nbTotal > 0
     ? `🚗 MCR Opont — ${nbTotal} info${nbTotal > 1 ? 's' : ''} du jour`
     : '🚗 MCR Opont — Résumé du jour';
