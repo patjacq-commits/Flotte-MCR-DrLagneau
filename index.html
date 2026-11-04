@@ -1741,7 +1741,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261103.2000</div>
+  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261104.0845</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -8142,7 +8142,7 @@ const AIDE_CONTENU = {
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Rendez-Vous »).</p>`,
   },
   vehicules: {
-    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date. Le n° de châssis s'affiche sous la plaque, sur une ligne dédiée pleine largeur (« VF1… (châssis) », en gras sur fond crème), directement sur la carte du véhicule, sans chevaucher les autres infos. Le bouton « 📋 Copier » copie le numéro et l'affiche en très grand dans une fenêtre, avec une version par groupes de 4 pour le dicter sans se tromper (à communiquer à l'assurance, au dépanneur, au contrôle technique…). Un appui sur le numéro le sélectionne aussi en entier. Les en-têtes des cartes d'une même rangée sont alignés. Le n° se saisit à la création du véhicule, ou une seule fois dans « ✏️ Modifier » (champ « 🔢 N° de châssis ») ; une fois rempli il est verrouillé (🔓 pour corriger une faute de frappe).</p>`,
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date. Le badge d'entretien de la carte affiche « ENT OK » (vert), « Entretien ⚠️ » en <b>orange</b> quand l'entretien approche (kilométrage restant sous le seuil, ou échéance à moins de 30 jours) sans qu'aucun critère soit dépassé, et « Entretien ⚠️ » en <b>rouge</b> dès que le kilométrage OU l'échéance à 1 an (VSL) / 2 ans (camionnette) est dépassé. Le n° de châssis s'affiche sous la plaque, sur une ligne dédiée pleine largeur (« VF1… (châssis) », en gras sur fond crème), directement sur la carte du véhicule, sans chevaucher les autres infos. Le bouton « 📋 Copier » copie le numéro et l'affiche en très grand dans une fenêtre, avec une version par groupes de 4 pour le dicter sans se tromper (à communiquer à l'assurance, au dépanneur, au contrôle technique…). Un appui sur le numéro le sélectionne aussi en entier. Les en-têtes des cartes d'une même rangée sont alignés. Le n° se saisit à la création du véhicule, ou une seule fois dans « ✏️ Modifier » (champ « 🔢 N° de châssis ») ; une fois rempli il est verrouillé (🔓 pour corriger une faute de frappe).</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
         <li>ℹ️ <b>Info / Immobilisation véhicule</b> (texte libre affiché dans « Infos spéciales ») : quand vous <b>remplacez ou effacez</b> une info déjà écrite (bouton ℹ️ de la fiche ou ✕ des Infos spéciales), l'app demande « Conserver l'ancienne info ? ». <b>Oui</b> : elle est rangée dans le 📓 Journal du véhicule (« Ancienne info », date d'origine, déjà « réglée », visible aussi dans le récapitulatif) ; <b>Non</b> : remplacée sans trace ; <b>Annuler</b> : rien ne change. Chaque changement est aussi écrit dans l'historique avec le texte complet.</li>
         <li>📓 <b>Journal</b> : le bouton « 📓 Journal » de la fiche permet de noter un événement sur le véhicule (voyant ou message au tableau de bord, incident, constat du garage…) avec la date, le km (facultatif) et une photo réduite (facultatif). Choisir « 🔶 À suivre » garde la note dans les alertes (⚠️ À surveiller, rubrique « 📓 Journal véhicule », avec le nombre de jours écoulés) jusqu'à ce que vous cliquiez sur « ✅ Marquer réglé » (la date et la solution du garage sont conservées). « ↩ Rouvrir » remet la note à suivre ; ✏️ la modifie ; 🗑 la supprime. Les notes apparaissent aussi dans le Récapitulatif du véhicule (filtre « 📓 Journal »). Réservé à Angélique et Patrick : les chauffeurs ne voient jamais ces notes.</li>
@@ -12194,6 +12194,20 @@ function renderVehicules() {
   document.getElementById('vehicules-grid').innerHTML = ordonnes.map(v => {
     const ct = ctStatus(v);
     const ent = entretienStatus(v);
+    // Badge « Entretien » de la carte (30/11) : 🟠 bientôt (ni le km ni la date limite ne sont dépassés),
+    // 🔴 dès qu'UN des deux critères (km ou échéance à 1 an / 2 ans) est dépassé, 🟢 sinon.
+    const entBadge = (() => {
+      const resteKm = (v.prochain_entretien_km != null && v.km != null) ? v.prochain_entretien_km - v.km : null;
+      const kmDepasse = resteKm !== null && resteKm < 0;
+      let jLim = null;
+      if (v.dernier_entretien_date) {
+        const dd = parseDate(v.dernier_entretien_date);
+        if (dd) { const lim = new Date(dd); lim.setFullYear(lim.getFullYear() + (v.type === 'Camionnette' ? 2 : 1)); jLim = Math.round((lim - TODAY) / 86400000); }
+      }
+      if (kmDepasse || (jLim !== null && jLim < 0)) return { cls: 'urgent', txt: 'Entretien ⚠️' };
+      if (ent.cls !== 'ok' || (jLim !== null && jLim <= 30)) return { cls: 'warn', txt: 'Entretien ⚠️' };
+      return { cls: 'ok', txt: 'ENT OK' };
+    })();
     const isCamion = v.type === 'Camionnette';
 
     // ── Kilométrage VÉHICULE (relevé courant) — affiché sur la carte.
@@ -12309,7 +12323,7 @@ function renderVehicules() {
         </div>
         <div class="veh-badges" style="flex-shrink:0">
           <span class="badge ${ct.cls}">${ct.cls==='ok'?'CT OK':ct.cls==='urgent'?'CT':'CT '+ct.cls.toUpperCase()}</span>
-          <span class="badge ${ent.cls}">${ent.cls==='ok'?'ENT OK':ent.cls==='urgent'?'ENT':'ENT '+ent.cls.toUpperCase()}</span>
+          <span class="badge ${entBadge.cls}">${entBadge.txt}</span>
         </div>
       </div>
       ${v.chassis ? `<div class="veh-chassis-row" style="padding:2px 14px 10px;border-bottom:1px solid var(--gris-bord);display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="veh-chassis" title="Touchez pour sélectionner tout le numéro" style="display:inline-block;max-width:100%;padding:3px 8px;background:#fffaf0;border:1.5px solid #e6c98a;border-radius:6px;font-family:monospace;font-size:14px;font-weight:800;letter-spacing:0.3px;color:#9a3412;white-space:nowrap;overflow-x:auto;user-select:all;-webkit-user-select:all">${echapperHtml(v.chassis)} <span style="font-family:inherit;font-size:11px;font-weight:700;letter-spacing:0">(châssis)</span></div><button class="btn btn-sm" style="flex-shrink:0" onclick="copierChassis(${jsArg(v.id)})" title="Copier le numéro et l'afficher en grand">📋 Copier</button></div>` : ''}
@@ -18289,7 +18303,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261103.2000';
+const APP_VERSION = '261104.0845';
 
 let _swRegistration = null;
 
