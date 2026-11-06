@@ -1741,7 +1741,7 @@ body.mode-gros-carac .veh-marque { font-size: 16px; }
   <button onclick="ouvrirModeEmploiComplet()" title="Mode d'emploi complet"
     style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0">📖</button>
 
-  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261104.0905</div>
+  <div id="version-badge" title="Appuyez pour rechercher une mise à jour" onclick="verifierMaj(true, true)" style="cursor:pointer;font-size:10px;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.8);padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0">v261106.1400</div>
 
   <!-- Rappel export Excel — masqué par défaut, affiché uniquement si des
        changements restent non exportés depuis 7 jours (voir
@@ -8142,7 +8142,7 @@ const AIDE_CONTENU = {
       <p>🔔 <b>Rappels à l'ouverture de l'app</b> : à chaque connexion (ou retour dans l'app), une fenêtre récapitule les CT/entretiens à traiter, les RV du jour ou dans les 48 h, vos rappels personnels et les bons de commande CT à imprimer (voir « Rendez-Vous »).</p>`,
   },
   vehicules: {
-    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date. Le badge d'entretien de la carte affiche « ENT OK » (vert), « Entretien ⚠️ » en <b>orange</b> quand l'entretien approche (kilométrage restant sous le seuil, ou échéance à moins de 30 jours) sans qu'aucun critère soit dépassé, et « Entretien ⚠️ » en <b>rouge</b> dès que le kilométrage OU l'échéance à 1 an (VSL) / 2 ans (camionnette) est dépassé. Le badge CT suit le même principe : « CT OK » (vert), « CT ⚠️ » en <b>orange</b> quand le contrôle technique expire dans 30 jours ou moins (ou si la date est inconnue), en <b>rouge</b> dès que la date de validité est dépassée. Le n° de châssis s'affiche sous la plaque, sur une ligne dédiée pleine largeur (« VF1… (châssis) », en gras sur fond crème), directement sur la carte du véhicule, sans chevaucher les autres infos. Le bouton « 📋 Copier » copie le numéro et l'affiche en très grand dans une fenêtre, avec une version par groupes de 4 pour le dicter sans se tromper (à communiquer à l'assurance, au dépanneur, au contrôle technique…). Un appui sur le numéro le sélectionne aussi en entier. Les en-têtes des cartes d'une même rangée sont alignés. Le n° se saisit à la création du véhicule, ou une seule fois dans « ✏️ Modifier » (champ « 🔢 N° de châssis ») ; une fois rempli il est verrouillé (🔓 pour corriger une faute de frappe).</p>`,
+    chauffeur: `<p>Consultation uniquement — fiche de chaque véhicule (📋 Détail, 🗂 Récapitulatif). Quand le véhicule a une photo, une petite vignette s'affiche à gauche de son nom : touchez-la pour l'agrandir (touchez à nouveau pour fermer). Un véhicule immobilisé affiche son motif et « jusqu'au … » si une date de fin est connue ; il redevient disponible automatiquement le lendemain de cette date. Le badge d'entretien de la carte affiche « ENT OK » (vert), « Entretien ⚠️ » en <b>orange</b> quand l'entretien approche (kilométrage restant sous le seuil, ou échéance à moins de 30 jours) sans qu'aucun critère soit dépassé, et « Entretien ⚠️ » en <b>rouge</b> dès que le kilométrage OU l'échéance à 1 an (VSL) / 2 ans (camionnette) est dépassé. Les RV garage et CT se clôturent aussi tout seuls : quand la fiche indique un dernier entretien à la date du RV ou après, ou une nouvelle date de CT, le RV « planifié » correspondant passe à « effectué ». Dans la fenêtre de rappels, ✅ Effectué d'un RV garage ouvre le formulaire (km + date) qui met la fiche à jour, et le bouton « Tout marquer effectué » solde d'un coup les RV en retard hors garage/CT (avec confirmation). La date d'échéance dépassée s'affiche en rouge sur la carte. Le badge CT suit le même principe : « CT OK » (vert), « CT ⚠️ » en <b>orange</b> quand le contrôle technique expire dans 30 jours ou moins (ou si la date est inconnue), en <b>rouge</b> dès que la date de validité est dépassée. Le n° de châssis s'affiche sous la plaque, sur une ligne dédiée pleine largeur (« VF1… (châssis) », en gras sur fond crème), directement sur la carte du véhicule, sans chevaucher les autres infos. Le bouton « 📋 Copier » copie le numéro et l'affiche en très grand dans une fenêtre, avec une version par groupes de 4 pour le dicter sans se tromper (à communiquer à l'assurance, au dépanneur, au contrôle technique…). Un appui sur le numéro le sélectionne aussi en entier. Les en-têtes des cartes d'une même rangée sont alignés. Le n° se saisit à la création du véhicule, ou une seule fois dans « ✏️ Modifier » (champ « 🔢 N° de châssis ») ; une fois rempli il est verrouillé (🔓 pour corriger une faute de frappe).</p>`,
     admin: `<ul style="margin:0;padding-left:20px">
         <li>ℹ️ <b>Info / Immobilisation véhicule</b> (texte libre affiché dans « Infos spéciales ») : quand vous <b>remplacez ou effacez</b> une info déjà écrite (bouton ℹ️ de la fiche ou ✕ des Infos spéciales), l'app demande « Conserver l'ancienne info ? ». <b>Oui</b> : elle est rangée dans le 📓 Journal du véhicule (« Ancienne info », date d'origine, déjà « réglée », visible aussi dans le récapitulatif) ; <b>Non</b> : remplacée sans trace ; <b>Annuler</b> : rien ne change. Chaque changement est aussi écrit dans l'historique avec le texte complet.</li>
         <li>📓 <b>Journal</b> : le bouton « 📓 Journal » de la fiche permet de noter un événement sur le véhicule (voyant ou message au tableau de bord, incident, constat du garage…) avec la date, le km (facultatif) et une photo réduite (facultatif). Choisir « 🔶 À suivre » garde la note dans les alertes (⚠️ À surveiller, rubrique « 📓 Journal véhicule », avec le nombre de jours écoulés) jusqu'à ce que vous cliquiez sur « ✅ Marquer réglé » (la date et la solution du garage sont conservées). « ↩ Rouvrir » remet la note à suivre ; ✏️ la modifie ; 🗑 la supprime. Les notes apparaissent aussi dans le Récapitulatif du véhicule (filtre « 📓 Journal »). Réservé à Angélique et Patrick : les chauffeurs ne voient jamais ces notes.</li>
@@ -12244,8 +12244,8 @@ function renderVehicules() {
         const limite = new Date(d);
         limite.setFullYear(limite.getFullYear() + (isCamion ? 2 : 1));
         const jLimite = Math.round((limite - TODAY) / 86400000);
-        const limCls = jLimite < 0 ? 'danger' : jLimite <= 30 ? 'warn' : '';
-        dateEntretienStr = ` <span class="${limCls}" style="font-size:11px">et/ou ${formatDate(toLocalYMD(limite))}</span>`;
+        const limCouleur = jLimite < 0 ? 'color:var(--rouge);font-weight:700;' : jLimite <= 30 ? 'color:var(--orange);font-weight:700;' : '';
+        dateEntretienStr = ` <span style="${limCouleur}font-size:11px">et/ou ${formatDate(toLocalYMD(limite))}${jLimite < 0 ? ' (⚠️ dépassé)' : ''}</span>`;
       }
     }
 
@@ -12967,6 +12967,7 @@ async function saveVehEdit(vehId) {
   if (!v) return;
 
   try {
+    const ancienCT = {}; ancienCT[v.id] = v.ct_valid || null;
     const fields = document.querySelectorAll('#veh-edit-fields input[data-key]');
     fields.forEach(f => {
       const key = f.dataset.key;
@@ -13007,6 +13008,9 @@ async function saveVehEdit(vehId) {
     // avec les données fraîchement écrites) ne rattrape l'affichage.
     window.vehicules = vehicules;
 
+    // Clôture automatique des RV garage/CT que cette fiche prouve effectués.
+    const nCloture = cloturerRVSelonFiches([v.id], ancienCT);
+
     // Attendre réellement la fin de saveAll() (async) avant de confirmer —
     // sans ce "await", le message "✅ Véhicule mis à jour" s'affichait
     // immédiatement, avant même de savoir si l'écriture Firestore avait
@@ -13022,7 +13026,8 @@ async function saveVehEdit(vehId) {
       confirm.style.display = '';
       setTimeout(() => { confirm.style.display = 'none'; }, 2000);
     }
-    toast('✅ Véhicule mis à jour');
+    toast('✅ Véhicule mis à jour' + (nCloture ? ' — ' + nCloture + ' RV clôturé' + (nCloture > 1 ? 's' : '') : ''));
+    if (nCloture) { try { renderTableRV(); } catch(e) {} }
 
   } catch(e) {
     // Toute erreur inattendue (champ manquant, valeur invalide, etc.) est
@@ -15546,6 +15551,7 @@ function _marquerRVEffectueSimple(id) {
   renderAccueil();
   renderVehicules();
   toast('✅ RV marqué effectué');
+  if (document.getElementById('modal-entretien-urgent') && typeof verifierEntretiensUrgents === 'function') verifierEntretiensUrgents();
 }
 
 function confirmerEntretienEffectue(id) {
@@ -15954,6 +15960,17 @@ function calculerSeuilRappelDynamique(vehId) {
 function verifierEntretiensUrgents() {
   if (!userIsAdmin()) return;
 
+  // Rattrapage : clôture les RV garage/CT dont la fiche véhicule prouve
+  // qu'ils ont eu lieu (voir cloturerRVSelonFiches).
+  if (vehicules.length && rendezvous.length) {
+    const nAuto = cloturerRVSelonFiches();
+    if (nAuto) {
+      saveAll();
+      try { renderTableRV(); renderAccueil(); } catch(e) {}
+      toast('\u2705 ' + nAuto + ' RV clôturé' + (nAuto > 1 ? 's' : '') + ' automatiquement (fiche véhicule à jour)');
+    }
+  }
+
   const seuilUrgent = 2500;
   const today       = toLocalYMD(new Date());
   const now         = Date.now();
@@ -16269,7 +16286,7 @@ function verifierEntretiensUrgents() {
   // ne plus ignorer un rappel pneus qui serait le SEUL \u00e9l\u00e9ment en attente :
   // l'ancienne garde, plac\u00e9e avant l'ajout des pneus au popup, coupait la
   // fonction court dans ce cas pr\u00e9cis et rendait le rappel invisible.
-  if (!items.length) return;
+  if (!items.length) { document.getElementById('modal-entretien-urgent')?.remove(); return; }
 
   // ── Tri chronologique global ──
   // Tous les rappels (CT, entretien garage, RV) triés ensemble par leur
@@ -16280,7 +16297,9 @@ function verifierEntretiensUrgents() {
   items.sort((a, b) => (a._dateRef?.getTime() || 0) - (b._dateRef?.getTime() || 0));
 
   const existing = document.getElementById('modal-entretien-urgent');
+  const scrollAvant = existing && existing.firstElementChild ? existing.firstElementChild.scrollTop : 0;
   if (existing) existing.remove();
+  const nbToutMarquer = rvEnRetardSansFiche().length;
 
   const corpsHtml = items.map(item =>
     '<div class="' + (item._ligneClignote ? 'ligne-rv-imminent' : '') + '" style="padding:10px 16px;border-top:0.5px solid var(--gris-bord)">'
@@ -16313,9 +16332,78 @@ function verifierEntretiensUrgents() {
     + '</div>'
     + '<button class="btn btn-sm" onclick="document.getElementById(\'modal-entretien-urgent\').remove()">Fermer</button>'
     + '</div>'
+    + (nbToutMarquer > 1
+        ? '<div style="padding:10px 16px;border-bottom:0.5px solid var(--gris-bord)">'
+          + '<button class="btn btn-sm" style="width:100%;background:var(--vert);color:#fff;border-color:var(--vert)" onclick="toutMarquerRVEffectue()">'
+          + '\u2705 Tout marquer effectu\u00e9 (' + nbToutMarquer + ' RV en retard hors garage/CT)</button></div>'
+        : '')
     + corpsHtml
     + '</div>';
   document.body.appendChild(div);
+  if (scrollAvant && div.firstElementChild) div.firstElementChild.scrollTop = scrollAvant;
+}
+
+// RV « en retard » (planifiés, date passée) qui n'ont pas de mise à jour de fiche
+// associée : tout sauf garage et CT, qui doivent passer par leur formulaire.
+function rvEnRetardSansFiche() {
+  const today = toLocalYMD(new Date());
+  const now = Date.now();
+  return rendezvous.filter(r => {
+    if (r.statut !== 'planifie') return false;
+    if (r.type === 'garage' || r.type === 'ct') return false;
+    if (r.date < today) return true;
+    if (r.date === today && r.heure) return new Date(r.date + 'T' + r.heure).getTime() < now;
+    return false;
+  });
+}
+
+async function toutMarquerRVEffectue() {
+  if (!userIsAdmin()) return;
+  const liste = rvEnRetardSansFiche();
+  if (!liste.length) return;
+  const ok = await demanderOuiNon('Tout marquer effectué ?',
+    liste.length + ' RV en retard (réparations, pneus, AdBlue, autres) seront marqués « effectué ».\n\n'
+    + 'Les RV garage et CT ne sont pas concernés : ils demandent le km / la date pour mettre la fiche du véhicule à jour.',
+    'Oui, tout marquer effectué', 'Annuler');
+  if (!ok) return;
+  liste.forEach(r => { r.statut = 'effectue'; propagerRVVersPermutation(r, 'effectue'); });
+  window.rendezvous = rendezvous;
+  await saveAll();
+  try { renderPneuRecap(); renderPneuHistorique(); } catch(e) {}
+  renderTableRV(); renderAccueil(); renderVehicules();
+  toast('✅ ' + liste.length + ' RV marqués effectués');
+  verifierEntretiensUrgents();
+}
+
+// ── Clôture automatique des RV d'après la fiche du véhicule ──
+// Garage : la fiche indique un dernier entretien daté à partir du RV → fait.
+// CT : la validité a été repoussée (nouvelle valeur > ancienne, ou, sans
+// ancienne valeur connue, d'au moins 180 jours après le RV) → fait.
+// Retourne le nombre de RV clôturés (l'appelant sauvegarde et rafraîchit).
+function cloturerRVSelonFiches(vehIds, anciensCT) {
+  const today = toLocalYMD(new Date());
+  let n = 0;
+  (rendezvous || []).forEach(r => {
+    if (r.statut !== 'planifie' || r.date > today) return;
+    if (vehIds && !vehIds.includes(r.vehId)) return;
+    const v = vehicules.find(x => x.id === r.vehId);
+    if (!v) return;
+    let ferme = false;
+    if (r.type === 'garage' && v.dernier_entretien_date && v.dernier_entretien_date >= r.date) ferme = true;
+    if (r.type === 'ct' && v.ct_valid) {
+      const ancien = anciensCT ? anciensCT[v.id] : undefined;
+      if (ancien !== undefined) {
+        if (ancien !== null && v.ct_valid > ancien) ferme = true;
+        else if (ancien === null && v.ct_valid > r.date) ferme = true;
+      } else {
+        const lim = new Date(r.date); lim.setDate(lim.getDate() + 180);
+        if (v.ct_valid >= toLocalYMD(lim)) ferme = true;
+      }
+    }
+    if (ferme) { r.statut = 'effectue'; r.clotureAuto = 'fiche'; n++; }
+  });
+  if (n) window.rendezvous = rendezvous;
+  return n;
 }
 
 
@@ -16343,6 +16431,13 @@ function traiterRVDepasse(id, action) {
     return;
   }
 
+  // Entretien garage « effectué » : demander km + date pour mettre la fiche
+  // du véhicule à jour (sinon le badge « Entretien » reste rouge).
+  if (action === 'effectue' && r.type === 'garage' && userIsAdmin()) {
+    ouvrirModalEntretienEffectue(id, false);
+    return;
+  }
+
   r.statut = action; // 'effectue' ou 'annule'
   window.rendezvous = rendezvous;
   propagerRVVersPermutation(r, action);
@@ -16361,6 +16456,7 @@ function traiterRVDepasse(id, action) {
   }
 
   toast(action === 'effectue' ? '✅ RV marqué effectué' : '❌ RV annulé');
+  if (typeof verifierEntretiensUrgents === 'function') verifierEntretiensUrgents();
 }
 
 // Aliases navigation
@@ -18303,7 +18399,7 @@ function toast(msg) {
 // CONTEXTUELLE") AVANT de bumper APP_VERSION, pour que l'aide (❓) ne
 // soit jamais en retard sur une seule version livrée.
 // ============================================================
-const APP_VERSION = '261104.0905';
+const APP_VERSION = '261106.1400';
 
 let _swRegistration = null;
 
